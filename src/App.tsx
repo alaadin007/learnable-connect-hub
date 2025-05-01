@@ -18,6 +18,7 @@ import TeacherStudents from "./pages/TeacherStudents";
 import TestAccounts from "./pages/TestAccounts";
 import AdminAnalytics from "./pages/AdminAnalytics";
 import TeacherAnalytics from "./pages/TeacherAnalytics";
+import ChatWithAI from "./pages/ChatWithAI";
 
 const queryClient = new QueryClient();
 
@@ -39,6 +40,13 @@ const App = () => (
             <Route path="/dashboard" element={
               <ProtectedRoute>
                 <Dashboard />
+              </ProtectedRoute>
+            } />
+
+            {/* Chat with AI route - accessible to all logged in users */}
+            <Route path="/chat" element={
+              <ProtectedRoute>
+                <ChatWithAI />
               </ProtectedRoute>
             } />
 

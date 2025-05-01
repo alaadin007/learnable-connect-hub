@@ -1,0 +1,160 @@
+
+import React, { useState, useRef, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { useToast } from "@/components/ui/use-toast";
+import { Loader2, Send } from "lucide-react";
+
+interface Message {
+  id: string;
+  content: string;
+  isUser: boolean;
+  timestamp: Date;
+}
+
+interface ChatInterfaceProps {
+  sessionId?: string;
+  topic?: string;
+  onSessionStart?: (sessionId: string) => void;
+}
+
+const ChatInterface = ({ sessionId, topic, onSessionStart }: ChatInterfaceProps) => {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [inputValue, setInputValue] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
+  
+  // Scroll to bottom whenever messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const handleSend = async () => {
+    if (!inputValue.trim()) return;
+    
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      content: inputValue.trim(),
+      isUser: true,
+      timestamp: new Date(),
+    };
+    
+    setMessages((prevMessages) => [...prevMessages, userMessage]);
+    setInputValue("");
+    setIsLoading(true);
+    
+    try {
+      // Call the ask-ai edge function
+      const { data, error } = await supabase.functions.invoke("ask-ai", {
+        body: {
+          question: userMessage.content,
+          sessionId: sessionId,
+          topic: topic,
+        },
+      });
+      
+      if (error) {
+        throw new Error(error.message);
+      }
+      
+      // Add AI response to messages
+      const aiMessage: Message = {
+        id: `ai-${Date.now()}`,
+        content: data.response,
+        isUser: false,
+        timestamp: new Date(),
+      };
+      
+      setMessages((prevMessages) => [...prevMessages, aiMessage]);
+      
+      // Handle session ID if provided by the callback
+      if (onSessionStart && data.sessionId && !sessionId) {
+        onSessionStart(data.sessionId);
+      }
+    } catch (error) {
+      console.error("Error calling ask-ai function:", error);
+      toast({
+        title: "Error",
+        description: "Failed to get a response from the AI. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  return (
+    <Card className="w-full h-[600px] flex flex-col">
+      <CardHeader>
+        <CardTitle>Chat with LearnAble AI</CardTitle>
+      </CardHeader>
+      
+      <CardContent className="flex-grow overflow-y-auto p-4">
+        <div className="space-y-4">
+          {messages.length === 0 ? (
+            <div className="text-center text-muted-foreground py-8">
+              Ask a question to start chatting with LearnAble AI
+            </div>
+          ) : (
+            messages.map((message) => (
+              <div
+                key={message.id}
+                className={`flex ${message.isUser ? "justify-end" : "justify-start"}`}
+              >
+                <div
+                  className={`max-w-[80%] rounded-lg p-3 ${
+                    message.isUser
+                      ? "bg-blue-500 text-white"
+                      : "bg-muted text-foreground"
+                  }`}
+                >
+                  <p className="whitespace-pre-wrap">{message.content}</p>
+                  <div
+                    className={`text-xs mt-1 ${
+                      message.isUser ? "text-blue-100" : "text-muted-foreground"
+                    }`}
+                  >
+                    {message.timestamp.toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+      </CardContent>
+      
+      <CardFooter>
+        <div className="flex w-full items-center space-x-2">
+          <Textarea
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Type your question here..."
+            className="flex-grow"
+            disabled={isLoading}
+          />
+          <Button onClick={handleSend} disabled={isLoading || !inputValue.trim()}>
+            {isLoading ? <Loader2 className="animate-spin" /> : <Send />}
+          </Button>
+        </div>
+      </CardFooter>
+    </Card>
+  );
+};
+
+export default ChatInterface;
