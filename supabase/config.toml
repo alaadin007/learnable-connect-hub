@@ -50,3 +50,6 @@ verify_jwt = true
 
 [functions.ask-ai]
 verify_jwt = true
+
+[functions.process-document]
+verify_jwt = true

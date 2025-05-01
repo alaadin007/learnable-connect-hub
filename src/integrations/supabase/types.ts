@@ -47,6 +47,44 @@ export type Database = {
           },
         ]
       }
+      document_content: {
+        Row: {
+          content: string | null
+          created_at: string
+          document_id: string
+          id: string
+          processing_status: string
+          section_number: number
+          updated_at: string
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string
+          document_id: string
+          id?: string
+          processing_status?: string
+          section_number?: number
+          updated_at?: string
+        }
+        Update: {
+          content?: string | null
+          created_at?: string
+          document_id?: string
+          id?: string
+          processing_status?: string
+          section_number?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_content_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documents: {
         Row: {
           created_at: string
@@ -54,6 +92,7 @@ export type Database = {
           file_type: string
           filename: string
           id: string
+          processing_status: string
           storage_path: string
           user_id: string
         }
@@ -63,6 +102,7 @@ export type Database = {
           file_type: string
           filename: string
           id?: string
+          processing_status?: string
           storage_path: string
           user_id: string
         }
@@ -72,6 +112,7 @@ export type Database = {
           file_type?: string
           filename?: string
           id?: string
+          processing_status?: string
           storage_path?: string
           user_id?: string
         }

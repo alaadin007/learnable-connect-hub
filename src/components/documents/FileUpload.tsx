@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -94,6 +95,22 @@ const FileUpload: React.FC = () => {
       setFile(selectedFile);
     }
   };
+  
+  // New function to trigger content processing after upload
+  const triggerContentProcessing = async (documentId: string) => {
+    try {
+      const { error } = await supabase.functions.invoke('process-document', {
+        body: { document_id: documentId }
+      });
+      
+      if (error) {
+        console.error('Error triggering document processing:', error);
+        // We don't show this error to the user since processing happens in background
+      }
+    } catch (err) {
+      console.error('Error calling process-document function:', err);
+    }
+  };
 
   const handleUpload = async () => {
     if (!file || !user) return;
@@ -116,9 +133,10 @@ const FileUpload: React.FC = () => {
       const fileExt = file.name.split('.').pop();
       const filePath = `${user.id}/${Date.now()}_${file.name}`;
 
-      // Create an XMLHttpRequest to track upload progress
+      // Use XMLHttpRequest to track upload progress
       const xhr = new XMLHttpRequest();
       
+      // Track upload progress
       xhr.upload.addEventListener('progress', (event) => {
         if (event.lengthComputable) {
           const percent = (event.loaded / event.total) * 100;
@@ -139,15 +157,18 @@ const FileUpload: React.FC = () => {
       }
       
       // Store metadata in documents table
-      const { error: metadataError } = await supabase
+      const { data: metadataData, error: metadataError } = await supabase
         .from('documents')
         .insert({
           user_id: user.id,
           filename: file.name,
           file_type: file.type,
           file_size: file.size,
-          storage_path: filePath
-        });
+          storage_path: filePath,
+          processing_status: 'pending'
+        })
+        .select()
+        .single();
       
       if (metadataError) {
         // If metadata storage fails, attempt to delete the uploaded file
@@ -155,9 +176,12 @@ const FileUpload: React.FC = () => {
         throw new Error(metadataError.message);
       }
       
+      // Trigger content processing
+      await triggerContentProcessing(metadataData.id);
+      
       toast({
         title: 'Upload Successful',
-        description: `${file.name} has been uploaded successfully.`
+        description: `${file.name} has been uploaded and is being processed.`
       });
       
       setFile(null);

@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { FileIcon, Trash2, ExternalLink, Download } from 'lucide-react';
+import { FileIcon, Trash2, ExternalLink, Download, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -17,6 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 
 type FileItem = {
   id: string;
@@ -25,12 +26,23 @@ type FileItem = {
   file_size: number;
   created_at: string;
   storage_path: string;
+  processing_status: string;
 };
+
+type DocumentContent = {
+  id: string;
+  document_id: string;
+  content: string;
+  section_number: number;
+}
 
 const FileList: React.FC = () => {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [fileToDelete, setFileToDelete] = useState<FileItem | null>(null);
+  const [selectedFile, setSelectedFile] = useState<FileItem | null>(null);
+  const [fileContent, setFileContent] = useState<DocumentContent | null>(null);
+  const [showContent, setShowContent] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -63,6 +75,32 @@ const FileList: React.FC = () => {
 
   useEffect(() => {
     fetchFiles();
+
+    // Set up a real-time subscription to detect changes to documents
+    if (user) {
+      const channel = supabase
+        .channel('public:documents')
+        .on('postgres_changes', 
+          { 
+            event: 'UPDATE', 
+            schema: 'public', 
+            table: 'documents'
+          }, 
+          (payload) => {
+            // Update the file in our state if it exists
+            setFiles(currentFiles => 
+              currentFiles.map(file => 
+                file.id === payload.new.id ? {...file, ...payload.new} : file
+              )
+            );
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
   }, [user]);
 
   const getFileIcon = (fileType: string) => {
@@ -170,6 +208,101 @@ const FileList: React.FC = () => {
     }
   };
 
+  const viewExtractedContent = async (file: FileItem) => {
+    try {
+      setSelectedFile(file);
+      
+      // Only fetch content if processing is complete
+      if (file.processing_status === 'completed') {
+        const { data, error } = await supabase
+          .from('document_content')
+          .select('*')
+          .eq('document_id', file.id)
+          .order('section_number', { ascending: true })
+          .maybeSingle();
+          
+        if (error) {
+          throw new Error(error.message);
+        }
+        
+        setFileContent(data);
+        setShowContent(true);
+      } else {
+        toast({
+          title: 'Content Not Available',
+          description: 'The document content is still being processed.',
+          variant: 'default',
+        });
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to fetch document content',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const getProcessingStatusBadge = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return <Badge variant="outline" className="text-yellow-600 bg-yellow-50">Pending</Badge>;
+      case 'processing':
+        return <Badge variant="outline" className="text-blue-600 bg-blue-50">Processing</Badge>;
+      case 'completed':
+        return <Badge variant="outline" className="text-green-600 bg-green-50">Processed</Badge>;
+      case 'error':
+        return <Badge variant="outline" className="text-red-600 bg-red-50">Error</Badge>;
+      case 'unsupported':
+        return <Badge variant="outline" className="text-gray-600 bg-gray-50">Unsupported</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
+  // Function to retrigger processing for failed documents
+  const retryProcessing = async (file: FileItem) => {
+    try {
+      // Update processing status back to pending
+      const { error: updateError } = await supabase
+        .from('documents')
+        .update({ processing_status: 'pending' })
+        .eq('id', file.id);
+        
+      if (updateError) {
+        throw new Error(updateError.message);
+      }
+      
+      // Trigger processing function
+      const { error } = await supabase.functions.invoke('process-document', {
+        body: { document_id: file.id }
+      });
+      
+      if (error) {
+        throw new Error(error.message);
+      }
+      
+      toast({
+        title: 'Processing Restarted',
+        description: 'Document processing has been restarted.'
+      });
+      
+      // Update the file in state
+      setFiles(currentFiles => 
+        currentFiles.map(f => 
+          f.id === file.id ? {...f, processing_status: 'pending'} : f
+        )
+      );
+      
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to restart processing',
+        variant: 'destructive',
+      });
+    }
+  };
+
   return (
     <div>
       <h3 className="text-lg font-medium mb-4">Your Files</h3>
@@ -198,9 +331,14 @@ const FileList: React.FC = () => {
                     <FileIcon className="h-10 w-10 text-blue-500" />
                   </div>
                   <div className="flex-grow min-w-0">
-                    <p className="font-medium text-sm truncate" title={file.filename}>
-                      {file.filename}
-                    </p>
+                    <div className="flex items-center">
+                      <p className="font-medium text-sm truncate flex-grow" title={file.filename}>
+                        {file.filename}
+                      </p>
+                      <div className="ml-2">
+                        {getProcessingStatusBadge(file.processing_status)}
+                      </div>
+                    </div>
                     <div className="flex items-center text-xs text-gray-500">
                       <span>{formatFileSize(file.file_size)}</span>
                       <span className="mx-1.5">•</span>
@@ -210,6 +348,26 @@ const FileList: React.FC = () => {
                     </div>
                   </div>
                   <div className="flex items-center space-x-1 ml-2">
+                    {file.processing_status === 'completed' && (
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={() => viewExtractedContent(file)}
+                        title="View Extracted Content"
+                      >
+                        <CheckCircle2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {(file.processing_status === 'error' || file.processing_status === 'unsupported') && (
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={() => retryProcessing(file)}
+                        title="Retry Processing"
+                      >
+                        <AlertCircle className="h-4 w-4 text-amber-500" />
+                      </Button>
+                    )}
                     <Button 
                       variant="ghost" 
                       size="icon" 
@@ -262,6 +420,28 @@ const FileList: React.FC = () => {
             >
               Delete
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Document Content Dialog */}
+      <AlertDialog open={showContent} onOpenChange={setShowContent}>
+        <AlertDialogContent className="max-w-3xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Extracted Content</AlertDialogTitle>
+            <AlertDialogDescription>
+              Extracted text from {selectedFile?.filename}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="max-h-[60vh] overflow-y-auto p-4 bg-gray-50 rounded border">
+            {fileContent?.content ? (
+              <pre className="whitespace-pre-wrap text-sm">{fileContent.content}</pre>
+            ) : (
+              <p className="text-gray-500">No content extracted.</p>
+            )}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogAction>Close</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
