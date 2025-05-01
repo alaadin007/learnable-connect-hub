@@ -59,32 +59,30 @@ const TeacherManagement = () => {
         if (invitationsError) throw invitationsError;
         setInvitations(invitationsData || []);
 
-        // Fetch teachers - fix the query to properly join with profiles
+        // Fetch teachers with their IDs and supervisor status
         const { data: teachersData, error: teachersError } = await supabase
           .from("teachers")
-          .select(`
-            id, 
-            is_supervisor,
-            profiles:id(full_name)
-          `)
+          .select(`id, is_supervisor`)
           .order("is_supervisor", { ascending: false });
 
         if (teachersError) throw teachersError;
 
-        // Get emails for the teachers
+        // Get profile information for the teachers
         const teachersWithProfiles = await Promise.all((teachersData || []).map(async (teacher) => {
-          // This is a simplification - in production, use a secure RPC to get emails
+          // Fetch profile data (which has full_name)
           const { data: profileData } = await supabase
             .from("profiles")
-            .select("email, full_name")
+            .select("full_name")
             .eq("id", teacher.id)
             .single();
 
+          // For this application, we'll use the user ID as the email identifier
+          // In a real production app, you would implement a secure way to access user emails
           return {
             id: teacher.id,
             is_supervisor: teacher.is_supervisor,
             full_name: profileData?.full_name || null,
-            email: profileData?.email || teacher.id || 'Unknown',
+            email: teacher.id, // Using ID as email placeholder
           };
         }));
 
@@ -181,7 +179,7 @@ const TeacherManagement = () => {
                 <thead>
                   <tr className="border-b">
                     <th className="text-left py-2 px-1">Name</th>
-                    <th className="text-left py-2 px-1">Email</th>
+                    <th className="text-left py-2 px-1">ID</th>
                     <th className="text-left py-2 px-1">Role</th>
                   </tr>
                 </thead>
@@ -189,7 +187,7 @@ const TeacherManagement = () => {
                   {teachers.map((teacher) => (
                     <tr key={teacher.id} className="border-b hover:bg-muted/50">
                       <td className="py-2 px-1">{teacher.full_name || "Not provided"}</td>
-                      <td className="py-2 px-1">{teacher.email}</td>
+                      <td className="py-2 px-1">{teacher.id}</td>
                       <td className="py-2 px-1">
                         {teacher.is_supervisor ? (
                           <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded">
