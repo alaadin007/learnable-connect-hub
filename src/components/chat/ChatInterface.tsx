@@ -10,7 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import VoiceRecorder from "./VoiceRecorder"; // Import the new component
+import VoiceRecorder from "./VoiceRecorder"; // Import the voice recorder component
+import TextToSpeech from "./TextToSpeech"; // Import the new component
 
 interface Message {
   id: string;
@@ -241,7 +242,14 @@ const ChatInterface = ({ sessionId, topic, onSessionStart }: ChatInterfaceProps)
                         : "bg-muted text-foreground"
                     }`}
                   >
-                    <p className="whitespace-pre-wrap">{message.content}</p>
+                    <div className="flex justify-between items-start">
+                      <p className="whitespace-pre-wrap flex-grow">{message.content}</p>
+                      {!message.isUser && (
+                        <div className="ml-2 mt-1">
+                          <TextToSpeech text={message.content} />
+                        </div>
+                      )}
+                    </div>
                     
                     {/* Source Citations */}
                     {!message.isUser && message.sourceCitations && message.sourceCitations.length > 0 && (
