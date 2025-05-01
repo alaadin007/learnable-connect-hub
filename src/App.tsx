@@ -16,6 +16,8 @@ import TeacherInvitation from "./pages/TeacherInvitation";
 import AdminTeachers from "./pages/AdminTeachers";
 import TeacherStudents from "./pages/TeacherStudents";
 import TestAccounts from "./pages/TestAccounts";
+import AdminAnalytics from "./pages/AdminAnalytics";
+import TeacherAnalytics from "./pages/TeacherAnalytics";
 
 const queryClient = new QueryClient();
 
@@ -65,6 +67,19 @@ const App = () => (
             <Route path="/teacher/students" element={
               <ProtectedRoute allowedRoles={['school', 'teacher']}>
                 <TeacherStudents />
+              </ProtectedRoute>
+            } />
+            
+            {/* New Analytics pages */}
+            <Route path="/admin/analytics" element={
+              <ProtectedRoute allowedRoles={['school']} requireSupervisor={true}>
+                <AdminAnalytics />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/teacher/analytics" element={
+              <ProtectedRoute allowedRoles={['teacher']}>
+                <TeacherAnalytics />
               </ProtectedRoute>
             } />
             

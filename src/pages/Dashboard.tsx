@@ -272,13 +272,36 @@ const Dashboard = () => {
           </CardHeader>
           <CardContent className="space-y-2">
             {userRole === 'school' && isSuperviser && (
+              <>
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start"
+                  asChild
+                >
+                  <Link to="/school-admin">
+                    <School className="mr-2 h-4 w-4" /> School Admin Panel
+                  </Link>
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start"
+                  asChild
+                >
+                  <Link to="/admin/analytics">
+                    <BarChart2 className="mr-2 h-4 w-4" /> Analytics Dashboard
+                  </Link>
+                </Button>
+              </>
+            )}
+            
+            {userRole === 'teacher' && (
               <Button 
                 variant="outline" 
                 className="w-full justify-start"
                 asChild
               >
-                <Link to="/school-admin">
-                  <School className="mr-2 h-4 w-4" /> School Admin Panel
+                <Link to="/teacher/analytics">
+                  <BarChart2 className="mr-2 h-4 w-4" /> Analytics Dashboard
                 </Link>
               </Button>
             )}
@@ -306,14 +329,6 @@ const Dashboard = () => {
                 </Link>
               </Button>
             )}
-            
-            <Button 
-              variant="outline" 
-              className="w-full justify-start"
-              onClick={() => toast.info("Reports and analytics coming soon.")}
-            >
-              <BarChart2 className="mr-2 h-4 w-4" /> View Reports
-            </Button>
           </CardContent>
         </Card>
       </div>
