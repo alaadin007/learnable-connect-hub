@@ -15,15 +15,20 @@ interface UserProfile {
   updated_at: string;
 }
 
+export type UserRole = 'school' | 'teacher' | 'student';
+
 interface AuthContextType {
   session: Session | null;
   user: User | null;
   profile: UserProfile | null;
   loading: boolean;
   isSuperviser: boolean;
+  userRole: UserRole | null;
+  schoolId: string | null;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, metadata: any) => Promise<void>;
   signOut: () => Promise<void>;
+  refreshUserData: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -34,7 +39,56 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSuperviser, setIsSuperviser] = useState(false);
+  const [userRole, setUserRole] = useState<UserRole | null>(null);
+  const [schoolId, setSchoolId] = useState<string | null>(null);
   const navigate = useNavigate();
+
+  const fetchUserData = async (userId: string) => {
+    try {
+      // Fetch user profile
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (profileError) {
+        console.error("Error fetching profile:", profileError);
+        return;
+      }
+
+      if (profileData) {
+        setProfile(profileData as UserProfile);
+        setUserRole(profileData.user_type as UserRole);
+        
+        // Check if user is a supervisor
+        if (profileData.user_type === 'school' || profileData.user_type === 'teacher') {
+          const { data: supervisorData, error: supervisorError } = await supabase
+            .rpc('is_supervisor', { user_id: userId });
+            
+          if (!supervisorError) {
+            setIsSuperviser(supervisorData || false);
+          }
+        }
+
+        // Get school ID
+        const { data: schoolIdData, error: schoolIdError } = await supabase
+          .rpc('get_user_school_id');
+
+        if (!schoolIdError && schoolIdData) {
+          setSchoolId(schoolIdData);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching user data:", error);
+    }
+  };
+
+  const refreshUserData = async () => {
+    if (user) {
+      await fetchUserData(user.id);
+    }
+  };
 
   useEffect(() => {
     // Set up auth state listener FIRST
@@ -43,14 +97,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setSession(newSession);
         setUser(newSession?.user ?? null);
         
-        // Defer fetching user profile using setTimeout
-        if (newSession?.user) {
-          setTimeout(() => {
-            fetchProfile(newSession.user.id);
-          }, 0);
-        } else {
+        // Reset state if user logs out
+        if (!newSession?.user) {
           setProfile(null);
           setIsSuperviser(false);
+          setUserRole(null);
+          setSchoolId(null);
+        } else {
+          // Defer fetching user profile using setTimeout
+          setTimeout(() => {
+            fetchUserData(newSession.user.id);
+          }, 0);
         }
 
         // Handle sign-in and sign-out events
@@ -70,44 +127,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setUser(currentSession?.user ?? null);
       
       if (currentSession?.user) {
-        fetchProfile(currentSession.user.id);
+        fetchUserData(currentSession.user.id);
       }
       setLoading(false);
     });
 
     return () => subscription.unsubscribe();
   }, [navigate]);
-
-  const fetchProfile = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
-      if (error) {
-        console.error("Error fetching profile:", error);
-        return;
-      }
-
-      if (data) {
-        setProfile(data as UserProfile);
-        
-        // Check if user is a supervisor
-        if (data.user_type === 'school' || data.user_type === 'teacher') {
-          const { data: supervisorData, error: supervisorError } = await supabase
-            .rpc('is_supervisor', { user_id: userId });
-            
-          if (!supervisorError) {
-            setIsSuperviser(supervisorData || false);
-          }
-        }
-      }
-    } catch (error) {
-      console.error("Error fetching profile:", error);
-    }
-  };
 
   const signIn = async (email: string, password: string) => {
     try {
@@ -169,9 +195,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         profile,
         loading,
         isSuperviser,
+        userRole,
+        schoolId,
         signIn,
         signUp,
         signOut,
+        refreshUserData,
       }}
     >
       {children}

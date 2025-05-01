@@ -19,11 +19,33 @@ const AppRoutes = () => (
     <Route path="/" element={<Index />} />
     <Route path="/login" element={<Login />} />
     <Route path="/register" element={<Register />} />
+
+    {/* Basic protected route - just requires authentication */}
     <Route path="/dashboard" element={
       <ProtectedRoute>
         <Dashboard />
       </ProtectedRoute>
     } />
+
+    {/* Protected routes with role-based access control */}
+    <Route path="/school-admin" element={
+      <ProtectedRoute allowedRoles={['school']} requireSupervisor={true}>
+        <div>School Admin Dashboard</div>
+      </ProtectedRoute>
+    } />
+    
+    <Route path="/teachers" element={
+      <ProtectedRoute allowedRoles={['school', 'teacher']}>
+        <div>Teachers Dashboard</div>
+      </ProtectedRoute>
+    } />
+    
+    <Route path="/students" element={
+      <ProtectedRoute allowedRoles={['school', 'teacher', 'student']}>
+        <div>Students Dashboard</div>
+      </ProtectedRoute>
+    } />
+
     {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
     <Route path="*" element={<NotFound />} />
   </Routes>

@@ -161,8 +161,20 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_school_code: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
       get_school_name_from_code: {
         Args: { code: string }
+        Returns: string
+      }
+      get_user_role: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      get_user_school_id: {
+        Args: Record<PropertyKey, never>
         Returns: string
       }
       is_supervisor: {

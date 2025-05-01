@@ -1,19 +1,23 @@
 
 import { Navigate, useLocation } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth, UserRole } from "@/contexts/AuthContext";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  allowedRoles?: Array<'school' | 'teacher' | 'student'>;
+  allowedRoles?: Array<UserRole>;
   requireSupervisor?: boolean;
+  requireSameSchool?: boolean;
+  schoolId?: string;
 }
 
 const ProtectedRoute = ({ 
   children, 
   allowedRoles, 
-  requireSupervisor = false 
+  requireSupervisor = false,
+  requireSameSchool = false,
+  schoolId
 }: ProtectedRouteProps) => {
-  const { user, profile, isSuperviser, loading } = useAuth();
+  const { user, profile, isSuperviser, loading, userRole, schoolId: userSchoolId } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -26,12 +30,17 @@ const ProtectedRoute = ({
   }
 
   // If we require specific roles and the user doesn't have one of them
-  if (allowedRoles && profile && !allowedRoles.includes(profile.user_type)) {
+  if (allowedRoles && userRole && !allowedRoles.includes(userRole)) {
     return <Navigate to="/dashboard" replace />;
   }
 
   // If we require supervisor access and the user isn't a supervisor
   if (requireSupervisor && !isSuperviser) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  // If we require same school access and the school IDs don't match
+  if (requireSameSchool && schoolId && userSchoolId && schoolId !== userSchoolId) {
     return <Navigate to="/dashboard" replace />;
   }
 
