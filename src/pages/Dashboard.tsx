@@ -1,19 +1,56 @@
-
-import React from "react";
+import React, { useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MessageSquare, Users, Book, BarChart2, UserPlus, School, LogOut } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { sessionLogger } from "@/utils/sessionLogging";
 
 // Placeholder dashboard - will be expanded in future iterations
 const Dashboard = () => {
   const { userRole, isSuperviser, signOut } = useAuth();
   
   const handleSignOut = async () => {
+    // If there's an active session, end it before signing out
+    if (sessionLogger.hasActiveSession()) {
+      try {
+        await sessionLogger.endSession();
+        console.log("Session ended on sign out");
+      } catch (error) {
+        console.error("Failed to end session on sign out:", error);
+      }
+    }
+    
     await signOut();
   };
+  
+  // Start a session when the dashboard is loaded
+  useEffect(() => {
+    // Only start tracking for student users
+    if (userRole === 'student') {
+      const startDashboardSession = async () => {
+        try {
+          const sessionId = await sessionLogger.startSession('Dashboard exploration');
+          console.log("Started session tracking with ID:", sessionId);
+        } catch (error) {
+          console.error("Failed to start session tracking:", error);
+          // Don't show error to user, just log it
+        }
+      };
+      
+      startDashboardSession();
+      
+      // Clean up session when component unmounts
+      return () => {
+        if (sessionLogger.hasActiveSession()) {
+          sessionLogger.endSession()
+            .then(() => console.log("Dashboard session ended"))
+            .catch(err => console.error("Failed to end dashboard session:", err));
+        }
+      };
+    }
+  }, [userRole]);
   
   return (
     <div className="container mx-auto p-6">
