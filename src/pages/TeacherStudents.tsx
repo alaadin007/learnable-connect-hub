@@ -20,23 +20,35 @@ import {
 import { toast } from "sonner";
 import { Copy, Mail, UserCheck, UserX } from "lucide-react";
 
-// Define simple interfaces with primitive types only - no nested types
+// Define flat interfaces using only primitive types to prevent recursion
 interface Student {
   id: string;
   created_at: string;
   updated_at: string;
   status: string;
-  full_name?: string;
-  email?: string;
+  full_name: string | null;
+  email: string | null;
 }
 
 interface StudentInvite {
   id: string;
-  token?: string;
-  email?: string;
+  token: string | null;
+  email: string | null;
   created_at: string;
   expires_at: string;
   status: string;
+}
+
+// Type for the raw database return to avoid inference issues
+interface RawStudentData {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  status: string | null;
+  profiles: {
+    full_name: string | null;
+    email: string | null;
+  } | null;
 }
 
 const TeacherStudents = () => {
@@ -47,7 +59,7 @@ const TeacherStudents = () => {
   const [inviteMethod, setInviteMethod] = useState<"code" | "email">("code");
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
 
-  // Fetch students with explicit typing
+  // Fetch students with explicit typing and manual transformations
   const {
     data: students,
     isLoading: studentsLoading,
@@ -57,7 +69,6 @@ const TeacherStudents = () => {
     queryFn: async () => {
       if (!schoolId) return [] as Student[];
       
-      // Use type assertion to handle complex nested data
       const { data, error } = await supabase
         .from('students')
         .select(`
@@ -71,20 +82,28 @@ const TeacherStudents = () => {
         
       if (error) throw error;
       
-      // Transform the data to flatten the structure with explicit typing
-      return (data || []).map((student: any) => ({
-        id: student.id,
-        created_at: student.created_at,
-        updated_at: student.updated_at,
-        status: student.status || 'active',
-        full_name: student.profiles?.full_name,
-        email: student.profiles?.email
-      })) as Student[];
+      // Use a deliberately flat mapping approach with explicit typing
+      const studentsArray: Student[] = [];
+      
+      if (data) {
+        for (const item of data as RawStudentData[]) {
+          studentsArray.push({
+            id: item.id,
+            created_at: item.created_at,
+            updated_at: item.updated_at,
+            status: item.status || 'active',
+            full_name: item.profiles?.full_name || null,
+            email: item.profiles?.email || null
+          });
+        }
+      }
+      
+      return studentsArray;
     },
     enabled: !!schoolId
   });
 
-  // Fetch student invites with completely explicit typing to avoid recursion
+  // Fetch student invites with manual type handling to prevent recursion
   const {
     data: invites,
     isLoading: invitesLoading,
@@ -94,29 +113,28 @@ const TeacherStudents = () => {
     queryFn: async () => {
       if (!schoolId || !user?.id) return [] as StudentInvite[];
       
-      // Use raw query format to avoid TypeScript issues
+      // Use a raw query approach with minimal type inference
       const result = await supabase
         .from('teacher_invites')
-        .select('id, token, email, created_at, expires_at, status')
+        .select('*')
         .eq('school_id', schoolId)
         .eq('teacher_id', user.id)
         .order('created_at', { ascending: false });
       
-      // Handle errors explicitly
       if (result.error) {
         console.error("Error fetching student invites:", result.error);
         throw result.error;
       }
       
-      // Manual type conversion to avoid any TypeScript inference issues
+      // Manual conversion with explicit types
       const inviteResults: StudentInvite[] = [];
       
       if (result.data) {
         for (const item of result.data) {
           inviteResults.push({
             id: item.id || '',
-            token: item.token,
-            email: item.email,
+            token: item.token || null,
+            email: item.email || null,
             created_at: item.created_at || '',
             expires_at: item.expires_at || '',
             status: item.status || 'pending'
