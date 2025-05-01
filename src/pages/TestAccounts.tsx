@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Footer from "@/components/landing/Footer";
 import { Link } from "react-router-dom";
+import { AlertCircle } from "lucide-react";
 
 const TestAccounts = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -181,7 +182,7 @@ const TestAccounts = () => {
             <CardHeader className="space-y-1">
               <CardTitle className="text-2xl font-bold">Test Accounts</CardTitle>
               <CardDescription>
-                Create test accounts for different user roles
+                Create test accounts for different user roles with automatic login
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -197,12 +198,20 @@ const TestAccounts = () => {
               )}
 
               <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-md">
-                <p className="text-blue-800">
-                  <strong>Important:</strong> Test accounts with "@testschool.edu" domains will be automatically logged in.
-                </p>
-                <p className="text-sm text-blue-700 mt-1">
-                  These accounts bypass email verification for easier testing and development.
-                </p>
+                <div className="flex">
+                  <AlertCircle className="h-5 w-5 text-blue-800 mr-2 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-blue-800 font-semibold">
+                      Development Mode: Instant Login Enabled
+                    </p>
+                    <p className="text-sm text-blue-700 mt-1">
+                      All accounts using the <strong>@testschool.edu</strong> domain will be automatically logged in without email verification.
+                    </p>
+                    <p className="text-sm text-blue-700 mt-1">
+                      This makes testing different user roles quick and easy during development.
+                    </p>
+                  </div>
+                </div>
               </div>
 
               <Tabs defaultValue="school" className="w-full">
@@ -386,10 +395,11 @@ const TestAccounts = () => {
               <div className="w-full p-4 bg-blue-50 border border-blue-200 rounded-md">
                 <h3 className="font-semibold text-blue-800 mb-2">Testing Instructions:</h3>
                 <ol className="list-decimal list-inside text-blue-700 space-y-1">
-                  <li>Start by registering a School Admin account</li>
-                  <li>Use the generated school code to register teacher accounts</li>
-                  <li>Use the same school code to register student accounts</li>
-                  <li>Log in with each account type to test role-specific features</li>
+                  <li>Register a School Admin account - you'll be automatically logged in</li>
+                  <li>Copy the generated school code for other account types</li>
+                  <li>Sign out and register a Teacher account with the school code</li>
+                  <li>Sign out and register a Student account with the school code</li>
+                  <li>Switch between accounts to test role-specific features</li>
                 </ol>
               </div>
               <p className="text-sm text-gray-600 text-center w-full">

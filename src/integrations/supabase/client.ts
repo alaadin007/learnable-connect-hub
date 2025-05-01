@@ -17,7 +17,13 @@ export const supabase = createClient<Database>(
       autoRefreshToken: true,
       persistSession: true,
       detectSessionInUrl: true,
-      flowType: 'pkce' // Use PKCE flow for more security but better compatibility
+      flowType: 'pkce', // Use PKCE flow for more security but better compatibility
+      debug: process.env.NODE_ENV === 'development' // Enable debug mode in development
     }
   }
 );
+
+// Helper function to detect test accounts
+export const isTestAccount = (email: string): boolean => {
+  return email.endsWith('@testschool.edu');
+};

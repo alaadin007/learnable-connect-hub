@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { Session, User } from "@supabase/supabase-js";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, isTestAccount } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -94,6 +94,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, newSession) => {
+        console.log("Auth state change:", event, newSession?.user?.email);
+        
         setSession(newSession);
         setUser(newSession?.user ?? null);
         
@@ -112,7 +114,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
         // Handle sign-in and sign-out events
         if (event === 'SIGNED_IN') {
-          toast.success("Signed in successfully!");
+          const email = newSession?.user?.email;
+          const isTest = email ? isTestAccount(email) : false;
+          const message = isTest ? "Test account signed in successfully!" : "Signed in successfully!";
+          toast.success(message);
           navigate('/dashboard');
         } else if (event === 'SIGNED_OUT') {
           toast.info("Signed out successfully!");
@@ -123,6 +128,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     // THEN check for existing session
     supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+      console.log("Initial session check:", currentSession?.user?.email);
       setSession(currentSession);
       setUser(currentSession?.user ?? null);
       
@@ -137,6 +143,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const signIn = async (email: string, password: string) => {
     try {
+      console.log("Attempting to sign in:", email);
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -154,41 +161,61 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const signUp = async (email: string, password: string, metadata: any) => {
     try {
-      // Check if this is a test account by looking at the email domain
-      const isTestAccount = email.endsWith('@testschool.edu');
+      console.log("Registering account:", email, "with type:", metadata.user_type);
       
-      // For test accounts, directly sign in after registration to bypass email verification
-      if (isTestAccount) {
-        // Special handling for test accounts to bypass email verification
+      // Check if this is a test account by looking at the email domain
+      if (isTestAccount(email)) {
         console.log("Creating test account with direct login:", email);
         
-        // First attempt to create the user
-        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: metadata,
-            emailRedirectTo: window.location.origin + '/dashboard',
+        // For test accounts, try signin first (in case account already exists)
+        let existingAccount = false;
+        try {
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email,
+            password
+          });
+          
+          if (!error && data.user) {
+            console.log("Test account already exists, signed in directly");
+            existingAccount = true;
+            toast.success("Test account signed in successfully!");
+            return;
           }
-        });
-
-        if (signUpError) {
-          toast.error(signUpError.message);
-          throw signUpError;
+        } catch (err) {
+          console.log("Test account doesn't exist yet, will create it:", err);
         }
         
-        // Even if the account already exists, try to sign in immediately
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password
-        });
+        if (!existingAccount) {
+          // Create the account if it doesn't exist
+          console.log("Creating new test account:", email);
+          const { data, error } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              data: metadata,
+              emailRedirectTo: window.location.origin + '/dashboard',
+            }
+          });
 
-        if (signInError) {
-          toast.error(signInError.message);
-          throw signInError;
+          if (error) {
+            toast.error(error.message);
+            throw error;
+          }
+          
+          // Sign in immediately after account creation
+          console.log("Test account created, signing in directly");
+          const { error: signInError } = await supabase.auth.signInWithPassword({
+            email,
+            password
+          });
+
+          if (signInError) {
+            toast.error(signInError.message);
+            throw signInError;
+          }
+          
+          toast.success("Test account created and signed in!");
         }
-
-        toast.success("Test account authenticated successfully!");
       } else {
         // Normal sign up flow with email verification
         const { error } = await supabase.auth.signUp({
@@ -215,6 +242,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const signOut = async () => {
     try {
+      console.log("Signing out");
       const { error } = await supabase.auth.signOut();
       if (error) {
         toast.error(error.message);
