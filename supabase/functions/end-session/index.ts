@@ -37,23 +37,23 @@ serve(async (req: Request) => {
     );
 
     // Get request body
-    const { logId, performanceMetrics = null } = await req.json();
+    const { logId, performanceData = null } = await req.json();
 
     if (!logId) {
-      return new Response(JSON.stringify({ error: "logId is required" }), {
+      return new Response(JSON.stringify({ error: "Log ID is required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // End the session log
-    const { error } = await supabaseClient.rpc("end_session_log", {
+    // End the session
+    const { data, error } = await supabaseClient.rpc("end_session_log", {
       log_id: logId,
-      performance_data: performanceMetrics,
+      performance_data: performanceData,
     });
 
     if (error) {
-      console.error("Error ending session log:", error);
+      console.error("Error ending session:", error);
       return new Response(JSON.stringify({ error: error.message }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

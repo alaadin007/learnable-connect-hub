@@ -40,35 +40,39 @@ serve(async (req: Request) => {
     const { logId, action, topic = null } = await req.json();
 
     if (!logId) {
-      return new Response(JSON.stringify({ error: "logId is required" }), {
+      return new Response(JSON.stringify({ error: "Log ID is required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     let result;
+    let error;
 
     // Perform the requested action
     switch (action) {
       case "increment_query":
-        result = await supabaseClient.rpc("increment_session_query_count", {
-          log_id: logId,
-        });
+        // Increment query count
+        ({ data: result, error } = await supabaseClient.rpc(
+          "increment_session_query_count",
+          { log_id: logId }
+        ));
         break;
       case "update_topic":
         if (!topic) {
           return new Response(
-            JSON.stringify({ error: "topic is required for update_topic action" }),
+            JSON.stringify({ error: "Topic is required for update_topic action" }),
             {
               status: 400,
               headers: { ...corsHeaders, "Content-Type": "application/json" },
             }
           );
         }
-        result = await supabaseClient.rpc("update_session_topic", {
+        // Update topic
+        ({ data: result, error } = await supabaseClient.rpc("update_session_topic", {
           log_id: logId,
           topic,
-        });
+        }));
         break;
       default:
         return new Response(
@@ -80,9 +84,9 @@ serve(async (req: Request) => {
         );
     }
 
-    if (result.error) {
-      console.error(`Error performing ${action}:`, result.error);
-      return new Response(JSON.stringify({ error: result.error.message }), {
+    if (error) {
+      console.error(`Error performing ${action}:`, error);
+      return new Response(JSON.stringify({ error: error.message }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

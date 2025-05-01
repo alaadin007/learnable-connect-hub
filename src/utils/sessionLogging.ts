@@ -1,169 +1,137 @@
 
 import { supabase } from "@/integrations/supabase/client";
 
-interface SessionLogPerformanceMetrics {
-  score?: number;
-  completionTime?: number;
-  correctAnswers?: number;
-  totalQuestions?: number;
-  [key: string]: any; // Allow for additional custom metrics
+interface PerformanceMetric {
+  [key: string]: number | string | boolean | object;
 }
 
-/**
- * Class for managing session logging functionality
- */
-export class SessionLogger {
-  private logId: string | null = null;
-  private sessionActive: boolean = false;
-
+class SessionLogger {
+  private currentSessionId: string | null = null;
+  
   /**
-   * Initialize a new session log
-   * @param topic Optional topic or content being studied
-   * @returns Promise resolving to the log ID
+   * Start a new session log
+   * @param topic Optional topic for the session
+   * @returns Promise with the session ID
    */
   async startSession(topic?: string): Promise<string> {
-    if (this.sessionActive) {
-      console.warn('Session already active, ending current session before starting a new one');
-      await this.endSession();
-    }
-
     try {
-      const { data, error } = await supabase.functions.invoke('create-session-log', {
+      const response = await supabase.functions.invoke('create-session-log', {
         body: { topic }
       });
-
-      if (error) {
-        console.error('Error starting session:', error);
-        throw new Error(error.message || 'Failed to start session');
+      
+      if (response.error) {
+        console.error("Error starting session:", response.error);
+        throw new Error(response.error.message);
       }
-
-      this.logId = data.logId;
-      this.sessionActive = true;
-      console.log('Started session with ID:', this.logId);
-      return this.logId;
-    } catch (err) {
-      console.error('Error in startSession:', err);
-      throw err;
+      
+      this.currentSessionId = response.data.logId;
+      return this.currentSessionId;
+    } catch (error) {
+      console.error("Failed to start session log:", error);
+      throw error;
     }
   }
-
+  
   /**
-   * Record a query to the active session
-   * @returns Promise resolving when the query is recorded
+   * Increment the query count for the current session
    */
-  async recordQuery(): Promise<void> {
-    if (!this.logId || !this.sessionActive) {
-      console.warn('No active session to record query');
-      return;
+  async incrementQueryCount(): Promise<void> {
+    if (!this.currentSessionId) {
+      throw new Error("No active session");
     }
-
+    
     try {
-      const { error } = await supabase.functions.invoke('update-session', {
+      const response = await supabase.functions.invoke('update-session', {
         body: { 
-          logId: this.logId,
-          action: 'increment_query'
+          logId: this.currentSessionId, 
+          action: 'increment_query' 
         }
       });
-
-      if (error) {
-        console.error('Error recording query:', error);
-        throw new Error(error.message || 'Failed to record query');
+      
+      if (response.error) {
+        console.error("Error incrementing query count:", response.error);
+        throw new Error(response.error.message);
       }
-    } catch (err) {
-      console.error('Error in recordQuery:', err);
-      throw err;
+    } catch (error) {
+      console.error("Failed to increment query count:", error);
+      throw error;
     }
   }
-
+  
   /**
-   * Update the topic or content for the active session
-   * @param topic The topic or content being studied
-   * @returns Promise resolving when the topic is updated
+   * Update the topic for the current session
+   * @param topic New topic
    */
   async updateTopic(topic: string): Promise<void> {
-    if (!this.logId || !this.sessionActive) {
-      console.warn('No active session to update topic');
-      return;
+    if (!this.currentSessionId) {
+      throw new Error("No active session");
     }
-
+    
     try {
-      const { error } = await supabase.functions.invoke('update-session', {
+      const response = await supabase.functions.invoke('update-session', {
         body: { 
-          logId: this.logId,
+          logId: this.currentSessionId, 
           action: 'update_topic',
           topic 
         }
       });
-
-      if (error) {
-        console.error('Error updating topic:', error);
-        throw new Error(error.message || 'Failed to update topic');
+      
+      if (response.error) {
+        console.error("Error updating topic:", response.error);
+        throw new Error(response.error.message);
       }
-    } catch (err) {
-      console.error('Error in updateTopic:', err);
-      throw err;
+    } catch (error) {
+      console.error("Failed to update topic:", error);
+      throw error;
     }
   }
-
+  
   /**
-   * End the active session and record performance metrics
+   * End the current session
    * @param performanceMetrics Optional performance metrics to record
-   * @returns Promise resolving when the session is ended
    */
-  async endSession(performanceMetrics?: SessionLogPerformanceMetrics): Promise<void> {
-    if (!this.logId || !this.sessionActive) {
-      console.warn('No active session to end');
-      return;
+  async endSession(performanceMetrics?: PerformanceMetric): Promise<void> {
+    if (!this.currentSessionId) {
+      throw new Error("No active session");
     }
-
+    
     try {
-      const { error } = await supabase.functions.invoke('end-session', {
+      const response = await supabase.functions.invoke('end-session', {
         body: { 
-          logId: this.logId,
-          performanceMetrics
+          logId: this.currentSessionId,
+          performanceData: performanceMetrics
         }
       });
-
-      if (error) {
-        console.error('Error ending session:', error);
-        throw new Error(error.message || 'Failed to end session');
+      
+      if (response.error) {
+        console.error("Error ending session:", response.error);
+        throw new Error(response.error.message);
       }
-
-      this.sessionActive = false;
-      console.log('Ended session with ID:', this.logId);
-    } catch (err) {
-      console.error('Error in endSession:', err);
-      throw err;
+      
+      this.currentSessionId = null;
+    } catch (error) {
+      console.error("Failed to end session:", error);
+      throw error;
     }
   }
 
   /**
-   * Get the current session log ID
-   * @returns The current log ID or null if no session is active
+   * Get the current session ID
    */
-  getLogId(): string | null {
-    return this.logId;
+  getSessionId(): string | null {
+    return this.currentSessionId;
   }
-
+  
   /**
-   * Check if a session is currently active
-   * @returns True if a session is active, false otherwise
+   * Check if there is an active session
    */
-  isSessionActive(): boolean {
-    return this.sessionActive;
-  }
-
-  /**
-   * Create and return a new instance of SessionLogger
-   * @returns A new SessionLogger instance
-   */
-  static createLogger(): SessionLogger {
-    return new SessionLogger();
+  hasActiveSession(): boolean {
+    return this.currentSessionId !== null;
   }
 }
 
-// Create a default exported instance for simple usage
+// Export a singleton instance
 export const sessionLogger = new SessionLogger();
 
-// Also export the class for more advanced usage patterns
-export default sessionLogger;
+// Also export the class for testing or creating additional instances
+export default SessionLogger;

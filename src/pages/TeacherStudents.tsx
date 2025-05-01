@@ -93,25 +93,26 @@ const TeacherStudents = () => {
     queryFn: async () => {
       if (!schoolId) return [];
       
-      // Use RPC call or direct query based on what's available
+      // Use direct query to teacher_invites table instead of RPC call
       try {
-        // Try to fetch from student_invites table directly
-        const { data, error } = await supabase.rpc('get_student_invites');
+        const { data, error } = await supabase
+          .from('teacher_invites')
+          .select('*')
+          .eq('school_id', schoolId)
+          .eq('teacher_id', user?.id || '')
+          .order('created_at', { ascending: false });
+          
+        if (error) throw error;
         
-        if (error) {
-          // Fallback to direct query if RPC doesn't exist
-          const { data: directData, error: directError } = await supabase
-            .from('student_invites')
-            .select('*')
-            .eq('school_id', schoolId)
-            .eq('teacher_id', user?.id || '')
-            .order('created_at', { ascending: false });
-            
-          if (directError) throw directError;
-          return directData as StudentInvite[];
-        }
-        
-        return data as StudentInvite[];
+        // Transform to match StudentInvite interface
+        return (data || []).map((invite: any) => ({
+          id: invite.id,
+          code: invite.code,
+          email: invite.email,
+          created_at: invite.created_at,
+          expires_at: invite.expires_at,
+          status: invite.status
+        })) as StudentInvite[];
       } catch (err) {
         console.error("Error fetching student invites:", err);
         return [];
@@ -348,7 +349,7 @@ const TeacherStudents = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {(invites as StudentInvite[]).map((invite) => (
+                    {invites.map((invite) => (
                       <TableRow key={invite.id}>
                         <TableCell>{invite.email ? 'Email' : 'Code'}</TableCell>
                         <TableCell>{invite.email || invite.code}</TableCell>
