@@ -433,7 +433,7 @@ const TeacherStudents = () => {
                         </TableCell>
                       </TableRow>
                     ))}
-                  </tbody>
+                  </TableBody>
                 </Table>
               </CardContent>
             </Card>
