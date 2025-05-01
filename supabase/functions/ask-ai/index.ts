@@ -20,7 +20,7 @@ serve(async (req) => {
       throw new Error('OpenAI API key is not configured');
     }
 
-    const { question, conversationId, sessionId, topic } = await req.json();
+    const { question, conversationId, sessionId, topic, useDocuments = true } = await req.json();
     
     if (!question) {
       throw new Error('Question is required');
@@ -30,6 +30,7 @@ serve(async (req) => {
     console.log(`Conversation ID: ${conversationId || 'New conversation'}`);
     console.log(`Session ID: ${sessionId || 'Not provided'}`);
     console.log(`Topic: ${topic || 'General'}`);
+    console.log(`Use Documents: ${useDocuments}`);
 
     // Create Supabase client
     const supabaseClient = Deno.env.get('SUPABASE_URL') && Deno.env.get('SUPABASE_ANON_KEY')
@@ -64,7 +65,126 @@ serve(async (req) => {
       }
     }
 
+    // Search for relevant document content if useDocuments is true and user is authenticated
+    let relevantContent = "";
+    let sourceCitations = [];
+    
+    if (useDocuments && supabaseClient && userId) {
+      try {
+        console.log(`Searching for relevant documents for user ${userId}`);
+        
+        // Extract keywords from the question for better search
+        // This is a simple approach - we could use embeddings for better results in the future
+        const questionWords = question
+          .toLowerCase()
+          .replace(/[^\w\s]/g, '')
+          .split(/\s+/)
+          .filter(word => 
+            word.length > 3 && 
+            !['what', 'when', 'where', 'which', 'who', 'whom', 'whose', 'why', 'how', 'this', 'that', 'these', 'those', 'with', 'from'].includes(word)
+          );
+        
+        // If we have meaningful keywords to search for
+        if (questionWords.length > 0) {
+          console.log(`Extracted keywords: ${questionWords.join(', ')}`);
+          
+          // Search for completed documents from this user
+          const { data: userDocuments, error: docError } = await supabaseClient
+            .from('documents')
+            .select('id, filename')
+            .eq('user_id', userId)
+            .eq('processing_status', 'completed');
+          
+          if (docError) {
+            console.error('Error fetching user documents:', docError);
+          } else if (userDocuments && userDocuments.length > 0) {
+            console.log(`Found ${userDocuments.length} processed documents`);
+            
+            // Search document content using keywords
+            const documentIds = userDocuments.map(doc => doc.id);
+            
+            // Construct a query to search for content containing any of the keywords
+            // This is a simple search approach that could be improved with full-text search or vector embeddings
+            let textSearchQuery = supabaseClient
+              .from('document_content')
+              .select('content, document_id')
+              .in('document_id', documentIds);
+            
+            // Add conditions to search for each keyword
+            const searchConditions = questionWords.map(keyword => `content.ilike.%${keyword}%`);
+            
+            // Apply the conditions with OR logic
+            for (const condition of searchConditions) {
+              textSearchQuery = textSearchQuery.or(condition);
+            }
+            
+            // Execute the search and limit results
+            const { data: matchingContent, error: contentError } = await textSearchQuery.limit(5);
+            
+            if (contentError) {
+              console.error('Error searching document content:', contentError);
+            } else if (matchingContent && matchingContent.length > 0) {
+              console.log(`Found ${matchingContent.length} relevant content sections`);
+              
+              // Extract document details for citations
+              for (const content of matchingContent) {
+                // Find the document info
+                const document = userDocuments.find(doc => doc.id === content.document_id);
+                
+                if (document) {
+                  // Add this content with citation to our results
+                  relevantContent += content.content + "\n\n";
+                  
+                  // Add citation information
+                  sourceCitations.push({
+                    filename: document.filename,
+                    document_id: document.id
+                  });
+                }
+              }
+              
+              // Limit the total content length to prevent token overflow
+              if (relevantContent.length > 4000) {
+                relevantContent = relevantContent.substring(0, 4000) + "... (content truncated)";
+              }
+              
+              console.log(`Found relevant content with ${relevantContent.length} characters`);
+            } else {
+              console.log('No matching content found in user documents');
+            }
+          } else {
+            console.log('No processed documents found for this user');
+          }
+        }
+      } catch (error) {
+        console.error('Error searching documents:', error);
+        // Continue with the request even if document search fails
+      }
+    }
+
+    // Prepare system prompt based on whether document content was found
+    let systemPrompt = 'You are a helpful educational assistant for LearnAble. Provide clear and accurate information to help students learn.';
+    
+    if (relevantContent) {
+      systemPrompt += ' Answer the question based ONLY on the provided context from the user\'s documents. If the context doesn\'t contain the information needed to answer the question fully, acknowledge that and answer with what you can from the context.';
+    }
+
     // Call OpenAI API
+    const messages = [
+      { role: 'system', content: systemPrompt }
+    ];
+    
+    // Add document content as context if available
+    if (relevantContent) {
+      messages.push({ 
+        role: 'system', 
+        content: `Context from user's documents:\n\n${relevantContent}` 
+      });
+    }
+    
+    // Add the user question
+    messages.push({ role: 'user', content: question });
+
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -73,13 +193,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: 'gpt-4o-mini', // Using the recommended model
-        messages: [
-          { 
-            role: 'system', 
-            content: 'You are a helpful educational assistant for LearnAble. Provide clear and accurate information to help students learn.' 
-          },
-          { role: 'user', content: question }
-        ],
+        messages: messages,
         temperature: 0.7,
       }),
     });
@@ -158,12 +272,22 @@ serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ 
+    // Create response with citations when available
+    const responseData = {
       response: aiResponse,
       conversationId: newConversationId,
       sessionId: sessionId,
-      topic: topic 
-    }), {
+      topic: topic,
+      useDocuments: useDocuments,
+      hasRelevantDocuments: sourceCitations.length > 0
+    };
+    
+    // Add source citations if we found relevant documents
+    if (sourceCitations.length > 0) {
+      responseData.sourceCitations = sourceCitations;
+    }
+
+    return new Response(JSON.stringify(responseData), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
