@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -20,7 +19,7 @@ import TestAccounts from "./pages/TestAccounts";
 import AdminAnalytics from "./pages/AdminAnalytics";
 import TeacherAnalytics from "./pages/TeacherAnalytics";
 import ChatWithAI from "./pages/ChatWithAI";
-import FeaturesPage from "./pages/Features";
+import Features from "./pages/Features";
 import PricingPage from "./pages/Pricing";
 import AboutPage from "./pages/About";
 import ContactPage from "./pages/Contact";
@@ -43,7 +42,7 @@ const App = () => (
               <Route path="/test-accounts" element={<TestAccounts />} />
               
               {/* Public informational pages */}
-              <Route path="/features" element={<FeaturesPage />} />
+              <Route path="/features" element={<Features />} />
               <Route path="/pricing" element={<PricingPage />} />
               <Route path="/about" element={<AboutPage />} />
               <Route path="/contact" element={<ContactPage />} />
