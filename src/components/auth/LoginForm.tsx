@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Clock } from "lucide-react";
 
 const LoginForm = () => {
   const [email, setEmail] = useState("");
@@ -48,7 +48,7 @@ const LoginForm = () => {
         <CardContent>
           <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-md">
             <div className="flex">
-              <AlertCircle className="h-5 w-5 text-amber-700 mr-2 flex-shrink-0 mt-0.5" />
+              <Clock className="h-5 w-5 text-amber-700 mr-2 flex-shrink-0 mt-0.5" />
               <div>
                 <p className="text-amber-800 font-medium">
                   Need quick access?
