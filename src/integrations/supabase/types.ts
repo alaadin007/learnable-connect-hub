@@ -95,6 +95,50 @@ export type Database = {
           },
         ]
       }
+      session_logs: {
+        Row: {
+          created_at: string
+          id: string
+          num_queries: number
+          performance_metric: Json | null
+          school_id: string
+          session_end: string | null
+          session_start: string
+          topic_or_content_used: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          num_queries?: number
+          performance_metric?: Json | null
+          school_id: string
+          session_end?: string | null
+          session_start?: string
+          topic_or_content_used?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          num_queries?: number
+          performance_metric?: Json | null
+          school_id?: string
+          session_end?: string | null
+          session_start?: string
+          topic_or_content_used?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_logs_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       students: {
         Row: {
           created_at: string
@@ -244,6 +288,14 @@ export type Database = {
         Args: { token: string; user_id?: string }
         Returns: boolean
       }
+      create_session_log: {
+        Args: { topic?: string }
+        Returns: string
+      }
+      end_session_log: {
+        Args: { log_id: string; performance_data?: Json }
+        Returns: undefined
+      }
       generate_invitation_token: {
         Args: Record<PropertyKey, never>
         Returns: string
@@ -264,6 +316,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      increment_session_query_count: {
+        Args: { log_id: string }
+        Returns: undefined
+      }
       invite_teacher: {
         Args: { teacher_email: string; inviter_id?: string }
         Returns: string
@@ -271,6 +327,10 @@ export type Database = {
       is_supervisor: {
         Args: { user_id: string }
         Returns: boolean
+      }
+      update_session_topic: {
+        Args: { log_id: string; topic: string }
+        Returns: undefined
       }
       verify_school_code: {
         Args: { code: string }
