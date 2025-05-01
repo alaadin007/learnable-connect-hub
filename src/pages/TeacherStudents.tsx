@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,7 +21,7 @@ import {
 import { toast } from "sonner";
 import { Copy, Mail, UserCheck, UserX } from "lucide-react";
 
-// Define flat interfaces using only primitive types to prevent recursion
+// Define simple flat interfaces to prevent recursive type issues
 interface Student {
   id: string;
   created_at: string;
@@ -47,7 +48,7 @@ const TeacherStudents = () => {
   const [inviteMethod, setInviteMethod] = useState<"code" | "email">("code");
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
 
-  // Fetch students with explicit typing and manual transformations
+  // Fetch students using explicit return type and manual data mapping
   const {
     data: students,
     isLoading: studentsLoading,
@@ -59,29 +60,20 @@ const TeacherStudents = () => {
       
       const { data, error } = await supabase
         .from('students')
-        .select(`
-          id, 
-          created_at, 
-          updated_at, 
-          status,
-          profiles:id (full_name, email)
-        `)
+        .select('id, created_at, updated_at, status, profiles:id (full_name, email)')
         .eq('school_id', schoolId);
         
       if (error) throw error;
       
-      // Use a deliberately flat mapping approach with explicit typing
-      const studentsArray: Student[] = [];
+      // Manually transform data to a flat structure to avoid complex type inference
+      const transformedData: Student[] = [];
       
-      if (data) {
-        // Type assertion with intermediate step to avoid direct casting errors
-        const safeData: any[] = data;
-        
-        for (const item of safeData) {
-          studentsArray.push({
-            id: item.id,
-            created_at: item.created_at,
-            updated_at: item.updated_at,
+      if (data && Array.isArray(data)) {
+        for (const item of data) {
+          transformedData.push({
+            id: item.id || '',
+            created_at: item.created_at || '',
+            updated_at: item.updated_at || '',
             status: item.status || 'active',
             full_name: item.profiles?.full_name || null,
             email: item.profiles?.email || null
@@ -89,12 +81,12 @@ const TeacherStudents = () => {
         }
       }
       
-      return studentsArray;
+      return transformedData;
     },
     enabled: !!schoolId
   });
 
-  // Fetch student invites with manual type handling to prevent recursion
+  // Fetch student invites with explicit typing to prevent deep type inference
   const {
     data: invites,
     isLoading: invitesLoading,
@@ -104,8 +96,8 @@ const TeacherStudents = () => {
     queryFn: async () => {
       if (!schoolId || !user?.id) return [] as StudentInvite[];
       
-      // Use a deliberately simple query and type structure
-      const { data: inviteData, error } = await supabase
+      // Use simple query with explicit field selection
+      const { data, error } = await supabase
         .from('teacher_invites')
         .select('id, token, email, created_at, expires_at, status')
         .eq('school_id', schoolId)
@@ -117,14 +109,12 @@ const TeacherStudents = () => {
         throw error;
       }
       
-      // Manual transformation to a simpler type structure
-      const inviteResults: StudentInvite[] = [];
+      // Simple manual mapping to prevent complex type inference
+      const transformedInvites: StudentInvite[] = [];
       
-      if (inviteData) {
-        const safeData = inviteData as Record<string, any>[];
-        
-        for (const item of safeData) {
-          inviteResults.push({
+      if (data && Array.isArray(data)) {
+        for (const item of data) {
+          transformedInvites.push({
             id: item.id || '',
             token: item.token || null,
             email: item.email || null,
@@ -135,7 +125,7 @@ const TeacherStudents = () => {
         }
       }
       
-      return inviteResults;
+      return transformedInvites;
     },
     enabled: !!schoolId && !!user?.id
   });
