@@ -19,66 +19,6 @@ import TestAccounts from "./pages/TestAccounts";
 
 const queryClient = new QueryClient();
 
-const AppRoutes = () => (
-  <Routes>
-    <Route path="/" element={<Index />} />
-    <Route path="/login" element={<Login />} />
-    <Route path="/register" element={<Register />} />
-    <Route path="/invitation" element={<TeacherInvitation />} />
-    <Route path="/test-accounts" element={<TestAccounts />} />
-
-    {/* Basic protected route - just requires authentication */}
-    <Route path="/dashboard" element={
-      <ProtectedRoute>
-        <Dashboard />
-      </ProtectedRoute>
-    } />
-
-    {/* School admin dashboard - requires supervisor role */}
-    <Route path="/school-admin" element={
-      <ProtectedRoute allowedRoles={['school']} requireSupervisor={true}>
-        <SchoolAdmin />
-      </ProtectedRoute>
-    } />
-    
-    {/* Protected routes with role-based access control */}
-    <Route path="/school-admin/teachers" element={
-      <ProtectedRoute allowedRoles={['school']} requireSupervisor={true}>
-        <SchoolAdmin />
-      </ProtectedRoute>
-    } />
-    
-    {/* New Admin Teachers page */}
-    <Route path="/admin/teachers" element={
-      <ProtectedRoute allowedRoles={['school']} requireSupervisor={true}>
-        <AdminTeachers />
-      </ProtectedRoute>
-    } />
-
-    {/* New Teacher Students page */}
-    <Route path="/teacher/students" element={
-      <ProtectedRoute allowedRoles={['school', 'teacher']}>
-        <TeacherStudents />
-      </ProtectedRoute>
-    } />
-    
-    <Route path="/teachers" element={
-      <ProtectedRoute allowedRoles={['school', 'teacher']}>
-        <div>Teachers Dashboard</div>
-      </ProtectedRoute>
-    } />
-    
-    <Route path="/students" element={
-      <ProtectedRoute allowedRoles={['school', 'teacher', 'student']}>
-        <div>Students Dashboard</div>
-      </ProtectedRoute>
-    } />
-
-    {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-    <Route path="*" element={<NotFound />} />
-  </Routes>
-);
-
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -86,7 +26,63 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <AppRoutes />
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/invitation" element={<TeacherInvitation />} />
+            <Route path="/test-accounts" element={<TestAccounts />} />
+
+            {/* Basic protected route - just requires authentication */}
+            <Route path="/dashboard" element={
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            } />
+
+            {/* School admin dashboard - requires supervisor role */}
+            <Route path="/school-admin" element={
+              <ProtectedRoute allowedRoles={['school']} requireSupervisor={true}>
+                <SchoolAdmin />
+              </ProtectedRoute>
+            } />
+            
+            {/* Protected routes with role-based access control */}
+            <Route path="/school-admin/teachers" element={
+              <ProtectedRoute allowedRoles={['school']} requireSupervisor={true}>
+                <SchoolAdmin />
+              </ProtectedRoute>
+            } />
+            
+            {/* New Admin Teachers page */}
+            <Route path="/admin/teachers" element={
+              <ProtectedRoute allowedRoles={['school']} requireSupervisor={true}>
+                <AdminTeachers />
+              </ProtectedRoute>
+            } />
+
+            {/* New Teacher Students page */}
+            <Route path="/teacher/students" element={
+              <ProtectedRoute allowedRoles={['school', 'teacher']}>
+                <TeacherStudents />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/teachers" element={
+              <ProtectedRoute allowedRoles={['school', 'teacher']}>
+                <div>Teachers Dashboard</div>
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/students" element={
+              <ProtectedRoute allowedRoles={['school', 'teacher', 'student']}>
+                <div>Students Dashboard</div>
+              </ProtectedRoute>
+            } />
+
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

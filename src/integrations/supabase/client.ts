@@ -19,7 +19,6 @@ export const supabase = createClient<Database>(
       detectSessionInUrl: true,
       flowType: 'pkce', // Use PKCE flow for more security but better compatibility
       debug: process.env.NODE_ENV === 'development', // Enable debug mode in development
-      // The emailRedirectTo property has been removed as it's not supported in this version
     }
   }
 );

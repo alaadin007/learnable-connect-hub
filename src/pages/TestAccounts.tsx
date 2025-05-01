@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import Navbar from "@/components/layout/Navbar";
 import { Button } from "@/components/ui/button";
@@ -35,7 +34,10 @@ const TestAccounts = () => {
     teacher: false,
     student: false
   });
-  const { signIn, signOut, user, profile } = useAuth();
+  
+  // Get auth context
+  const auth = useAuth();
+  const { signIn, signOut, user, profile } = auth;
 
   const handleLoginAs = async (type: 'school' | 'teacher' | 'student') => {
     const account = TEST_ACCOUNTS[type];
