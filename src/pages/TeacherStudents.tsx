@@ -21,7 +21,7 @@ import {
 import { toast } from "sonner";
 import { Copy, Mail, UserCheck, UserX } from "lucide-react";
 
-// Explicitly define interfaces without using nested types to avoid recursion issues
+// Define interfaces without nested types to avoid recursion issues
 interface Student {
   id: string;
   created_at: string;
@@ -84,7 +84,7 @@ const TeacherStudents = () => {
     enabled: !!schoolId
   });
 
-  // Fetch student invites - Using explicit typing to avoid recursion
+  // Fetch student invites with fixed typing
   const {
     data: invites,
     isLoading: invitesLoading,
@@ -94,10 +94,10 @@ const TeacherStudents = () => {
     queryFn: async () => {
       if (!schoolId || !user?.id) return [] as StudentInvite[];
       
-      // Using a simpler query structure
+      // Use simple query without type recursion issues
       const { data, error } = await supabase
         .from('teacher_invites')
-        .select('*')
+        .select('id, token, email, created_at, expires_at, status')
         .eq('school_id', schoolId)
         .eq('teacher_id', user.id)
         .order('created_at', { ascending: false });
@@ -107,17 +107,23 @@ const TeacherStudents = () => {
         throw error;
       }
       
-      // Convert the data to our StudentInvite type explicitly
-      const typedInvites: StudentInvite[] = (data || []).map(item => ({
-        id: item.id,
-        token: item.token,
-        email: item.email,
-        created_at: item.created_at,
-        expires_at: item.expires_at,
-        status: item.status
-      }));
+      // Use explicit type casting to avoid recursion
+      const results: StudentInvite[] = [];
       
-      return typedInvites;
+      if (data) {
+        for (const item of data) {
+          results.push({
+            id: item.id,
+            token: item.token,
+            email: item.email,
+            created_at: item.created_at,
+            expires_at: item.expires_at,
+            status: item.status
+          });
+        }
+      }
+      
+      return results;
     },
     enabled: !!schoolId && !!user?.id
   });
