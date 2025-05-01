@@ -5,11 +5,22 @@ import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
+interface UserProfile {
+  id: string;
+  user_type: 'school' | 'teacher' | 'student';
+  full_name: string | null;
+  school_code: string | null;
+  school_name: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 interface AuthContextType {
   session: Session | null;
   user: User | null;
-  profile: any | null;
+  profile: UserProfile | null;
   loading: boolean;
+  isSuperviser: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, metadata: any) => Promise<void>;
   signOut: () => Promise<void>;
@@ -20,8 +31,9 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<any | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isSuperviser, setIsSuperviser] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -38,6 +50,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           }, 0);
         } else {
           setProfile(null);
+          setIsSuperviser(false);
         }
 
         // Handle sign-in and sign-out events
@@ -79,7 +92,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       if (data) {
-        setProfile(data);
+        setProfile(data as UserProfile);
+        
+        // Check if user is a supervisor
+        if (data.user_type === 'school' || data.user_type === 'teacher') {
+          const { data: supervisorData, error: supervisorError } = await supabase
+            .rpc('is_supervisor', { user_id: userId });
+            
+          if (!supervisorError) {
+            setIsSuperviser(supervisorData || false);
+          }
+        }
       }
     } catch (error) {
       console.error("Error fetching profile:", error);
@@ -145,6 +168,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         user,
         profile,
         loading,
+        isSuperviser,
         signIn,
         signUp,
         signOut,

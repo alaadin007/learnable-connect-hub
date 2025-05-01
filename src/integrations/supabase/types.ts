@@ -63,6 +63,99 @@ export type Database = {
         }
         Relationships: []
       }
+      schools: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "schools_code_fkey"
+            columns: ["code"]
+            isOneToOne: true
+            referencedRelation: "school_codes"
+            referencedColumns: ["code"]
+          },
+        ]
+      }
+      students: {
+        Row: {
+          created_at: string
+          id: string
+          school_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id: string
+          school_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          school_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "students_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teachers: {
+        Row: {
+          created_at: string
+          id: string
+          is_supervisor: boolean | null
+          school_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id: string
+          is_supervisor?: boolean | null
+          school_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_supervisor?: boolean | null
+          school_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teachers_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -71,6 +164,10 @@ export type Database = {
       get_school_name_from_code: {
         Args: { code: string }
         Returns: string
+      }
+      is_supervisor: {
+        Args: { user_id: string }
+        Returns: boolean
       }
       verify_school_code: {
         Args: { code: string }
