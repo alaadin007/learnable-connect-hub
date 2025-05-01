@@ -1,55 +1,5 @@
 
-project_id = "ldlgckwkdsvrfuymidrr"
+project_id = "your-project-id"
 
-[api]
-enabled = true
-port = 54321
-schemas = ["public", "storage"]
-
-[db]
-port = 54322
-
-[studio]
-port = 54323
-
-[inbucket]
-port = 54324
-
-[storage]
-enabled = true
-
-[auth]
-enabled = true
-
-[analytics]
-enabled = false
-
-[functions.invite-teacher]
-verify_jwt = true
-
-[functions.create-teacher]
-verify_jwt = true
-
-[functions.invite-student]
-verify_jwt = true
-
-[functions.approve-student]
-verify_jwt = true
-
-[functions.revoke-student-access]
-verify_jwt = true
-
-[functions.create-session-log]
-verify_jwt = true
-
-[functions.update-session]
-verify_jwt = true
-
-[functions.end-session]
-verify_jwt = true
-
-[functions.ask-ai]
-verify_jwt = true
-
-[functions.process-document]
+[functions.transcribe-audio]
 verify_jwt = true

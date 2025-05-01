@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -11,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import VoiceRecorder from "./VoiceRecorder"; // Import the new component
 
 interface Message {
   id: string;
@@ -173,6 +173,11 @@ const ChatInterface = ({ sessionId, topic, onSessionStart }: ChatInterfaceProps)
     setMessages([]);
   };
 
+  // Handle transcribed text from voice recorder
+  const handleVoiceTranscription = (text: string) => {
+    setInputValue(text);
+  };
+
   return (
     <Card className="w-full h-[600px] flex flex-col">
       <CardHeader className="flex flex-row items-center justify-between">
@@ -289,6 +294,7 @@ const ChatInterface = ({ sessionId, topic, onSessionStart }: ChatInterfaceProps)
             className="flex-grow"
             disabled={isLoading || isLoadingHistory}
           />
+          <VoiceRecorder onTranscriptionComplete={handleVoiceTranscription} />
           <Button onClick={handleSend} disabled={isLoading || isLoadingHistory || !inputValue.trim()}>
             {isLoading ? <Loader2 className="animate-spin" /> : <Send />}
           </Button>
