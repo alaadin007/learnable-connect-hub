@@ -116,6 +116,7 @@ const AnalyticsDashboard = ({ userRole }: AnalyticsDashboardProps) => {
         let dateFrom = dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : undefined;
         let dateTo = dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : undefined;
         
+        // First, get the session logs
         const sessionsQuery = supabase
           .from('session_logs')
           .select(`
@@ -124,8 +125,7 @@ const AnalyticsDashboard = ({ userRole }: AnalyticsDashboardProps) => {
             topic_or_content_used,
             num_queries,
             session_start,
-            session_end,
-            profiles!inner(full_name)
+            session_end
           `)
           .eq('school_id', schoolId)
           .order('session_start', { ascending: false })
@@ -147,6 +147,21 @@ const AnalyticsDashboard = ({ userRole }: AnalyticsDashboardProps) => {
         
         if (sessionsError) throw sessionsError;
         
+        // Now get the profiles for these sessions separately
+        const userIds = sessionsData?.map(session => session.user_id) || [];
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, full_name')
+          .in('id', userIds);
+          
+        if (profilesError) throw profilesError;
+        
+        // Create a map of user IDs to names for easy lookup
+        const userNameMap: Record<string, string> = {};
+        profilesData?.forEach(profile => {
+          userNameMap[profile.id] = profile.full_name || 'Unknown';
+        });
+        
         const formattedSessionsData: SessionData[] = sessionsData?.map(session => {
           // Calculate session duration
           let duration = "N/A";
@@ -160,7 +175,7 @@ const AnalyticsDashboard = ({ userRole }: AnalyticsDashboardProps) => {
           
           return {
             id: session.id,
-            student: session.profiles?.full_name || "Unknown",
+            student: userNameMap[session.user_id] || "Unknown",
             topic: session.topic_or_content_used || "General",
             queries: session.num_queries,
             duration: duration,
