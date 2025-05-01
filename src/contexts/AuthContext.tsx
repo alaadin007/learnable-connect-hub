@@ -1,8 +1,7 @@
-
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { Session, User, AuthError } from "@supabase/supabase-js";
+import { Session, User } from "@supabase/supabase-js";
 import { useNavigate } from "react-router-dom";
-import { supabase, isTestAccount } from "@/integrations/supabase/client";
+import { supabase, isTestAccount, TEST_SCHOOL_CODE } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 // Define types for user profiles and roles
@@ -46,14 +45,14 @@ const getTestAccountMetadata = (email: string): Record<string, any> | null => {
     return {
       user_type: 'teacher',
       full_name: 'Test Teacher',
-      school_code: 'TESTCODE',
+      school_code: TEST_SCHOOL_CODE,
       school_name: 'Test School'
     };
   } else if (email === "student@testschool.edu") {
     return {
       user_type: 'student',
       full_name: 'Test Student',
-      school_code: 'TESTCODE',
+      school_code: TEST_SCHOOL_CODE,
       school_name: 'Test School'
     };
   }
@@ -98,17 +97,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!metadata) {
           throw new Error("Unknown test account type");
         }
-        
-        // We need to create test accounts differently due to email validation
-        // First, create a regular account with random email that will pass validation
-        const tempEmail = `temp${Date.now()}@example.com`;
-        console.log("Creating temporary account with email:", tempEmail);
-        
-        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-          email: tempEmail,
+
+        // For test accounts, we'll create them directly without email validation
+        const { data, error: signUpError } = await supabase.auth.signUp({
+          email,
           password,
           options: {
-            data: metadata
+            data: metadata,
+            emailRedirectTo: window.location.origin
           }
         });
 
@@ -117,33 +113,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           throw signUpError;
         }
         
-        if (signUpData?.user?.id) {
-          // Now update the email to the actual test email through the API
-          // This bypasses email validation since we're updating an existing user
-          console.log("Updating email to test account email:", email);
-          
-          const { data: updateData, error: updateError } = await supabase.auth.updateUser({
-            email: email
-          });
-          
-          if (updateError) {
-            toast.error(updateError.message);
-            throw updateError;
-          }
-          
-          // Try signing in again immediately
-          const { error: retryError } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-          });
+        // Try signing in directly after creating the account
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
 
-          if (retryError) {
-            toast.error(retryError.message);
-            throw retryError;
-          }
-          
-          toast.success("Test account created and signed in!");
+        if (signInError) {
+          toast.error(signInError.message);
+          throw signInError;
         }
+        
+        toast.success("Test account created and signed in!");
       } else if (error) {
         toast.error(error.message);
         throw error;
@@ -170,7 +151,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email,
         password,
         options: {
-          data: metadata
+          data: metadata,
+          emailRedirectTo: window.location.origin
         }
       });
 
