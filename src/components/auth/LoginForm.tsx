@@ -1,18 +1,38 @@
 
-import React from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
 const LoginForm = () => {
-  // This would be replaced with actual Supabase integration
-  const handleLogin = (event: React.FormEvent) => {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const { signIn } = useAuth();
+
+  const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
-    // This is a placeholder for actual authentication
-    toast.success("Login attempt registered! Please connect to Supabase to enable authentication.");
+    
+    if (!email || !password) {
+      toast.error("Please enter both email and password");
+      return;
+    }
+
+    setIsLoading(true);
+    
+    try {
+      await signIn(email, password);
+      // Navigate is handled by the AuthContext
+    } catch (error) {
+      console.error("Login error:", error);
+      // Error is handled by the signIn function
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -28,7 +48,14 @@ const LoginForm = () => {
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" placeholder="you@school.edu" />
+              <Input 
+                id="email" 
+                type="email" 
+                placeholder="you@school.edu" 
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
@@ -40,10 +67,20 @@ const LoginForm = () => {
                   Forgot password?
                 </Link>
               </div>
-              <Input id="password" type="password" />
+              <Input 
+                id="password" 
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
             </div>
-            <Button type="submit" className="w-full gradient-bg">
-              Log in
+            <Button 
+              type="submit" 
+              className="w-full gradient-bg"
+              disabled={isLoading}
+            >
+              {isLoading ? "Logging in..." : "Log in"}
             </Button>
           </form>
         </CardContent>

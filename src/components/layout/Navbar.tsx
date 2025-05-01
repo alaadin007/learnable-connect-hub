@@ -2,13 +2,20 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Menu, X } from "lucide-react";
+import { Menu, X, LogOut, User } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
+  const { user, profile, signOut } = useAuth();
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
+    setIsMenuOpen(false);
   };
 
   return (
@@ -44,15 +51,41 @@ const Navbar = () => {
               >
                 Contact
               </Link>
+              {user && (
+                <Link
+                  to="/dashboard"
+                  className="text-learnable-blue hover:text-learnable-dark-blue transition-colors border-learnable-blue border-b-2 inline-flex items-center px-1 pt-1 text-sm font-medium"
+                >
+                  Dashboard
+                </Link>
+              )}
             </div>
           </div>
           <div className="hidden md:flex md:items-center md:space-x-4">
-            <Button asChild variant="ghost" className="text-learnable-gray hover:text-learnable-blue">
-              <Link to="/login">Log in</Link>
-            </Button>
-            <Button asChild className="gradient-bg text-white">
-              <Link to="/register">Get Started</Link>
-            </Button>
+            {user ? (
+              <>
+                <span className="text-learnable-gray">
+                  {profile?.full_name || user.email}
+                </span>
+                <Button 
+                  variant="outline"
+                  className="text-learnable-gray hover:text-learnable-blue flex items-center space-x-2"
+                  onClick={handleSignOut}
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Sign out</span>
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button asChild variant="ghost" className="text-learnable-gray hover:text-learnable-blue">
+                  <Link to="/login">Log in</Link>
+                </Button>
+                <Button asChild className="gradient-bg text-white">
+                  <Link to="/register">Get Started</Link>
+                </Button>
+              </>
+            )}
           </div>
           <div className="flex items-center md:hidden">
             <button
@@ -97,21 +130,50 @@ const Navbar = () => {
             >
               Contact
             </Link>
+            {user && (
+              <Link
+                to="/dashboard"
+                className="block pl-3 pr-4 py-2 text-base font-medium text-learnable-blue hover:bg-learnable-super-light"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                Dashboard
+              </Link>
+            )}
             <div className="pt-4 pb-2 border-t border-learnable-light-gray">
-              <Link
-                to="/login"
-                className="block pl-3 pr-4 py-2 text-base font-medium text-learnable-gray hover:bg-learnable-super-light hover:text-learnable-blue"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Log in
-              </Link>
-              <Link
-                to="/register"
-                className="block pl-3 pr-4 py-2 text-base font-medium text-white bg-learnable-blue hover:bg-learnable-light-blue mx-3 my-2 rounded-md"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Get Started
-              </Link>
+              {user ? (
+                <>
+                  <div className="flex items-center px-3 py-2">
+                    <User className="h-5 w-5 mr-2 text-learnable-blue" />
+                    <span className="text-sm font-medium text-learnable-gray">
+                      {profile?.full_name || user.email}
+                    </span>
+                  </div>
+                  <button
+                    onClick={handleSignOut}
+                    className="flex items-center w-full pl-3 pr-4 py-2 text-base font-medium text-learnable-gray hover:bg-learnable-super-light hover:text-learnable-blue"
+                  >
+                    <LogOut className="h-5 w-5 mr-2" />
+                    Sign out
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Link
+                    to="/login"
+                    className="block pl-3 pr-4 py-2 text-base font-medium text-learnable-gray hover:bg-learnable-super-light hover:text-learnable-blue"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Log in
+                  </Link>
+                  <Link
+                    to="/register"
+                    className="block pl-3 pr-4 py-2 text-base font-medium text-white bg-learnable-blue hover:bg-learnable-light-blue mx-3 my-2 rounded-md"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Get Started
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>

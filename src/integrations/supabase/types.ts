@@ -9,13 +9,73 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      profiles: {
+        Row: {
+          created_at: string
+          full_name: string | null
+          id: string
+          school_code: string | null
+          school_name: string | null
+          updated_at: string
+          user_type: string
+        }
+        Insert: {
+          created_at?: string
+          full_name?: string | null
+          id: string
+          school_code?: string | null
+          school_name?: string | null
+          updated_at?: string
+          user_type: string
+        }
+        Update: {
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          school_code?: string | null
+          school_name?: string | null
+          updated_at?: string
+          user_type?: string
+        }
+        Relationships: []
+      }
+      school_codes: {
+        Row: {
+          active: boolean | null
+          code: string
+          created_at: string
+          id: string
+          school_name: string
+        }
+        Insert: {
+          active?: boolean | null
+          code: string
+          created_at?: string
+          id?: string
+          school_name: string
+        }
+        Update: {
+          active?: boolean | null
+          code?: string
+          created_at?: string
+          id?: string
+          school_name?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_school_name_from_code: {
+        Args: { code: string }
+        Returns: string
+      }
+      verify_school_code: {
+        Args: { code: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
