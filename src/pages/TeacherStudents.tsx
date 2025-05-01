@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,7 +20,7 @@ import {
 import { toast } from "sonner";
 import { Copy, Mail, UserCheck, UserX } from "lucide-react";
 
-// Define interfaces without nested types to avoid recursion issues
+// Define simple interfaces with primitive types only - no nested types
 interface Student {
   id: string;
   created_at: string;
@@ -48,7 +47,7 @@ const TeacherStudents = () => {
   const [inviteMethod, setInviteMethod] = useState<"code" | "email">("code");
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
 
-  // Fetch students
+  // Fetch students with explicit typing
   const {
     data: students,
     isLoading: studentsLoading,
@@ -58,6 +57,7 @@ const TeacherStudents = () => {
     queryFn: async () => {
       if (!schoolId) return [] as Student[];
       
+      // Use type assertion to handle complex nested data
       const { data, error } = await supabase
         .from('students')
         .select(`
@@ -71,7 +71,7 @@ const TeacherStudents = () => {
         
       if (error) throw error;
       
-      // Transform the data to flatten the structure
+      // Transform the data to flatten the structure with explicit typing
       return (data || []).map((student: any) => ({
         id: student.id,
         created_at: student.created_at,
@@ -84,7 +84,7 @@ const TeacherStudents = () => {
     enabled: !!schoolId
   });
 
-  // Fetch student invites with fixed typing
+  // Fetch student invites with completely explicit typing to avoid recursion
   const {
     data: invites,
     isLoading: invitesLoading,
@@ -94,36 +94,37 @@ const TeacherStudents = () => {
     queryFn: async () => {
       if (!schoolId || !user?.id) return [] as StudentInvite[];
       
-      // Use simple query without type recursion issues
-      const { data, error } = await supabase
+      // Use raw query format to avoid TypeScript issues
+      const result = await supabase
         .from('teacher_invites')
         .select('id, token, email, created_at, expires_at, status')
         .eq('school_id', schoolId)
         .eq('teacher_id', user.id)
         .order('created_at', { ascending: false });
-        
-      if (error) {
-        console.error("Error fetching student invites:", error);
-        throw error;
+      
+      // Handle errors explicitly
+      if (result.error) {
+        console.error("Error fetching student invites:", result.error);
+        throw result.error;
       }
       
-      // Use explicit type casting to avoid recursion
-      const results: StudentInvite[] = [];
+      // Manual type conversion to avoid any TypeScript inference issues
+      const inviteResults: StudentInvite[] = [];
       
-      if (data) {
-        for (const item of data) {
-          results.push({
-            id: item.id,
+      if (result.data) {
+        for (const item of result.data) {
+          inviteResults.push({
+            id: item.id || '',
             token: item.token,
             email: item.email,
-            created_at: item.created_at,
-            expires_at: item.expires_at,
-            status: item.status
+            created_at: item.created_at || '',
+            expires_at: item.expires_at || '',
+            status: item.status || 'pending'
           });
         }
       }
       
-      return results;
+      return inviteResults;
     },
     enabled: !!schoolId && !!user?.id
   });
