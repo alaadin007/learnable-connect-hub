@@ -90,7 +90,7 @@ const TeacherStudents = () => {
     enabled: !!schoolId
   });
 
-  // Fetch student invites using a completely different approach to avoid type inference issues
+  // Fetch student invites avoiding complex type inference altogether
   const {
     data: invites,
     isLoading: invitesLoading,
@@ -102,33 +102,28 @@ const TeacherStudents = () => {
       if (!schoolId || !user?.id) return [] as StudentInvite[];
       
       try {
-        // Avoid type checking by creating a standalone fetch function
-        const fetchInvites = async (): Promise<StudentInvite[]> => {
-          const response = await supabase
-            .from('teacher_invites')
-            .select('id, token, email, created_at, expires_at, status')
-            .eq('school_id', schoolId)
-            .eq('teacher_id', user.id)
-            .order('created_at', { ascending: false });
-            
-          if (response.error) {
-            console.error("Error fetching student invites:", response.error);
-            throw response.error;
+        const response = await fetch(`https://ldlgckwkdsvrfuymidrr.supabase.co/rest/v1/teacher_invites?select=id,token,email,created_at,expires_at,status&school_id=eq.${schoolId}&teacher_id=eq.${user.id}&order=created_at.desc`, {
+          headers: {
+            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxkbGdja3drZHN2cmZ1eW1pZHJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDYwNTc2NzksImV4cCI6MjA2MTYzMzY3OX0.kItrTMcKThMXuwNDClYNTGkEq-1EVVldq1vFw7ZsKx0',
+            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ''}`
           }
-          
-          // Convert the response data to our simplified StudentInvite type
-          return (response.data || []).map(item => ({
-            id: item.id || '',
-            token: item.token || null,
-            email: item.email || null,
-            created_at: item.created_at || '',
-            expires_at: item.expires_at || '',
-            status: item.status || 'pending'
-          }));
-        };
+        });
         
-        // Call the standalone function
-        return await fetchInvites();
+        if (!response.ok) {
+          throw new Error('Failed to fetch invites');
+        }
+        
+        const responseData = await response.json();
+        
+        // Convert the response data to our simplified StudentInvite type
+        return responseData.map((item: any) => ({
+          id: item.id || '',
+          token: item.token || null,
+          email: item.email || null,
+          created_at: item.created_at || '',
+          expires_at: item.expires_at || '',
+          status: item.status || 'pending'
+        })) as StudentInvite[];
       } catch (err) {
         console.error("Error in student invites query:", err);
         return [] as StudentInvite[];
