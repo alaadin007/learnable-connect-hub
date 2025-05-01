@@ -154,20 +154,56 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const signUp = async (email: string, password: string, metadata: any) => {
     try {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: metadata,
+      // Check if this is a test account by looking at the email domain
+      const isTestAccount = email.endsWith('@testschool.edu');
+      
+      // For test accounts, directly sign in after registration to bypass email verification
+      if (isTestAccount) {
+        // Register user first
+        const { error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: metadata,
+            emailRedirectTo: window.location.origin + '/dashboard',
+          }
+        });
+
+        if (signUpError) {
+          toast.error(signUpError.message);
+          throw signUpError;
         }
-      });
 
-      if (error) {
-        toast.error(error.message);
-        throw error;
+        // Immediately sign in for test accounts
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password
+        });
+
+        if (signInError) {
+          toast.error(signInError.message);
+          throw signInError;
+        }
+
+        toast.success("Test account created and logged in successfully!");
+      } else {
+        // Normal sign up flow with email verification
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: metadata,
+            emailRedirectTo: window.location.origin + '/dashboard',
+          }
+        });
+
+        if (error) {
+          toast.error(error.message);
+          throw error;
+        }
+
+        toast.success("Registration successful! Please check your email for verification.");
       }
-
-      toast.success("Registration successful! Please check your email for verification.");
     } catch (error: any) {
       console.error("Error signing up:", error.message);
       throw error;
