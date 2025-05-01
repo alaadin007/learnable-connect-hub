@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -116,17 +115,23 @@ const FileUpload: React.FC = () => {
       // Create a unique file path using user ID
       const fileExt = file.name.split('.').pop();
       const filePath = `${user.id}/${Date.now()}_${file.name}`;
+
+      // Create an XMLHttpRequest to track upload progress
+      const xhr = new XMLHttpRequest();
       
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable) {
+          const percent = (event.loaded / event.total) * 100;
+          setUploadProgress(percent);
+        }
+      });
+
       // Upload to Supabase Storage
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('user-content')
         .upload(filePath, file, {
           cacheControl: '3600',
-          upsert: false,
-          onUploadProgress: (progress) => {
-            const percent = progress.loaded / progress.total * 100;
-            setUploadProgress(percent);
-          }
+          upsert: false
         });
       
       if (uploadError) {
