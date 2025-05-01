@@ -44,7 +44,7 @@ const Dashboard = () => {
               activeStudents: data.active_students || 0,
               totalSessions: data.total_sessions || 0,
               totalQueries: data.total_queries || 0,
-              avgSessionMinutes: Math.round(data.avg_session_minutes || 0)
+              avgSessionMinutes: Math.round(Number(data.avg_session_minutes) || 0)
             });
           }
         } else if (userRole === 'student') {
@@ -208,7 +208,7 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {isLoading ? '...' : `${studentMetrics.weeklyHours.toFixed(1)} hrs`}
+                  {isLoading ? '...' : `${Number(studentMetrics.weeklyHours).toFixed(1)} hrs`}
                 </div>
                 <p className="text-xs text-muted-foreground">This week's study time</p>
               </CardContent>
