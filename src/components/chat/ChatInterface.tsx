@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -10,8 +11,9 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import VoiceRecorder from "./VoiceRecorder"; // Import the voice recorder component
-import TextToSpeech from "./TextToSpeech"; // Import the new component
+import VoiceRecorder from "./VoiceRecorder"; 
+import TextToSpeech from "./TextToSpeech";
+import TypingIndicator from "./TypingIndicator"; // Import our new component
 
 interface Message {
   id: string;
@@ -40,6 +42,7 @@ const ChatInterface = ({ sessionId, topic, onSessionStart }: ChatInterfaceProps)
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [useDocuments, setUseDocuments] = useState<boolean>(true);
+  const [isTyping, setIsTyping] = useState(false); // Add typing indicator state
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   
@@ -108,6 +111,7 @@ const ChatInterface = ({ sessionId, topic, onSessionStart }: ChatInterfaceProps)
     setMessages((prevMessages) => [...prevMessages, userMessage]);
     setInputValue("");
     setIsLoading(true);
+    setIsTyping(true); // Show typing indicator when sending message
     
     try {
       // Call the ask-ai edge function
@@ -124,6 +128,9 @@ const ChatInterface = ({ sessionId, topic, onSessionStart }: ChatInterfaceProps)
       if (error) {
         throw new Error(error.message);
       }
+      
+      // Hide typing indicator before adding AI response
+      setIsTyping(false);
       
       // Add AI response to messages
       const aiMessage: Message = {
@@ -151,6 +158,7 @@ const ChatInterface = ({ sessionId, topic, onSessionStart }: ChatInterfaceProps)
       }
     } catch (error: any) {
       console.error("Error calling ask-ai function:", error);
+      setIsTyping(false); // Make sure to hide typing indicator on error
       toast({
         title: "Error",
         description: "Failed to get a response from the AI. Please try again.",
@@ -287,6 +295,16 @@ const ChatInterface = ({ sessionId, topic, onSessionStart }: ChatInterfaceProps)
                 </div>
               ))
             )}
+            
+            {/* Typing indicator - only show when the AI is typing */}
+            {isTyping && (
+              <div className="flex justify-start">
+                <div className="bg-muted text-foreground rounded-lg">
+                  <TypingIndicator />
+                </div>
+              </div>
+            )}
+            
             <div ref={messagesEndRef} />
           </div>
         )}
@@ -303,8 +321,16 @@ const ChatInterface = ({ sessionId, topic, onSessionStart }: ChatInterfaceProps)
             disabled={isLoading || isLoadingHistory}
           />
           <VoiceRecorder onTranscriptionComplete={handleVoiceTranscription} />
-          <Button onClick={handleSend} disabled={isLoading || isLoadingHistory || !inputValue.trim()}>
-            {isLoading ? <Loader2 className="animate-spin" /> : <Send />}
+          <Button 
+            onClick={handleSend} 
+            disabled={isLoading || isLoadingHistory || !inputValue.trim()}
+            className="transition-all duration-200 relative"
+          >
+            {isLoading ? 
+              <Loader2 className="h-4 w-4 animate-spin" /> : 
+              <Send className="h-4 w-4" />
+            }
+            <span className="sr-only">Send message</span>
           </Button>
         </div>
       </CardFooter>
