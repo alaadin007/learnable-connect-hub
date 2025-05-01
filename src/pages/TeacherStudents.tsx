@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -105,24 +104,26 @@ const TeacherStudents = () => {
     queryFn: async () => {
       if (!schoolId || !user?.id) return [] as StudentInvite[];
       
-      // Use raw query approach with type handling that prevents deep instantiation
-      const response = await supabase
+      // Use a deliberately simple query and type structure
+      const { data: inviteData, error } = await supabase
         .from('teacher_invites')
-        .select('*')
+        .select('id, token, email, created_at, expires_at, status')
         .eq('school_id', schoolId)
         .eq('teacher_id', user.id)
         .order('created_at', { ascending: false });
       
-      if (response.error) {
-        console.error("Error fetching student invites:", response.error);
-        throw response.error;
+      if (error) {
+        console.error("Error fetching student invites:", error);
+        throw error;
       }
       
-      // Manually transform data to avoid type recursion issues
+      // Manual transformation to a simpler type structure
       const inviteResults: StudentInvite[] = [];
       
-      if (response.data) {
-        for (const item of response.data) {
+      if (inviteData) {
+        const safeData = inviteData as Record<string, any>[];
+        
+        for (const item of safeData) {
           inviteResults.push({
             id: item.id || '',
             token: item.token || null,
@@ -432,7 +433,7 @@ const TeacherStudents = () => {
                         </TableCell>
                       </TableRow>
                     ))}
-                  </TableBody>
+                  </tbody>
                 </Table>
               </CardContent>
             </Card>
