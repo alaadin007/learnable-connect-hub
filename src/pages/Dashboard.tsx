@@ -2,18 +2,21 @@
 import React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, Users, Book, BarChart2 } from "lucide-react";
+import { MessageSquare, Users, Book, BarChart2, UserPlus, School } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Placeholder dashboard - will be expanded in future iterations
 const Dashboard = () => {
+  const { userRole, isSuperviser } = useAuth();
+  
   return (
     <div className="container mx-auto p-6">
       <div className="mb-8">
         <h1 className="text-3xl font-bold gradient-text mb-2">Dashboard</h1>
         <p className="text-learnable-gray">
-          Welcome to your LearnAble dashboard. Connect to Supabase to enable full functionality.
+          Welcome to your LearnAble dashboard.
         </p>
       </div>
 
@@ -25,7 +28,7 @@ const Dashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">Connect to Supabase to manage students</p>
+            <p className="text-xs text-muted-foreground">Active students</p>
           </CardContent>
         </Card>
         <Card className="card-hover">
@@ -69,7 +72,7 @@ const Dashboard = () => {
           <CardContent>
             <Button 
               className="w-full gradient-bg" 
-              onClick={() => toast.info("Connect to Supabase and OpenAI to enable the AI assistant feature.")}
+              onClick={() => toast.info("AI assistant feature coming soon.")}
             >
               <MessageSquare className="mr-2 h-4 w-4" /> Start a conversation
             </Button>
@@ -82,27 +85,46 @@ const Dashboard = () => {
             <CardDescription>Common tasks and actions</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
-            <Button 
-              variant="outline" 
-              className="w-full justify-start" 
-              onClick={() => toast.info("Connect to Supabase to enable user management.")}
-            >
-              <Users className="mr-2 h-4 w-4" /> Manage Users
-            </Button>
+            {userRole === 'school' && isSuperviser && (
+              <Button 
+                variant="outline" 
+                className="w-full justify-start"
+                asChild
+              >
+                <Link to="/school-admin">
+                  <School className="mr-2 h-4 w-4" /> School Admin Panel
+                </Link>
+              </Button>
+            )}
+            
+            {(userRole === 'school' || userRole === 'teacher') && (
+              <Button 
+                variant="outline" 
+                className="w-full justify-start" 
+                asChild
+              >
+                <Link to="/students">
+                  <Users className="mr-2 h-4 w-4" /> Manage Students
+                </Link>
+              </Button>
+            )}
+            
+            {userRole === 'school' && isSuperviser && (
+              <Button 
+                variant="outline" 
+                className="w-full justify-start"
+                asChild
+              >
+                <Link to="/school-admin">
+                  <UserPlus className="mr-2 h-4 w-4" /> Invite Teachers
+                </Link>
+              </Button>
+            )}
+            
             <Button 
               variant="outline" 
               className="w-full justify-start"
-              onClick={() => toast.info("Connect to Supabase to enable school settings.")}
-            >
-              <svg className="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-              School Settings
-            </Button>
-            <Button 
-              variant="outline" 
-              className="w-full justify-start"
-              onClick={() => toast.info("Connect to Supabase to enable reports and analytics.")}
+              onClick={() => toast.info("Reports and analytics coming soon.")}
             >
               <BarChart2 className="mr-2 h-4 w-4" /> View Reports
             </Button>

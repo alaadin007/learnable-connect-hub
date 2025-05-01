@@ -11,6 +11,8 @@ import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
 import { AuthProvider } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
+import SchoolAdmin from "./pages/SchoolAdmin";
+import TeacherInvitation from "./pages/TeacherInvitation";
 
 const queryClient = new QueryClient();
 
@@ -19,6 +21,7 @@ const AppRoutes = () => (
     <Route path="/" element={<Index />} />
     <Route path="/login" element={<Login />} />
     <Route path="/register" element={<Register />} />
+    <Route path="/invitation" element={<TeacherInvitation />} />
 
     {/* Basic protected route - just requires authentication */}
     <Route path="/dashboard" element={
@@ -27,10 +30,17 @@ const AppRoutes = () => (
       </ProtectedRoute>
     } />
 
-    {/* Protected routes with role-based access control */}
+    {/* School admin dashboard - requires supervisor role */}
     <Route path="/school-admin" element={
       <ProtectedRoute allowedRoles={['school']} requireSupervisor={true}>
-        <div>School Admin Dashboard</div>
+        <SchoolAdmin />
+      </ProtectedRoute>
+    } />
+    
+    {/* Protected routes with role-based access control */}
+    <Route path="/school-admin/teachers" element={
+      <ProtectedRoute allowedRoles={['school']} requireSupervisor={true}>
+        <SchoolAdmin />
       </ProtectedRoute>
     } />
     

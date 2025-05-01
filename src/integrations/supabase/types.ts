@@ -124,6 +124,47 @@ export type Database = {
           },
         ]
       }
+      teacher_invitations: {
+        Row: {
+          created_at: string
+          created_by: string
+          email: string
+          expires_at: string
+          id: string
+          invitation_token: string
+          school_id: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          email: string
+          expires_at?: string
+          id?: string
+          invitation_token: string
+          school_id: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          invitation_token?: string
+          school_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teacher_invitations_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       teachers: {
         Row: {
           created_at: string
@@ -161,6 +202,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_teacher_invitation: {
+        Args: { token: string; user_id?: string }
+        Returns: boolean
+      }
+      generate_invitation_token: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
       generate_school_code: {
         Args: Record<PropertyKey, never>
         Returns: string
@@ -177,6 +226,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      invite_teacher: {
+        Args: { teacher_email: string; inviter_id?: string }
+        Returns: string
+      }
       is_supervisor: {
         Args: { user_id: string }
         Returns: boolean
@@ -184,6 +237,15 @@ export type Database = {
       verify_school_code: {
         Args: { code: string }
         Returns: boolean
+      }
+      verify_teacher_invitation: {
+        Args: { token: string }
+        Returns: {
+          invitation_id: string
+          school_id: string
+          school_name: string
+          email: string
+        }[]
       }
     }
     Enums: {
