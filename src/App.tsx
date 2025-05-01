@@ -15,6 +15,7 @@ import SchoolAdmin from "./pages/SchoolAdmin";
 import TeacherInvitation from "./pages/TeacherInvitation";
 import AdminTeachers from "./pages/AdminTeachers";
 import TeacherStudents from "./pages/TeacherStudents";
+import TestAccounts from "./pages/TestAccounts";
 
 const queryClient = new QueryClient();
 
@@ -24,6 +25,7 @@ const AppRoutes = () => (
     <Route path="/login" element={<Login />} />
     <Route path="/register" element={<Register />} />
     <Route path="/invitation" element={<TeacherInvitation />} />
+    <Route path="/test-accounts" element={<TestAccounts />} />
 
     {/* Basic protected route - just requires authentication */}
     <Route path="/dashboard" element={
