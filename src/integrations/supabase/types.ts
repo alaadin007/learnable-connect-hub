@@ -165,6 +165,44 @@ export type Database = {
           },
         ]
       }
+      teacher_invites: {
+        Row: {
+          created_at: string | null
+          email: string
+          expires_at: string
+          id: string
+          school_id: string
+          status: string
+          token: string
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          expires_at?: string
+          id?: string
+          school_id: string
+          status?: string
+          token: string
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          expires_at?: string
+          id?: string
+          school_id?: string
+          status?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teacher_invites_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       teachers: {
         Row: {
           created_at: string

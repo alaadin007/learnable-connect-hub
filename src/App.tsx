@@ -13,6 +13,7 @@ import { AuthProvider } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import SchoolAdmin from "./pages/SchoolAdmin";
 import TeacherInvitation from "./pages/TeacherInvitation";
+import AdminTeachers from "./pages/AdminTeachers";
 
 const queryClient = new QueryClient();
 
@@ -41,6 +42,13 @@ const AppRoutes = () => (
     <Route path="/school-admin/teachers" element={
       <ProtectedRoute allowedRoles={['school']} requireSupervisor={true}>
         <SchoolAdmin />
+      </ProtectedRoute>
+    } />
+    
+    {/* New Admin Teachers page */}
+    <Route path="/admin/teachers" element={
+      <ProtectedRoute allowedRoles={['school']} requireSupervisor={true}>
+        <AdminTeachers />
       </ProtectedRoute>
     } />
     

@@ -1,1 +1,31 @@
+
 project_id = "ldlgckwkdsvrfuymidrr"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage"]
+
+[db]
+port = 54322
+
+[studio]
+port = 54323
+
+[inbucket]
+port = 54324
+
+[storage]
+enabled = true
+
+[auth]
+enabled = true
+
+[analytics]
+enabled = false
+
+[functions.invite-teacher]
+verify_jwt = true
+
+[functions.create-teacher]
+verify_jwt = true
