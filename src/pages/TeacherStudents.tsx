@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -83,7 +82,7 @@ const TeacherStudents = () => {
     enabled: !!schoolId
   });
 
-  // Fetch student invites
+  // Fetch student invites - Fixed to avoid infinite type recursion
   const {
     data: invites,
     isLoading: invitesLoading,
@@ -91,20 +90,20 @@ const TeacherStudents = () => {
   } = useQuery({
     queryKey: ['studentInvites', schoolId],
     queryFn: async () => {
-      if (!schoolId) return [];
+      if (!schoolId || !user?.id) return [] as StudentInvite[];
       
-      // Use direct query to teacher_invites table instead of RPC call
       try {
+        // Direct query to the teacher_invites table
         const { data, error } = await supabase
           .from('teacher_invites')
           .select('*')
           .eq('school_id', schoolId)
-          .eq('teacher_id', user?.id || '')
+          .eq('teacher_id', user.id)
           .order('created_at', { ascending: false });
           
         if (error) throw error;
         
-        // Transform to match StudentInvite interface
+        // Transform and explicitly type as StudentInvite[]
         return (data || []).map((invite: any) => ({
           id: invite.id,
           code: invite.code,
@@ -115,7 +114,7 @@ const TeacherStudents = () => {
         })) as StudentInvite[];
       } catch (err) {
         console.error("Error fetching student invites:", err);
-        return [];
+        return [] as StudentInvite[];
       }
     },
     enabled: !!schoolId && !!user?.id
