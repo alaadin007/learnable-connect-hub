@@ -2,22 +2,36 @@
 import React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, Users, Book, BarChart2, UserPlus, School } from "lucide-react";
+import { MessageSquare, Users, Book, BarChart2, UserPlus, School, LogOut } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 
 // Placeholder dashboard - will be expanded in future iterations
 const Dashboard = () => {
-  const { userRole, isSuperviser } = useAuth();
+  const { userRole, isSuperviser, signOut } = useAuth();
+  
+  const handleSignOut = async () => {
+    await signOut();
+  };
   
   return (
     <div className="container mx-auto p-6">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold gradient-text mb-2">Dashboard</h1>
-        <p className="text-learnable-gray">
-          Welcome to your LearnAble dashboard.
-        </p>
+      <div className="mb-8 flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold gradient-text mb-2">Dashboard</h1>
+          <p className="text-learnable-gray">
+            Welcome to your LearnAble dashboard.
+          </p>
+        </div>
+        <Button 
+          variant="outline" 
+          onClick={handleSignOut}
+          className="flex items-center gap-2"
+        >
+          <LogOut className="h-4 w-4" />
+          Sign Out
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
