@@ -1,37 +1,35 @@
 
 import React from "react";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
 } from "@/components/ui/table";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-
-export interface Session {
-  id: string;
-  student: string;
-  topic: string;
-  queries: number;
-  duration: string;
-  startTime: string;
-}
+import { 
+  Card, 
+  CardContent, 
+  CardDescription, 
+  CardHeader, 
+  CardTitle 
+} from "@/components/ui/card";
+import { SessionData } from "./types";
 
 interface SessionsTableProps {
-  sessions: Session[];
+  sessions: SessionData[];
   title?: string;
   description?: string;
 }
 
 const SessionsTable = ({ 
   sessions, 
-  title = "Recent Sessions", 
-  description = "Details of recent learning sessions" 
+  title = "Recent Learning Sessions",
+  description = "Latest student learning sessions"
 }: SessionsTableProps) => {
   return (
-    <Card className="w-full">
+    <Card>
       <CardHeader>
         <CardTitle>{title}</CardTitle>
         <CardDescription>{description}</CardDescription>
@@ -52,7 +50,7 @@ const SessionsTable = ({
               sessions.map((session) => (
                 <TableRow key={session.id}>
                   <TableCell className="font-medium">{session.student}</TableCell>
-                  <TableCell>{session.topic || "General"}</TableCell>
+                  <TableCell>{session.topic}</TableCell>
                   <TableCell className="text-right">{session.queries}</TableCell>
                   <TableCell className="text-right">{session.duration}</TableCell>
                   <TableCell className="text-right">{session.startTime}</TableCell>
@@ -60,7 +58,9 @@ const SessionsTable = ({
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={5} className="text-center">No sessions found</TableCell>
+                <TableCell colSpan={5} className="text-center py-6 text-muted-foreground">
+                  No sessions found for the selected period.
+                </TableCell>
               </TableRow>
             )}
           </TableBody>
