@@ -20,6 +20,7 @@ import {
 import { toast } from "sonner";
 import { Copy, Mail, UserCheck, UserX } from "lucide-react";
 
+// Explicitly define interfaces to avoid recursive type issues
 interface Student {
   id: string;
   created_at: string;
@@ -54,7 +55,7 @@ const TeacherStudents = () => {
   } = useQuery({
     queryKey: ['students', schoolId],
     queryFn: async () => {
-      if (!schoolId) return [];
+      if (!schoolId) return [] as Student[];
       
       const { data, error } = await supabase
         .from('students')
@@ -70,14 +71,14 @@ const TeacherStudents = () => {
       if (error) throw error;
       
       // Transform the data to flatten the structure
-      return data.map((student: any) => ({
+      return (data || []).map((student: any) => ({
         id: student.id,
         created_at: student.created_at,
         updated_at: student.updated_at,
         status: student.status || 'active',
         full_name: student.profiles?.full_name,
         email: student.profiles?.email
-      }));
+      })) as Student[];
     },
     enabled: !!schoolId
   });
@@ -92,30 +93,21 @@ const TeacherStudents = () => {
     queryFn: async () => {
       if (!schoolId || !user?.id) return [] as StudentInvite[];
       
-      try {
-        // Direct query to the teacher_invites table
-        const { data, error } = await supabase
-          .from('teacher_invites')
-          .select('*')
-          .eq('school_id', schoolId)
-          .eq('teacher_id', user.id)
-          .order('created_at', { ascending: false });
-          
-        if (error) throw error;
+      // Using a simple approach to avoid type recursion
+      const { data, error } = await supabase
+        .from('teacher_invites')
+        .select('id, code, email, created_at, expires_at, status')
+        .eq('school_id', schoolId)
+        .eq('teacher_id', user.id)
+        .order('created_at', { ascending: false });
         
-        // Transform and explicitly type as StudentInvite[]
-        return (data || []).map((invite: any) => ({
-          id: invite.id,
-          code: invite.code,
-          email: invite.email,
-          created_at: invite.created_at,
-          expires_at: invite.expires_at,
-          status: invite.status
-        })) as StudentInvite[];
-      } catch (err) {
-        console.error("Error fetching student invites:", err);
-        return [] as StudentInvite[];
+      if (error) {
+        console.error("Error fetching student invites:", error);
+        throw error;
       }
+      
+      // Simplify the transformation by using type assertion
+      return (data || []) as StudentInvite[];
     },
     enabled: !!schoolId && !!user?.id
   });
