@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -60,32 +59,32 @@ const TeacherManagement = () => {
         if (invitationsError) throw invitationsError;
         setInvitations(invitationsData || []);
 
-        // Fetch teachers
+        // Fetch teachers - fix the query to properly join with profiles
         const { data: teachersData, error: teachersError } = await supabase
           .from("teachers")
           .select(`
             id, 
             is_supervisor,
-            profiles(full_name, id)
+            profiles:id(full_name)
           `)
           .order("is_supervisor", { ascending: false });
 
         if (teachersError) throw teachersError;
 
-        // Get emails for the teachers from auth.users (via RPC function if needed)
+        // Get emails for the teachers
         const teachersWithProfiles = await Promise.all((teachersData || []).map(async (teacher) => {
           // This is a simplification - in production, use a secure RPC to get emails
-          const { data: userData } = await supabase
+          const { data: profileData } = await supabase
             .from("profiles")
-            .select("id")
+            .select("email, full_name")
             .eq("id", teacher.id)
             .single();
 
           return {
             id: teacher.id,
             is_supervisor: teacher.is_supervisor,
-            full_name: teacher.profiles?.full_name || null,
-            email: userData?.id || 'Unknown', // In production, use a proper way to get emails
+            full_name: profileData?.full_name || null,
+            email: profileData?.email || teacher.id || 'Unknown',
           };
         }));
 
