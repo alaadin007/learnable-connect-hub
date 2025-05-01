@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import Navbar from "@/components/layout/Navbar";
 import { Button } from "@/components/ui/button";
@@ -17,19 +16,17 @@ const TestAccounts = () => {
   const [schoolCode, setSchoolCode] = useState("");
   const { signUp } = useAuth();
 
-  // School registration state with valid email domain
+  // Generate more valid-looking email addresses (universities commonly use .edu)
   const [schoolName, setSchoolName] = useState("Test School");
   const [adminName, setAdminName] = useState("School Admin");
   const [schoolEmail, setSchoolEmail] = useState("admin@testschool.edu");
   const [schoolPassword, setSchoolPassword] = useState("password123");
 
-  // Teacher registration state with valid email domain
   const [teacherName, setTeacherName] = useState("Test Teacher");
   const [teacherEmail, setTeacherEmail] = useState("teacher@testschool.edu");
   const [teacherPassword, setTeacherPassword] = useState("password123");
   const [teacherSchoolName, setTeacherSchoolName] = useState("");
 
-  // Student registration state with valid email domain
   const [studentName, setStudentName] = useState("Test Student");
   const [studentEmail, setStudentEmail] = useState("student@testschool.edu");
   const [studentPassword, setStudentPassword] = useState("password123");
@@ -201,10 +198,10 @@ const TestAccounts = () => {
 
               <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-md">
                 <p className="text-blue-800">
-                  <strong>Important:</strong> Use valid email formats (example: name@domain.edu) to avoid registration errors.
+                  <strong>Important:</strong> Test accounts with "@testschool.edu" domains will be automatically logged in.
                 </p>
                 <p className="text-sm text-blue-700 mt-1">
-                  Emails with domains like "example.com" are rejected by the authentication system.
+                  These accounts bypass email verification for easier testing and development.
                 </p>
               </div>
 

@@ -104,7 +104,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           setUserRole(null);
           setSchoolId(null);
         } else {
-          // Defer fetching user profile using setTimeout
+          // Defer fetching user profile using setTimeout to avoid Supabase deadlocks
           setTimeout(() => {
             fetchUserData(newSession.user.id);
           }, 0);
@@ -159,8 +159,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       
       // For test accounts, directly sign in after registration to bypass email verification
       if (isTestAccount) {
-        // Register user first
-        const { error: signUpError } = await supabase.auth.signUp({
+        // Special handling for test accounts to bypass email verification
+        console.log("Creating test account with direct login:", email);
+        
+        // First attempt to create the user
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -173,8 +176,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           toast.error(signUpError.message);
           throw signUpError;
         }
-
-        // Immediately sign in for test accounts
+        
+        // Even if the account already exists, try to sign in immediately
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email,
           password
@@ -185,7 +188,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           throw signInError;
         }
 
-        toast.success("Test account created and logged in successfully!");
+        toast.success("Test account authenticated successfully!");
       } else {
         // Normal sign up flow with email verification
         const { error } = await supabase.auth.signUp({
