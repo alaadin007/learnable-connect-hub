@@ -57,8 +57,14 @@ const TeacherManagement = () => {
           .order("created_at", { ascending: false });
 
         if (invitationsError) throw invitationsError;
-        // Type assertion to ensure TypeScript knows the shape of our data
-        setInvitations(invitationsData as TeacherInvitation[] || []);
+        
+        // Type safety - ensure data is an array and has proper structure before assigning
+        if (invitationsData) {
+          // Type assertion to ensure TypeScript knows the shape of our data
+          setInvitations(invitationsData as unknown as TeacherInvitation[]);
+        } else {
+          setInvitations([]);
+        }
 
         // Fetch teachers with their IDs and supervisor status
         const { data: teachersData, error: teachersError } = await supabase
@@ -72,19 +78,25 @@ const TeacherManagement = () => {
         const teachersWithProfiles = await Promise.all((teachersData || []).map(async (teacher) => {
           if (!teacher) return null; // Skip if teacher is null
           
+          // Safety check for teacher properties
+          const teacherId = teacher.id;
+          const isSupervisor = !!teacher.is_supervisor;
+          
+          if (!teacherId) return null;
+          
           // Fetch profile data (which has full_name)
           const { data: profileData } = await supabase
             .from("profiles")
             .select("full_name")
-            .eq("id", teacher.id)
+            .eq("id", teacherId)
             .single();
 
           // For this application, we'll use the user ID as the email identifier
           return {
-            id: teacher.id,
-            is_supervisor: teacher.is_supervisor,
+            id: teacherId,
+            is_supervisor: isSupervisor,
             full_name: profileData?.full_name || null,
-            email: teacher.id, // Using ID as email placeholder
+            email: teacherId, // Using ID as email placeholder
           };
         }));
 
@@ -115,14 +127,16 @@ const TeacherManagement = () => {
       form.reset();
 
       // Refresh the invitations list
-      const { data: updatedInvitations } = await supabase
+      const { data: updatedInvitations, error: refreshError } = await supabase
         .from("teacher_invitations")
         .select("id, email, created_at, expires_at, status")
         .order("created_at", { ascending: false });
 
+      if (refreshError) throw refreshError;
+
       if (updatedInvitations) {
         // Type assertion to ensure consistency with our type
-        setInvitations(updatedInvitations as TeacherInvitation[]);
+        setInvitations(updatedInvitations as unknown as TeacherInvitation[]);
       }
     } catch (error: any) {
       console.error("Error inviting teacher:", error);

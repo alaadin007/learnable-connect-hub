@@ -40,12 +40,14 @@ const AcceptInvitation = () => {
         });
         
         if (error) throw error;
-        if (data) {
+        
+        // Type checking and validation
+        if (data && Array.isArray(data) && data.length > 0) {
           // Cast the data to the expected type for clarity
           const invitationData = data as unknown as TeacherInvitationResult[];
-          if (invitationData && invitationData.length > 0) {
-            setInvitation(invitationData[0]);
-          }
+          setInvitation(invitationData[0]);
+        } else {
+          throw new Error("Invalid invitation data");
         }
       } catch (error: any) {
         console.error("Error verifying invitation:", error);

@@ -19,9 +19,7 @@ export const supabase = createClient<Database>(
       detectSessionInUrl: true,
       flowType: 'pkce', // Use PKCE flow for more security but better compatibility
       debug: process.env.NODE_ENV === 'development', // Enable debug mode in development
-      // This allows certain test email domains to bypass email validation
-      // It's only used for test accounts, don't use in production
-      emailRedirectTo: window.location.origin + '/dashboard',
+      // The emailRedirectTo property has been removed as it's not supported in this version
     }
   }
 );

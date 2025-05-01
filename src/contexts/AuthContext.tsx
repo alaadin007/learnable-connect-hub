@@ -84,16 +84,23 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       if (profileData) {
-        setProfile(profileData as UserProfile);
-        setUserRole(profileData.user_type as UserRole);
+        // Type assertion and null check
+        const typedProfile = profileData as UserProfile;
+        setProfile(typedProfile);
+        
+        // Safety check before setting user role
+        if (typedProfile.user_type) {
+          setUserRole(typedProfile.user_type as UserRole);
+        }
         
         // Check if user is a supervisor
-        if (profileData.user_type === 'school' || profileData.user_type === 'teacher') {
+        if (typedProfile.user_type === 'school' || typedProfile.user_type === 'teacher') {
           const { data: supervisorData, error: supervisorError } = await supabase
             .rpc('is_supervisor', { user_id: userId });
             
           if (!supervisorError) {
-            setIsSuperviser(supervisorData || false);
+            // Convert to boolean to ensure type safety
+            setIsSuperviser(supervisorData === true);
           }
         }
 
@@ -102,7 +109,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           .rpc('get_user_school_id');
 
         if (!schoolIdError && schoolIdData) {
-          setSchoolId(schoolIdData);
+          // Convert to string to ensure type safety
+          setSchoolId(String(schoolIdData));
         }
       }
     } catch (error) {

@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,9 +63,9 @@ const RegisterForm = () => {
         { code }
       );
       
-      if (!schoolNameError && schoolNameData) {
-        // Convert possibly unknown type to string
-        const schoolNameStr = String(schoolNameData);
+      if (!schoolNameError && schoolNameData !== null) {
+        // Convert to string and ensure it's not null
+        const schoolNameStr = String(schoolNameData || "");
         
         if (userType === 'teacher') {
           setTeacherSchoolName(schoolNameStr);
@@ -76,7 +77,7 @@ const RegisterForm = () => {
         return true;
       }
 
-      return data;
+      return !!data;
     } catch (error) {
       console.error("Error validating school code:", error);
       toast.error("Error validating school code");
