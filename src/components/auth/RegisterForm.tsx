@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,13 +63,16 @@ const RegisterForm = () => {
       );
       
       if (!schoolNameError && schoolNameData) {
+        // Convert possibly unknown type to string
+        const schoolNameStr = String(schoolNameData);
+        
         if (userType === 'teacher') {
-          setTeacherSchoolName(schoolNameData);
+          setTeacherSchoolName(schoolNameStr);
         } else {
-          setStudentSchoolName(schoolNameData);
+          setStudentSchoolName(schoolNameStr);
         }
         
-        toast.success(`Code verified for ${schoolNameData}`);
+        toast.success(`Code verified for ${schoolNameStr}`);
         return true;
       }
 

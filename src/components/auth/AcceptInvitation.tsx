@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, TeacherInvitationResult } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -39,8 +40,12 @@ const AcceptInvitation = () => {
         });
         
         if (error) throw error;
-        if (data && data.length > 0) {
-          setInvitation(data[0]);
+        if (data) {
+          // Cast the data to the expected type for clarity
+          const invitationData = data as unknown as TeacherInvitationResult[];
+          if (invitationData && invitationData.length > 0) {
+            setInvitation(invitationData[0]);
+          }
         }
       } catch (error: any) {
         console.error("Error verifying invitation:", error);
@@ -112,35 +117,35 @@ const AcceptInvitation = () => {
     <Card className="max-w-md w-full mx-auto">
       <CardHeader>
         <CardTitle>Accept Teacher Invitation</CardTitle>
-        <CardDescription>Join {invitation.school_name} as a teacher</CardDescription>
+        <CardDescription>Join {invitation?.school_name} as a teacher</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
           <h3 className="font-medium">School:</h3>
-          <p>{invitation.school_name}</p>
+          <p>{invitation?.school_name}</p>
         </div>
         <div>
           <h3 className="font-medium">Email:</h3>
-          <p>{invitation.email}</p>
+          <p>{invitation?.email}</p>
         </div>
         
         {!user ? (
           <div className="bg-yellow-50 border border-yellow-200 rounded p-3">
             <p className="text-yellow-800">
-              You need to sign up or log in with <strong>{invitation.email}</strong> to accept this invitation.
+              You need to sign up or log in with <strong>{invitation?.email}</strong> to accept this invitation.
             </p>
           </div>
-        ) : user.email !== invitation.email ? (
+        ) : user.email !== invitation?.email ? (
           <div className="bg-red-50 border border-red-200 rounded p-3">
             <p className="text-red-800">
-              You're currently logged in as {user.email}, but this invitation was sent to {invitation.email}.
+              You're currently logged in as {user.email}, but this invitation was sent to {invitation?.email}.
               Please log in with the correct email address.
             </p>
           </div>
         ) : null}
       </CardContent>
       <CardFooter className="flex flex-col space-y-2">
-        {user && user.email === invitation.email && (
+        {user && user.email === invitation?.email && (
           <Button 
             onClick={handleAcceptInvitation} 
             className="w-full gradient-bg"
@@ -150,7 +155,7 @@ const AcceptInvitation = () => {
           </Button>
         )}
         
-        {!user && (
+        {!user && invitation && (
           <>
             <Button 
               onClick={() => navigate(`/register?email=${encodeURIComponent(invitation.email)}`)} 
@@ -169,7 +174,7 @@ const AcceptInvitation = () => {
           </>
         )}
         
-        {user && user.email !== invitation.email && (
+        {user && invitation && user.email !== invitation.email && (
           <Button 
             onClick={() => navigate("/login")} 
             variant="outline" 

@@ -34,3 +34,11 @@ export const isTestAccount = (email: string): boolean => {
 
 // Default test school code - used when creating test accounts
 export const TEST_SCHOOL_CODE = 'TESTCODE';
+
+// Helper for type safety with RPC functions
+export type TeacherInvitationResult = {
+  invitation_id: string;
+  school_id: string;
+  school_name: string;
+  email: string;
+}

@@ -57,7 +57,8 @@ const TeacherManagement = () => {
           .order("created_at", { ascending: false });
 
         if (invitationsError) throw invitationsError;
-        setInvitations(invitationsData || []);
+        // Type assertion to ensure TypeScript knows the shape of our data
+        setInvitations(invitationsData as TeacherInvitation[] || []);
 
         // Fetch teachers with their IDs and supervisor status
         const { data: teachersData, error: teachersError } = await supabase
@@ -69,6 +70,8 @@ const TeacherManagement = () => {
 
         // Get profile information for the teachers
         const teachersWithProfiles = await Promise.all((teachersData || []).map(async (teacher) => {
+          if (!teacher) return null; // Skip if teacher is null
+          
           // Fetch profile data (which has full_name)
           const { data: profileData } = await supabase
             .from("profiles")
@@ -77,7 +80,6 @@ const TeacherManagement = () => {
             .single();
 
           // For this application, we'll use the user ID as the email identifier
-          // In a real production app, you would implement a secure way to access user emails
           return {
             id: teacher.id,
             is_supervisor: teacher.is_supervisor,
@@ -86,7 +88,8 @@ const TeacherManagement = () => {
           };
         }));
 
-        setTeachers(teachersWithProfiles);
+        // Filter out any null values that might have resulted from error cases
+        setTeachers(teachersWithProfiles.filter((t): t is Teacher => t !== null));
       } catch (error: any) {
         console.error("Error fetching teacher data:", error);
         toast.error("Failed to load teacher data");
@@ -118,7 +121,8 @@ const TeacherManagement = () => {
         .order("created_at", { ascending: false });
 
       if (updatedInvitations) {
-        setInvitations(updatedInvitations);
+        // Type assertion to ensure consistency with our type
+        setInvitations(updatedInvitations as TeacherInvitation[]);
       }
     } catch (error: any) {
       console.error("Error inviting teacher:", error);
