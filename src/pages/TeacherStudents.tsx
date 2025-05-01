@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -104,27 +105,24 @@ const TeacherStudents = () => {
     queryFn: async () => {
       if (!schoolId || !user?.id) return [] as StudentInvite[];
       
-      // Use a raw query approach without complex type inference
-      const { data, error } = await supabase
+      // Use raw query approach with type handling that prevents deep instantiation
+      const response = await supabase
         .from('teacher_invites')
         .select('*')
         .eq('school_id', schoolId)
         .eq('teacher_id', user.id)
         .order('created_at', { ascending: false });
       
-      if (error) {
-        console.error("Error fetching student invites:", error);
-        throw error;
+      if (response.error) {
+        console.error("Error fetching student invites:", response.error);
+        throw response.error;
       }
       
-      // Manual conversion with explicit types
+      // Manually transform data to avoid type recursion issues
       const inviteResults: StudentInvite[] = [];
       
-      if (data) {
-        // Using a safer approach with any[] to avoid type inference issues
-        const safeData: any[] = data;
-        
-        for (const item of safeData) {
+      if (response.data) {
+        for (const item of response.data) {
           inviteResults.push({
             id: item.id || '',
             token: item.token || null,
