@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -50,7 +49,7 @@ const Dashboard = () => {
         } else if (userRole === 'student') {
           // For students, fetch their personal metrics
           const currentYear = new Date().getFullYear();
-          const currentWeek = Math.floor(Number((new Date() - new Date(currentYear, 0, 1)) / 86400000 / 7) + 1);
+          const currentWeek = Math.floor((Number(new Date()) - Number(new Date(currentYear, 0, 1))) / 86400000 / 7) + 1;
           
           // Get student's weekly study time
           const { data: weeklyData } = await supabase

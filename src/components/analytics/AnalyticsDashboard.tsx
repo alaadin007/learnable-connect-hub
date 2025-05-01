@@ -11,14 +11,10 @@ import TopicsChart from "./TopicsChart";
 import SessionsTable from "./SessionsTable";
 import StatsCard from "./StatsCard";
 import { Users, BarChart2, MessageSquare, Book } from "lucide-react";
+import { Student, SessionData } from "./types";
 
 interface AnalyticsDashboardProps {
   userRole: "school" | "teacher";
-}
-
-interface Student {
-  id: string;
-  name: string;
 }
 
 const AnalyticsDashboard = ({ userRole }: AnalyticsDashboardProps) => {
@@ -33,7 +29,7 @@ const AnalyticsDashboard = ({ userRole }: AnalyticsDashboardProps) => {
   
   const [studyTimeData, setStudyTimeData] = useState<any[]>([]);
   const [topicsData, setTopicsData] = useState<any[]>([]);
-  const [sessionsData, setSessionsData] = useState<any[]>([]);
+  const [sessionsData, setSessionsData] = useState<SessionData[]>([]);
   const [stats, setStats] = useState({
     activeStudents: 0,
     totalSessions: 0,
@@ -129,7 +125,7 @@ const AnalyticsDashboard = ({ userRole }: AnalyticsDashboardProps) => {
             num_queries,
             session_start,
             session_end,
-            profiles(full_name)
+            profiles!inner(full_name)
           `)
           .eq('school_id', schoolId)
           .order('session_start', { ascending: false })
@@ -151,7 +147,7 @@ const AnalyticsDashboard = ({ userRole }: AnalyticsDashboardProps) => {
         
         if (sessionsError) throw sessionsError;
         
-        const formattedSessionsData = sessionsData?.map(session => {
+        const formattedSessionsData: SessionData[] = sessionsData?.map(session => {
           // Calculate session duration
           let duration = "N/A";
           if (session.session_end && session.session_start) {
