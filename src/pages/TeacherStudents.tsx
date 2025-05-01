@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,7 +21,7 @@ import {
 import { toast } from "sonner";
 import { Copy, Mail, UserCheck, UserX } from "lucide-react";
 
-// Explicitly define interfaces to avoid recursive type issues
+// Explicitly define interfaces without using nested types to avoid recursion issues
 interface Student {
   id: string;
   created_at: string;
@@ -32,7 +33,7 @@ interface Student {
 
 interface StudentInvite {
   id: string;
-  code?: string;
+  token?: string;
   email?: string;
   created_at: string;
   expires_at: string;
@@ -96,7 +97,7 @@ const TeacherStudents = () => {
       // Using a simple approach to avoid type recursion
       const { data, error } = await supabase
         .from('teacher_invites')
-        .select('id, code, email, created_at, expires_at, status')
+        .select('id, token, email, created_at, expires_at, status')
         .eq('school_id', schoolId)
         .eq('teacher_id', user.id)
         .order('created_at', { ascending: false });
@@ -106,8 +107,15 @@ const TeacherStudents = () => {
         throw error;
       }
       
-      // Simplify the transformation by using type assertion
-      return (data || []) as StudentInvite[];
+      // Explicitly cast to the correct type
+      return (data || []).map(item => ({
+        id: item.id,
+        token: item.token,
+        email: item.email,
+        created_at: item.created_at,
+        expires_at: item.expires_at,
+        status: item.status
+      })) as StudentInvite[];
     },
     enabled: !!schoolId && !!user?.id
   });
@@ -343,7 +351,7 @@ const TeacherStudents = () => {
                     {invites.map((invite) => (
                       <TableRow key={invite.id}>
                         <TableCell>{invite.email ? 'Email' : 'Code'}</TableCell>
-                        <TableCell>{invite.email || invite.code}</TableCell>
+                        <TableCell>{invite.email || invite.token}</TableCell>
                         <TableCell>{new Date(invite.created_at).toLocaleDateString()}</TableCell>
                         <TableCell>{new Date(invite.expires_at).toLocaleDateString()}</TableCell>
                         <TableCell className="capitalize">{invite.status}</TableCell>
