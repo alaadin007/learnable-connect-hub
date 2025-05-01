@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -91,7 +90,7 @@ const TeacherStudents = () => {
     enabled: !!schoolId
   });
 
-  // Fetch student invites with explicit typing to prevent deep type inference
+  // Fetch student invites with simplified approach to avoid deep type inference
   const {
     data: invites,
     isLoading: invitesLoading,
@@ -101,42 +100,41 @@ const TeacherStudents = () => {
     queryFn: async () => {
       if (!schoolId || !user?.id) return [] as StudentInvite[];
       
-      // Use simple query with explicit field selection
-      // We'll use `as any` to override TypeScript type inference temporarily
-      const result = await supabase
-        .from('teacher_invites')
-        .select('id, token, email, created_at, expires_at, status')
-        .eq('school_id', schoolId)
-        .eq('teacher_id', user.id)
-        .order('created_at', { ascending: false });
-      
-      const data = result.data;
-      const error = result.error;
-      
-      if (error) {
-        console.error("Error fetching student invites:", error);
-        throw error;
-      }
-      
-      // Simple manual mapping to prevent complex type inference
-      const transformedInvites: StudentInvite[] = [];
-      
-      if (data && Array.isArray(data)) {
-        for (const item of data) {
-          // Use a type assertion to help TypeScript understand the structure
-          const inviteItem = item as any;
-          transformedInvites.push({
-            id: inviteItem.id || '',
-            token: inviteItem.token || null,
-            email: inviteItem.email || null,
-            created_at: inviteItem.created_at || '',
-            expires_at: inviteItem.expires_at || '',
-            status: inviteItem.status || 'pending'
-          });
+      try {
+        // Use any type to bypass TypeScript's complex type inference
+        const { data, error } = await supabase
+          .from('teacher_invites')
+          .select('id, token, email, created_at, expires_at, status')
+          .eq('school_id', schoolId)
+          .eq('teacher_id', user.id)
+          .order('created_at', { ascending: false }) as { data: any, error: any };
+        
+        if (error) {
+          console.error("Error fetching student invites:", error);
+          throw error;
         }
+        
+        // Simple manual mapping to prevent complex type inference
+        const transformedInvites: StudentInvite[] = [];
+        
+        if (data && Array.isArray(data)) {
+          for (const item of data) {
+            transformedInvites.push({
+              id: item.id || '',
+              token: item.token || null,
+              email: item.email || null,
+              created_at: item.created_at || '',
+              expires_at: item.expires_at || '',
+              status: item.status || 'pending'
+            });
+          }
+        }
+        
+        return transformedInvites;
+      } catch (err) {
+        console.error("Error in student invites query:", err);
+        return [] as StudentInvite[];
       }
-      
-      return transformedInvites;
     },
     enabled: !!schoolId && !!user?.id
   });
