@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { useNavigate } from "react-router-dom";
@@ -31,32 +32,47 @@ interface AuthContextType {
   signUp: (email: string, password: string, metadata: Record<string, any>) => Promise<void>;
   signOut: () => Promise<void>;
   refreshUserData: () => Promise<void>;
+  setTestUser: (type: 'school' | 'teacher' | 'student') => Promise<void>;
 }
 
-// Helper function to get test account metadata
-const getTestAccountMetadata = (email: string): Record<string, any> | null => {
-  if (email === "admin@testschool.edu") {
-    return {
-      user_type: 'school',
-      full_name: 'School Admin',
-      school_name: 'Test School'
-    };
-  } else if (email === "teacher@testschool.edu") {
-    return {
-      user_type: 'teacher',
-      full_name: 'Test Teacher',
-      school_code: TEST_SCHOOL_CODE,
-      school_name: 'Test School'
-    };
-  } else if (email === "student@testschool.edu") {
-    return {
-      user_type: 'student',
-      full_name: 'Test Student',
-      school_code: TEST_SCHOOL_CODE,
-      school_name: 'Test School'
-    };
-  }
-  return null;
+// Create mock user data for test accounts
+const createTestUserData = (type: 'school' | 'teacher' | 'student'): { user: User, profile: UserProfile } => {
+  const mockId = `test-${type}-${Date.now()}`;
+  
+  const mockProfile: UserProfile = {
+    id: mockId,
+    user_type: type,
+    full_name: type === 'school' ? 'School Admin' : type === 'teacher' ? 'Test Teacher' : 'Test Student',
+    school_code: type === 'school' ? null : TEST_SCHOOL_CODE,
+    school_name: 'Test School',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+  
+  const mockUser: User = {
+    id: mockId,
+    app_metadata: {},
+    user_metadata: {
+      user_type: type,
+      full_name: mockProfile.full_name,
+      school_code: mockProfile.school_code,
+      school_name: mockProfile.school_name
+    },
+    aud: 'authenticated',
+    created_at: mockProfile.created_at,
+    email: `${type}@testschool.edu`,
+    role: 'authenticated',
+    updated_at: mockProfile.updated_at,
+    phone: '',
+    last_sign_in_at: mockProfile.created_at,
+    confirmed_at: mockProfile.created_at,
+    email_confirmed_at: mockProfile.created_at,
+    phone_confirmed_at: null,
+    factors: null,
+    identities: []
+  };
+  
+  return { user: mockUser, profile: mockProfile };
 };
 
 // Create the context
@@ -73,64 +89,62 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isSuperviser, setIsSuperviser] = useState(false);
   const [schoolId, setSchoolId] = useState<string | null>(null);
 
+  // Function to set a test user without authentication
+  const setTestUser = async (type: 'school' | 'teacher' | 'student') => {
+    try {
+      // Create mock user and profile data
+      const { user: mockUser, profile: mockProfile } = createTestUserData(type);
+      
+      // Set user data in state
+      setUser(mockUser);
+      setProfile(mockProfile);
+      setUserRole(type);
+      
+      // Set supervisor status based on role
+      setIsSuperviser(type === 'school');
+      
+      // Create a mock school ID for this session
+      const mockSchoolId = type === 'school' ? mockUser.id : 'test-school-id';
+      setSchoolId(mockSchoolId);
+      
+      // Store test user data in session storage
+      sessionStorage.setItem('testUserType', type);
+      
+      toast.success(`Logged in as Test ${type === 'school' ? 'School Admin' : type === 'teacher' ? 'Teacher' : 'Student'}`);
+      navigate("/dashboard");
+    } catch (error: any) {
+      console.error("Error setting test user:", error.message);
+      toast.error("Failed to set test user");
+    }
+  };
+
   // Function to handle sign-in
   const signIn = async (email: string, password: string) => {
     try {
       console.log("Attempting to sign in:", email);
       
       // Check if this is a test account
-      const isTest = isTestAccount(email);
+      if (isTestAccount(email)) {
+        // Extract user type from email
+        const type = email.split('@')[0] as 'admin' | 'teacher' | 'student';
+        const userType = type === 'admin' ? 'school' : type;
+        
+        // Use our test user function instead
+        await setTestUser(userType as 'school' | 'teacher' | 'student');
+        return;
+      }
       
-      // First try normal sign in
+      // Normal sign-in for real users
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      // If we get an error and this is a test account, try to create it
-      if (error && isTest) {
-        console.log("Test account signin failed, attempting to create it:", error.message);
-        
-        // Get test account metadata
-        const metadata = getTestAccountMetadata(email);
-        
-        if (!metadata) {
-          throw new Error("Unknown test account type");
-        }
-
-        // For test accounts, we'll create them directly without email validation
-        const { data, error: signUpError } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: metadata,
-            emailRedirectTo: window.location.origin
-          }
-        });
-
-        if (signUpError) {
-          toast.error(signUpError.message);
-          throw signUpError;
-        }
-        
-        // Try signing in directly after creating the account
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-
-        if (signInError) {
-          toast.error(signInError.message);
-          throw signInError;
-        }
-        
-        toast.success("Test account created and signed in!");
-      } else if (error) {
+      if (error) {
         toast.error(error.message);
         throw error;
       }
       
-      // If we got here, sign-in was successful
       toast.success("Signed in successfully");
       navigate("/dashboard");
     } catch (error: any) {
@@ -142,9 +156,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Function to handle sign-up
   const signUp = async (email: string, password: string, metadata: Record<string, any>) => {
     try {
-      // Special handling for test accounts to bypass email validation
+      // Special handling for test accounts - just use our mock function
       if (isTestAccount(email)) {
-        return signIn(email, password);
+        const type = email.split('@')[0];
+        const userType = type === 'admin' ? 'school' : type as 'teacher' | 'student';
+        await setTestUser(userType as 'school' | 'teacher' | 'student');
+        return;
       }
       
       const { data, error } = await supabase.auth.signUp({
@@ -162,9 +179,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       toast.success("Account created successfully! Please check your email for verification.");
-      
-      // Don't automatically navigate after sign up - wait for email confirmation
-      // navigate("/login");
     } catch (error: any) {
       console.error("Registration error:", error.message);
       throw error;
@@ -174,6 +188,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Function to handle sign-out
   const signOut = async () => {
     try {
+      // Check if this is a test user
+      const testUserType = sessionStorage.getItem('testUserType');
+      
+      if (testUserType) {
+        // Just clear the session storage and reset state for test users
+        sessionStorage.removeItem('testUserType');
+        
+        // Clear all auth state
+        setUser(null);
+        setSession(null);
+        setProfile(null);
+        setUserRole(null);
+        setIsSuperviser(false);
+        setSchoolId(null);
+        
+        navigate("/login");
+        toast.success("Signed out successfully");
+        return;
+      }
+      
+      // Normal sign-out for real users
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
       
@@ -196,9 +231,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Function to refresh user data
   const refreshUserData = async () => {
     try {
+      // If it's a test user, no need to refresh from database
+      const testUserType = sessionStorage.getItem('testUserType');
+      if (testUserType) {
+        return;
+      }
+      
       if (!user) return;
 
-      // Get user profile data
+      // Get user profile data for real users
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
         .select("*")
@@ -236,7 +277,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(true);
       
       try {
-        // Get initial session
+        // Check for a test user in session storage first
+        const testUserType = sessionStorage.getItem('testUserType') as 'school' | 'teacher' | 'student' | null;
+        
+        if (testUserType) {
+          // Restore the test user session
+          const { user: mockUser, profile: mockProfile } = createTestUserData(testUserType);
+          setUser(mockUser);
+          setProfile(mockProfile);
+          setUserRole(testUserType);
+          setIsSuperviser(testUserType === 'school');
+          setSchoolId(testUserType === 'school' ? mockUser.id : 'test-school-id');
+          setLoading(false);
+          return;
+        }
+        
+        // Handle normal authentication for real users
         const { data: { session: initialSession } } = await supabase.auth.getSession();
         setSession(initialSession);
         setUser(initialSession?.user || null);
@@ -284,7 +340,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signIn,
         signUp,
         signOut,
-        refreshUserData
+        refreshUserData,
+        setTestUser
       }}
     >
       {children}

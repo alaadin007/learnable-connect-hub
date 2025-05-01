@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import Navbar from "@/components/layout/Navbar";
 import { Button } from "@/components/ui/button";
@@ -13,17 +14,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 const TEST_ACCOUNTS = {
   school: {
     email: "admin@testschool.edu",
-    password: "password123",
     name: "School Admin"
   },
   teacher: {
     email: "teacher@testschool.edu",
-    password: "password123",
     name: "Test Teacher"
   },
   student: {
     email: "student@testschool.edu",
-    password: "password123",
     name: "Test Student"
   }
 };
@@ -37,35 +35,17 @@ const TestAccounts = () => {
   
   // Get auth context
   const auth = useAuth();
-  const { signIn, signOut, user, profile } = auth;
+  const { signOut, user, profile, setTestUser } = auth;
 
   const handleLoginAs = async (type: 'school' | 'teacher' | 'student') => {
-    const account = TEST_ACCOUNTS[type];
     setIsLoading(prev => ({ ...prev, [type]: true }));
     
     try {
-      await signIn(account.email, account.password);
-      toast.success(`Logged in as ${account.name}`);
+      // Use our new direct login method
+      await setTestUser(type);
+      toast.success(`Logged in as ${TEST_ACCOUNTS[type].name}`);
     } catch (error: any) {
-      if (error.message?.includes("Invalid login credentials")) {
-        toast.error("Account not initialized yet. Please wait while we set it up...");
-        
-        // Wait 1 second and try again with a different message to the user
-        setTimeout(async () => {
-          try {
-            // This will auto-create the account as implemented in AuthContext
-            await signIn(account.email, account.password);
-          } catch (innerError) {
-            toast.error(`Error logging in: ${innerError instanceof Error ? innerError.message : "Unknown error"}`);
-          } finally {
-            setIsLoading(prev => ({ ...prev, [type]: false }));
-          }
-        }, 1000);
-        
-        return; // Exit early since we handle the loading state in the timeout
-      } else {
-        toast.error(`Error logging in: ${error.message || "Unknown error"}`);
-      }
+      toast.error(`Error logging in: ${error instanceof Error ? error.message : "Unknown error"}`);
     } finally {
       setIsLoading(prev => ({ ...prev, [type]: false }));
     }
@@ -83,7 +63,7 @@ const TestAccounts = () => {
             <CardHeader className="space-y-1">
               <CardTitle className="text-2xl font-bold">Test Accounts</CardTitle>
               <CardDescription>
-                Quick access to pre-configured test accounts for different user roles
+                Instant access to pre-configured test accounts for different user roles
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -95,13 +75,13 @@ const TestAccounts = () => {
                       Development Mode: Instant Login Enabled
                     </p>
                     <p className="text-sm text-blue-700 mt-1">
-                      The application is configured to automatically create and sign in with test accounts
-                      using the <strong>@testschool.edu</strong> domain.
+                      Test accounts now work instantly without any authentication or database access.
+                      These test accounts simulate different user roles for development purposes.
                     </p>
                     <p className="text-sm text-blue-700 mt-1">
                       {isLoggedIn
-                        ? `Currently logged in as: ${profile?.full_name || user.email} (${currentUserType})`
-                        : "Click any account button below to instantly log in"}
+                        ? `Currently active as: ${profile?.full_name || user.email} (${currentUserType})`
+                        : "Click any account button below to instantly access test accounts"}
                     </p>
                   </div>
                 </div>
@@ -157,7 +137,7 @@ const TestAccounts = () => {
                         <span className="font-semibold">Email:</span> {TEST_ACCOUNTS.school.email}
                       </div>
                       <div>
-                        <span className="font-semibold">Password:</span> {TEST_ACCOUNTS.school.password}
+                        <span className="font-semibold">Note:</span> No password required in test mode
                       </div>
                     </CardContent>
                     <CardFooter>
@@ -166,7 +146,7 @@ const TestAccounts = () => {
                         className="w-full gradient-bg"
                         disabled={isLoading.school || (isLoggedIn && currentUserType === 'school')}
                       >
-                        {isLoading.school ? "Logging in..." : isLoggedIn && currentUserType === 'school' ? "Currently Active" : "Log in as School Admin"}
+                        {isLoading.school ? "Activating..." : isLoggedIn && currentUserType === 'school' ? "Currently Active" : "Access as School Admin"}
                       </Button>
                     </CardFooter>
                   </Card>
@@ -185,7 +165,7 @@ const TestAccounts = () => {
                         <span className="font-semibold">Email:</span> {TEST_ACCOUNTS.teacher.email}
                       </div>
                       <div>
-                        <span className="font-semibold">Password:</span> {TEST_ACCOUNTS.teacher.password}
+                        <span className="font-semibold">Note:</span> No password required in test mode
                       </div>
                     </CardContent>
                     <CardFooter>
@@ -194,7 +174,7 @@ const TestAccounts = () => {
                         className="w-full gradient-bg"
                         disabled={isLoading.teacher || (isLoggedIn && currentUserType === 'teacher')}
                       >
-                        {isLoading.teacher ? "Logging in..." : isLoggedIn && currentUserType === 'teacher' ? "Currently Active" : "Log in as Teacher"}
+                        {isLoading.teacher ? "Activating..." : isLoggedIn && currentUserType === 'teacher' ? "Currently Active" : "Access as Teacher"}
                       </Button>
                     </CardFooter>
                   </Card>
@@ -213,7 +193,7 @@ const TestAccounts = () => {
                         <span className="font-semibold">Email:</span> {TEST_ACCOUNTS.student.email}
                       </div>
                       <div>
-                        <span className="font-semibold">Password:</span> {TEST_ACCOUNTS.student.password}
+                        <span className="font-semibold">Note:</span> No password required in test mode
                       </div>
                     </CardContent>
                     <CardFooter>
@@ -222,7 +202,7 @@ const TestAccounts = () => {
                         className="w-full gradient-bg"
                         disabled={isLoading.student || (isLoggedIn && currentUserType === 'student')}
                       >
-                        {isLoading.student ? "Logging in..." : isLoggedIn && currentUserType === 'student' ? "Currently Active" : "Log in as Student"}
+                        {isLoading.student ? "Activating..." : isLoggedIn && currentUserType === 'student' ? "Currently Active" : "Access as Student"}
                       </Button>
                     </CardFooter>
                   </Card>
@@ -233,10 +213,10 @@ const TestAccounts = () => {
               <div className="w-full p-4 bg-amber-50 border border-amber-200 rounded-md">
                 <h3 className="font-semibold text-amber-800 mb-2">Test Account Information:</h3>
                 <ol className="list-decimal list-inside text-amber-700 space-y-1.5">
-                  <li>All test accounts are created automatically on first login.</li>
-                  <li>The school admin account creates a school code that is shared with teachers and students.</li>
-                  <li>Use the buttons above to switch between different user roles.</li>
-                  <li>All data created with test accounts is isolated from production data.</li>
+                  <li>Test accounts now work instantly without authentication or database access</li>
+                  <li>All test users have access to the same simulated school environment</li>
+                  <li>Test data is stored in session storage and is cleared when you sign out</li>
+                  <li>No real database operations are performed with test accounts</li>
                 </ol>
               </div>
               <p className="text-sm text-gray-600 text-center w-full">
