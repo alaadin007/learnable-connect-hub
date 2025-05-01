@@ -84,7 +84,7 @@ const TeacherStudents = () => {
     enabled: !!schoolId
   });
 
-  // Fetch student invites - Fixed to avoid infinite type recursion
+  // Fetch student invites - Using explicit typing to avoid recursion
   const {
     data: invites,
     isLoading: invitesLoading,
@@ -94,10 +94,10 @@ const TeacherStudents = () => {
     queryFn: async () => {
       if (!schoolId || !user?.id) return [] as StudentInvite[];
       
-      // Using a simple approach to avoid type recursion
+      // Using a simpler query structure
       const { data, error } = await supabase
         .from('teacher_invites')
-        .select('id, token, email, created_at, expires_at, status')
+        .select('*')
         .eq('school_id', schoolId)
         .eq('teacher_id', user.id)
         .order('created_at', { ascending: false });
@@ -107,15 +107,17 @@ const TeacherStudents = () => {
         throw error;
       }
       
-      // Explicitly cast to the correct type
-      return (data || []).map(item => ({
+      // Convert the data to our StudentInvite type explicitly
+      const typedInvites: StudentInvite[] = (data || []).map(item => ({
         id: item.id,
         token: item.token,
         email: item.email,
         created_at: item.created_at,
         expires_at: item.expires_at,
         status: item.status
-      })) as StudentInvite[];
+      }));
+      
+      return typedInvites;
     },
     enabled: !!schoolId && !!user?.id
   });
