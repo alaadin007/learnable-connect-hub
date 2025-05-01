@@ -203,7 +203,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setIsSuperviser(false);
         setSchoolId(null);
         
-        navigate("/login");
+        navigate("/test-accounts");
         toast.success("Signed out successfully");
         return;
       }

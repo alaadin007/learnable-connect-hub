@@ -51,6 +51,15 @@ const TestAccounts = () => {
     }
   };
 
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      toast.success("Signed out successfully");
+    } catch (error: any) {
+      toast.error(`Error signing out: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
+  };
+
   const isLoggedIn = !!user;
   const currentUserType = profile?.user_type;
 
@@ -97,7 +106,7 @@ const TestAccounts = () => {
                   </p>
                   <div className="mt-3 flex gap-2">
                     <Button 
-                      onClick={() => signOut()}
+                      onClick={handleSignOut}
                       variant="outline" 
                       className="border-green-300 text-green-700 hover:bg-green-100"
                     >
