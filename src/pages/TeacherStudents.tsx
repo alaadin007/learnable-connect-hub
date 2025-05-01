@@ -39,18 +39,6 @@ interface StudentInvite {
   status: string;
 }
 
-// Type for the raw database return to avoid inference issues
-interface RawStudentData {
-  id: string;
-  created_at: string;
-  updated_at: string;
-  status: string | null;
-  profiles: {
-    full_name: string | null;
-    email: string | null;
-  } | null;
-}
-
 const TeacherStudents = () => {
   const { user, schoolId } = useAuth();
   const queryClient = useQueryClient();
@@ -86,7 +74,10 @@ const TeacherStudents = () => {
       const studentsArray: Student[] = [];
       
       if (data) {
-        for (const item of data as RawStudentData[]) {
+        // Type assertion with intermediate step to avoid direct casting errors
+        const safeData: any[] = data;
+        
+        for (const item of safeData) {
           studentsArray.push({
             id: item.id,
             created_at: item.created_at,
@@ -113,24 +104,27 @@ const TeacherStudents = () => {
     queryFn: async () => {
       if (!schoolId || !user?.id) return [] as StudentInvite[];
       
-      // Use a raw query approach with minimal type inference
-      const result = await supabase
+      // Use a raw query approach without complex type inference
+      const { data, error } = await supabase
         .from('teacher_invites')
         .select('*')
         .eq('school_id', schoolId)
         .eq('teacher_id', user.id)
         .order('created_at', { ascending: false });
       
-      if (result.error) {
-        console.error("Error fetching student invites:", result.error);
-        throw result.error;
+      if (error) {
+        console.error("Error fetching student invites:", error);
+        throw error;
       }
       
       // Manual conversion with explicit types
       const inviteResults: StudentInvite[] = [];
       
-      if (result.data) {
-        for (const item of result.data) {
+      if (data) {
+        // Using a safer approach with any[] to avoid type inference issues
+        const safeData: any[] = data;
+        
+        for (const item of safeData) {
           inviteResults.push({
             id: item.id || '',
             token: item.token || null,
