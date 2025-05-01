@@ -20,6 +20,10 @@ import TestAccounts from "./pages/TestAccounts";
 import AdminAnalytics from "./pages/AdminAnalytics";
 import TeacherAnalytics from "./pages/TeacherAnalytics";
 import ChatWithAI from "./pages/ChatWithAI";
+import FeaturesPage from "./pages/Features";
+import PricingPage from "./pages/Pricing";
+import AboutPage from "./pages/About";
+import ContactPage from "./pages/Contact";
 
 const queryClient = new QueryClient();
 
@@ -37,6 +41,12 @@ const App = () => (
               <Route path="/register" element={<Register />} />
               <Route path="/invitation" element={<TeacherInvitation />} />
               <Route path="/test-accounts" element={<TestAccounts />} />
+              
+              {/* Public informational pages */}
+              <Route path="/features" element={<FeaturesPage />} />
+              <Route path="/pricing" element={<PricingPage />} />
+              <Route path="/about" element={<AboutPage />} />
+              <Route path="/contact" element={<ContactPage />} />
 
               {/* Basic protected route - just requires authentication */}
               <Route path="/dashboard" element={
