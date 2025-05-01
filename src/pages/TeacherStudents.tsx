@@ -18,7 +18,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Copy, Mail, UserCheck, UserX } from "lucide-react";
+import { Copy, Mail, UserCheck, UserX, ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 // Define simple flat interfaces to prevent recursive type issues
 interface Student {
@@ -42,6 +43,7 @@ interface StudentInvite {
 const TeacherStudents = () => {
   const { user, schoolId } = useAuth();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [studentEmail, setStudentEmail] = useState("");
   const [activeTab, setActiveTab] = useState<"invite" | "manage">("invite");
   const [inviteMethod, setInviteMethod] = useState<"code" | "email">("code");
@@ -260,7 +262,18 @@ const TeacherStudents = () => {
 
   return (
     <div className="container py-8 max-w-5xl">
-      <h1 className="text-3xl font-bold mb-6">Student Management</h1>
+      <div className="flex items-center gap-4 mb-6">
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="flex items-center gap-1"
+          onClick={() => navigate(-1)}
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back
+        </Button>
+        <h1 className="text-3xl font-bold">Student Management</h1>
+      </div>
       
       <Tabs defaultValue="invite" value={activeTab} onValueChange={(v) => setActiveTab(v as "invite" | "manage")}>
         <TabsList className="mb-6">
