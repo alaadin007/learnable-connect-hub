@@ -281,7 +281,97 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      most_studied_topics: {
+        Row: {
+          count_of_sessions: number | null
+          school_id: string | null
+          topic_or_content_used: string | null
+          topic_rank: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_logs_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      school_analytics_summary: {
+        Row: {
+          active_students: number | null
+          avg_session_minutes: number | null
+          latest_session_start: string | null
+          school_id: string | null
+          school_name: string | null
+          total_queries: number | null
+          total_sessions: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_logs_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      session_query_counts: {
+        Row: {
+          num_queries: number | null
+          school_id: string | null
+          session_id: string | null
+          session_start: string | null
+          topic_or_content_used: string | null
+          user_id: string | null
+        }
+        Insert: {
+          num_queries?: number | null
+          school_id?: string | null
+          session_id?: string | null
+          session_start?: string | null
+          topic_or_content_used?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          num_queries?: number | null
+          school_id?: string | null
+          session_id?: string | null
+          session_start?: string | null
+          topic_or_content_used?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_logs_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      student_weekly_study_time: {
+        Row: {
+          school_id: string | null
+          student_name: string | null
+          study_hours: number | null
+          user_id: string | null
+          week_number: number | null
+          year: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_logs_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       accept_teacher_invitation: {
