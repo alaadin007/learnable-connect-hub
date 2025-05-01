@@ -230,7 +230,7 @@ const RegisterForm = () => {
                   <Input 
                     id="school-email" 
                     type="email" 
-                    placeholder="admin@school.edu"
+                    placeholder="admin@yourschool.edu"
                     value={schoolEmail}
                     onChange={(e) => setSchoolEmail(e.target.value)}
                     required
@@ -273,7 +273,7 @@ const RegisterForm = () => {
                   <Input 
                     id="teacher-email" 
                     type="email" 
-                    placeholder="teacher@school.edu"
+                    placeholder="teacher@yourschool.edu"
                     value={teacherEmail}
                     onChange={(e) => setTeacherEmail(e.target.value)}
                     required
@@ -341,7 +341,7 @@ const RegisterForm = () => {
                   <Input 
                     id="student-email" 
                     type="email" 
-                    placeholder="student@school.edu"
+                    placeholder="student@yourschool.edu"
                     value={studentEmail}
                     onChange={(e) => setStudentEmail(e.target.value)}
                     required

@@ -17,21 +17,21 @@ const TestAccounts = () => {
   const [schoolCode, setSchoolCode] = useState("");
   const { signUp } = useAuth();
 
-  // School registration state
+  // School registration state with valid email domain
   const [schoolName, setSchoolName] = useState("Test School");
   const [adminName, setAdminName] = useState("School Admin");
-  const [schoolEmail, setSchoolEmail] = useState("school@example.com");
+  const [schoolEmail, setSchoolEmail] = useState("admin@testschool.edu");
   const [schoolPassword, setSchoolPassword] = useState("password123");
 
-  // Teacher registration state
+  // Teacher registration state with valid email domain
   const [teacherName, setTeacherName] = useState("Test Teacher");
-  const [teacherEmail, setTeacherEmail] = useState("teacher@example.com");
+  const [teacherEmail, setTeacherEmail] = useState("teacher@testschool.edu");
   const [teacherPassword, setTeacherPassword] = useState("password123");
   const [teacherSchoolName, setTeacherSchoolName] = useState("");
 
-  // Student registration state
+  // Student registration state with valid email domain
   const [studentName, setStudentName] = useState("Test Student");
-  const [studentEmail, setStudentEmail] = useState("student@example.com");
+  const [studentEmail, setStudentEmail] = useState("student@testschool.edu");
   const [studentPassword, setStudentPassword] = useState("password123");
   const [studentSchoolName, setStudentSchoolName] = useState("");
 
@@ -198,6 +198,15 @@ const TestAccounts = () => {
                   </p>
                 </div>
               )}
+
+              <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-md">
+                <p className="text-blue-800">
+                  <strong>Important:</strong> Use valid email formats (example: name@domain.edu) to avoid registration errors.
+                </p>
+                <p className="text-sm text-blue-700 mt-1">
+                  Emails with domains like "example.com" are rejected by the authentication system.
+                </p>
+              </div>
 
               <Tabs defaultValue="school" className="w-full">
                 <TabsList className="grid w-full grid-cols-3">
