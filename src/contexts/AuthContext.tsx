@@ -31,6 +31,32 @@ interface AuthContextType {
   refreshUserData: () => Promise<void>;
 }
 
+// Define test account metadata based on email
+const getTestAccountMetadata = (email: string) => {
+  if (email === 'admin@testschool.edu') {
+    return {
+      user_type: 'school',
+      full_name: 'School Admin',
+      school_name: 'Test School'
+    };
+  } else if (email === 'teacher@testschool.edu') {
+    return {
+      user_type: 'teacher',
+      full_name: 'Test Teacher',
+      school_code: 'TESTCODE',  // This will be overridden if admin account exists
+      school_name: 'Test School'
+    };
+  } else if (email === 'student@testschool.edu') {
+    return {
+      user_type: 'student',
+      full_name: 'Test Student',
+      school_code: 'TESTCODE',  // This will be overridden if admin account exists
+      school_name: 'Test School'
+    };
+  }
+  return null;
+};
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
@@ -144,12 +170,55 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const signIn = async (email: string, password: string) => {
     try {
       console.log("Attempting to sign in:", email);
+      
+      // Check if this is a test account
+      const isTest = isTestAccount(email);
+      
+      // First try normal sign in
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (error) {
+      // If we get an error and this is a test account, try to create it
+      if (error && isTest) {
+        console.log("Test account signin failed, attempting to create it:", error.message);
+        
+        // Get test account metadata
+        const metadata = getTestAccountMetadata(email);
+        
+        if (!metadata) {
+          throw new Error("Unknown test account type");
+        }
+        
+        // For test accounts, create account if it doesn't exist
+        const { error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: metadata,
+            emailRedirectTo: window.location.origin + '/dashboard',
+          }
+        });
+
+        if (signUpError) {
+          toast.error(signUpError.message);
+          throw signUpError;
+        }
+        
+        // Try signing in again immediately
+        const { error: retryError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+        if (retryError) {
+          toast.error(retryError.message);
+          throw retryError;
+        }
+        
+        toast.success("Test account created and signed in!");
+      } else if (error) {
         toast.error(error.message);
         throw error;
       }

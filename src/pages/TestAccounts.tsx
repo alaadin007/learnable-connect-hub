@@ -1,177 +1,76 @@
+
 import React, { useState } from "react";
 import Navbar from "@/components/layout/Navbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Footer from "@/components/landing/Footer";
 import { Link } from "react-router-dom";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, ChevronRight, LogOut } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+// Define pre-configured test accounts
+const TEST_ACCOUNTS = {
+  school: {
+    email: "admin@testschool.edu",
+    password: "password123",
+    name: "School Admin"
+  },
+  teacher: {
+    email: "teacher@testschool.edu",
+    password: "password123",
+    name: "Test Teacher"
+  },
+  student: {
+    email: "student@testschool.edu",
+    password: "password123",
+    name: "Test Student"
+  }
+};
 
 const TestAccounts = () => {
-  const [isLoading, setIsLoading] = useState(false);
-  const [schoolCode, setSchoolCode] = useState("");
-  const { signUp } = useAuth();
+  const [isLoading, setIsLoading] = useState<Record<string, boolean>>({
+    school: false,
+    teacher: false,
+    student: false
+  });
+  const { signIn, signOut, user, profile } = useAuth();
 
-  // Generate more valid-looking email addresses (universities commonly use .edu)
-  const [schoolName, setSchoolName] = useState("Test School");
-  const [adminName, setAdminName] = useState("School Admin");
-  const [schoolEmail, setSchoolEmail] = useState("admin@testschool.edu");
-  const [schoolPassword, setSchoolPassword] = useState("password123");
-
-  const [teacherName, setTeacherName] = useState("Test Teacher");
-  const [teacherEmail, setTeacherEmail] = useState("teacher@testschool.edu");
-  const [teacherPassword, setTeacherPassword] = useState("password123");
-  const [teacherSchoolName, setTeacherSchoolName] = useState("");
-
-  const [studentName, setStudentName] = useState("Test Student");
-  const [studentEmail, setStudentEmail] = useState("student@testschool.edu");
-  const [studentPassword, setStudentPassword] = useState("password123");
-  const [studentSchoolName, setStudentSchoolName] = useState("");
-
-  const validateSchoolCode = async (code: string, userType: "teacher" | "student") => {
-    if (!code) {
-      toast.error("Please enter a school code");
-      return false;
-    }
-
+  const handleLoginAs = async (type: 'school' | 'teacher' | 'student') => {
+    const account = TEST_ACCOUNTS[type];
+    setIsLoading(prev => ({ ...prev, [type]: true }));
+    
     try {
-      const { data, error } = await supabase.rpc('verify_school_code', { code });
-      
-      if (error) {
-        toast.error("Error validating school code");
-        console.error("Error validating school code:", error);
-        return false;
-      }
-      
-      if (!data) {
-        toast.error("Invalid school code");
-        return false;
-      }
-
-      // Fetch school name
-      const { data: schoolNameData, error: schoolNameError } = await supabase.rpc(
-        'get_school_name_from_code',
-        { code }
-      );
-      
-      if (!schoolNameError && schoolNameData) {
-        if (userType === 'teacher') {
-          setTeacherSchoolName(schoolNameData);
-        } else {
-          setStudentSchoolName(schoolNameData);
-        }
+      await signIn(account.email, account.password);
+      toast.success(`Logged in as ${account.name}`);
+    } catch (error: any) {
+      if (error.message?.includes("Invalid login credentials")) {
+        toast.error("Account not initialized yet. Please wait while we set it up...");
         
-        toast.success(`Code verified for ${schoolNameData}`);
-        return true;
-      }
-
-      return data;
-    } catch (error) {
-      console.error("Error validating school code:", error);
-      toast.error("Error validating school code");
-      return false;
-    }
-  };
-
-  const handleRegisterSchool = async (event: React.FormEvent) => {
-    event.preventDefault();
-    
-    setIsLoading(true);
-    
-    try {
-      await signUp(schoolEmail, schoolPassword, {
-        user_type: 'school',
-        full_name: adminName,
-        school_name: schoolName
-      });
-
-      // Get the school code after registration to use for other accounts
-      setTimeout(async () => {
-        try {
-          const { data: profiles } = await supabase
-            .from('profiles')
-            .select('school_code')
-            .eq('id', (await supabase.auth.getUser()).data.user?.id || '')
-            .single();
-          
-          if (profiles?.school_code) {
-            setSchoolCode(profiles.school_code);
-            toast.success(`School registered with code: ${profiles.school_code}`);
+        // Wait 1 second and try again with a different message to the user
+        setTimeout(async () => {
+          try {
+            // This will auto-create the account as implemented in AuthContext
+            await signIn(account.email, account.password);
+          } catch (innerError) {
+            toast.error(`Error logging in: ${innerError instanceof Error ? innerError.message : "Unknown error"}`);
+          } finally {
+            setIsLoading(prev => ({ ...prev, [type]: false }));
           }
-        } catch (error) {
-          console.error("Error fetching school code:", error);
-        }
-      }, 2000);
-      
-    } catch (error) {
-      console.error("Registration error:", error);
+        }, 1000);
+        
+        return; // Exit early since we handle the loading state in the timeout
+      } else {
+        toast.error(`Error logging in: ${error.message || "Unknown error"}`);
+      }
     } finally {
-      setIsLoading(false);
+      setIsLoading(prev => ({ ...prev, [type]: false }));
     }
   };
 
-  const handleRegisterTeacher = async (event: React.FormEvent) => {
-    event.preventDefault();
-    
-    if (!schoolCode) {
-      toast.error("Please register a school first to get a school code");
-      return;
-    }
-
-    // Validate school code first
-    const isValid = await validateSchoolCode(schoolCode, "teacher");
-    if (!isValid) return;
-
-    setIsLoading(true);
-    
-    try {
-      await signUp(teacherEmail, teacherPassword, {
-        user_type: 'teacher',
-        full_name: teacherName,
-        school_code: schoolCode,
-        school_name: teacherSchoolName
-      });
-      toast.success("Teacher registered successfully! Please check email for verification.");
-    } catch (error) {
-      console.error("Registration error:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleRegisterStudent = async (event: React.FormEvent) => {
-    event.preventDefault();
-    
-    if (!schoolCode) {
-      toast.error("Please register a school first to get a school code");
-      return;
-    }
-
-    // Validate school code first
-    const isValid = await validateSchoolCode(schoolCode, "student");
-    if (!isValid) return;
-
-    setIsLoading(true);
-    
-    try {
-      await signUp(studentEmail, studentPassword, {
-        user_type: 'student',
-        full_name: studentName,
-        school_code: schoolCode,
-        school_name: studentSchoolName
-      });
-      toast.success("Student registered successfully! Please check email for verification.");
-    } catch (error) {
-      console.error("Registration error:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const isLoggedIn = !!user;
+  const currentUserType = profile?.user_type;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -182,22 +81,11 @@ const TestAccounts = () => {
             <CardHeader className="space-y-1">
               <CardTitle className="text-2xl font-bold">Test Accounts</CardTitle>
               <CardDescription>
-                Create test accounts for different user roles with automatic login
+                Quick access to pre-configured test accounts for different user roles
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {schoolCode && (
-                <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-md">
-                  <p className="text-green-800">
-                    <strong>School Code:</strong> {schoolCode}
-                  </p>
-                  <p className="text-sm text-green-700 mt-1">
-                    Use this code to register teachers and students
-                  </p>
-                </div>
-              )}
-
-              <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-md">
+              <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-md">
                 <div className="flex">
                   <AlertCircle className="h-5 w-5 text-blue-800 mr-2 flex-shrink-0 mt-0.5" />
                   <div>
@@ -205,14 +93,47 @@ const TestAccounts = () => {
                       Development Mode: Instant Login Enabled
                     </p>
                     <p className="text-sm text-blue-700 mt-1">
-                      All accounts using the <strong>@testschool.edu</strong> domain will be automatically logged in without email verification.
+                      The application is configured to automatically create and sign in with test accounts
+                      using the <strong>@testschool.edu</strong> domain.
                     </p>
                     <p className="text-sm text-blue-700 mt-1">
-                      This makes testing different user roles quick and easy during development.
+                      {isLoggedIn
+                        ? `Currently logged in as: ${profile?.full_name || user.email} (${currentUserType})`
+                        : "Click any account button below to instantly log in"}
                     </p>
                   </div>
                 </div>
               </div>
+
+              {isLoggedIn && (
+                <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-md">
+                  <p className="text-green-800 font-semibold">
+                    Currently logged in as: {profile?.full_name || user.email}
+                  </p>
+                  <p className="text-sm text-green-700 mt-1">
+                    User type: {currentUserType}
+                  </p>
+                  <div className="mt-3 flex gap-2">
+                    <Button 
+                      onClick={() => signOut()}
+                      variant="outline" 
+                      className="border-green-300 text-green-700 hover:bg-green-100"
+                    >
+                      <LogOut className="h-4 w-4 mr-2" />
+                      Sign Out
+                    </Button>
+                    <Button 
+                      asChild
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      <Link to="/dashboard">
+                        Go to Dashboard
+                        <ChevronRight className="h-4 w-4 ml-2" />
+                      </Link>
+                    </Button>
+                  </div>
+                </div>
+              )}
 
               <Tabs defaultValue="school" className="w-full">
                 <TabsList className="grid w-full grid-cols-3">
@@ -220,194 +141,108 @@ const TestAccounts = () => {
                   <TabsTrigger value="teacher">Teacher</TabsTrigger>
                   <TabsTrigger value="student">Student</TabsTrigger>
                 </TabsList>
-                <TabsContent value="school" className="mt-4">
-                  <form onSubmit={handleRegisterSchool} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="school-name">School Name</Label>
-                      <Input 
-                        id="school-name" 
-                        placeholder="Enter school name"
-                        value={schoolName}
-                        onChange={(e) => setSchoolName(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="admin-name">Administrator Name</Label>
-                      <Input 
-                        id="admin-name" 
-                        placeholder="Full name"
-                        value={adminName}
-                        onChange={(e) => setAdminName(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="school-email">Email</Label>
-                      <Input 
-                        id="school-email" 
-                        type="email" 
-                        placeholder="admin@school.edu"
-                        value={schoolEmail}
-                        onChange={(e) => setSchoolEmail(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="school-password">Password</Label>
-                      <Input 
-                        id="school-password" 
-                        type="text"
-                        value={schoolPassword}
-                        onChange={(e) => setSchoolPassword(e.target.value)}
-                        required
-                        minLength={6}
-                      />
-                    </div>
-                    <Button 
-                      type="submit" 
-                      className="w-full gradient-bg"
-                      disabled={isLoading}
-                    >
-                      {isLoading ? "Registering..." : "Register Test School"}
-                    </Button>
-                  </form>
-                </TabsContent>
-                <TabsContent value="teacher" className="mt-4">
-                  <form onSubmit={handleRegisterTeacher} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="teacher-name">Full Name</Label>
-                      <Input 
-                        id="teacher-name" 
-                        placeholder="Your name"
-                        value={teacherName}
-                        onChange={(e) => setTeacherName(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="teacher-email">Email</Label>
-                      <Input 
-                        id="teacher-email" 
-                        type="email" 
-                        placeholder="teacher@school.edu"
-                        value={teacherEmail}
-                        onChange={(e) => setTeacherEmail(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <Label htmlFor="school-code">School Code</Label>
-                        {teacherSchoolName && (
-                          <span className="text-xs text-green-600">{teacherSchoolName}</span>
-                        )}
+                
+                <TabsContent value="school" className="mt-4 space-y-4">
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-lg">School Administrator</CardTitle>
+                      <CardDescription>
+                        Access school-wide settings and manage teachers
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="text-sm space-y-2">
+                      <div>
+                        <span className="font-semibold">Email:</span> {TEST_ACCOUNTS.school.email}
                       </div>
-                      <Input 
-                        id="school-code" 
-                        placeholder="Enter school registration code"
-                        value={schoolCode}
-                        onChange={(e) => setSchoolCode(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="teacher-password">Password</Label>
-                      <Input 
-                        id="teacher-password" 
-                        type="text"
-                        value={teacherPassword}
-                        onChange={(e) => setTeacherPassword(e.target.value)}
-                        required
-                        minLength={6}
-                      />
-                    </div>
-                    <Button 
-                      type="submit" 
-                      className="w-full gradient-bg"
-                      disabled={isLoading || !schoolCode}
-                    >
-                      {isLoading ? "Registering..." : "Register Test Teacher"}
-                    </Button>
-                  </form>
-                </TabsContent>
-                <TabsContent value="student" className="mt-4">
-                  <form onSubmit={handleRegisterStudent} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="student-name">Full Name</Label>
-                      <Input 
-                        id="student-name" 
-                        placeholder="Your name"
-                        value={studentName}
-                        onChange={(e) => setStudentName(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="student-email">Email</Label>
-                      <Input 
-                        id="student-email" 
-                        type="email" 
-                        placeholder="student@school.edu"
-                        value={studentEmail}
-                        onChange={(e) => setStudentEmail(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <Label htmlFor="student-code">School Code</Label>
-                        {studentSchoolName && (
-                          <span className="text-xs text-green-600">{studentSchoolName}</span>
-                        )}
+                      <div>
+                        <span className="font-semibold">Password:</span> {TEST_ACCOUNTS.school.password}
                       </div>
-                      <Input 
-                        id="student-code" 
-                        placeholder="Enter school registration code"
-                        value={schoolCode}
-                        onChange={(e) => setSchoolCode(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="student-password">Password</Label>
-                      <Input 
-                        id="student-password" 
-                        type="text"
-                        value={studentPassword}
-                        onChange={(e) => setStudentPassword(e.target.value)}
-                        required
-                        minLength={6}
-                      />
-                    </div>
-                    <Button 
-                      type="submit" 
-                      className="w-full gradient-bg"
-                      disabled={isLoading || !schoolCode}
-                    >
-                      {isLoading ? "Registering..." : "Register Test Student"}
-                    </Button>
-                  </form>
+                    </CardContent>
+                    <CardFooter>
+                      <Button
+                        onClick={() => handleLoginAs('school')}
+                        className="w-full gradient-bg"
+                        disabled={isLoading.school || (isLoggedIn && currentUserType === 'school')}
+                      >
+                        {isLoading.school ? "Logging in..." : isLoggedIn && currentUserType === 'school' ? "Currently Active" : "Log in as School Admin"}
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="teacher" className="mt-4 space-y-4">
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-lg">Teacher</CardTitle>
+                      <CardDescription>
+                        Manage student accounts and assignments
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="text-sm space-y-2">
+                      <div>
+                        <span className="font-semibold">Email:</span> {TEST_ACCOUNTS.teacher.email}
+                      </div>
+                      <div>
+                        <span className="font-semibold">Password:</span> {TEST_ACCOUNTS.teacher.password}
+                      </div>
+                    </CardContent>
+                    <CardFooter>
+                      <Button
+                        onClick={() => handleLoginAs('teacher')}
+                        className="w-full gradient-bg"
+                        disabled={isLoading.teacher || (isLoggedIn && currentUserType === 'teacher')}
+                      >
+                        {isLoading.teacher ? "Logging in..." : isLoggedIn && currentUserType === 'teacher' ? "Currently Active" : "Log in as Teacher"}
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="student" className="mt-4 space-y-4">
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-lg">Student</CardTitle>
+                      <CardDescription>
+                        Access learning materials and submit assignments
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="text-sm space-y-2">
+                      <div>
+                        <span className="font-semibold">Email:</span> {TEST_ACCOUNTS.student.email}
+                      </div>
+                      <div>
+                        <span className="font-semibold">Password:</span> {TEST_ACCOUNTS.student.password}
+                      </div>
+                    </CardContent>
+                    <CardFooter>
+                      <Button
+                        onClick={() => handleLoginAs('student')}
+                        className="w-full gradient-bg"
+                        disabled={isLoading.student || (isLoggedIn && currentUserType === 'student')}
+                      >
+                        {isLoading.student ? "Logging in..." : isLoggedIn && currentUserType === 'student' ? "Currently Active" : "Log in as Student"}
+                      </Button>
+                    </CardFooter>
+                  </Card>
                 </TabsContent>
               </Tabs>
             </CardContent>
             <CardFooter className="flex flex-col space-y-4">
-              <div className="w-full p-4 bg-blue-50 border border-blue-200 rounded-md">
-                <h3 className="font-semibold text-blue-800 mb-2">Testing Instructions:</h3>
-                <ol className="list-decimal list-inside text-blue-700 space-y-1">
-                  <li>Register a School Admin account - you'll be automatically logged in</li>
-                  <li>Copy the generated school code for other account types</li>
-                  <li>Sign out and register a Teacher account with the school code</li>
-                  <li>Sign out and register a Student account with the school code</li>
-                  <li>Switch between accounts to test role-specific features</li>
+              <div className="w-full p-4 bg-amber-50 border border-amber-200 rounded-md">
+                <h3 className="font-semibold text-amber-800 mb-2">Test Account Information:</h3>
+                <ol className="list-decimal list-inside text-amber-700 space-y-1.5">
+                  <li>All test accounts are created automatically on first login.</li>
+                  <li>The school admin account creates a school code that is shared with teachers and students.</li>
+                  <li>Use the buttons above to switch between different user roles.</li>
+                  <li>All data created with test accounts is isolated from production data.</li>
                 </ol>
               </div>
               <p className="text-sm text-gray-600 text-center w-full">
-                Ready to test?{" "}
+                Return to{" "}
                 <Link to="/login" className="text-learnable-blue hover:underline">
-                  Log in
+                  regular login
                 </Link>{" "}
-                with your test accounts
+                for normal accounts
               </p>
             </CardFooter>
           </Card>

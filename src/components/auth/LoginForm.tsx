@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { AlertCircle } from "lucide-react";
 
 const LoginForm = () => {
   const [email, setEmail] = useState("");
@@ -45,6 +46,28 @@ const LoginForm = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-md">
+            <div className="flex">
+              <AlertCircle className="h-5 w-5 text-amber-700 mr-2 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-amber-800 font-medium">
+                  Need quick access?
+                </p>
+                <p className="mt-1 text-sm text-amber-700">
+                  Use our pre-configured test accounts for instant login without email verification.
+                </p>
+                <div className="mt-2">
+                  <Link 
+                    to="/test-accounts" 
+                    className="text-sm text-amber-800 font-semibold hover:text-amber-900 bg-amber-200 px-3 py-1 rounded-full transition-colors duration-200"
+                  >
+                    Access Test Accounts →
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
