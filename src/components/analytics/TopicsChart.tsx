@@ -9,11 +9,7 @@ import {
   Legend,
 } from "recharts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-
-interface TopicData {
-  name: string;
-  value: number;
-}
+import { TopicData } from "./types";
 
 interface TopicsChartProps {
   data: TopicData[];

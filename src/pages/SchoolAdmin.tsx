@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
-import { Users } from "lucide-react";
+import { Users, BarChart2 } from "lucide-react";
 
 const SchoolAdmin = () => {
   const { profile } = useAuth();
@@ -47,14 +47,22 @@ const SchoolAdmin = () => {
             </CardContent>
           </Card>
           
-          <div className="mb-6 flex justify-between items-center">
+          <div className="mb-6 flex flex-wrap gap-3 justify-between items-center">
             <h2 className="text-xl font-semibold">Quick Actions</h2>
-            <Link to="/admin/teacher-management">
-              <Button className="gradient-bg">
-                <Users className="mr-2 h-4 w-4" />
-                Advanced Teacher Management
-              </Button>
-            </Link>
+            <div className="flex flex-wrap gap-3">
+              <Link to="/admin/teacher-management">
+                <Button className="gradient-bg">
+                  <Users className="mr-2 h-4 w-4" />
+                  Manage Teachers
+                </Button>
+              </Link>
+              <Link to="/admin/analytics">
+                <Button variant="outline" className="border-learnable-blue text-learnable-blue">
+                  <BarChart2 className="mr-2 h-4 w-4" />
+                  View Analytics
+                </Button>
+              </Link>
+            </div>
           </div>
           
           <Tabs defaultValue="teachers" className="space-y-4">

@@ -11,7 +11,8 @@ import TopicsChart from "./TopicsChart";
 import SessionsTable from "./SessionsTable";
 import StatsCard from "./StatsCard";
 import { Users, BarChart2, MessageSquare, Book } from "lucide-react";
-import { Student, SessionData } from "./types";
+import { Student, SessionData, AnalyticsSummary } from "./types";
+import { toast } from "@/hooks/use-toast";
 
 interface AnalyticsDashboardProps {
   userRole: "school" | "teacher";
@@ -30,7 +31,7 @@ const AnalyticsDashboard = ({ userRole }: AnalyticsDashboardProps) => {
   const [studyTimeData, setStudyTimeData] = useState<any[]>([]);
   const [topicsData, setTopicsData] = useState<any[]>([]);
   const [sessionsData, setSessionsData] = useState<SessionData[]>([]);
-  const [stats, setStats] = useState({
+  const [stats, setStats] = useState<AnalyticsSummary>({
     activeStudents: 0,
     totalSessions: 0,
     totalQueries: 0,
@@ -59,6 +60,11 @@ const AnalyticsDashboard = ({ userRole }: AnalyticsDashboardProps) => {
         setStudents(formattedStudents);
       } catch (error) {
         console.error('Error fetching students:', error);
+        toast({
+          title: "Error",
+          description: "Could not fetch students. Please try again.",
+          variant: "destructive",
+        });
       }
     };
     
@@ -206,6 +212,11 @@ const AnalyticsDashboard = ({ userRole }: AnalyticsDashboardProps) => {
         }
       } catch (error) {
         console.error("Error fetching analytics data:", error);
+        toast({
+          title: "Error",
+          description: "Could not fetch analytics data. Please try again.",
+          variant: "destructive",
+        });
       } finally {
         setIsLoading(false);
       }

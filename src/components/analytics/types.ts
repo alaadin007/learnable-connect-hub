@@ -23,3 +23,20 @@ export interface StudyTimeData {
   name: string;
   hours: number;
 }
+
+// New interface for analytics filters
+export interface AnalyticsFilters {
+  dateRange?: {
+    from?: Date;
+    to?: Date;
+  };
+  studentId?: string;
+}
+
+// Interface for summary statistics
+export interface AnalyticsSummary {
+  activeStudents: number;
+  totalSessions: number;
+  totalQueries: number;
+  avgSessionMinutes: number;
+}
