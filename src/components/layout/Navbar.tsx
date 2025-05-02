@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -14,8 +13,6 @@ const Navbar = () => {
   const isMobile = useIsMobile();
   const location = useLocation();
   
-  // Check if we're on a page that should never show the logged-in state
-  // like the homepage, even if there's a session in localStorage
   const isPublicPage = 
     location.pathname === "/" || 
     location.pathname === "/features" || 
@@ -23,7 +20,6 @@ const Navbar = () => {
     location.pathname === "/about" || 
     location.pathname === "/contact";
   
-  // Also never show the logged-in state on auth pages
   const isAuthPage = 
     location.pathname === "/login" || 
     location.pathname === "/register" ||
@@ -31,7 +27,6 @@ const Navbar = () => {
     location.pathname === "/test-accounts" ||
     location.pathname.startsWith("/invitation/");
 
-  // Only consider the user as logged in if they have a session AND we're not on a public or auth page
   const isLoggedIn = user && !isPublicPage && !isAuthPage;
 
   const toggleMenu = () => setIsOpen(!isOpen);
@@ -100,12 +95,32 @@ const Navbar = () => {
   // Check if we're on the test accounts page to hide the entire navbar
   const isTestAccountsPage = location.pathname === "/test-accounts";
 
-  // Helper function to determine if a link is active
+  // Improved helper function to determine if a link is active
   const isActiveLink = (href) => {
-    if (href === "/admin" && (location.pathname === "/admin" || location.pathname.startsWith("/admin/"))) {
-      return true;
+    const currentPath = location.pathname;
+    
+    // Special case for the admin section
+    if (href === "/admin") {
+      return currentPath === "/admin";
     }
-    return location.pathname === href;
+    
+    // Special case for teacher management
+    if (href === "/admin/teacher-management") {
+      return currentPath === "/admin/teacher-management";
+    }
+    
+    // Special case for teachers
+    if (href === "/admin/teachers") {
+      return currentPath === "/admin/teachers";
+    }
+    
+    // Special case for analytics
+    if (href === "/admin/analytics") {
+      return currentPath === "/admin/analytics";
+    }
+    
+    // Direct match for other pages
+    return currentPath === href;
   };
 
   return (
