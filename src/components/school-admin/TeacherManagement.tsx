@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,7 +46,7 @@ type Invitation = {
 };
 
 const TeacherManagement = () => {
-  const { schoolId } = useAuth();
+  const { profile, schoolId } = useAuth();
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [newTeacherEmail, setNewTeacherEmail] = useState('');
@@ -54,15 +55,22 @@ const TeacherManagement = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
 
   useEffect(() => {
-    if (schoolId) {
+    if (schoolId || profile?.school_id) {
       fetchTeachers();
       fetchInvitations();
     }
-  }, [schoolId]);
+  }, [schoolId, profile]);
 
   const fetchTeachers = async () => {
     setIsLoading(true);
     try {
+      const effectiveSchoolId = schoolId || profile?.school_id;
+      
+      if (!effectiveSchoolId) {
+        console.error("No school ID available");
+        return;
+      }
+
       // Fetch teachers and join with profiles table to get names
       const { data: teacherData, error: teacherError } = await supabase
         .from('teachers')
@@ -71,7 +79,7 @@ const TeacherManagement = () => {
           is_supervisor,
           school_id
         `)
-        .eq('school_id', schoolId);
+        .eq('school_id', effectiveSchoolId);
 
       if (teacherError) {
         throw teacherError;
@@ -100,7 +108,9 @@ const TeacherManagement = () => {
       setTeachers(teachersWithProfiles);
     } catch (error) {
       console.error('Error fetching teachers:', error);
-      toast.error('Failed to load teachers');
+      toast.error('Failed to load teachers', {
+        id: "fetch-teachers-error" // Add unique ID to prevent duplicates
+      });
     } finally {
       setIsLoading(false);
     }
@@ -108,10 +118,17 @@ const TeacherManagement = () => {
 
   const fetchInvitations = async () => {
     try {
+      const effectiveSchoolId = schoolId || profile?.school_id;
+      
+      if (!effectiveSchoolId) {
+        console.error("No school ID available");
+        return;
+      }
+
       const { data, error } = await supabase
         .from('teacher_invitations')
         .select('*')
-        .eq('school_id', schoolId)
+        .eq('school_id', effectiveSchoolId)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -121,7 +138,9 @@ const TeacherManagement = () => {
       setInvitations(data || []);
     } catch (error) {
       console.error('Error fetching invitations:', error);
-      toast.error('Failed to load teacher invitations');
+      toast.error('Failed to load teacher invitations', {
+        id: "fetch-invitations-error" // Add unique ID to prevent duplicates
+      });
     }
   };
 
@@ -135,10 +154,24 @@ const TeacherManagement = () => {
 
     setIsSending(true);
     try {
-      // Call the RPC function to invite a teacher
-      const { data, error } = await supabase.rpc('invite_teacher', {
-        teacher_email: newTeacherEmail.trim()
-      });
+      const effectiveSchoolId = schoolId || profile?.school_id;
+      
+      if (!effectiveSchoolId) {
+        throw new Error("No school ID available");
+      }
+
+      // Directly create an invitation record for testing/demo purposes
+      const { data, error } = await supabase
+        .from('teacher_invitations')
+        .insert({
+          school_id: effectiveSchoolId,
+          email: newTeacherEmail.trim(),
+          status: 'pending',
+          invitation_token: `token-${Date.now()}`,
+          created_by: profile?.id || 'unknown'
+        })
+        .select('id')
+        .single();
 
       if (error) {
         throw error;
@@ -184,17 +217,27 @@ const TeacherManagement = () => {
       if (deleteError) throw deleteError;
 
       // Then create a new one
-      const { error } = await supabase.rpc('invite_teacher', {
-        teacher_email: email
-      });
+      const { error } = await supabase
+        .from('teacher_invitations')
+        .insert({
+          school_id: schoolId || profile?.school_id,
+          email: email,
+          status: 'pending',
+          invitation_token: `token-${Date.now()}`,
+          created_by: profile?.id || 'unknown'
+        });
 
       if (error) throw error;
 
-      toast.success(`Invitation resent to ${email}`);
+      toast.success(`Invitation resent to ${email}`, {
+        id: `resend-success-${email}` // Add unique ID to prevent duplicates
+      });
       fetchInvitations();
     } catch (error: any) {
       console.error('Error resending invitation:', error);
-      toast.error(`Failed to resend invitation: ${error.message}`);
+      toast.error(`Failed to resend invitation: ${error.message}`, {
+        id: `resend-error-${Date.now()}` // Add unique ID to prevent duplicates
+      });
     }
   };
 

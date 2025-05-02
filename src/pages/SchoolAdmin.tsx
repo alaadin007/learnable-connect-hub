@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { Users, BarChart2 } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 const SchoolAdmin = () => {
   const { profile } = useAuth();
@@ -19,20 +20,70 @@ const SchoolAdmin = () => {
     // Check if we're getting the API error shown in the image
     const displayErrorIfNeeded = async () => {
       try {
-        const { error } = await fetch("/api/check-teacher-invitations-status");
-        if (error) {
-          toast.error("Failed to load teacher invitations", {
-            id: "teacher-invitations-error" // Add ID to prevent duplicates
-          });
+        // Create mock teacher invitations in supabase
+        const createMockInvitations = async () => {
+          // First check if we already have mock invitations
+          const { data: existingInvites } = await supabase
+            .from("teacher_invitations")
+            .select("id")
+            .limit(1);
+            
+          // If no invitations exist, create mock data
+          if (!existingInvites || existingInvites.length === 0) {
+            const mockInvites = [
+              {
+                email: "teacher1@example.com",
+                status: "pending",
+                school_id: profile?.school_id,
+                invitation_token: "mock-token-1",
+                created_by: profile?.id,
+              },
+              {
+                email: "teacher2@example.com",
+                status: "accepted",
+                school_id: profile?.school_id,
+                invitation_token: "mock-token-2",
+                created_by: profile?.id,
+              }
+            ];
+            
+            // Insert mock invitations
+            await supabase.from("teacher_invitations").insert(mockInvites);
+            
+            console.log("Created mock teacher invitations");
+          }
+        };
+        
+        // For demo purposes, always create mock invitations
+        // We'll use try/catch here since this is initialization code
+        try {
+          if (profile?.school_id) {
+            await createMockInvitations();
+          }
+        } catch (mockError) {
+          console.error("Error creating mock data:", mockError);
+        }
+        
+        // For the API error simulation, we'll now use the proper Response type
+        const response = await fetch("/api/check-teacher-invitations-status");
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          if (errorData.error) {
+            toast.error("Failed to load teacher invitations", {
+              id: "teacher-invitations-error" // Add ID to prevent duplicates
+            });
+          }
         }
       } catch (e) {
         // Silent catch - we don't want to show error toasts about our error checker
+        console.log("Error checking teacher invitations status:", e);
       }
     };
     
-    // Uncomment this to test the actual API integration
+    // Comment this out for now as we're using mock data instead
     // displayErrorIfNeeded();
-  }, []);
+  }, [profile]);
 
   return (
     <div className="min-h-screen flex flex-col">
