@@ -1,3 +1,4 @@
+
 import React from 'react';
 import {
   BrowserRouter,
@@ -23,9 +24,9 @@ import SchoolRegistration from "./pages/SchoolRegistration";
 import TeacherInvitation from "./pages/TeacherInvitation";
 import TestAccounts from "./pages/TestAccounts";
 import { AuthProvider } from "./contexts/AuthContext";
-import { ProtectedRoute } from './components/auth/ProtectedRoute';
+import ProtectedRoute from './components/auth/ProtectedRoute';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ThemeProvider } from "@/components/theme-provider"
+import { ThemeProvider } from "./components/theme-provider";
 import { Toaster } from "@/components/ui/toaster"
 
 // Add the import for TeacherStudents
