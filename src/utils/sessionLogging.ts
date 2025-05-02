@@ -1,12 +1,12 @@
-// Import necessary libraries and clients
-import { supabase } from '@/integrations/supabase/client';
+
 import { v4 as uuidv4 } from 'uuid';
+import { format, addMinutes, subDays } from 'date-fns';
 import { 
   AnalyticsFilters, 
-  AnalyticsSummary, 
-  TopicData, 
-  StudyTimeData,
-  SessionData
+  AnalyticsSummary,
+  SessionData,
+  TopicData,
+  StudyTimeData
 } from '@/components/analytics/types';
 
 /**

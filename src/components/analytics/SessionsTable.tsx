@@ -55,11 +55,25 @@ const SessionsTable = ({
               {sessions.length > 0 ? (
                 sessions.map((session) => (
                   <TableRow key={session.id}>
-                    <TableCell className="font-medium">{session.userName || session.student}</TableCell>
-                    <TableCell>{session.topicOrContent || session.topic}</TableCell>
-                    <TableCell>{session.numQueries || session.queries}</TableCell>
-                    <TableCell>{typeof session.duration === 'string' ? session.duration : `${session.duration} min`}</TableCell>
-                    <TableCell>{session.startTime}</TableCell>
+                    <TableCell className="font-medium">
+                      {session.student_name || session.userName || session.student || "Unknown"}
+                    </TableCell>
+                    <TableCell>
+                      {session.topics?.[0] || session.topicOrContent || session.topic || "General"}
+                    </TableCell>
+                    <TableCell>
+                      {session.questions_asked || session.numQueries || session.queries || 0}
+                    </TableCell>
+                    <TableCell>
+                      {typeof session.duration_minutes === 'number' ? 
+                        `${session.duration_minutes} min` : 
+                        (typeof session.duration === 'string' ? 
+                          session.duration : 
+                          `${session.duration || 0} min`)}
+                    </TableCell>
+                    <TableCell>
+                      {session.session_date || session.startTime || "N/A"}
+                    </TableCell>
                   </TableRow>
                 ))
               ) : (

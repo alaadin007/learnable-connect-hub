@@ -47,8 +47,8 @@ export function AnalyticsExport({
     // Prepare study time data
     const studyTimeHeader = ["Student", "Hours"];
     const studyTimeData = studyTimes.map(item => [
-      item.studentName || item.name || "Unknown",
-      item.hours.toString()
+      item.student_name || item.studentName || item.name || "Unknown",
+      ((item.total_minutes / 60) || item.hours || 0).toString()
     ]);
     const studyTimeCSV = [
       ["Weekly Study Time", ""],
@@ -60,11 +60,13 @@ export function AnalyticsExport({
     // Prepare sessions data
     const sessionsHeader = ["Student", "Topic", "Queries", "Duration", "Date"];
     const sessionsData = sessions.map(session => [
-      session.userName || session.student || "Unknown",
-      session.topicOrContent || session.topic || "General",
-      (session.numQueries || session.queries || 0).toString(),
-      typeof session.duration === 'string' ? session.duration : `${session.duration} min`,
-      new Date(session.startTime).toLocaleString()
+      session.student_name || session.userName || session.student || "Unknown",
+      session.topics?.[0] || session.topicOrContent || session.topic || "General",
+      (session.questions_asked || session.numQueries || session.queries || 0).toString(),
+      typeof session.duration_minutes === 'number' ? 
+        `${session.duration_minutes} min` : 
+        (typeof session.duration === 'string' ? session.duration : `${session.duration || 0} min`),
+      session.session_date || session.startTime || new Date().toLocaleString()
     ]);
     const sessionsCSV = [
       ["Session Details", ""],

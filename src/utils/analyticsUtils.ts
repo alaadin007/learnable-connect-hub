@@ -191,19 +191,29 @@ export const getSessionLogs = async (
           return [];
         }
         
+        // Convert mock data to match SessionData type
         return mockData.sessions.map(session => ({
           id: session.id || `mock-${Math.random().toString(36).substr(2, 9)}`,
-          userId: session.student || "",
-          userName: session.student || "",
-          topicOrContent: session.topic || "",
-          startTime: session.startTime || "",
-          endTime: null,
-          duration: session.duration || "N/A",
-          numQueries: session.queries || 0,
-          // Keep original properties for backward compatibility
-          student: session.student || "",
-          topic: session.topic || "",
-          queries: session.queries || 0
+          student_name: session.student || "Unknown",
+          student_id: session.id || "mock-id",
+          session_date: session.startTime || new Date().toISOString(),
+          duration_minutes: typeof session.duration === 'number' ? 
+            session.duration : 
+            (typeof session.duration === 'string' ? parseInt(session.duration) || 0 : 0),
+          topics: [session.topic || "General"],
+          questions_asked: session.queries || 0,
+          questions_answered: Math.floor((session.queries || 0) * 0.8), // Assume 80% answered
+          
+          // Keep backward compatibility fields
+          userId: session.id,
+          userName: session.student,
+          student: session.student,
+          topicOrContent: session.topic,
+          topic: session.topic,
+          startTime: session.startTime,
+          duration: session.duration,
+          numQueries: session.queries,
+          queries: session.queries
         }));
       } catch (error) {
         console.error('Error generating mock session logs:', error);
@@ -247,23 +257,53 @@ export const getSessionLogs = async (
     // Format the data into SessionData objects
     const sessionLogs: SessionData[] = data.map(session => ({
       id: session.id || `db-${Math.random().toString(36).substr(2, 9)}`,
-      userId: session.user_id || "",
-      userName: session.user_id || "", // Replace with actual student name if available
-      topicOrContent: session.topic_or_content_used || "",
-      startTime: session.session_start || "",
-      endTime: session.session_end || "",
+      student_name: session.user_id || "Unknown", // Replace with actual student name if available
+      student_id: session.user_id || "unknown-id",
+      session_date: session.session_start || new Date().toISOString(),
+      duration_minutes: calculateDurationMinutes(session.session_start || "", session.session_end || ""),
+      topics: [session.topic_or_content_used || "General"],
+      questions_asked: session.num_queries || 0,
+      questions_answered: Math.floor((session.num_queries || 0) * 0.8), // Assume 80% answered
+      
+      // Backward compatibility fields
+      userId: session.user_id,
+      userName: session.user_id, 
+      student: session.user_id,
+      topicOrContent: session.topic_or_content_used,
+      topic: session.topic_or_content_used,
+      startTime: session.session_start,
+      endTime: session.session_end,
       duration: calculateDuration(session.session_start || "", session.session_end || ""),
-      numQueries: session.num_queries || 0,
-      // Keep original properties for backward compatibility
-      student: session.user_id || "",
-      topic: session.topic_or_content_used || "",
-      queries: session.num_queries || 0
+      numQueries: session.num_queries,
+      queries: session.num_queries
     }));
     
     return sessionLogs;
   } catch (error: any) {
     console.error('Error generating session logs:', error);
     return [];
+  }
+};
+
+/**
+ * Calculates duration in minutes between two timestamps.
+ */
+const calculateDurationMinutes = (start: string, end: string): number => {
+  if (!start || !end) return 0;
+  
+  try {
+    const startTime = new Date(start).getTime();
+    const endTime = new Date(end).getTime();
+    
+    if (isNaN(startTime) || isNaN(endTime)) {
+      return 0;
+    }
+    
+    const duration = endTime - startTime;
+    return Math.floor(duration / (60 * 1000));
+  } catch (error) {
+    console.error("Error calculating duration minutes:", error);
+    return 0;
   }
 };
 
@@ -296,11 +336,11 @@ export const getTopicData = async (
         }
         
         return mockData.topics.map(topic => ({
-          topic: topic.name || "",
+          topic: topic.name || "Unknown",
           count: topic.value || 0,
-          // Keep original properties for backward compatibility
-          name: topic.name || "",
-          value: topic.value || 0
+          // Backward compatibility fields
+          name: topic.name,
+          value: topic.value
         }));
       } catch (error) {
         console.error('Error generating mock topic data:', error);
@@ -347,7 +387,7 @@ export const getTopicData = async (
     const topicData: TopicData[] = Object.entries(topicCounts).map(([topicName, count]) => ({
       topic: topicName,
       count: count,
-      // Keep original properties for backward compatibility
+      // Backward compatibility fields
       name: topicName,
       value: count
     }));
@@ -388,12 +428,15 @@ export const getStudyTimeData = async (
         }
         
         return mockData.studyTime.map(item => ({
+          student_name: item.name || "Unknown",
+          student_id: `mock-${Math.random().toString(36).substr(2, 9)}`,
+          total_minutes: (item.hours || 0) * 60,
+          // Backward compatibility fields
           week: new Date().getWeek(),
           year: new Date().getFullYear(),
-          hours: item.hours || 0,
-          studentName: item.name || "",
-          // Keep original properties for backward compatibility
-          name: item.name || ""
+          hours: item.hours,
+          studentName: item.name,
+          name: item.name
         }));
       } catch (error) {
         console.error('Error generating mock study time data:', error);
@@ -440,13 +483,16 @@ export const getStudyTimeData = async (
     });
     
     // Convert the student study time into StudyTimeData objects
-    const studyTimeData: StudyTimeData[] = Object.entries(studentStudyTime).map(([studentName, hours]) => ({
+    const studyTimeData: StudyTimeData[] = Object.entries(studentStudyTime).map(([studentId, minutes]) => ({
+      student_name: studentId, // Replace with actual student name if available
+      student_id: studentId,
+      total_minutes: minutes / (60 * 1000), // Convert milliseconds to minutes
+      // Backward compatibility fields
       week: new Date().getWeek(),
       year: new Date().getFullYear(),
-      hours: hours / (60 * 60 * 1000), // Convert milliseconds to hours
-      studentName: studentName, // Replace with actual student name if available
-      // Keep original properties for backward compatibility
-      name: studentName
+      hours: minutes / (60 * 60 * 1000), // Convert milliseconds to hours
+      studentName: studentId,
+      name: studentId
     }));
     
     return studyTimeData;

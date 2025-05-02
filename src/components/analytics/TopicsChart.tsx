@@ -92,7 +92,6 @@ const TopicsChart = ({
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
-                {/* Updated Tooltip to match the correct interface */}
                 <Tooltip formatter={(value) => [`${value} sessions`, 'Count']} />
                 <Legend />
               </PieChart>
