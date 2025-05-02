@@ -59,6 +59,9 @@ const SchoolRegistrationForm: React.FC = () => {
     setIsLoading(true);
     
     try {
+      // Display toast notification that registration is in progress
+      const loadingToast = toast.loading("Registering your school...");
+      
       // Call our edge function to register the school
       const { data: responseData, error } = await supabase.functions.invoke("register-school", {
         body: {
@@ -69,6 +72,9 @@ const SchoolRegistrationForm: React.FC = () => {
         },
       });
 
+      // Dismiss the loading toast
+      toast.dismiss(loadingToast);
+
       if (error) {
         console.error("School registration error:", error);
         toast.error(`Registration failed: ${error.message || "Unknown error"}`);
@@ -76,7 +82,15 @@ const SchoolRegistrationForm: React.FC = () => {
       }
 
       if (responseData.success) {
-        toast.success("School registered successfully!");
+        // Show success message with school details
+        toast.success(
+          `School "${data.schoolName}" successfully registered! School code: ${responseData.schoolCode}`,
+          {
+            description: "Please check your email to confirm your account.",
+            duration: 6000, // Show for 6 seconds
+          }
+        );
+        
         // Optionally auto-login the admin user
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email: data.adminEmail,

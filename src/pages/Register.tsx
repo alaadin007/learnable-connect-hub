@@ -4,6 +4,7 @@ import Navbar from "@/components/layout/Navbar";
 import RegisterForm from "@/components/auth/RegisterForm";
 import Footer from "@/components/landing/Footer";
 import { Link } from "react-router-dom";
+import { Toaster } from "sonner";
 
 const Register = () => {
   return (
@@ -69,6 +70,7 @@ const Register = () => {
         <RegisterForm />
       </main>
       <Footer />
+      <Toaster />
     </div>
   );
 };
