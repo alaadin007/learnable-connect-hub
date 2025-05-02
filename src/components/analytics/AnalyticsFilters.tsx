@@ -21,7 +21,7 @@ export function AnalyticsFilters({
   const handleDateRangeChange = (range: DateRange | undefined) => {
     onFiltersChange({
       ...filters,
-      dateRange: range
+      dateRange: range || { from: undefined, to: undefined }
     });
   };
 
@@ -52,7 +52,7 @@ export function AnalyticsFilters({
             {showStudentSelector && (
               <div>
                 <StudentSelector 
-                  selectedStudentId={filters.studentId} 
+                  selectedStudent={filters.studentId} 
                   onStudentChange={handleStudentChange}
                 />
               </div>

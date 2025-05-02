@@ -1,6 +1,6 @@
 
 import React from "react";
-import { StatsCard } from "./StatsCard";
+import StatsCard from "./StatsCard";
 import { Activity, MessageSquare, Clock, LayoutGrid } from "lucide-react";
 import { AnalyticsSummary } from "./types";
 

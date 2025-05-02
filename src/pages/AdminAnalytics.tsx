@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
@@ -181,7 +180,7 @@ const AdminAnalytics = () => {
                 <Skeleton className="h-[400px] w-full" />
               ) : (
                 <SessionsTable 
-                  data={sessions} 
+                  sessions={sessions} 
                   title="Recent Learning Sessions" 
                   description="Details of student learning sessions"
                 />
