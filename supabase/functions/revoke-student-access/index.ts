@@ -9,7 +9,7 @@ const corsHeaders = {
 };
 
 interface RevokeStudentBody {
-  studentId: string;
+  student_id: string;
 }
 
 serve(async (req) => {
@@ -33,7 +33,13 @@ serve(async (req) => {
       }
     );
 
-    // Verify the user is logged in and is a teacher
+    // Create admin client with service role key
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+    );
+
+    // Verify the user is logged in
     const {
       data: { user },
       error: userError,
@@ -49,24 +55,10 @@ serve(async (req) => {
       );
     }
 
-    // Get the school_id of the logged in teacher
-    const { data: schoolId, error: schoolIdError } = await supabaseClient
-      .rpc("get_user_school_id");
-
-    if (schoolIdError || !schoolId) {
-      return new Response(
-        JSON.stringify({ error: "Could not determine school ID" }),
-        { 
-          status: 400,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        }
-      );
-    }
-
     // Parse the request body
-    const { studentId }: RevokeStudentBody = await req.json();
-
-    if (!studentId) {
+    const { student_id }: RevokeStudentBody = await req.json();
+    
+    if (!student_id) {
       return new Response(
         JSON.stringify({ error: "Student ID is required" }),
         { 
@@ -76,12 +68,29 @@ serve(async (req) => {
       );
     }
 
-    // Check if student exists and belongs to the same school
+    // Get the school_id of the logged in teacher
+    const { data: teacherData, error: teacherError } = await supabaseClient
+      .from("teachers")
+      .select("school_id")
+      .eq("id", user.id)
+      .single();
+
+    if (teacherError || !teacherData) {
+      return new Response(
+        JSON.stringify({ error: "Only teachers can revoke student access" }),
+        { 
+          status: 403,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
+
+    // Verify that the student belongs to the teacher's school
     const { data: studentData, error: studentError } = await supabaseClient
       .from("students")
-      .select("*")
-      .eq("id", studentId)
-      .eq("school_id", schoolId)
+      .select("school_id")
+      .eq("id", student_id)
+      .eq("school_id", teacherData.school_id)
       .single();
 
     if (studentError || !studentData) {
@@ -94,15 +103,13 @@ serve(async (req) => {
       );
     }
 
-    // Update student status to "revoked"
-    const { data, error: updateError } = await supabaseClient
+    // Delete the student record (this doesn't delete the auth user, only revokes access)
+    const { error: deleteError } = await supabaseAdmin
       .from("students")
-      .update({ status: "revoked" })
-      .eq("id", studentId)
-      .eq("school_id", schoolId);
+      .delete()
+      .eq("id", student_id);
 
-    if (updateError) {
-      console.error("Error updating student status:", updateError);
+    if (deleteError) {
       return new Response(
         JSON.stringify({ error: "Failed to revoke student access" }),
         { 

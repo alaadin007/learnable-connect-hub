@@ -83,14 +83,12 @@ const TeacherManagement = () => {
       // For each teacher, fetch their email (auth.users table is not accessible directly)
       const teachersWithEmail = await Promise.all(
         (data || []).map(async (teacher) => {
-          // Get user email from auth
-          const { data: userData, error: userError } = await supabase.auth.admin.getUserById(teacher.id);
-          
+          // Here we're simplifying by using the profile data since we can't directly fetch from auth
           return {
             ...teacher,
             profile: {
               ...teacher.profile,
-              email: userData?.user?.email || 'Unknown email'
+              email: teacher.profile?.email || 'Unknown email'
             }
           };
         })
@@ -133,7 +131,7 @@ const TeacherManagement = () => {
     setIsSending(true);
     try {
       // Call the RPC function to invite a teacher
-      const { error } = await supabase.rpc('invite_teacher', {
+      const { data, error } = await supabase.rpc('invite_teacher', {
         teacher_email: newTeacherEmail.trim()
       });
 
