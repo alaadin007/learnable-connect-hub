@@ -37,7 +37,7 @@ type AccountType = "school" | "teacher" | "student";
 
 const TestAccounts = () => {
   const navigate = useNavigate();
-  const { signIn, setTestUser } = useAuth();
+  const { setTestUser } = useAuth();
   const [loadingAccount, setLoadingAccount] = useState<AccountType | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -86,22 +86,9 @@ const TestAccounts = () => {
     const account = TEST_ACCOUNTS[accountType];
     
     try {
-      // First try to sign in using real credentials
-      const response = await signIn(account.email, account.password);
-      
-      if (response.error) {
-        console.error(`Login error for ${accountType} account:`, response.error);
-        setErrorMessage("Login failed: Invalid login credentials");
-        
-        // If real login fails, fall back to test user mode
-        await setTestUser(accountType);
-        toast.success(`Logged in as ${account.role} (test mode)`);
-        navigate(account.redirectPath);
-        return;
-      }
-      
-      // If we got here, we successfully signed in with real credentials
-      toast.success(`Logged in as ${account.role}`);
+      // Use test mode directly without trying real authentication
+      await setTestUser(accountType);
+      toast.success(`Logged in as ${account.role} (test mode)`);
       navigate(account.redirectPath);
     } catch (error: any) {
       console.error(`Error signing in as ${accountType}:`, error);
