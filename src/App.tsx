@@ -15,7 +15,9 @@ import Contact from '@/pages/Contact'
 import PrivacyPolicy from './pages/PrivacyPolicy'
 import TestAccounts from '@/pages/TestAccounts'
 import AcceptInvitation from '@/components/auth/AcceptInvitation'
-import ChatWithAI from '@/pages/ChatWithAI' // Import ChatWithAI
+import ChatWithAI from '@/pages/ChatWithAI'
+import Features from '@/pages/Features'
+import Pricing from '@/pages/Pricing'
 import { AuthProvider } from '@/contexts/AuthContext';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 
@@ -36,9 +38,11 @@ function App() {
           <Route path="/admin/analytics" element={<AdminAnalytics />} />
           <Route path="/teacher/students" element={<TeacherStudents />} />
           <Route path="/teacher/analytics" element={<TeacherAnalytics />} />
-          <Route path="/chat" element={<ChatWithAI />} /> {/* Add ChatWithAI route */}
+          <Route path="/chat" element={<ChatWithAI />} />
           <Route path="/about" element={<About />} />
           <Route path="/contact" element={<Contact />} />
+          <Route path="/features" element={<Features />} />
+          <Route path="/pricing" element={<Pricing />} />
           <Route path="/privacy" element={<PrivacyPolicy />} />
           <Route path="/test-accounts" element={<TestAccounts />} />
           <Route path="/invite/:token" element={<AcceptInvitation />} />

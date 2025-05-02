@@ -60,6 +60,12 @@ const Navbar = () => {
           <Link to="/contact" className="text-gray-600 hover:text-gray-800">
             Contact
           </Link>
+          <Link to="/features" className="text-gray-600 hover:text-gray-800">
+            Features
+          </Link>
+          <Link to="/pricing" className="text-gray-600 hover:text-gray-800">
+            Pricing
+          </Link>
           {!user ? (
             <div className="space-x-3">
               <Link to="/login">
