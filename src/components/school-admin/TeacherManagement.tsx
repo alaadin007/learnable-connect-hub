@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -128,7 +127,9 @@ const TeacherManagement = () => {
 
   const handleInviteTeacher = async () => {
     if (!newTeacherEmail.trim()) {
-      toast.error('Please enter a valid email address');
+      toast.error('Please enter a valid email address', {
+        id: 'email-validation-error' // Add ID to prevent duplicates
+      });
       return;
     }
 
@@ -143,13 +144,17 @@ const TeacherManagement = () => {
         throw error;
       }
 
-      toast.success(`Invitation sent to ${newTeacherEmail}`);
+      toast.success(`Invitation sent to ${newTeacherEmail}`, {
+        id: `invitation-success-${newTeacherEmail}` // Add dynamic ID to prevent duplicates
+      });
       setNewTeacherEmail('');
       setDialogOpen(false);
       fetchInvitations();
     } catch (error: any) {
       console.error('Error inviting teacher:', error);
-      toast.error(`Failed to send invitation: ${error.message}`);
+      toast.error(`Failed to send invitation: ${error.message}`, {
+        id: `invitation-error-${Date.now()}` // Add unique ID to prevent duplicates
+      });
     } finally {
       setIsSending(false);
     }

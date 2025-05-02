@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -43,7 +42,10 @@ const TestAccounts = () => {
 
   const createTestAccounts = async () => {
     try {
-      toast.loading("Checking test accounts status...");
+      // Add toast ID to prevent duplicate toasts
+      toast.loading("Checking test accounts status...", { 
+        id: "test-accounts-status" 
+      });
       
       // Use the verify_school_code RPC function which returns boolean
       const { data: exists, error: verifyError } = await supabase.rpc('verify_school_code', { 
@@ -53,30 +55,40 @@ const TestAccounts = () => {
       // Check if there was an error or the code doesn't exist
       if (verifyError || !exists) {
         // If not, invoke the edge function to create them
-        toast.loading("Creating test accounts... (this may take a moment)");
+        toast.loading("Creating test accounts... (this may take a moment)", {
+          id: "test-accounts-creation"
+        });
         
         const response = await supabase.functions.invoke("create-test-accounts", {
           body: { createAccounts: true }
         });
         
         if (response.error) {
-          toast.error("Failed to create test accounts");
+          toast.error("Failed to create test accounts", {
+            id: "test-accounts-error"
+          });
           console.error("Error creating test accounts:", response.error);
           return false;
         }
         
-        toast.success("Test accounts created successfully!");
+        toast.success("Test accounts created successfully!", {
+          id: "test-accounts-success"
+        });
         return true;
       }
       
-      toast.success("Test accounts are ready to use!");
+      toast.success("Test accounts are ready to use!", {
+        id: "test-accounts-ready"
+      });
       return true;
     } catch (error) {
       console.error("Error checking/creating test accounts:", error);
-      toast.error("An error occurred while preparing test accounts");
+      toast.error("An error occurred while preparing test accounts", {
+        id: "test-accounts-general-error"
+      });
       return false;
     } finally {
-      toast.dismiss();
+      toast.dismiss("test-accounts-status");
     }
   };
 
@@ -88,7 +100,9 @@ const TestAccounts = () => {
     try {
       // Use test mode directly without trying real authentication
       await setTestUser(accountType);
-      toast.success(`Logged in as ${account.role} (test mode)`);
+      toast.success(`Logged in as ${account.role} (test mode)`, {
+        id: `login-success-${accountType}`
+      });
       navigate(account.redirectPath);
     } catch (error: any) {
       console.error(`Error signing in as ${accountType}:`, error);

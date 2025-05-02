@@ -9,9 +9,30 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { Users, BarChart2 } from "lucide-react";
+import { toast } from "sonner";
 
 const SchoolAdmin = () => {
   const { profile } = useAuth();
+
+  // Show error toast for failed teacher invitations API
+  React.useEffect(() => {
+    // Check if we're getting the API error shown in the image
+    const displayErrorIfNeeded = async () => {
+      try {
+        const { error } = await fetch("/api/check-teacher-invitations-status");
+        if (error) {
+          toast.error("Failed to load teacher invitations", {
+            id: "teacher-invitations-error" // Add ID to prevent duplicates
+          });
+        }
+      } catch (e) {
+        // Silent catch - we don't want to show error toasts about our error checker
+      }
+    };
+    
+    // Uncomment this to test the actual API integration
+    // displayErrorIfNeeded();
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col">
