@@ -1,6 +1,6 @@
 
-import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -12,6 +12,19 @@ const Navbar = () => {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const isMobile = useIsMobile();
+  const location = useLocation();
+  
+  // Check if we're on a page that should never show the logged-in state
+  // like the homepage, even if there's a session in localStorage
+  const isPublicPage = 
+    location.pathname === "/" || 
+    location.pathname === "/features" || 
+    location.pathname === "/pricing" || 
+    location.pathname === "/about" || 
+    location.pathname === "/contact";
+
+  // Only consider the user as logged in if they have a session AND we're not on a public landing page
+  const isLoggedIn = user && !isPublicPage;
 
   const toggleMenu = () => setIsOpen(!isOpen);
   
@@ -30,7 +43,7 @@ const Navbar = () => {
 
   // Navigation links based on user type
   const getNavLinks = () => {
-    if (!user) {
+    if (!isLoggedIn) {
       return [
         { name: "Home", href: "/" },
         { name: "Features", href: "/features" },
@@ -106,7 +119,7 @@ const Navbar = () => {
 
           {/* Auth buttons - desktop */}
           <div className="hidden md:flex items-center space-x-4">
-            {user ? (
+            {isLoggedIn ? (
               <Button onClick={handleLogout} variant="outline">
                 Log Out
               </Button>
@@ -151,7 +164,7 @@ const Navbar = () => {
             ))}
           </div>
           <div className="pt-4 space-y-4">
-            {user ? (
+            {isLoggedIn ? (
               <Button onClick={handleLogout} variant="outline" className="w-full">
                 Log Out
               </Button>

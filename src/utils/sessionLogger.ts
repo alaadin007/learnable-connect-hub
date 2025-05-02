@@ -56,7 +56,7 @@ const logSessionStart = async (topic?: string, userId?: string): Promise<string 
 };
 
 // Log session end in Supabase
-const logSessionEnd = async (sessionId: string, performanceData?: any): Promise<void> => {
+const logSessionEnd = async (sessionId?: string, performanceData?: any): Promise<void> => {
   try {
     if (!sessionId) {
       console.warn("No session ID provided to end");
@@ -145,8 +145,11 @@ const sessionLogger = {
       return null;
     }
   },
-  endSession: async (sessionId: string, performanceData?: any): Promise<void> => {
-    await logSessionEnd(sessionId, performanceData);
+  endSession: async (reason?: string, performanceData?: any): Promise<void> => {
+    const sessionId = localStorage.getItem("activeSessionId");
+    if (sessionId) {
+      await logSessionEnd(sessionId, performanceData);
+    }
   },
   updateSessionTopic,
   incrementQueryCount,
