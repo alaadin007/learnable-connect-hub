@@ -1,248 +1,166 @@
-import React, { useEffect } from "react";
+
+import React, { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import Navbar from "@/components/layout/Navbar";
+import Footer from "@/components/landing/Footer";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import Navbar from "@/components/layout/Navbar";
-import { BookOpen, FileText, MessageSquare, Users, BarChart2 } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
-import FileUpload from "@/components/documents/FileUpload";
-import FileList from "@/components/documents/FileList";
-import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription, SheetHeader } from "@/components/ui/sheet";
-import AnalyticsDashboard from "@/components/analytics/AnalyticsDashboard";
-import Footer from "@/components/landing/Footer";
+import { MessageSquare, BarChart2, Users, BookOpen } from "lucide-react";
 
 const Dashboard = () => {
-  const { user, profile, userRole } = useAuth();
+  const { user, profile, signOut } = useAuth();
   const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(true);
   
-  // Redirect users based on their role to their specialized dashboards
   useEffect(() => {
-    if (userRole) {
-      // Check user type and redirect accordingly
-      if (userRole === 'school') {
-        navigate('/admin');
-      } else if (userRole === 'teacher') {
-        navigate('/teacher/analytics');
-      }
-      // Student users stay on this dashboard
+    // If user is not logged in, redirect to login page
+    if (!user && !isLoading) {
+      navigate("/login");
     }
-  }, [userRole, navigate]);
+    
+    // Set loading to false once we've checked auth state
+    setIsLoading(false);
+  }, [user, navigate, isLoading]);
+  
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
+  
+  // Function to determine user role and appropriate links
+  const getRoleBasedLinks = () => {
+    if (!profile) return [];
+    
+    switch (profile.user_type) {
+      case 'school_admin':
+        return [
+          { 
+            title: "School Management", 
+            description: "Manage your school settings and configuration", 
+            link: "/admin", 
+            icon: <Users className="h-6 w-6" /> 
+          },
+          { 
+            title: "Teacher Management", 
+            description: "Add, remove, and manage teachers in your school", 
+            link: "/admin/teacher-management", 
+            icon: <Users className="h-6 w-6" /> 
+          },
+          { 
+            title: "Analytics Dashboard", 
+            description: "View detailed analytics about your school", 
+            link: "/admin/analytics", 
+            icon: <BarChart2 className="h-6 w-6" /> 
+          }
+        ];
+      case 'teacher':
+        return [
+          { 
+            title: "Student Management", 
+            description: "Manage your students and their access", 
+            link: "/teacher/students", 
+            icon: <Users className="h-6 w-6" /> 
+          },
+          { 
+            title: "Analytics Dashboard", 
+            description: "View analytics about your students' learning", 
+            link: "/teacher/analytics", 
+            icon: <BarChart2 className="h-6 w-6" /> 
+          }
+        ];
+      case 'student':
+        return [
+          { 
+            title: "Chat with AI", 
+            description: "Get AI-powered help with your studies", 
+            link: "/chat", 
+            icon: <MessageSquare className="h-6 w-6" /> 
+          },
+          { 
+            title: "Study Materials", 
+            description: "Access your learning resources", 
+            link: "/materials", 
+            icon: <BookOpen className="h-6 w-6" /> 
+          }
+        ];
+      default:
+        return [];
+    }
+  };
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50">
+    <div className="min-h-screen flex flex-col">
       <Navbar />
-      
-      <main className="container mx-auto py-6 px-4 sm:px-6 lg:px-8 flex-grow">
-        <h1 className="text-2xl font-bold mb-6">Student Dashboard</h1>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Content */}
-          <div className="lg:col-span-2">
-            <Tabs defaultValue="overview" className="space-y-4">
-              <TabsList>
-                <TabsTrigger value="overview">Overview</TabsTrigger>
-                <TabsTrigger value="documents">My Documents</TabsTrigger>
-                <TabsTrigger value="analytics">My Analytics</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="overview">
-                <div className="grid gap-4 md:grid-cols-2 mb-4">
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Recent Activity</CardTitle>
-                      <FileText className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">
-                        {/* Activity summary */}
-                      </div>
-                    </CardContent>
-                  </Card>
-                  
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Documents</CardTitle>
-                      <BookOpen className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">
-                        {/* Document count */}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-                
-                <div className="grid gap-4 md:grid-cols-2 mb-4">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Quick Upload</CardTitle>
-                      <CardDescription>Upload documents, images and other learning materials</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <Sheet>
-                        <SheetTrigger asChild>
-                          <Button className="w-full">
-                            <FileText className="mr-2 h-4 w-4" />
-                            Upload New File
-                          </Button>
-                        </SheetTrigger>
-                        <SheetContent className="sm:max-w-md">
-                          <SheetHeader>
-                            <SheetTitle>Upload Document</SheetTitle>
-                            <SheetDescription>
-                              Upload PDF documents or images for your learning materials.
-                            </SheetDescription>
-                          </SheetHeader>
-                          <div className="py-6">
-                            <FileUpload />
-                          </div>
-                        </SheetContent>
-                      </Sheet>
-                    </CardContent>
-                  </Card>
-                  
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>AI Assistant</CardTitle>
-                      <CardDescription>Ask questions and get instant help</CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex justify-center">
-                      <Button asChild className="w-full">
-                        <Link to="/chat">
-                          <MessageSquare className="mr-2 h-4 w-4" />
-                          Chat with AI
-                        </Link>
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </div>
-              </TabsContent>
-              
-              <TabsContent value="documents">
-                <Card>
-                  <CardHeader>
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <CardTitle>My Documents</CardTitle>
-                        <CardDescription>
-                          Manage your uploaded documents and learning materials
-                        </CardDescription>
-                      </div>
-                      <Sheet>
-                        <SheetTrigger asChild>
-                          <Button>
-                            <FileText className="mr-2 h-4 w-4" />
-                            Upload Document
-                          </Button>
-                        </SheetTrigger>
-                        <SheetContent className="sm:max-w-md">
-                          <SheetHeader>
-                            <SheetTitle>Upload Document</SheetTitle>
-                            <SheetDescription>
-                              Upload PDF documents or images for your learning materials.
-                            </SheetDescription>
-                          </SheetHeader>
-                          <div className="py-6">
-                            <FileUpload />
-                          </div>
-                        </SheetContent>
-                      </Sheet>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <FileList />
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              <TabsContent value="analytics">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>My Learning Analytics</CardTitle>
-                    <CardDescription>Track your progress and performance</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <AnalyticsDashboard userRole="student" isLoading={false} />
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            </Tabs>
+      <main className="flex-grow bg-learnable-super-light py-8">
+        <div className="container mx-auto px-4">
+          <div className="mb-6">
+            <h1 className="text-3xl font-bold gradient-text mb-2">Welcome, {profile?.full_name || user?.email}</h1>
+            <p className="text-learnable-gray">
+              {profile?.user_type === 'school_admin' ? 'School Admin Dashboard' : 
+               profile?.user_type === 'teacher' ? 'Teacher Dashboard' : 
+               'Student Dashboard'}
+            </p>
           </div>
           
-          {/* Sidebar */}
-          <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* User Info Card */}
             <Card>
               <CardHeader>
-                <CardTitle>Quick Actions</CardTitle>
+                <CardTitle>Your Information</CardTitle>
+                <CardDescription>Your account details</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-2">
-                <Sheet>
-                  <SheetTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start">
-                      <FileText className="mr-2 h-4 w-4" />
-                      Upload Document
-                    </Button>
-                  </SheetTrigger>
-                  <SheetContent>
-                    <SheetHeader>
-                      <SheetTitle>Upload Document</SheetTitle>
-                      <SheetDescription>Upload PDF documents or images for your learning materials.</SheetDescription>
-                    </SheetHeader>
-                    <div className="py-6">
-                      <FileUpload />
+              <CardContent>
+                <div className="space-y-2">
+                  <div className="flex flex-col">
+                    <span className="text-sm text-muted-foreground">Email</span>
+                    <span>{user?.email}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-sm text-muted-foreground">Name</span>
+                    <span>{profile?.full_name || 'Not set'}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-sm text-muted-foreground">Role</span>
+                    <span className="capitalize">{profile?.user_type?.replace('_', ' ') || 'Not set'}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-sm text-muted-foreground">School</span>
+                    <span>{profile?.school_name || 'Not associated with a school'}</span>
+                  </div>
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Button variant="outline" onClick={signOut}>Sign Out</Button>
+              </CardFooter>
+            </Card>
+            
+            {/* Role-based cards */}
+            {getRoleBasedLinks().map((item, index) => (
+              <Card key={index}>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle>{item.title}</CardTitle>
+                    <div className="p-2 bg-primary/10 rounded-full">
+                      {item.icon}
                     </div>
-                  </SheetContent>
-                </Sheet>
-                
-                <Button variant="outline" className="w-full justify-start" asChild>
-                  <Link to="/chat">
-                    <MessageSquare className="mr-2 h-4 w-4" />
-                    Chat with AI
-                  </Link>
-                </Button>
-
-                <Button variant="outline" className="w-full justify-start" asChild>
-                  <Link to={profile?.user_type === 'teacher' ? "/teacher/analytics" : "#analytics"} onClick={(e) => {
-                    if (profile?.user_type !== 'teacher') {
-                      e.preventDefault();
-                      // Fix TypeScript error by properly typing the element
-                      const analyticsTab = document.querySelector('[data-value="analytics"]');
-                      if (analyticsTab) {
-                        (analyticsTab as HTMLElement).click();
-                      }
-                    }
-                  }}>
-                    <BarChart2 className="mr-2 h-4 w-4" />
-                    View Analytics
-                  </Link>
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>User Information</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="flex flex-col">
-                  <span className="text-sm font-medium text-gray-500">Name</span>
-                  <span>{profile?.full_name || user?.email}</span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-sm font-medium text-gray-500">School</span>
-                  <span>{profile?.school_name || "Not assigned"}</span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-sm font-medium text-gray-500">Role</span>
-                  <span className="capitalize">{profile?.user_type || "Student"}</span>
-                </div>
-              </CardContent>
-            </Card>
+                  </div>
+                  <CardDescription>{item.description}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">
+                    Click below to access this feature
+                  </p>
+                </CardContent>
+                <CardFooter>
+                  <Button asChild className="w-full">
+                    <Link to={item.link}>Go to {item.title}</Link>
+                  </Button>
+                </CardFooter>
+              </Card>
+            ))}
           </div>
         </div>
       </main>
-      
       <Footer />
     </div>
   );

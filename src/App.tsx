@@ -8,13 +8,14 @@ import Dashboard from '@/pages/Dashboard'
 import SchoolAdmin from '@/pages/SchoolAdmin'
 import AdminTeacherManagement from '@/pages/AdminTeacherManagement'
 import TeacherStudents from '@/pages/TeacherStudents'
-import TeacherAnalytics from '@/pages/TeacherAnalytics'  // Import TeacherAnalytics
-import AdminAnalytics from '@/pages/AdminAnalytics'  // Import AdminAnalytics
+import TeacherAnalytics from '@/pages/TeacherAnalytics'
+import AdminAnalytics from '@/pages/AdminAnalytics'
 import About from '@/pages/About'
 import Contact from '@/pages/Contact'
 import PrivacyPolicy from './pages/PrivacyPolicy'
 import TestAccounts from '@/pages/TestAccounts'
 import AcceptInvitation from '@/components/auth/AcceptInvitation'
+import ChatWithAI from '@/pages/ChatWithAI' // Import ChatWithAI
 import { AuthProvider } from '@/contexts/AuthContext';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 
@@ -35,6 +36,7 @@ function App() {
           <Route path="/admin/analytics" element={<AdminAnalytics />} />
           <Route path="/teacher/students" element={<TeacherStudents />} />
           <Route path="/teacher/analytics" element={<TeacherAnalytics />} />
+          <Route path="/chat" element={<ChatWithAI />} /> {/* Add ChatWithAI route */}
           <Route path="/about" element={<About />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/privacy" element={<PrivacyPolicy />} />
