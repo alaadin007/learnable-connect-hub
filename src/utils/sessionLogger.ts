@@ -3,12 +3,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 // Log session start in Supabase
-const logSessionStart = async (topic: string, userId?: string): Promise<string | null> => {
+const logSessionStart = async (topic?: string, userId?: string): Promise<string | null> => {
   try {
     // If not testing with a mock userId, use the edge function
     if (!userId) {
       const { data, error } = await supabase.functions.invoke("create-session-log", {
-        body: { topic }
+        body: { topic: topic || "General Chat" }
       });
 
       if (error) {
@@ -37,7 +37,7 @@ const logSessionStart = async (topic: string, userId?: string): Promise<string |
         .insert({
           user_id: userId,
           school_id: userData.school_id,
-          topic_or_content_used: topic
+          topic_or_content_used: topic || "General Chat"
         })
         .select('id')
         .single();
@@ -56,18 +56,16 @@ const logSessionStart = async (topic: string, userId?: string): Promise<string |
 };
 
 // Log session end in Supabase
-const logSessionEnd = async (topic: string, performanceData?: any): Promise<void> => {
+const logSessionEnd = async (sessionId: string, performanceData?: any): Promise<void> => {
   try {
-    // Get current active session from localStorage
-    const activeSessionId = localStorage.getItem("activeSessionId");
-    if (!activeSessionId) {
-      console.warn("No active session found to end");
+    if (!sessionId) {
+      console.warn("No session ID provided to end");
       return;
     }
 
     // Call the endpoint to end the session
     const { error } = await supabase.functions.invoke("end-session", {
-      body: { logId: activeSessionId, performanceData }
+      body: { logId: sessionId, performanceData }
     });
 
     if (error) {
@@ -75,26 +73,27 @@ const logSessionEnd = async (topic: string, performanceData?: any): Promise<void
       return;
     }
 
-    // Clear the active session
-    localStorage.removeItem("activeSessionId");
+    // Clear the active session from localStorage if it matches
+    const activeSessionId = localStorage.getItem("activeSessionId");
+    if (activeSessionId === sessionId) {
+      localStorage.removeItem("activeSessionId");
+    }
   } catch (error) {
     console.error("Error ending session:", error);
   }
 };
 
 // Update session topic in Supabase
-const updateSessionTopic = async (topic: string): Promise<void> => {
+const updateSessionTopic = async (sessionId: string, topic: string): Promise<void> => {
   try {
-    // Get current active session from localStorage
-    const activeSessionId = localStorage.getItem("activeSessionId");
-    if (!activeSessionId) {
-      console.warn("No active session found to update topic");
+    if (!sessionId) {
+      console.warn("No session ID provided to update topic");
       return;
     }
 
     // Call the endpoint to update the session topic
     const { error } = await supabase.functions.invoke("update-session", {
-      body: { logId: activeSessionId, topic }
+      body: { logId: sessionId, topic }
     });
 
     if (error) {
@@ -106,18 +105,16 @@ const updateSessionTopic = async (topic: string): Promise<void> => {
 };
 
 // Increment query count for a session
-const incrementQueryCount = async (): Promise<void> => {
+const incrementQueryCount = async (sessionId: string): Promise<void> => {
   try {
-    // Get current active session from localStorage
-    const activeSessionId = localStorage.getItem("activeSessionId");
-    if (!activeSessionId) {
-      console.warn("No active session found to increment query count");
+    if (!sessionId) {
+      console.warn("No session ID provided to increment query count");
       return;
     }
 
     // Call the RPC function to increment the query count
     const { error } = await supabase.rpc("increment_session_query_count", {
-      log_id: activeSessionId
+      log_id: sessionId
     });
 
     if (error) {
@@ -135,21 +132,21 @@ const hasActiveSession = (): boolean => {
 
 // Create a wrapper object to match what the components expect
 const sessionLogger = {
-  startSession: async (topic: string, userId?: string): Promise<boolean> => {
+  startSession: async (topic?: string, userId?: string): Promise<string | null> => {
     try {
       const sessionId = await logSessionStart(topic, userId);
       if (sessionId) {
         localStorage.setItem("activeSessionId", sessionId);
-        return true;
+        return sessionId;
       }
-      return false;
+      return null;
     } catch (error) {
       console.error("Error in startSession:", error);
-      return false;
+      return null;
     }
   },
-  endSession: async (topic: string, performanceData?: any): Promise<void> => {
-    await logSessionEnd(topic, performanceData);
+  endSession: async (sessionId: string, performanceData?: any): Promise<void> => {
+    await logSessionEnd(sessionId, performanceData);
   },
   updateSessionTopic,
   incrementQueryCount,

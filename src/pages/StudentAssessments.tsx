@@ -146,7 +146,7 @@ const StudentAssessments = () => {
                     <CardTitle className="text-xl">{assessment.title}</CardTitle>
                     {assessment.submission ? (
                       assessment.submission.completed ? (
-                        <Badge variant="success" className="bg-green-100 text-green-800">Completed</Badge>
+                        <Badge variant="secondary" className="bg-green-100 text-green-800">Completed</Badge>
                       ) : (
                         <Badge variant="secondary" className="bg-amber-100 text-amber-800">Submitted</Badge>
                       )

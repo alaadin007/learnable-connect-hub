@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -44,9 +43,9 @@ const PersistentChatInterface: React.FC<PersistentChatInterfaceProps> = ({
   useEffect(() => {
     const startNewSession = async () => {
       try {
-        const session = await sessionLogger.startSession(topic);
-        if (session) {
-          setSessionId(session);
+        const newSessionId = await sessionLogger.startSession(topic);
+        if (newSessionId) {
+          setSessionId(newSessionId);
         }
       } catch (error) {
         console.error("Error starting session:", error);
@@ -213,6 +212,7 @@ const PersistentChatInterface: React.FC<PersistentChatInterfaceProps> = ({
     setInput(text);
   };
 
+  
   return (
     <Card className="h-full flex flex-col">
       <CardHeader className="pb-0">

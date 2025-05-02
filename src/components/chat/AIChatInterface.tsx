@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -44,9 +43,9 @@ const AIChatInterface: React.FC<AIChatInterfaceProps> = ({
   useEffect(() => {
     const startNewSession = async () => {
       try {
-        const session = await sessionLogger.startSession(topic);
-        if (session) {
-          setSessionId(session);
+        const newSessionId = await sessionLogger.startSession(topic);
+        if (newSessionId) {
+          setSessionId(newSessionId);
           
           // If we have an initial prompt, add it as a system message
           if (initialPrompt) {
