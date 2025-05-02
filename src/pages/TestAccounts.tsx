@@ -204,6 +204,9 @@ const TestAccounts = () => {
                       <div>
                         <span className="font-semibold">Note:</span> No password required in test mode
                       </div>
+                      <div>
+                        <span className="font-semibold">Feature:</span> Session logging works with test student accounts
+                      </div>
                     </CardContent>
                     <CardFooter>
                       <Button
@@ -225,6 +228,7 @@ const TestAccounts = () => {
                   <li>Test accounts now work instantly without authentication or database access</li>
                   <li>All test users have access to the same simulated school environment</li>
                   <li>Test data is stored in session storage and is cleared when you sign out</li>
+                  <li>Session logging features are simulated for test accounts</li>
                   <li>No real database operations are performed with test accounts</li>
                 </ol>
               </div>

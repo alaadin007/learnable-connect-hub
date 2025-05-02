@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { useNavigate } from "react-router-dom";
@@ -109,6 +110,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Store test user data in session storage
       sessionStorage.setItem('testUserType', type);
       
+      // Also store the user and profile data for session logging functionality
+      sessionStorage.setItem('testUser', JSON.stringify(mockUser));
+      sessionStorage.setItem('testProfile', JSON.stringify(mockProfile));
+      sessionStorage.setItem('testSchoolId', mockSchoolId);
+      
       toast.success(`Logged in as Test ${type === 'school' ? 'School Admin' : type === 'teacher' ? 'Teacher' : 'Student'}`);
       navigate("/dashboard");
     } catch (error: any) {
@@ -193,6 +199,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (testUserType) {
         // Just clear the session storage and reset state for test users
         sessionStorage.removeItem('testUserType');
+        sessionStorage.removeItem('testUser');
+        sessionStorage.removeItem('testProfile');
+        sessionStorage.removeItem('testSchoolId');
+        sessionStorage.removeItem('activeSessionId');
         
         // Clear all auth state
         setUser(null);
