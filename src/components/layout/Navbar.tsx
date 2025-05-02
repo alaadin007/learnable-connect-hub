@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -51,11 +50,9 @@ const Navbar = () => {
 
   // Navigation links based on user type
   const getNavLinks = () => {
-    // For the test accounts page, show minimal navigation
+    // For the test accounts page, show no navigation
     if (location.pathname === "/test-accounts") {
-      return [
-        { name: "Home", href: "/" }
-      ];
+      return [];
     }
     
     if (!isLoggedIn) {
@@ -98,6 +95,9 @@ const Navbar = () => {
   };
 
   const navLinks = getNavLinks();
+  
+  // Check if we're on the test accounts page to hide the entire navbar
+  const isTestAccountsPage = location.pathname === "/test-accounts";
 
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
@@ -112,60 +112,58 @@ const Navbar = () => {
             </Link>
           </div>
 
-          {/* Mobile menu button */}
-          <div className="md:hidden">
-            <Button variant="ghost" size="icon" onClick={toggleMenu}>
-              {isOpen ? <X /> : <Menu />}
-            </Button>
-          </div>
+          {/* Mobile menu button - hide on test accounts page */}
+          {!isTestAccountsPage && (
+            <div className="md:hidden">
+              <Button variant="ghost" size="icon" onClick={toggleMenu}>
+                {isOpen ? <X /> : <Menu />}
+              </Button>
+            </div>
+          )}
 
-          {/* Desktop navigation */}
-          <nav className="hidden md:flex space-x-8">
-            {navLinks.map((link) => (
-              <Link
-                key={link.name}
-                to={link.href}
-                className="text-learnable-gray hover:text-learnable-blue font-medium"
-              >
-                {link.name}
-              </Link>
-            ))}
-          </nav>
+          {/* Desktop navigation - hide on test accounts page */}
+          {!isTestAccountsPage && (
+            <nav className="hidden md:flex space-x-8">
+              {navLinks.map((link) => (
+                <Link
+                  key={link.name}
+                  to={link.href}
+                  className="text-learnable-gray hover:text-learnable-blue font-medium"
+                >
+                  {link.name}
+                </Link>
+              ))}
+            </nav>
+          )}
 
           {/* Auth buttons - desktop */}
-          <div className="hidden md:flex items-center space-x-4">
-            {/* On test-accounts page, never show auth buttons */}
-            {location.pathname === "/test-accounts" ? (
-              <Button 
-                variant="outline" 
-                onClick={() => navigate("/")}
-              >
-                Back to Home
-              </Button>
-            ) : isLoggedIn ? (
-              <Button onClick={handleLogout} variant="outline">
-                Log Out
-              </Button>
-            ) : (
-              <>
-                {!isAuthPage && (
-                  <Button 
-                    variant="outline" 
-                    onClick={() => navigate("/login")}
-                  >
-                    Log In
-                  </Button>
-                )}
-                {!isAuthPage && (
-                  <Button 
-                    onClick={() => navigate("/register")}
-                  >
-                    Get Started
-                  </Button>
-                )}
-              </>
-            )}
-          </div>
+          {!isTestAccountsPage && (
+            <div className="hidden md:flex items-center space-x-4">
+              {isLoggedIn ? (
+                <Button onClick={handleLogout} variant="outline">
+                  Log Out
+                </Button>
+              ) : (
+                <>
+                  {!isAuthPage && (
+                    <Button 
+                      variant="outline" 
+                      onClick={() => navigate("/login")}
+                    >
+                      Log In
+                    </Button>
+                  )}
+                  {!isAuthPage && (
+                    <Button 
+                      onClick={() => navigate("/register")}
+                    >
+                      Get Started
+                    </Button>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -191,19 +189,7 @@ const Navbar = () => {
             ))}
           </div>
           <div className="pt-4 space-y-4">
-            {/* On test-accounts page, never show auth buttons */}
-            {location.pathname === "/test-accounts" ? (
-              <Button 
-                variant="outline" 
-                onClick={() => {
-                  navigate("/");
-                  setIsOpen(false);
-                }}
-                className="w-full"
-              >
-                Back to Home
-              </Button>
-            ) : isLoggedIn ? (
+            {isLoggedIn ? (
               <Button onClick={handleLogout} variant="outline" className="w-full">
                 Log Out
               </Button>
