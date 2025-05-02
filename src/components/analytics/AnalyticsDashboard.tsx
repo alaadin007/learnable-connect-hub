@@ -31,7 +31,8 @@ interface AnalyticsDashboardProps {
 
 const AnalyticsDashboard = ({ userRole, isLoading: externalLoading }: AnalyticsDashboardProps) => {
   const { schoolId } = useAuth();
-  const [isLoading, setIsLoading] = useState(externalLoading || true);
+  // Fixed: Initialize isLoading as a boolean instead of true specifically
+  const [isLoading, setIsLoading] = useState<boolean>(externalLoading || true);
   const [dateRange, setDateRange] = useState<DateRange>({
     from: subDays(new Date(), 30),
     to: new Date(),
