@@ -1,4 +1,3 @@
-
 import React, {
   createContext,
   useState,
@@ -28,7 +27,7 @@ export type UserProfile = {
     id: string;
     name: string;
     code: string;
-  };
+  } | null;
   // Additional properties that might be used elsewhere
   school_name?: string;
   school_code?: string;
@@ -134,11 +133,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
         // Handle case where organization might be missing or an error
         let safeProfileData: UserProfile = {
           ...profileData,
-          organization: {
-            id: "",
-            name: "",
-            code: ""
-          }
+          organization: null // Default to null
         };
 
         // Check if we have organization data and it's not an error
@@ -151,6 +146,8 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
         setProfile(safeProfileData);
         setUserRole(profileData.user_type || null);
         setIsSuperviser(profileData.user_type === "superviser");
+        
+        // Safely access organization.id with null check
         setSchoolId(safeProfileData.organization?.id || null);
 
         // Handle test accounts
@@ -265,7 +262,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
   const setTestUser = async (
     type: 'school' | 'teacher' | 'student',
     schoolIndex: number = 0
-  ) => {
+  ): Promise<void> => {
     setIsLoading(true);
     try {
       // Mock user and profile data for test accounts
@@ -279,7 +276,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
         app_metadata: {},
         aud: "authenticated",
         created_at: new Date().toISOString()
-      } as User;
+      } as unknown as User; // Type assertion to User
       
       // Create mock profile based on user type
       const mockProfile: UserProfile = {
