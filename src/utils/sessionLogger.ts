@@ -134,6 +134,11 @@ const hasActiveSession = (): boolean => {
 const sessionLogger = {
   startSession: async (topic?: string, userId?: string): Promise<string | null> => {
     try {
+      // Don't start sessions on the test-accounts page
+      if (window.location.pathname === '/test-accounts') {
+        return null;
+      }
+      
       const sessionId = await logSessionStart(topic, userId);
       if (sessionId) {
         localStorage.setItem("activeSessionId", sessionId);
@@ -146,6 +151,11 @@ const sessionLogger = {
     }
   },
   endSession: async (reason?: string, performanceData?: any): Promise<void> => {
+    // Don't process session events on the test-accounts page
+    if (window.location.pathname === '/test-accounts') {
+      return;
+    }
+    
     const sessionId = localStorage.getItem("activeSessionId");
     if (sessionId) {
       await logSessionEnd(sessionId, performanceData);

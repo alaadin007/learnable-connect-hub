@@ -28,6 +28,7 @@ const Navbar = () => {
     location.pathname === "/login" || 
     location.pathname === "/register" ||
     location.pathname === "/school-registration" ||
+    location.pathname === "/test-accounts" ||
     location.pathname.startsWith("/invitation/");
 
   // Only consider the user as logged in if they have a session AND we're not on a public or auth page
@@ -50,6 +51,13 @@ const Navbar = () => {
 
   // Navigation links based on user type
   const getNavLinks = () => {
+    // For the test accounts page, show minimal navigation
+    if (location.pathname === "/test-accounts") {
+      return [
+        { name: "Home", href: "/" }
+      ];
+    }
+    
     if (!isLoggedIn) {
       return [
         { name: "Home", href: "/" },
@@ -126,7 +134,15 @@ const Navbar = () => {
 
           {/* Auth buttons - desktop */}
           <div className="hidden md:flex items-center space-x-4">
-            {isLoggedIn ? (
+            {/* On test-accounts page, never show auth buttons */}
+            {location.pathname === "/test-accounts" ? (
+              <Button 
+                variant="outline" 
+                onClick={() => navigate("/")}
+              >
+                Back to Home
+              </Button>
+            ) : isLoggedIn ? (
               <Button onClick={handleLogout} variant="outline">
                 Log Out
               </Button>
@@ -175,7 +191,19 @@ const Navbar = () => {
             ))}
           </div>
           <div className="pt-4 space-y-4">
-            {isLoggedIn ? (
+            {/* On test-accounts page, never show auth buttons */}
+            {location.pathname === "/test-accounts" ? (
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  navigate("/");
+                  setIsOpen(false);
+                }}
+                className="w-full"
+              >
+                Back to Home
+              </Button>
+            ) : isLoggedIn ? (
               <Button onClick={handleLogout} variant="outline" className="w-full">
                 Log Out
               </Button>
