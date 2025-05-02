@@ -13,6 +13,9 @@ import {
   fetchSessionLogs,
   fetchTopics,
   fetchStudyTime,
+  fetchSchoolPerformance,
+  fetchTeacherPerformance,
+  fetchStudentPerformance,
   getDateRangeText
 } from "@/utils/analyticsUtils";
 import { 
@@ -25,6 +28,10 @@ import {
 } from "@/components/analytics";
 import { AnalyticsFilters as FiltersType, SessionData, TopicData, StudyTimeData } from "@/components/analytics/types";
 import { useToast } from "@/components/ui/use-toast";
+import { SchoolPerformancePanel } from "@/components/analytics/SchoolPerformancePanel";
+import { TeacherPerformanceTable } from "@/components/analytics/TeacherPerformanceTable";
+import { StudentPerformanceTable } from "@/components/analytics/StudentPerformanceTable";
+import { TeacherSelector } from "@/components/analytics/TeacherSelector";
 
 const AdminAnalytics = () => {
   const { profile } = useAuth();
@@ -38,8 +45,16 @@ const AdminAnalytics = () => {
       to: undefined
     }
   });
+  const [activeTab, setActiveTab] = useState<string>("engagement");
+  const [selectedTeacherId, setSelectedTeacherId] = useState<string | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+
+  // Performance metrics state
+  const [schoolPerformanceData, setSchoolPerformanceData] = useState([]);
+  const [schoolPerformanceSummary, setSchoolPerformanceSummary] = useState(null);
+  const [teacherPerformanceData, setTeacherPerformanceData] = useState([]);
+  const [studentPerformanceData, setStudentPerformanceData] = useState([]);
 
   // Get the school_id from the profile, handling both profile structures
   const schoolId = profile?.school_id || (profile as any)?.school?.id;
@@ -48,13 +63,14 @@ const AdminAnalytics = () => {
     if (schoolId) {
       loadAnalyticsData();
     }
-  }, [schoolId, filters]);
+  }, [schoolId, filters, activeTab]);
 
   const loadAnalyticsData = async () => {
     if (!schoolId) return;
     setIsLoading(true);
     
     try {
+      // Engagement metrics
       const summaryData = await fetchAnalyticsSummary(schoolId, filters);
       setSummary(summaryData);
       
@@ -66,6 +82,24 @@ const AdminAnalytics = () => {
       
       const studyTimeData = await fetchStudyTime(schoolId, filters);
       setStudyTime(studyTimeData);
+      
+      // Performance metrics (only load when on performance tab)
+      if (activeTab === "performance") {
+        const performanceFilters = {
+          ...filters,
+          teacherId: selectedTeacherId,
+        };
+        
+        const schoolPerformance = await fetchSchoolPerformance(schoolId, performanceFilters);
+        setSchoolPerformanceData(schoolPerformance.monthlyData);
+        setSchoolPerformanceSummary(schoolPerformance.summary);
+        
+        const teacherPerformance = await fetchTeacherPerformance(schoolId, performanceFilters);
+        setTeacherPerformanceData(teacherPerformance);
+        
+        const studentPerformance = await fetchStudentPerformance(schoolId, performanceFilters);
+        setStudentPerformanceData(studentPerformance);
+      }
     } catch (error: any) {
       console.error("Error loading analytics data:", error);
       toast({
@@ -80,6 +114,10 @@ const AdminAnalytics = () => {
 
   const handleFiltersChange = (newFilters: FiltersType) => {
     setFilters(newFilters);
+  };
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
   };
 
   // Get the date range text for display
@@ -138,70 +176,98 @@ const AdminAnalytics = () => {
             </Alert>
           ) : (
             <div className="space-y-6">
-              <AnalyticsSummaryCards summary={summary} isLoading={isLoading} />
-              
-              <Card>
-                <CardHeader className="flex items-center justify-between">
-                  <div className="space-y-1">
-                    <CardTitle className="text-xl font-bold">
-                      Recent Learning Sessions
-                    </CardTitle>
-                    <CardDescription>
-                      Details of student learning sessions
-                      {filters.dateRange && (
-                        <span className="ml-2">
-                          ({getDateRangeText(filters.dateRange)})
-                        </span>
-                      )}
-                    </CardDescription>
-                  </div>
-                  <AnalyticsExport 
-                    summary={summary} 
-                    sessions={sessions}
-                    topics={topics}
-                    studyTimes={studyTime}
-                    dateRangeText={dateRangeText}
-                  />
-                </CardHeader>
-                <CardContent>
-                  <SessionsTable 
-                    sessions={sessions} 
-                    title="Recent Learning Sessions" 
-                    description="Details of student learning sessions"
-                  />
-                </CardContent>
-              </Card>
-              
-              <Tabs defaultValue="topics" className="w-full">
-                <TabsList>
-                  <TabsTrigger value="topics">Most Studied Topics</TabsTrigger>
-                  <TabsTrigger value="studytime">Student Study Time</TabsTrigger>
+              <Tabs value={activeTab} onValueChange={handleTabChange}>
+                <TabsList className="grid w-full max-w-md grid-cols-2">
+                  <TabsTrigger value="engagement">Engagement Metrics</TabsTrigger>
+                  <TabsTrigger value="performance">Performance Metrics</TabsTrigger>
                 </TabsList>
-                <TabsContent value="topics">
+                
+                <TabsContent value="engagement" className="space-y-6">
+                  <AnalyticsSummaryCards summary={summary} isLoading={isLoading} />
+                  
                   <Card>
-                    <CardHeader>
-                      <CardTitle>Most Studied Topics</CardTitle>
-                      <CardDescription>
-                        Top 10 topics students are currently studying
-                      </CardDescription>
+                    <CardHeader className="flex items-center justify-between">
+                      <div className="space-y-1">
+                        <CardTitle className="text-xl font-bold">
+                          Recent Learning Sessions
+                        </CardTitle>
+                        <CardDescription>
+                          Details of student learning sessions
+                          {filters.dateRange && (
+                            <span className="ml-2">
+                              ({getDateRangeText(filters.dateRange)})
+                            </span>
+                          )}
+                        </CardDescription>
+                      </div>
+                      <AnalyticsExport 
+                        summary={summary} 
+                        sessions={sessions}
+                        topics={topics}
+                        studyTimes={studyTime}
+                        dateRangeText={dateRangeText}
+                      />
                     </CardHeader>
                     <CardContent>
-                      <TopicsChart data={topics} />
+                      <SessionsTable 
+                        sessions={sessions} 
+                        title="Recent Learning Sessions" 
+                        description="Details of student learning sessions"
+                      />
                     </CardContent>
                   </Card>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Most Studied Topics</CardTitle>
+                        <CardDescription>
+                          Top 10 topics students are currently studying
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <TopicsChart data={topics} />
+                      </CardContent>
+                    </Card>
+                    
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Student Study Time</CardTitle>
+                        <CardDescription>
+                          Weekly study time per student
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <StudyTimeChart data={studyTime} />
+                      </CardContent>
+                    </Card>
+                  </div>
                 </TabsContent>
-                <TabsContent value="studytime">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Student Study Time</CardTitle>
-                      <CardDescription>
-                        Weekly study time per student
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <StudyTimeChart data={studyTime} />
-                    </CardContent>
-                  </Card>
+                
+                <TabsContent value="performance" className="space-y-6">
+                  <div className="w-full max-w-xs mb-6">
+                    <TeacherSelector
+                      schoolId={schoolId}
+                      selectedTeacherId={selectedTeacherId}
+                      onTeacherChange={setSelectedTeacherId}
+                    />
+                  </div>
+                  
+                  <SchoolPerformancePanel
+                    monthlyData={schoolPerformanceData}
+                    summary={schoolPerformanceSummary}
+                    isLoading={isLoading}
+                  />
+                  
+                  <TeacherPerformanceTable
+                    data={teacherPerformanceData}
+                    isLoading={isLoading}
+                  />
+                  
+                  <StudentPerformanceTable
+                    data={studentPerformanceData}
+                    isLoading={isLoading}
+                  />
                 </TabsContent>
               </Tabs>
             </div>

@@ -9,6 +9,49 @@ import { supabase } from '@/integrations/supabase/client';
 import { getMockAnalyticsData } from '@/utils/sessionLogging';
 import { format } from 'date-fns';
 
+// SchoolPerformance interfaces
+export interface SchoolPerformanceData {
+  month: string;
+  avg_monthly_score: number;
+  monthly_completion_rate: number;
+  score_improvement_rate: number;
+  completion_improvement_rate: number;
+}
+
+export interface SchoolPerformanceSummary {
+  total_assessments: number;
+  students_with_submissions: number;
+  total_students: number;
+  avg_submissions_per_assessment: number;
+  avg_score: number;
+  completion_rate: number;
+  student_participation_rate: number;
+}
+
+// TeacherPerformance interface
+export interface TeacherPerformanceData {
+  teacher_id: string;
+  teacher_name: string;
+  assessments_created: number;
+  students_assessed: number;
+  avg_submissions_per_assessment: number;
+  avg_student_score: number;
+  completion_rate: number;
+}
+
+// StudentPerformance interface
+export interface StudentPerformanceData {
+  student_id: string;
+  student_name: string;
+  assessments_taken: number;
+  avg_score: number;
+  avg_time_spent_seconds: number;
+  assessments_completed: number;
+  completion_rate: number;
+  top_strengths: string;
+  top_weaknesses: string;
+}
+
 /**
  * Formats a date range into a readable string.
  * @param dateRange - The date range object.
@@ -309,8 +352,285 @@ const calculateDuration = (start: string, end: string): string => {
   return `${minutes} min ${seconds} sec`;
 };
 
+/**
+ * Retrieves school performance data for the given school ID.
+ * @param schoolId - The ID of the school.
+ * @param filters - The filters to apply to the data.
+ * @returns A promise that resolves to an object containing school performance metrics.
+ */
+export const getSchoolPerformance = async (
+  schoolId: string,
+  filters: AnalyticsFilters
+): Promise<{ summary: SchoolPerformanceSummary | null; monthlyData: SchoolPerformanceData[] }> => {
+  try {
+    // Check if the user is a test user
+    const testUserType = sessionStorage.getItem('testUserType');
+    
+    if (testUserType) {
+      // Return mock data for test users
+      return {
+        summary: {
+          total_assessments: 25,
+          students_with_submissions: 42,
+          total_students: 50,
+          avg_submissions_per_assessment: 8.5,
+          avg_score: 78.3,
+          completion_rate: 85.2,
+          student_participation_rate: 84.0
+        },
+        monthlyData: [
+          {
+            month: '2025-01-01',
+            avg_monthly_score: 75.2,
+            monthly_completion_rate: 80.1,
+            score_improvement_rate: 0,
+            completion_improvement_rate: 0
+          },
+          {
+            month: '2025-02-01',
+            avg_monthly_score: 76.5,
+            monthly_completion_rate: 82.4,
+            score_improvement_rate: 1.7,
+            completion_improvement_rate: 2.9
+          },
+          {
+            month: '2025-03-01',
+            avg_monthly_score: 78.1,
+            monthly_completion_rate: 84.5,
+            score_improvement_rate: 2.1,
+            completion_improvement_rate: 2.5
+          },
+          {
+            month: '2025-04-01',
+            avg_monthly_score: 78.3,
+            monthly_completion_rate: 85.2,
+            score_improvement_rate: 0.3,
+            completion_improvement_rate: 0.8
+          }
+        ]
+      };
+    }
+    
+    // Prepare date parameters
+    const fromDate = filters.dateRange?.from?.toISOString();
+    const toDate = filters.dateRange?.to?.toISOString();
+    
+    // Get school performance summary
+    const { data: summaryData, error: summaryError } = await supabase.rpc(
+      'get_school_performance_metrics',
+      {
+        p_school_id: schoolId,
+        p_start_date: fromDate || null,
+        p_end_date: toDate || null
+      }
+    );
+    
+    if (summaryError) {
+      console.error('Error fetching school performance summary:', summaryError);
+      throw new Error('Failed to fetch school performance summary');
+    }
+    
+    // Get monthly improvement data
+    const { data: monthlyData, error: monthlyError } = await supabase.rpc(
+      'get_school_improvement_metrics',
+      {
+        p_school_id: schoolId,
+        p_months_to_include: 6
+      }
+    );
+    
+    if (monthlyError) {
+      console.error('Error fetching school monthly performance:', monthlyError);
+      throw new Error('Failed to fetch school monthly performance');
+    }
+    
+    return {
+      summary: summaryData.length > 0 ? summaryData[0] : null,
+      monthlyData: monthlyData || []
+    };
+  } catch (error: any) {
+    console.error('Error generating school performance data:', error);
+    return { summary: null, monthlyData: [] };
+  }
+};
+
+/**
+ * Retrieves teacher performance data based on the provided filters.
+ * @param schoolId - The ID of the school.
+ * @param filters - The filters to apply to the data.
+ * @returns A promise that resolves to an array of TeacherPerformanceData objects.
+ */
+export const getTeacherPerformance = async (
+  schoolId: string,
+  filters: AnalyticsFilters
+): Promise<TeacherPerformanceData[]> => {
+  try {
+    // Check if the user is a test user
+    const testUserType = sessionStorage.getItem('testUserType');
+    
+    if (testUserType) {
+      // Return mock data for test users
+      return [
+        {
+          teacher_id: "1",
+          teacher_name: "John Smith",
+          assessments_created: 15,
+          students_assessed: 48,
+          avg_submissions_per_assessment: 9.2,
+          avg_student_score: 81.5,
+          completion_rate: 88.3
+        },
+        {
+          teacher_id: "2",
+          teacher_name: "Maria Johnson",
+          assessments_created: 12,
+          students_assessed: 42,
+          avg_submissions_per_assessment: 8.7,
+          avg_student_score: 76.2,
+          completion_rate: 84.1
+        },
+        {
+          teacher_id: "3",
+          teacher_name: "Robert Brown",
+          assessments_created: 8,
+          students_assessed: 37,
+          avg_submissions_per_assessment: 7.8,
+          avg_student_score: 72.9,
+          completion_rate: 79.5
+        }
+      ];
+    }
+    
+    // Prepare date parameters
+    const fromDate = filters.dateRange?.from?.toISOString();
+    const toDate = filters.dateRange?.to?.toISOString();
+    
+    // Filter by specific teacher if provided
+    const teacherId = filters.teacherId;
+    
+    // Get teacher performance data
+    const { data: teacherData, error } = await supabase.rpc(
+      'get_teacher_performance_metrics',
+      {
+        p_school_id: schoolId,
+        p_start_date: fromDate || null,
+        p_end_date: toDate || null
+      }
+    );
+    
+    if (error) {
+      console.error('Error fetching teacher performance data:', error);
+      throw new Error('Failed to fetch teacher performance data');
+    }
+    
+    // Filter by teacher ID if provided
+    let filteredData = teacherData || [];
+    
+    if (teacherId) {
+      filteredData = filteredData.filter(teacher => teacher.teacher_id === teacherId);
+    }
+    
+    return filteredData;
+  } catch (error: any) {
+    console.error('Error generating teacher performance data:', error);
+    return [];
+  }
+};
+
+/**
+ * Retrieves student performance data based on the provided filters.
+ * @param schoolId - The ID of the school.
+ * @param filters - The filters to apply to the data.
+ * @returns A promise that resolves to an array of StudentPerformanceData objects.
+ */
+export const getStudentPerformance = async (
+  schoolId: string,
+  filters: AnalyticsFilters
+): Promise<StudentPerformanceData[]> => {
+  try {
+    // Check if the user is a test user
+    const testUserType = sessionStorage.getItem('testUserType');
+    
+    if (testUserType) {
+      // Return mock data for test users
+      return [
+        {
+          student_id: "1",
+          student_name: "Alice Thompson",
+          assessments_taken: 8,
+          assessments_completed: 7,
+          avg_score: 92.5,
+          avg_time_spent_seconds: 1245,
+          completion_rate: 87.5,
+          top_strengths: "Critical thinking, Problem solving",
+          top_weaknesses: "Time management"
+        },
+        {
+          student_id: "2",
+          student_name: "Bob Wilson",
+          assessments_taken: 8,
+          assessments_completed: 6,
+          avg_score: 84.3,
+          avg_time_spent_seconds: 1532,
+          completion_rate: 75.0,
+          top_strengths: "Data analysis, Research",
+          top_weaknesses: "Written communication"
+        },
+        {
+          student_id: "3",
+          student_name: "Charlie Davis",
+          assessments_taken: 8,
+          assessments_completed: 8,
+          avg_score: 78.9,
+          avg_time_spent_seconds: 1876,
+          completion_rate: 100.0,
+          top_strengths: "Teamwork, Creativity",
+          top_weaknesses: "Mathematical concepts"
+        }
+      ];
+    }
+    
+    // Prepare date parameters
+    const fromDate = filters.dateRange?.from?.toISOString();
+    const toDate = filters.dateRange?.to?.toISOString();
+    
+    // Filter by specific student if provided
+    const studentId = filters.studentId;
+    
+    // Get student performance data
+    const { data: studentData, error } = await supabase.rpc(
+      'get_student_performance_metrics',
+      {
+        p_school_id: schoolId,
+        p_start_date: fromDate || null,
+        p_end_date: toDate || null
+      }
+    );
+    
+    if (error) {
+      console.error('Error fetching student performance data:', error);
+      throw new Error('Failed to fetch student performance data');
+    }
+    
+    // Filter by student ID if provided
+    let filteredData = studentData || [];
+    
+    if (studentId) {
+      filteredData = filteredData.filter(student => student.student_id === studentId);
+    }
+    
+    return filteredData;
+  } catch (error: any) {
+    console.error('Error generating student performance data:', error);
+    return [];
+  }
+};
+
 // Add aliases for the functions used in AdminAnalytics.tsx
 export const fetchAnalyticsSummary = getAnalyticsSummary;
 export const fetchSessionLogs = getSessionLogs;
 export const fetchTopics = getTopicData;
 export const fetchStudyTime = getStudyTimeData;
+export const fetchSchoolPerformance = getSchoolPerformance;
+export const fetchTeacherPerformance = getTeacherPerformance;
+export const fetchStudentPerformance = getStudentPerformance;

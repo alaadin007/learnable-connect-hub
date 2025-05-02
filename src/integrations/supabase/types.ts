@@ -9,6 +9,136 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      assessment_submissions: {
+        Row: {
+          assessment_id: string
+          completed: boolean | null
+          feedback: string | null
+          id: string
+          score: number | null
+          strengths: string[] | null
+          student_id: string
+          submitted_at: string
+          time_spent: number | null
+          weaknesses: string[] | null
+        }
+        Insert: {
+          assessment_id: string
+          completed?: boolean | null
+          feedback?: string | null
+          id?: string
+          score?: number | null
+          strengths?: string[] | null
+          student_id: string
+          submitted_at?: string
+          time_spent?: number | null
+          weaknesses?: string[] | null
+        }
+        Update: {
+          assessment_id?: string
+          completed?: boolean | null
+          feedback?: string | null
+          id?: string
+          score?: number | null
+          strengths?: string[] | null
+          student_id?: string
+          submitted_at?: string
+          time_spent?: number | null
+          weaknesses?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assessment_submissions_assessment_id_fkey"
+            columns: ["assessment_id"]
+            isOneToOne: false
+            referencedRelation: "assessments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_student_id"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "student_performance_metrics"
+            referencedColumns: ["student_id"]
+          },
+          {
+            foreignKeyName: "fk_student_id"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assessments: {
+        Row: {
+          created_at: string
+          description: string | null
+          due_date: string | null
+          id: string
+          max_score: number
+          school_id: string
+          teacher_id: string
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          max_score?: number
+          school_id: string
+          teacher_id: string
+          title: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          max_score?: number
+          school_id?: string
+          teacher_id?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_school_id"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_improvement_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "fk_school_id"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_performance_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "fk_school_id"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_teacher_id"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teacher_performance_metrics"
+            referencedColumns: ["teacher_id"]
+          },
+          {
+            foreignKeyName: "fk_teacher_id"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversations: {
         Row: {
           category: string | null
@@ -50,6 +180,20 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "conversations_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_improvement_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "conversations_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_performance_metrics"
+            referencedColumns: ["school_id"]
+          },
           {
             foreignKeyName: "conversations_school_id_fkey"
             columns: ["school_id"]
@@ -293,7 +437,96 @@ export type Database = {
             foreignKeyName: "session_logs_school_id_fkey"
             columns: ["school_id"]
             isOneToOne: false
+            referencedRelation: "school_improvement_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "session_logs_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_performance_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "session_logs_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
             referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      student_progress_history: {
+        Row: {
+          assessments_taken: number
+          avg_score: number
+          completion_rate: number
+          created_at: string
+          id: string
+          improvement_rate: number | null
+          period_end: string
+          period_start: string
+          school_id: string
+          student_id: string
+        }
+        Insert: {
+          assessments_taken?: number
+          avg_score?: number
+          completion_rate?: number
+          created_at?: string
+          id?: string
+          improvement_rate?: number | null
+          period_end: string
+          period_start: string
+          school_id: string
+          student_id: string
+        }
+        Update: {
+          assessments_taken?: number
+          avg_score?: number
+          completion_rate?: number
+          created_at?: string
+          id?: string
+          improvement_rate?: number | null
+          period_end?: string
+          period_start?: string
+          school_id?: string
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_progress_history_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_improvement_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "student_progress_history_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_performance_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "student_progress_history_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_progress_history_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "student_performance_metrics"
+            referencedColumns: ["student_id"]
+          },
+          {
+            foreignKeyName: "student_progress_history_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
             referencedColumns: ["id"]
           },
         ]
@@ -318,6 +551,20 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "students_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_improvement_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "students_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_performance_metrics"
+            referencedColumns: ["school_id"]
+          },
           {
             foreignKeyName: "students_school_id_fkey"
             columns: ["school_id"]
@@ -363,6 +610,20 @@ export type Database = {
             foreignKeyName: "teacher_invitations_school_id_fkey"
             columns: ["school_id"]
             isOneToOne: false
+            referencedRelation: "school_improvement_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "teacher_invitations_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_performance_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "teacher_invitations_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
             referencedRelation: "schools"
             referencedColumns: ["id"]
           },
@@ -401,6 +662,20 @@ export type Database = {
             foreignKeyName: "teacher_invites_school_id_fkey"
             columns: ["school_id"]
             isOneToOne: false
+            referencedRelation: "school_improvement_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "teacher_invites_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_performance_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "teacher_invites_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
             referencedRelation: "schools"
             referencedColumns: ["id"]
           },
@@ -433,6 +708,20 @@ export type Database = {
             foreignKeyName: "teachers_school_id_fkey"
             columns: ["school_id"]
             isOneToOne: false
+            referencedRelation: "school_improvement_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "teachers_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_performance_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "teachers_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
             referencedRelation: "schools"
             referencedColumns: ["id"]
           },
@@ -448,6 +737,20 @@ export type Database = {
           topic_rank: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "session_logs_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_improvement_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "session_logs_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_performance_metrics"
+            referencedColumns: ["school_id"]
+          },
           {
             foreignKeyName: "session_logs_school_id_fkey"
             columns: ["school_id"]
@@ -472,10 +775,50 @@ export type Database = {
             foreignKeyName: "session_logs_school_id_fkey"
             columns: ["school_id"]
             isOneToOne: false
+            referencedRelation: "school_improvement_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "session_logs_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_performance_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "session_logs_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
             referencedRelation: "schools"
             referencedColumns: ["id"]
           },
         ]
+      }
+      school_improvement_metrics: {
+        Row: {
+          avg_monthly_score: number | null
+          completion_improvement_rate: number | null
+          month: string | null
+          monthly_completion_rate: number | null
+          school_id: string | null
+          school_name: string | null
+          score_improvement_rate: number | null
+        }
+        Relationships: []
+      }
+      school_performance_metrics: {
+        Row: {
+          avg_score: number | null
+          avg_submissions_per_assessment: number | null
+          completion_rate: number | null
+          school_id: string | null
+          school_name: string | null
+          student_participation_rate: number | null
+          students_with_submissions: number | null
+          total_assessments: number | null
+          total_students: number | null
+        }
+        Relationships: []
       }
       session_query_counts: {
         Row: {
@@ -507,6 +850,58 @@ export type Database = {
             foreignKeyName: "session_logs_school_id_fkey"
             columns: ["school_id"]
             isOneToOne: false
+            referencedRelation: "school_improvement_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "session_logs_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_performance_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "session_logs_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      student_performance_metrics: {
+        Row: {
+          assessments_completed: number | null
+          assessments_taken: number | null
+          avg_score: number | null
+          avg_time_spent_seconds: number | null
+          completion_rate: number | null
+          school_id: string | null
+          student_id: string | null
+          student_name: string | null
+          top_strengths: string | null
+          top_weaknesses: string | null
+          total_submissions: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "students_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_improvement_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "students_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_performance_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "students_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
             referencedRelation: "schools"
             referencedColumns: ["id"]
           },
@@ -524,6 +919,55 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "session_logs_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_improvement_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "session_logs_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_performance_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "session_logs_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teacher_performance_metrics: {
+        Row: {
+          assessments_created: number | null
+          avg_student_score: number | null
+          avg_submissions_per_assessment: number | null
+          completion_rate: number | null
+          school_id: string | null
+          students_assessed: number | null
+          teacher_id: string | null
+          teacher_name: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teachers_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_improvement_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "teachers_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_performance_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "teachers_school_id_fkey"
             columns: ["school_id"]
             isOneToOne: false
             referencedRelation: "schools"
@@ -553,9 +997,71 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      get_school_improvement_metrics: {
+        Args: { p_school_id: string; p_months_to_include?: number }
+        Returns: {
+          month: string
+          avg_monthly_score: number
+          monthly_completion_rate: number
+          score_improvement_rate: number
+          completion_improvement_rate: number
+        }[]
+      }
       get_school_name_from_code: {
         Args: { code: string }
         Returns: string
+      }
+      get_school_performance_metrics: {
+        Args: {
+          p_school_id: string
+          p_start_date?: string
+          p_end_date?: string
+        }
+        Returns: {
+          school_id: string
+          school_name: string
+          total_assessments: number
+          students_with_submissions: number
+          total_students: number
+          avg_submissions_per_assessment: number
+          avg_score: number
+          completion_rate: number
+          student_participation_rate: number
+        }[]
+      }
+      get_student_performance_metrics: {
+        Args: {
+          p_school_id: string
+          p_start_date?: string
+          p_end_date?: string
+        }
+        Returns: {
+          student_id: string
+          student_name: string
+          assessments_taken: number
+          avg_score: number
+          avg_time_spent_seconds: number
+          assessments_completed: number
+          completion_rate: number
+          top_strengths: string
+          top_weaknesses: string
+        }[]
+      }
+      get_teacher_performance_metrics: {
+        Args: {
+          p_school_id: string
+          p_start_date?: string
+          p_end_date?: string
+        }
+        Returns: {
+          teacher_id: string
+          teacher_name: string
+          assessments_created: number
+          students_assessed: number
+          avg_submissions_per_assessment: number
+          avg_student_score: number
+          completion_rate: number
+        }[]
       }
       get_user_role: {
         Args: Record<PropertyKey, never>
@@ -576,6 +1082,10 @@ export type Database = {
       is_supervisor: {
         Args: { user_id: string }
         Returns: boolean
+      }
+      populatetestaccountwithsessions: {
+        Args: { userid: string; schoolid: string; num_sessions?: number }
+        Returns: undefined
       }
       update_session_topic: {
         Args: { log_id: string; topic: string }

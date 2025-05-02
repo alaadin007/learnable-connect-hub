@@ -74,3 +74,6 @@ port = 54327
 serve_port = 54328
 [functions.process-document]
 verify_jwt = true
+
+[functions.populate-test-performance]
+verify_jwt = true
