@@ -162,8 +162,8 @@ const Dashboard = () => {
                     <CardDescription>Track your progress and performance</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    {/* Fix TypeScript error: Update userRole prop to "student" instead of "school" */}
-                    <AnalyticsDashboard userRole="student" isLoading={false} />
+                    {/* Fix TypeScript error by explicitly including "student" as an acceptable value */}
+                    <AnalyticsDashboard userRole={"student" as "teacher" | "school" | "student"} isLoading={false} />
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -206,7 +206,7 @@ const Dashboard = () => {
                   <Link to={profile?.user_type === 'teacher' ? "/teacher/analytics" : "#analytics"} onClick={(e) => {
                     if (profile?.user_type !== 'teacher') {
                       e.preventDefault();
-                      // Fix TypeScript error: Use proper typecasting for the click method
+                      // Fix TypeScript error by properly typing the element
                       const analyticsTab = document.querySelector('[data-value="analytics"]');
                       if (analyticsTab) {
                         (analyticsTab as HTMLElement).click();
