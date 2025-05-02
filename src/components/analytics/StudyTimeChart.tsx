@@ -12,7 +12,7 @@ import {
 } from "recharts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { StudyTimeData } from "./types";
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { ChartContainer } from "@/components/ui/chart";
 
 interface StudyTimeChartProps {
   data: StudyTimeData[];
@@ -55,13 +55,9 @@ const StudyTimeChart = ({
                   tick={{ fontSize: 12 }}
                 />
                 <YAxis label={{ value: 'Hours', angle: -90, position: 'insideLeft' }} />
-                <ChartTooltip 
-                  content={(props) => (
-                    <ChartTooltipContent 
-                      {...props} 
-                      formatter={(value) => [`${value} hours`, 'Study Time']} 
-                    />
-                  )}
+                {/* Fixed the Tooltip usage to be compatible with TypeScript */}
+                <Tooltip 
+                  formatter={(value) => [`${value} hours`, 'Study Time']}
                 />
                 <Legend />
                 <Bar dataKey="hours" name="Study Hours" fill="var(--color-hours)" />
