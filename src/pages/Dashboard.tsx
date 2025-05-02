@@ -20,11 +20,13 @@ const Dashboard = () => {
   // Redirect users based on their role to their specialized dashboards
   useEffect(() => {
     if (profile) {
+      // Check user type and redirect accordingly
       if (profile.user_type === 'school') {
         navigate('/admin');
       } else if (profile.user_type === 'teacher') {
         navigate('/teacher/analytics');
       }
+      // Student users stay on this dashboard
     }
   }, [profile, navigate]);
 
@@ -162,7 +164,6 @@ const Dashboard = () => {
                     <CardDescription>Track your progress and performance</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    {/* Now student is a valid userRole value */}
                     <AnalyticsDashboard userRole="student" isLoading={false} />
                   </CardContent>
                 </Card>

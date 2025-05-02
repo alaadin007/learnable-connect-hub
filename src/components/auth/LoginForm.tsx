@@ -50,6 +50,33 @@ const LoginForm = () => {
     setIsLoading(true);
     
     try {
+      // Handle test accounts first to ensure they are routed correctly
+      if (email.endsWith('@testschool.edu') || email.endsWith('@secondschool.edu')) {
+        // Extract user type from email and determine school index
+        const type = email.startsWith('admin') ? 'school' : email.split('@')[0] as 'teacher' | 'student';
+        const schoolIndex = email.includes('secondschool.edu') ? 1 : 0;
+        
+        // Use the setTestUser function which handles all the test account setup
+        await setTestUser(type, schoolIndex);
+        
+        // Navigate based on user type
+        if (type === 'school') {
+          navigate('/admin');
+        } else if (type === 'teacher') {
+          navigate('/teacher/analytics');
+        } else {
+          navigate('/dashboard');
+        }
+        
+        toast.success("Login successful", {
+          description: `Welcome back, ${type === 'school' ? 'School Admin' : type === 'teacher' ? 'Teacher' : 'Student'}!`
+        });
+        
+        setIsLoading(false);
+        return;
+      }
+      
+      // For regular users, proceed with normal sign-in flow
       await signIn(email, password);
       
       // Get the user's role
@@ -72,14 +99,12 @@ const LoginForm = () => {
               });
               break;
             case 'teacher':
-              // Redirect teacher to their analytics dashboard like test accounts
               navigate('/teacher/analytics');
               toast.success("Login successful", {
                 description: `Welcome back, ${user.user_metadata.full_name || email}!`
               });
               break;
             case 'student':
-              // Students go to their dashboard
               navigate('/dashboard');
               toast.success("Login successful", {
                 description: `Welcome back, ${user.user_metadata.full_name || email}!`
@@ -123,19 +148,24 @@ const LoginForm = () => {
 
   const handleQuickLogin = async (type: 'school' | 'teacher' | 'student', schoolIndex: number = 0) => {
     try {
+      setIsLoading(true);
       await setTestUser(type, schoolIndex);
       
       // Navigate based on user type for test accounts
       if (type === 'school') {
         navigate('/admin');
       } else if (type === 'teacher') {
-        // Ensure test teachers also go to analytics
         navigate('/teacher/analytics');
       } else {
         navigate('/dashboard');
       }
+      
+      toast.success(`Logged in as ${type === 'school' ? 'School Admin' : type === 'teacher' ? 'Teacher' : 'Student'}`);
     } catch (error) {
       console.error("Quick login error:", error);
+      toast.error("Failed to log in with test account");
+    } finally {
+      setIsLoading(false);
     }
   };
 
