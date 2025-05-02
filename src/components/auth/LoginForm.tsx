@@ -67,26 +67,37 @@ const LoginForm = () => {
           switch (profile.user_type) {
             case 'school':
               navigate('/admin');
+              toast.success("Login successful", {
+                description: `Welcome back, ${user.user_metadata.full_name || email}!`
+              });
               break;
             case 'teacher':
               navigate('/dashboard');
+              toast.success("Login successful", {
+                description: `Welcome back, ${user.user_metadata.full_name || email}!`
+              });
               break;
             case 'student':
               navigate('/dashboard');
+              toast.success("Login successful", {
+                description: `Welcome back, ${user.user_metadata.full_name || email}!`
+              });
               break;
             default:
               navigate('/dashboard');
+              toast.success("Login successful", {
+                description: `Welcome back, ${user.user_metadata.full_name || email}!`
+              });
           }
-          
-          toast.success("Login successful", {
-            description: `Welcome back, ${user.user_metadata.full_name || email}!`
-          });
         } else {
+          // If no profile found, redirect to dashboard as fallback
           navigate('/dashboard');
+          toast.success("Login successful");
         }
       } else {
-        // Default fallback
+        // Default fallback if no user data
         navigate('/dashboard');
+        toast.success("Login successful");
       }
     } catch (error: any) {
       console.error("Login error:", error);
@@ -111,6 +122,13 @@ const LoginForm = () => {
   const handleQuickLogin = async (type: 'school' | 'teacher' | 'student', schoolIndex: number = 0) => {
     try {
       await setTestUser(type, schoolIndex);
+      
+      // Navigate based on user type for test accounts
+      if (type === 'school') {
+        navigate('/admin');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (error) {
       console.error("Quick login error:", error);
     }

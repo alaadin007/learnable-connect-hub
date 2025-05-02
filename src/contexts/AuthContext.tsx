@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { useNavigate } from "react-router-dom";
@@ -137,7 +136,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await generateMockConversations(mockUser.id, mockSchoolId);
       }
       
-      navigate("/dashboard");
+      // Navigation is now handled in the component that calls setTestUser
     } catch (error: any) {
       console.error("Error setting test user:", error.message);
       toast.error("Failed to set test user");
