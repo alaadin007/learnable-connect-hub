@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { sessionLogger } from "@/utils/sessionLogger";
 import { Badge } from "@/components/ui/badge";
 import VoiceRecorder from "./VoiceRecorder";
+import TextToSpeech from "./TextToSpeech";
 import { 
   Tooltip,
   TooltipContent,
@@ -568,6 +569,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                       
                       {message.role === "assistant" && (
                         <>
+                          <TextToSpeech text={message.content} />
                           <Button
                             variant="ghost"
                             size="icon"

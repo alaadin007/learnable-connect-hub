@@ -5,7 +5,7 @@ import Footer from "@/components/landing/Footer";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Mic, FileText, Star, BarChart } from "lucide-react";
+import { Mic, FileText, Star, BarChart, Volume } from "lucide-react";
 
 const TestAccounts = () => {
   return (
@@ -98,6 +98,18 @@ const TestAccounts = () => {
                   
                   <div className="flex items-start gap-4">
                     <div className="p-2 bg-learnable-blue-light rounded-lg">
+                      <Volume className="h-6 w-6 text-learnable-blue" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-medium">Text-to-Speech Responses</h3>
+                      <p className="text-gray-500 mt-1">
+                        Listen to AI responses with high-quality text-to-speech audio playback
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start gap-4">
+                    <div className="p-2 bg-learnable-blue-light rounded-lg">
                       <Star className="h-6 w-6 text-learnable-blue" />
                     </div>
                     <div>
@@ -141,7 +153,7 @@ const TestAccounts = () => {
                   <li>
                     <p className="font-medium">Explore the AI chat interface</p>
                     <p className="text-gray-500 mt-1">
-                      Ask questions via text or using the voice query feature, try document integration
+                      Ask questions via text or using the voice query feature, try document integration, and listen to AI responses with text-to-speech
                     </p>
                   </li>
                   <li>
