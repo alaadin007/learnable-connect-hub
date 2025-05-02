@@ -32,8 +32,8 @@ const Dashboard = () => {
     if (!profile) return [];
     
     switch (profile.user_type) {
-      case 'school_admin':
-      case 'school': // Handle both 'school_admin' and 'school' types
+      case 'school':
+      case 'school_admin': // Handle both 'school_admin' and 'school' types
         return [
           { 
             title: "School Management", 
@@ -97,7 +97,7 @@ const Dashboard = () => {
           <div className="mb-6">
             <h1 className="text-3xl font-bold gradient-text mb-2">Welcome, {profile?.full_name || user?.email}</h1>
             <p className="text-learnable-gray">
-              {profile?.user_type === 'school' || profile?.user_type === 'school_admin' ? 'School Admin Dashboard' : 
+              {(profile?.user_type === 'school' || profile?.user_type === 'school_admin') ? 'School Admin Dashboard' : 
                profile?.user_type === 'teacher' ? 'Teacher Dashboard' : 
                'Student Dashboard'}
             </p>
