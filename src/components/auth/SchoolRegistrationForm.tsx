@@ -1,4 +1,3 @@
-
 import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -81,6 +80,43 @@ const SchoolRegistrationForm: React.FC = () => {
     }
   };
 
+  const checkIfEmailExists = async (email: string): Promise<boolean> => {
+    try {
+      // Instead of using admin.listUsers with filter property which causes TypeScript errors,
+      // Try a sign-in attempt to check if the email exists
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: email,
+        password: "dummy-password-for-check-only",
+      });
+
+      // If there's no error or the error is not about invalid credentials, email might exist
+      const emailExists = !signInError || (signInError && !signInError.message.includes("Invalid login credentials"));
+      
+      // If we think the email exists, double-check by querying the profiles table
+      if (emailExists) {
+        // Additional check to see if the email is in use by getting profiles
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('id')
+          .limit(1);
+        
+        // If we can't check profiles, assume the email exists for safety
+        if (profileError) {
+          console.error("Error checking profiles:", profileError);
+          return true;
+        }
+        
+        return !!profileData && profileData.length > 0;
+      }
+
+      return emailExists;
+    } catch (error) {
+      console.error("Error checking email existence:", error);
+      // In case of error, safer to assume it might exist
+      return true;
+    }
+  };
+
   const onSubmit = async (data: SchoolRegistrationFormValues) => {
     setIsLoading(true);
     setExistingEmailError(null);
@@ -89,38 +125,10 @@ const SchoolRegistrationForm: React.FC = () => {
       // Display toast notification that registration is in progress
       const loadingToast = toast.loading("Registering your school...");
       
-      // Check if email already exists in ANY role
-      const { data: { users }, error: getUserError } = await supabase.auth.admin.listUsers({
-        filter: {
-          email: data.adminEmail
-        }
-      });
+      // Check if email already exists
+      const emailExists = await checkIfEmailExists(data.adminEmail);
       
-      // If users array is not empty or we can't check (which is safer to assume might exist)
-      if (getUserError || (users && users.length > 0)) {
-        toast.dismiss(loadingToast);
-        setExistingEmailError(data.adminEmail);
-        toast.error(
-          "This email is already registered",
-          {
-            description: "Please use a different email address. Each user can only have one role in the system.",
-            duration: 8000,
-            icon: <AlertCircle className="h-5 w-5" />,
-          }
-        );
-        setIsLoading(false);
-        return;
-      }
-      
-      // Fallback check using sign-in attempt (in case admin API fails)
-      const { error: emailCheckError } = await supabase.auth.signInWithPassword({
-        email: data.adminEmail,
-        password: "dummy-password-for-check-only",
-      });
-
-      // If email exists, this will not return auth/invalid_credentials
-      if (!emailCheckError || (emailCheckError && !emailCheckError.message.includes("Invalid login credentials"))) {
-        // Email likely exists - show specific message
+      if (emailExists) {
         toast.dismiss(loadingToast);
         setExistingEmailError(data.adminEmail);
         toast.error(

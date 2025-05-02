@@ -162,8 +162,8 @@ const Dashboard = () => {
                     <CardDescription>Track your progress and performance</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    {/* Fix TypeScript error: Update userRole prop to "school" instead of "student" */}
-                    <AnalyticsDashboard userRole="school" isLoading={false} />
+                    {/* Fix TypeScript error: Update userRole prop to "student" instead of "school" */}
+                    <AnalyticsDashboard userRole="student" isLoading={false} />
                   </CardContent>
                 </Card>
               </TabsContent>

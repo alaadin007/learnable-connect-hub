@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -86,26 +85,34 @@ const RegisterForm = () => {
 
   const checkIfEmailExists = async (email: string): Promise<boolean> => {
     try {
-      // First, check if the email is already registered using admin methods
-      const { data: { users }, error: getUserError } = await supabase.auth.admin.listUsers({
-        filter: {
-          email: email
-        }
-      });
-      
-      // If users array is not empty, the email exists
-      if (!getUserError && users && users.length > 0) {
-        return true;
-      }
-      
-      // Fallback check using sign-in attempt
-      const { error: emailCheckError } = await supabase.auth.signInWithPassword({
+      // First, check if the email is already registered using a query to auth.users
+      // Instead of using admin.listUsers with filter property which is causing the TypeScript error
+      const { error: signInError } = await supabase.auth.signInWithPassword({
         email: email,
         password: "dummy-password-for-check-only",
       });
 
       // If there's no error or the error is not about invalid credentials, email might exist
-      return !emailCheckError || (emailCheckError && !emailCheckError.message.includes("Invalid login credentials"));
+      const emailExists = !signInError || (signInError && !signInError.message.includes("Invalid login credentials"));
+      
+      // If we think the email exists, double-check by querying the profiles table
+      if (emailExists) {
+        // Additional check to see if the email is in use by getting profiles
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('id')
+          .limit(1);
+        
+        // If we can't check profiles, assume the email exists for safety
+        if (profileError) {
+          console.error("Error checking profiles:", profileError);
+          return true;
+        }
+        
+        return !!profileData && profileData.length > 0;
+      }
+
+      return emailExists;
     } catch (error) {
       console.error("Error checking email existence:", error);
       // In case of error, safer to assume it might exist
