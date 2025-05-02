@@ -30,11 +30,11 @@ const TeacherAnalytics = () => {
               <div className="space-y-2">
                 <div className="flex flex-col sm:flex-row sm:items-center">
                   <span className="font-medium min-w-32">Name:</span>
-                  <span>{profile?.full_name || "Not available"}</span>
+                  <span className="text-foreground">{profile?.full_name || "Not available"}</span>
                 </div>
                 <div className="flex flex-col sm:flex-row sm:items-center">
                   <span className="font-medium min-w-32">School:</span>
-                  <span>{profile?.school_name || "Not available"}</span>
+                  <span className="text-foreground">{profile?.school_name || "Not available"}</span>
                 </div>
               </div>
             </CardContent>

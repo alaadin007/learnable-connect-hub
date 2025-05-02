@@ -148,11 +148,11 @@ const AdminAnalytics = () => {
               <div className="space-y-2">
                 <div className="flex flex-col sm:flex-row sm:items-center">
                   <span className="font-medium min-w-32">Name:</span>
-                  <span>{profile?.school_name || "Not available"}</span>
+                  <span className="text-foreground">{profile?.school_name || "Not available"}</span>
                 </div>
                 <div className="flex flex-col sm:flex-row sm:items-center">
                   <span className="font-medium min-w-32">Code:</span>
-                  <span>{profile?.school_code || "Not available"}</span>
+                  <span className="text-foreground">{profile?.school_code || "Not available"}</span>
                 </div>
               </div>
             </CardContent>
@@ -181,17 +181,17 @@ const AdminAnalytics = () => {
             </Alert>
           ) : (
             <div className="space-y-6">
-              <Tabs value={activeTab} onValueChange={handleTabChange}>
+              <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
                 <TabsList className="grid w-full max-w-md grid-cols-2">
                   <TabsTrigger value="engagement">Engagement Metrics</TabsTrigger>
                   <TabsTrigger value="performance">Performance Metrics</TabsTrigger>
                 </TabsList>
                 
-                <TabsContent value="engagement" className="space-y-6">
+                <TabsContent value="engagement" className="space-y-6 mt-6">
                   <AnalyticsSummaryCards summary={summary} isLoading={isLoading} />
                   
                   <Card>
-                    <CardHeader className="flex items-center justify-between">
+                    <CardHeader className="flex flex-row items-center justify-between">
                       <div className="space-y-1">
                         <CardTitle className="text-xl font-bold">
                           Recent Learning Sessions
@@ -223,33 +223,21 @@ const AdminAnalytics = () => {
                   </Card>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Most Studied Topics</CardTitle>
-                        <CardDescription>
-                          Top 10 topics students are currently studying
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <TopicsChart data={topics} />
-                      </CardContent>
-                    </Card>
+                    <TopicsChart
+                      data={topics}
+                      title="Most Studied Topics"
+                      description="Top 10 topics students are currently studying"
+                    />
                     
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Student Study Time</CardTitle>
-                        <CardDescription>
-                          Weekly study time per student
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <StudyTimeChart data={studyTime} />
-                      </CardContent>
-                    </Card>
+                    <StudyTimeChart
+                      data={studyTime}
+                      title="Student Study Time"
+                      description="Weekly study time per student"
+                    />
                   </div>
                 </TabsContent>
                 
-                <TabsContent value="performance" className="space-y-6">
+                <TabsContent value="performance" className="space-y-6 mt-6">
                   <SchoolPerformancePanel
                     monthlyData={schoolPerformanceData}
                     summary={schoolPerformanceSummary}

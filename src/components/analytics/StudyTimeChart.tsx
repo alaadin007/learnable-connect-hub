@@ -1,7 +1,6 @@
 
 import React from "react";
 import {
-  ResponsiveContainer,
   BarChart,
   Bar,
   XAxis,
@@ -9,9 +8,11 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
+  ResponsiveContainer
 } from "recharts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { StudyTimeData } from "./types";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 
 interface StudyTimeChartProps {
   data: StudyTimeData[];
@@ -39,24 +40,33 @@ const StudyTimeChart = ({
       <CardContent className="pt-2">
         <div className="h-[300px] w-full">
           {chartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={chartData}
-                margin={{
-                  top: 5,
-                  right: 30,
-                  left: 20,
-                  bottom: 5,
-                }}
-              >
+            <ChartContainer 
+              config={{
+                hours: { color: "#3b82f6" } // Blue color for bars
+              }}
+            >
+              <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 50 }}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
+                <XAxis 
+                  dataKey="name" 
+                  angle={-45}
+                  textAnchor="end"
+                  height={70}
+                  tick={{ fontSize: 12 }}
+                />
                 <YAxis label={{ value: 'Hours', angle: -90, position: 'insideLeft' }} />
-                <Tooltip formatter={(value) => [`${value} hours`, 'Study Time']} />
+                <ChartTooltip 
+                  content={(props) => (
+                    <ChartTooltipContent 
+                      {...props} 
+                      formatter={(value) => [`${value} hours`, 'Study Time']} 
+                    />
+                  )}
+                />
                 <Legend />
-                <Bar dataKey="hours" name="Study Hours" fill="#3b82f6" />
+                <Bar dataKey="hours" name="Study Hours" fill="var(--color-hours)" />
               </BarChart>
-            </ResponsiveContainer>
+            </ChartContainer>
           ) : (
             <div className="flex h-full items-center justify-center">
               <p className="text-muted-foreground">No data available</p>
