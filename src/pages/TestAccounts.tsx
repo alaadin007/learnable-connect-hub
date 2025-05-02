@@ -1,4 +1,3 @@
-
 import React from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
@@ -10,14 +9,26 @@ import { Mic, FileText, Star, BarChart, Volume, Users, FileCheck, Lock, BarChart
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 
 const TestAccounts = () => {
   const { setTestUser } = useAuth();
+  const navigate = useNavigate();
 
   // Handler for direct login
   const handleDirectLogin = async (type: 'school' | 'teacher' | 'student', schoolIndex: number = 0) => {
     try {
       await setTestUser(type, schoolIndex);
+      
+      // Navigate based on user type
+      if (type === 'school') {
+        navigate('/admin');
+      } else if (type === 'teacher') {
+        navigate('/teacher/analytics');
+      } else {
+        navigate('/dashboard');
+      }
+      
       toast.success(`Logged in as ${type === 'school' ? 'School Admin' : type === 'teacher' ? 'Teacher' : 'Student'}`);
     } catch (error) {
       console.error("Login error:", error);
