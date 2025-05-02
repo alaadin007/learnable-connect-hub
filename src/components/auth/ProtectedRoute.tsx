@@ -4,14 +4,16 @@ import { useAuth, UserRole } from "@/contexts/AuthContext";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  allowedRoles?: Array<UserRole>;
+  requiredUserType?: UserRole;
   requireSupervisor?: boolean;
   requireSameSchool?: boolean;
   schoolId?: string;
+  allowedRoles?: Array<UserRole>;
 }
 
 const ProtectedRoute = ({ 
   children, 
+  requiredUserType,
   allowedRoles, 
   requireSupervisor = false,
   requireSameSchool = false,
@@ -27,6 +29,11 @@ const ProtectedRoute = ({
   // Not logged in
   if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // If we require a specific user type and the user doesn't have it
+  if (requiredUserType && userRole !== requiredUserType) {
+    return <Navigate to="/dashboard" replace />;
   }
 
   // If we require specific roles and the user doesn't have one of them
