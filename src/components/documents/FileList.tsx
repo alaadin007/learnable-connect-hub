@@ -1,7 +1,8 @@
+
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { FileIcon, Trash2, ExternalLink, Download, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { FileIcon, Trash2, ExternalLink, Download, AlertCircle, CheckCircle2, RefreshCw } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -17,6 +18,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type FileItem = {
   id: string;
@@ -40,7 +42,8 @@ const FileList: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [fileToDelete, setFileToDelete] = useState<FileItem | null>(null);
   const [selectedFile, setSelectedFile] = useState<FileItem | null>(null);
-  const [fileContent, setFileContent] = useState<DocumentContent | null>(null);
+  const [fileContent, setFileContent] = useState<DocumentContent[]>([]);
+  const [activeSection, setActiveSection] = useState(1);
   const [showContent, setShowContent] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
@@ -178,6 +181,17 @@ const FileList: React.FC = () => {
         throw new Error(storageError.message);
       }
       
+      // Delete content from document_content table
+      const { error: contentError } = await supabase
+        .from('document_content')
+        .delete()
+        .eq('document_id', fileToDelete.id);
+        
+      if (contentError) {
+        console.error('Error deleting document content:', contentError);
+        // Continue with deletion even if content deletion fails
+      }
+      
       // Delete metadata from database
       const { error: dbError } = await supabase
         .from('documents')
@@ -217,15 +231,23 @@ const FileList: React.FC = () => {
           .from('document_content')
           .select('*')
           .eq('document_id', file.id)
-          .order('section_number', { ascending: true })
-          .maybeSingle();
+          .order('section_number', { ascending: true });
           
         if (error) {
           throw new Error(error.message);
         }
         
-        setFileContent(data);
-        setShowContent(true);
+        if (data && data.length > 0) {
+          setFileContent(data);
+          setActiveSection(1);
+          setShowContent(true);
+        } else {
+          toast({
+            title: 'No Content Available',
+            description: 'No extracted content found for this document.',
+            variant: 'default',
+          });
+        }
       } else {
         toast({
           title: 'Content Not Available',
@@ -364,7 +386,7 @@ const FileList: React.FC = () => {
                         onClick={() => retryProcessing(file)}
                         title="Retry Processing"
                       >
-                        <AlertCircle className="h-4 w-4 text-amber-500" />
+                        <RefreshCw className="h-4 w-4 text-amber-500" />
                       </Button>
                     )}
                     <Button 
@@ -423,23 +445,54 @@ const FileList: React.FC = () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Document Content Dialog */}
+      {/* Document Content Dialog with pagination for multiple sections */}
       <AlertDialog open={showContent} onOpenChange={setShowContent}>
-        <AlertDialogContent className="max-w-3xl">
-          <AlertDialogHeader>
+        <AlertDialogContent className="max-w-4xl">
+          <AlertDialogHeader className="space-y-1">
             <AlertDialogTitle>Extracted Content</AlertDialogTitle>
             <AlertDialogDescription>
               Extracted text from {selectedFile?.filename}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="max-h-[60vh] overflow-y-auto p-4 bg-gray-50 rounded border">
-            {fileContent?.content ? (
-              <pre className="whitespace-pre-wrap text-sm">{fileContent.content}</pre>
-            ) : (
-              <p className="text-gray-500">No content extracted.</p>
-            )}
-          </div>
-          <AlertDialogFooter>
+          
+          {fileContent.length > 1 && (
+            <div className="mt-2 mb-4">
+              <Tabs
+                value={activeSection.toString()} 
+                onValueChange={(value) => setActiveSection(parseInt(value))}
+              >
+                <TabsList className="w-full flex-wrap">
+                  {fileContent.map((section) => (
+                    <TabsTrigger 
+                      key={section.section_number} 
+                      value={section.section_number.toString()}
+                      className="flex-grow"
+                    >
+                      Section {section.section_number}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+                
+                {fileContent.map((section) => (
+                  <TabsContent 
+                    key={section.section_number} 
+                    value={section.section_number.toString()}
+                    className="max-h-[60vh] overflow-y-auto p-4 bg-gray-50 rounded border"
+                  >
+                    <pre className="whitespace-pre-wrap text-sm">{section.content}</pre>
+                  </TabsContent>
+                ))}
+              </Tabs>
+            </div>
+          )}
+          
+          {fileContent.length === 1 && (
+            <div className="max-h-[60vh] overflow-y-auto p-4 bg-gray-50 rounded border">
+              <pre className="whitespace-pre-wrap text-sm">{fileContent[0]?.content}</pre>
+            </div>
+          )}
+          
+          <AlertDialogFooter className="mt-4">
             <AlertDialogAction>Close</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
