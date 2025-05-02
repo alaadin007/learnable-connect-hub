@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -48,13 +47,12 @@ const TestAccounts = () => {
     try {
       toast.loading("Checking test accounts status...");
       
-      // Fix the type error by explicitly declaring the return type of the query
-      const { data: schoolData } = await supabase
+      // Avoid excessive type instantiation by simplifying the query and using type assertion
+      const { data: schoolData, error: schoolError } = await supabase
         .from('profiles')
         .select('id')
         .eq('email', TEST_ACCOUNTS.school.email)
-        .limit(1)
-        .single();
+        .maybeSingle();
         
       if (!schoolData) {
         // If not, invoke the edge function to create them
