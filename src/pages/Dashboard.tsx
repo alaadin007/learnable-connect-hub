@@ -2,7 +2,7 @@ import React, { useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, BookOpen, BarChart3, Users, School, FileText } from "lucide-react";
+import { MessageSquare, BookOpen, BarChart3, Users, School, FileText, Settings } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import Footer from "@/components/layout/Footer";
@@ -133,6 +133,12 @@ const Dashboard = () => {
           description="Track your performance and learning progress"
           icon={<BarChart3 className="h-10 w-10" />}
           onClick={() => navigate("/student/progress")}
+        />
+        <DashboardCard
+          title="Settings"
+          description="Manage your profile and preferences"
+          icon={<Settings className="h-10 w-10" />}
+          onClick={() => navigate("/student/settings")}
         />
       </div>
     );

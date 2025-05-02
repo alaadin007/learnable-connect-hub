@@ -26,6 +26,7 @@ import TestAccounts from "@/pages/TestAccounts";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import StudentAssessments from "@/pages/StudentAssessments";
 import StudentProgress from "@/pages/StudentProgress";
+import StudentSettings from "@/pages/StudentSettings"; // Import the new page
 
 function App() {
   return (
@@ -112,6 +113,12 @@ function App() {
         <Route path="/student/progress" element={
           <ProtectedRoute requiredUserType="student">
             <StudentProgress />
+          </ProtectedRoute>
+        } />
+        
+        <Route path="/student/settings" element={
+          <ProtectedRoute requiredUserType="student">
+            <StudentSettings />
           </ProtectedRoute>
         } />
 
