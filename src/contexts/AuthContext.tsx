@@ -155,7 +155,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
 
         // Handle test accounts
         if (isTestAccount(user?.email || '')) {
-          if (safeProfileData.organization && safeProfileData.organization?.code === undefined) {
+          if (safeProfileData.organization && safeProfileData.organization.code === undefined) {
             // Auto-assign test school code if missing
             await updateProfile({
               organization: { code: TEST_SCHOOL_CODE },
