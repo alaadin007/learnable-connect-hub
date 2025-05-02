@@ -97,40 +97,57 @@ serve(async (req) => {
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
     
     // Check if email already exists FIRST before creating any resources
-    const { data: existingUsers, error: emailCheckError } = await supabaseAdmin.auth.admin.listUsers({
-      filter: {
-        email: adminEmail
+    try {
+      // First check using auth.admin.listUsers
+      const { data: existingUsers, error: emailCheckError } = await supabaseAdmin.auth.admin.listUsers({
+        filter: {
+          email: adminEmail
+        }
+      });
+
+      // If there was an error checking for existing users, try a different approach
+      if (emailCheckError) {
+        console.error("Error checking for existing users with listUsers:", emailCheckError);
+        
+        // Try checking if we can sign in with this email
+        const { data: signInData, error: signInError } = await supabaseAdmin.auth.signInWithPassword({
+          email: adminEmail,
+          password: "dummy-password-for-check"
+        });
+        
+        // If there's no error or the error is not about invalid credentials, email might exist
+        if (!signInError || (signInError && !signInError.message.includes("Invalid login credentials"))) {
+          console.log("Email appears to exist based on signIn check:", adminEmail);
+          return new Response(
+            JSON.stringify({ 
+              error: "Email already registered", 
+              message: "This email address is already registered. Please use a different email address or try logging in."
+            }),
+            { 
+              status: 409, 
+              headers: { ...corsHeaders, "Content-Type": "application/json" }
+            }
+          );
+        }
       }
-    });
 
-    // If there was an error checking for existing users, return early with an error
-    if (emailCheckError) {
-      console.error("Error checking for existing users:", emailCheckError);
-      return new Response(
-        JSON.stringify({ 
-          error: "Failed to check for existing users", 
-          details: emailCheckError.message 
-        }),
-        { 
-          status: 500, 
-          headers: { ...corsHeaders, "Content-Type": "application/json" }
-        }
-      );
-    }
-
-    // If there are users with this email, return an error indicating the email is already registered
-    if (existingUsers && existingUsers.users.length > 0) {
-      console.log("Email already exists:", adminEmail);
-      return new Response(
-        JSON.stringify({ 
-          error: "Email already registered", 
-          message: "This email address is already registered. Please use a different email address or try logging in."
-        }),
-        { 
-          status: 409, 
-          headers: { ...corsHeaders, "Content-Type": "application/json" }
-        }
-      );
+      // If there are users with this email, return an error
+      if (existingUsers && existingUsers.users.length > 0) {
+        console.log("Email already exists:", adminEmail);
+        return new Response(
+          JSON.stringify({ 
+            error: "Email already registered", 
+            message: "This email address is already registered. Please use a different email address or try logging in."
+          }),
+          { 
+            status: 409, 
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          }
+        );
+      }
+    } catch (checkError) {
+      console.error("Error during email existence check:", checkError);
+      // Continue anyway, the createUser call will fail if the email exists
     }
     
     // Generate a school code
@@ -207,45 +224,6 @@ serve(async (req) => {
     
     const schoolId = schoolData.id;
     console.log(`School created with ID: ${schoolId}`);
-    
-    // Check if user already exists
-    const { data: existingUserData, error: checkUserError } = await supabaseAdmin
-      .from("profiles")
-      .select("id")
-      .eq("user_type", "school")
-      .eq("school_code", schoolCode)
-      .maybeSingle();
-      
-    if (checkUserError) {
-      console.error("Error checking for existing user:", checkUserError);
-    } else if (existingUserData?.id) {
-      console.log("User already exists for this school code");
-      
-      // Clean up the school and school_code entries
-      try {
-        await supabaseAdmin
-          .from("schools")
-          .delete()
-          .eq("id", schoolId);
-        
-        await supabaseAdmin
-          .from("school_codes")
-          .delete()
-          .eq("code", schoolCode);
-        
-        console.log("Cleaned up school and school_code entries for duplicate user");
-      } catch (cleanupError) {
-        console.error("Error during cleanup for duplicate user:", cleanupError);
-      }
-      
-      return new Response(
-        JSON.stringify({ error: "A school admin already exists with this email" }),
-        { 
-          status: 409, 
-          headers: { ...corsHeaders, "Content-Type": "application/json" }
-        }
-      );
-    }
     
     // Set up redirect URL for email confirmation
     const redirectURL = `${frontendURL}/login?email_confirmed=true`;

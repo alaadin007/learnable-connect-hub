@@ -70,9 +70,9 @@ const SchoolRegistrationForm: React.FC = () => {
       });
       
       if (error) {
-        toast.error("Failed to send password reset email: " + error.message);
+        toast.error("Failed to send verification email: " + error.message);
       } else {
-        toast.success("Password reset email sent. Please check your inbox and spam folder.");
+        toast.success("Verification email sent. Please check your inbox and spam folder.");
       }
     } catch (error: any) {
       toast.error("An error occurred: " + error.message);
@@ -88,6 +88,29 @@ const SchoolRegistrationForm: React.FC = () => {
     try {
       // Display toast notification that registration is in progress
       const loadingToast = toast.loading("Registering your school...");
+      
+      // Check if email already exists first
+      const { data: emailCheckData, error: emailCheckError } = await supabase.auth.signInWithPassword({
+        email: data.adminEmail,
+        password: "dummy-password-for-check-only",
+      });
+
+      // If email exists, this will not return auth/invalid_credentials
+      if (!emailCheckError || (emailCheckError && !emailCheckError.message.includes("Invalid login credentials"))) {
+        // Email likely exists - show specific message
+        toast.dismiss(loadingToast);
+        setExistingEmailError(data.adminEmail);
+        toast.error(
+          "This email is already registered",
+          {
+            description: "Please use a different email address or try logging in with this email if it's yours.",
+            duration: 8000,
+            icon: <AlertCircle className="h-5 w-5" />,
+          }
+        );
+        setIsLoading(false);
+        return;
+      }
       
       // Call our edge function to register the school
       const { data: responseData, error } = await supabase.functions.invoke("register-school", {
@@ -107,7 +130,7 @@ const SchoolRegistrationForm: React.FC = () => {
         
         // Check if this is an "email already exists" error
         const errorMessage = error.message || "";
-        if (errorMessage.includes("non-2xx status code")) {
+        if (errorMessage.includes("non-2xx status code") || errorMessage.includes("already registered")) {
           // Set the existing email error to guide the user
           setExistingEmailError(data.adminEmail);
           toast.error(

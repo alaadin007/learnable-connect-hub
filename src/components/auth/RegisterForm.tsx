@@ -1,15 +1,19 @@
+
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { Loader2, AlertCircle } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const RegisterForm = () => {
+  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"teacher" | "student">("teacher");
   const { signUp } = useAuth();
@@ -21,6 +25,7 @@ const RegisterForm = () => {
   const [teacherSchoolCode, setTeacherSchoolCode] = useState("");
   const [isVerifyingTeacherCode, setIsVerifyingTeacherCode] = useState(false);
   const [teacherSchoolName, setTeacherSchoolName] = useState("");
+  const [teacherError, setTeacherError] = useState<string | null>(null);
 
   // Student registration state
   const [studentName, setStudentName] = useState("");
@@ -29,6 +34,7 @@ const RegisterForm = () => {
   const [studentSchoolCode, setStudentSchoolCode] = useState("");
   const [isVerifyingStudentCode, setIsVerifyingStudentCode] = useState(false);
   const [studentSchoolName, setStudentSchoolName] = useState("");
+  const [studentError, setStudentError] = useState<string | null>(null);
 
   const validateSchoolCode = async (code: string, userType: "teacher" | "student") => {
     if (!code) {
@@ -96,8 +102,17 @@ const RegisterForm = () => {
     }
   };
 
+  const clearTeacherErrors = () => {
+    setTeacherError(null);
+  };
+
+  const clearStudentErrors = () => {
+    setStudentError(null);
+  };
+
   const handleRegisterTeacher = async (event: React.FormEvent) => {
     event.preventDefault();
+    clearTeacherErrors();
     
     if (!teacherName || !teacherEmail || !teacherPassword || !teacherSchoolCode) {
       toast.error("Please fill in all fields");
@@ -111,15 +126,46 @@ const RegisterForm = () => {
     setIsLoading(true);
     
     try {
+      // Check if email already exists
+      const { error: emailCheckError } = await supabase.auth.signInWithPassword({
+        email: teacherEmail,
+        password: "dummy-password-for-check-only",
+      });
+
+      // If email exists or there's an unclear error, show error
+      if (!emailCheckError || (emailCheckError && !emailCheckError.message.includes("Invalid login credentials"))) {
+        setTeacherError(teacherEmail);
+        setIsLoading(false);
+        toast.error("This email address may already be registered", {
+          description: "Please use a different email or try logging in if this is your account."
+        });
+        return;
+      }
+
       await signUp(teacherEmail, teacherPassword, {
         user_type: 'teacher',
         full_name: teacherName,
         school_code: teacherSchoolCode,
         school_name: teacherSchoolName
       });
-    } catch (error) {
+      
+      toast.success("Registration successful!", {
+        description: "Please check your email to verify your account."
+      });
+      
+      // Navigate to login page with a query parameter
+      navigate("/login?registered=true");
+      
+    } catch (error: any) {
       console.error("Registration error:", error);
-      // Error handling is done in signUp function
+      if (error.message?.includes("already registered")) {
+        setTeacherError(teacherEmail);
+        toast.error("This email is already registered", {
+          description: "Please use a different email or try logging in with this account."
+        });
+      } else {
+        toast.error(`Registration failed: ${error.message || "Unknown error"}`);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -127,6 +173,7 @@ const RegisterForm = () => {
 
   const handleRegisterStudent = async (event: React.FormEvent) => {
     event.preventDefault();
+    clearStudentErrors();
     
     if (!studentName || !studentEmail || !studentPassword || !studentSchoolCode) {
       toast.error("Please fill in all fields");
@@ -140,15 +187,46 @@ const RegisterForm = () => {
     setIsLoading(true);
     
     try {
+      // Check if email already exists
+      const { error: emailCheckError } = await supabase.auth.signInWithPassword({
+        email: studentEmail,
+        password: "dummy-password-for-check-only",
+      });
+
+      // If email exists or there's an unclear error, show error
+      if (!emailCheckError || (emailCheckError && !emailCheckError.message.includes("Invalid login credentials"))) {
+        setStudentError(studentEmail);
+        setIsLoading(false);
+        toast.error("This email address may already be registered", {
+          description: "Please use a different email or try logging in if this is your account."
+        });
+        return;
+      }
+
       await signUp(studentEmail, studentPassword, {
         user_type: 'student',
         full_name: studentName,
         school_code: studentSchoolCode,
         school_name: studentSchoolName
       });
-    } catch (error) {
+      
+      toast.success("Registration successful!", {
+        description: "Please check your email to verify your account."
+      });
+      
+      // Navigate to login page with a query parameter
+      navigate("/login?registered=true");
+      
+    } catch (error: any) {
       console.error("Registration error:", error);
-      // Error handling is done in signUp function
+      if (error.message?.includes("already registered")) {
+        setStudentError(studentEmail);
+        toast.error("This email is already registered", {
+          description: "Please use a different email or try logging in with this account."
+        });
+      } else {
+        toast.error(`Registration failed: ${error.message || "Unknown error"}`);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -167,13 +245,28 @@ const RegisterForm = () => {
           defaultValue="teacher" 
           className="w-full"
           value={activeTab}
-          onValueChange={(value) => setActiveTab(value as "teacher" | "student")}
+          onValueChange={(value) => {
+            setActiveTab(value as "teacher" | "student");
+            clearTeacherErrors();
+            clearStudentErrors();
+          }}
         >
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="teacher">Teacher</TabsTrigger>
             <TabsTrigger value="student">Student</TabsTrigger>
           </TabsList>
           <TabsContent value="teacher" className="mt-4">
+            {teacherError && (
+              <Alert variant="destructive" className="mb-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Email Already Registered</AlertTitle>
+                <AlertDescription>
+                  The email address "{teacherError}" may already be registered. 
+                  Please use a different email or <Link to="/login" className="font-medium underline">login</Link> if this is your account.
+                </AlertDescription>
+              </Alert>
+            )}
+            
             <form onSubmit={handleRegisterTeacher} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="teacher-name">Full Name</Label>
@@ -192,7 +285,10 @@ const RegisterForm = () => {
                   type="email" 
                   placeholder="teacher@yourschool.edu"
                   value={teacherEmail}
-                  onChange={(e) => setTeacherEmail(e.target.value)}
+                  onChange={(e) => {
+                    setTeacherEmail(e.target.value);
+                    clearTeacherErrors();
+                  }}
                   required
                 />
               </div>
@@ -217,7 +313,12 @@ const RegisterForm = () => {
                     onClick={handleVerifyTeacherCode}
                     disabled={isVerifyingTeacherCode || !teacherSchoolCode}
                   >
-                    {isVerifyingTeacherCode ? "Checking..." : "Verify"}
+                    {isVerifyingTeacherCode ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Checking...
+                      </>
+                    ) : "Verify"}
                   </Button>
                 </div>
               </div>
@@ -237,11 +338,27 @@ const RegisterForm = () => {
                 className="w-full gradient-bg"
                 disabled={isLoading || !teacherSchoolName}
               >
-                {isLoading ? "Registering..." : "Register as Teacher"}
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Registering...
+                  </>
+                ) : "Register as Teacher"}
               </Button>
             </form>
           </TabsContent>
           <TabsContent value="student" className="mt-4">
+            {studentError && (
+              <Alert variant="destructive" className="mb-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Email Already Registered</AlertTitle>
+                <AlertDescription>
+                  The email address "{studentError}" may already be registered. 
+                  Please use a different email or <Link to="/login" className="font-medium underline">login</Link> if this is your account.
+                </AlertDescription>
+              </Alert>
+            )}
+            
             <form onSubmit={handleRegisterStudent} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="student-name">Full Name</Label>
@@ -260,7 +377,10 @@ const RegisterForm = () => {
                   type="email" 
                   placeholder="student@yourschool.edu"
                   value={studentEmail}
-                  onChange={(e) => setStudentEmail(e.target.value)}
+                  onChange={(e) => {
+                    setStudentEmail(e.target.value);
+                    clearStudentErrors();
+                  }}
                   required
                 />
               </div>
@@ -285,7 +405,12 @@ const RegisterForm = () => {
                     onClick={handleVerifyStudentCode}
                     disabled={isVerifyingStudentCode || !studentSchoolCode}
                   >
-                    {isVerifyingStudentCode ? "Checking..." : "Verify"}
+                    {isVerifyingStudentCode ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Checking...
+                      </>
+                    ) : "Verify"}
                   </Button>
                 </div>
               </div>
@@ -305,7 +430,12 @@ const RegisterForm = () => {
                 className="w-full gradient-bg"
                 disabled={isLoading || !studentSchoolName}
               >
-                {isLoading ? "Registering..." : "Register as Student"}
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Registering...
+                  </>
+                ) : "Register as Student"}
               </Button>
             </form>
           </TabsContent>

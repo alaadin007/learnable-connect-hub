@@ -1,22 +1,46 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Link } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { Clock } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { Clock, Loader2, AlertCircle } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const LoginForm = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const { signIn, setTestUser } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const [loginError, setLoginError] = useState<string | null>(null);
+  
+  // Check for registration success message
+  useEffect(() => {
+    const registered = searchParams.get('registered');
+    const emailConfirmed = searchParams.get('email_confirmed');
+    
+    if (registered === 'true') {
+      toast.success("Registration successful!", {
+        description: "Please check your email to verify your account before logging in."
+      });
+    }
+    
+    if (emailConfirmed === 'true') {
+      toast.success("Email verified!", {
+        description: "Your email has been verified. You can now log in."
+      });
+    }
+  }, [searchParams]);
 
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
+    setLoginError(null);
     
     if (!email || !password) {
       toast.error("Please enter both email and password");
@@ -27,10 +51,58 @@ const LoginForm = () => {
     
     try {
       await signIn(email, password);
-      // Navigate is handled by the AuthContext
-    } catch (error) {
+      
+      // Get the user's role
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('user_type')
+          .eq('id', user.id)
+          .single();
+        
+        if (profile) {
+          // Redirect based on user role
+          switch (profile.user_type) {
+            case 'school':
+              navigate('/admin');
+              break;
+            case 'teacher':
+              navigate('/dashboard');
+              break;
+            case 'student':
+              navigate('/dashboard');
+              break;
+            default:
+              navigate('/dashboard');
+          }
+          
+          toast.success("Login successful", {
+            description: `Welcome back, ${user.user_metadata.full_name || email}!`
+          });
+        } else {
+          navigate('/dashboard');
+        }
+      } else {
+        // Default fallback
+        navigate('/dashboard');
+      }
+    } catch (error: any) {
       console.error("Login error:", error);
-      // Error is handled by the signIn function
+      setLoginError(error.message);
+      
+      if (error.message.includes("Email not confirmed")) {
+        toast.error("Email not verified", {
+          description: "Please check your inbox and spam folder for the verification email."
+        });
+      } else if (error.message.includes("Invalid login credentials")) {
+        toast.error("Login failed", {
+          description: "Invalid email or password. Please try again."
+        });
+      } else {
+        toast.error(`Login failed: ${error.message}`);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -44,6 +116,32 @@ const LoginForm = () => {
     }
   };
 
+  const handleResetPassword = async () => {
+    if (!email) {
+      toast.error("Please enter your email address");
+      return;
+    }
+    
+    setIsLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin + "/login?email_confirmed=true",
+      });
+      
+      if (error) {
+        toast.error("Failed to send password reset email: " + error.message);
+      } else {
+        toast.success("Password reset email sent", {
+          description: "Please check your inbox and spam folder for the reset link."
+        });
+      }
+    } catch (error: any) {
+      toast.error("An error occurred: " + error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="max-w-md w-full mx-auto p-4">
       <Card className="w-full">
@@ -54,6 +152,18 @@ const LoginForm = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {loginError && (
+            <Alert variant="destructive" className="mb-6">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Login Error</AlertTitle>
+              <AlertDescription>
+                {loginError.includes("Email not confirmed") 
+                  ? "Your email address has not been verified. Please check your inbox for the verification email."
+                  : loginError}
+              </AlertDescription>
+            </Alert>
+          )}
+          
           <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-md">
             <div className="flex">
               <Clock className="h-5 w-5 text-amber-700 mr-2 flex-shrink-0 mt-0.5" />
@@ -109,12 +219,13 @@ const LoginForm = () => {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password">Password</Label>
-                <Link
-                  to="/forgot-password"
+                <button
+                  type="button"
+                  onClick={handleResetPassword}
                   className="text-sm text-learnable-blue hover:underline"
                 >
                   Forgot password?
-                </Link>
+                </button>
               </div>
               <Input 
                 id="password" 
@@ -129,7 +240,12 @@ const LoginForm = () => {
               className="w-full gradient-bg"
               disabled={isLoading}
             >
-              {isLoading ? "Logging in..." : "Log in"}
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Logging in...
+                </>
+              ) : "Log in"}
             </Button>
           </form>
         </CardContent>
