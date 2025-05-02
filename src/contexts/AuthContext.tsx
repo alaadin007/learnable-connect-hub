@@ -18,6 +18,11 @@ import { isTestAccount, TEST_SCHOOL_CODE } from "@/integrations/supabase/client"
 import sessionLogger from "@/utils/sessionLogger";
 import { populateTestAccountWithSessions } from "@/utils/sessionLogging";
 
+// Helper function to check if a value is a non-null object
+function isNonNullObject(value: any): value is object {
+  return value !== null && typeof value === "object";
+}
+
 export type UserRole = "school" | "teacher" | "student" | string;
 
 export type UserProfile = {
@@ -140,9 +145,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
 
         const org = profileData.organization;
 
-        if (org === null) {
-          safeProfileData.organization = null;
-        } else if (typeof org === 'object') {
+        if (isNonNullObject(org)) {
           if (!('error' in org)) {
             safeProfileData.organization = org;
           } else {
