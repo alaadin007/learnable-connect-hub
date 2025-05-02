@@ -1,35 +1,80 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
 import { useAuth } from "@/contexts/AuthContext";
-import AIChatInterface from "@/components/chat/AIChatInterface";
+import PersistentChatInterface from "@/components/chat/PersistentChatInterface";
+import ChatHistory from "@/components/chat/ChatHistory";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search } from "lucide-react";
+import { toast } from "sonner";
 
 const ChatWithAI = () => {
-  const { profile } = useAuth();
-  const [searchParams] = useSearchParams();
+  const { user, profile } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [topic, setTopic] = useState(searchParams.get("topic") || "");
-  const [documentId, setDocumentId] = useState(searchParams.get("documentId") || "");
   const [activeTopic, setActiveTopic] = useState(searchParams.get("topic") || "");
-  const [activeDocumentId, setActiveDocumentId] = useState(searchParams.get("documentId") || "");
+  const [conversationId, setConversationId] = useState<string | null>(searchParams.get("conversationId") || null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    // Redirect if user is not logged in
+    if (!user) {
+      navigate("/login", { state: { from: "/chat" } });
+    }
+  }, [user, navigate]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setActiveTopic(topic);
-    setActiveDocumentId(documentId);
     
-    // Update URL with search params without refreshing the page
+    // Update active topic and reset conversation ID to start a new one
+    setActiveTopic(topic);
+    setConversationId(null);
+    
+    // Update URL with search params
     const params = new URLSearchParams();
     if (topic) params.set("topic", topic);
-    if (documentId) params.set("documentId", documentId);
-    navigate({ search: params.toString() });
+    setSearchParams(params);
+    
+    toast.success("Topic updated! Starting a new conversation.");
   };
+
+  const handleSelectConversation = (id: string) => {
+    setConversationId(id);
+    
+    // Update URL with conversation ID
+    const params = new URLSearchParams();
+    params.set("conversationId", id);
+    setSearchParams(params);
+  };
+
+  const handleNewConversation = () => {
+    // Reset conversation and optionally clear topic
+    setConversationId(null);
+    
+    // Update URL to remove conversation ID
+    const params = new URLSearchParams();
+    if (activeTopic) params.set("topic", activeTopic);
+    setSearchParams(params);
+  };
+
+  const handleConversationCreated = (id: string) => {
+    setConversationId(id);
+    
+    // Update URL with new conversation ID
+    const params = new URLSearchParams();
+    if (activeTopic) params.set("topic", activeTopic);
+    params.set("conversationId", id);
+    setSearchParams(params);
+  };
+
+  // If user is not logged in, show a loading message
+  if (!user) {
+    return <div className="flex justify-center items-center h-screen">Loading...</div>;
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -44,7 +89,7 @@ const ChatWithAI = () => {
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="md:col-span-1">
+            <div className="md:col-span-1 space-y-6">
               <Card>
                 <CardHeader>
                   <CardTitle>Study Settings</CardTitle>
@@ -63,7 +108,6 @@ const ChatWithAI = () => {
                         onChange={(e) => setTopic(e.target.value)}
                       />
                     </div>
-                    {/* Document selection would go here in a future update */}
                     <Button type="submit" className="w-full">
                       <Search className="mr-2 h-4 w-4" />
                       Start Studying
@@ -72,27 +116,19 @@ const ChatWithAI = () => {
                 </CardContent>
               </Card>
               
-              <Card className="mt-6">
-                <CardHeader>
-                  <CardTitle>Study Tips</CardTitle>
-                  <CardDescription>Make the most of your AI assistant</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2 list-disc pl-5">
-                    <li>Be specific with your questions</li>
-                    <li>Ask for explanations when you don't understand</li>
-                    <li>Request examples to reinforce concepts</li>
-                    <li>Use follow-up questions to dive deeper</li>
-                    <li>Summarize what you've learned to check understanding</li>
-                  </ul>
-                </CardContent>
-              </Card>
+              {/* Chat History Component */}
+              <ChatHistory 
+                onSelectConversation={handleSelectConversation}
+                onNewConversation={handleNewConversation}
+                activeConversationId={conversationId}
+              />
             </div>
             
             <div className="md:col-span-2">
-              <AIChatInterface 
-                topic={activeTopic} 
-                documentId={activeDocumentId} 
+              <PersistentChatInterface
+                conversationId={conversationId}
+                onConversationCreated={handleConversationCreated}
+                topic={activeTopic}
               />
             </div>
           </div>

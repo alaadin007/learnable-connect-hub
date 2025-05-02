@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { MessageSquare, BarChart2, Users, BookOpen } from "lucide-react";
 
-type UserRole = 'school' | 'teacher' | 'student';
+type UserRoleExtended = 'school' | 'school_admin' | 'teacher' | 'student';
 
 interface MenuItem {
   title: string;
@@ -40,7 +40,7 @@ const Dashboard = () => {
   const getRoleBasedLinks = () => {
     if (!profile) return [];
     
-    const userType = profile.user_type as string;
+    const userType = profile.user_type as UserRoleExtended;
     
     if (userType === 'school' || userType === 'school_admin') {
       return [

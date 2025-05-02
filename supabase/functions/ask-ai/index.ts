@@ -26,7 +26,7 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl as string, supabaseServiceKey as string);
     
     // Get the request body
-    const { question, topic, documentId, sessionId } = await req.json();
+    const { question, topic, documentId, sessionId, conversationId, useDocuments = true } = await req.json();
     
     // Get authorization header
     const authHeader = req.headers.get("Authorization");
@@ -61,9 +61,26 @@ serve(async (req) => {
       await supabase.rpc("increment_session_query_count", { log_id: sessionId });
     }
 
-    // Get document content if documentId is provided
+    // Get previous conversation context if conversationId is provided
+    let conversationContext = "";
+    if (conversationId) {
+      const { data: previousMessages, error: prevMsgError } = await supabase
+        .from("messages")
+        .select("content, sender")
+        .eq("conversation_id", conversationId)
+        .order("timestamp", { ascending: true })
+        .limit(10); // Limit to last 10 messages for context
+      
+      if (!prevMsgError && previousMessages && previousMessages.length > 0) {
+        conversationContext = previousMessages
+          .map(msg => `${msg.sender === 'user' ? 'Student' : 'AI'}: ${msg.content}`)
+          .join("\n\n");
+      }
+    }
+
+    // Get document content if documentId is provided and useDocuments is true
     let documentContext = "";
-    if (documentId) {
+    if (documentId && useDocuments) {
       const { data: documentContent, error: docError } = await supabase
         .from("document_content")
         .select("content")
@@ -72,9 +89,13 @@ serve(async (req) => {
       if (!docError && documentContent && documentContent.length > 0) {
         documentContext = documentContent.map(item => item.content).join("\n");
       }
+    } else if (useDocuments) {
+      // If no specific document is requested but useDocuments is true, 
+      // we could get the most relevant documents based on the topic
+      // This is just a placeholder for potential future enhancement
     }
 
-    // Create system prompt based on context available
+    // Create system prompt based on available context
     let systemPrompt = "You are an educational AI assistant helping students learn.";
     
     if (topic) {
@@ -84,8 +105,25 @@ serve(async (req) => {
     if (documentContext) {
       systemPrompt += ` Use the following document context to answer questions: ${documentContext.substring(0, 3000)}...`;
     }
+
+    if (conversationContext) {
+      systemPrompt += " Here is the conversation history to provide context:\n\n" + conversationContext;
+    }
     
     systemPrompt += " Be helpful, accurate, and educational in your responses. For math problems, show your work. For factual questions, provide reliable information. If unsure about something, acknowledge the uncertainty rather than providing incorrect information.";
+
+    const messages = [
+      { role: "system", content: systemPrompt },
+    ];
+
+    // If we have conversation context, don't add it to the messages
+    // as we've already included it in the system prompt for context
+    if (!conversationContext) {
+      messages.push({ role: "user", content: question });
+    } else {
+      // If we have conversation context, just add the latest question
+      messages.push({ role: "user", content: question });
+    }
 
     // Make request to OpenAI API
     const openAIResponse = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -96,10 +134,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: "gpt-4o-mini", // Using a recommended model
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: question }
-        ],
+        messages: messages,
         temperature: 0.5,
       }),
     });
@@ -117,11 +152,22 @@ serve(async (req) => {
     // Extract the AI's response
     const aiResponse = openAIData.choices[0].message.content;
 
+    // Prepare source citations if documents were used
+    let sourceCitations = [];
+    if (documentId && documentContext) {
+      sourceCitations.push({
+        document_id: documentId,
+        filename: "Referenced Document", // Ideally we would fetch the actual filename
+        relevance_score: 1.0
+      });
+    }
+
     // Return the AI's response
     return new Response(JSON.stringify({ 
       response: aiResponse,
       model: openAIData.model || "gpt-4o-mini",
       sessionId: sessionId || null,
+      sourceCitations: sourceCitations.length > 0 ? sourceCitations : undefined,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
