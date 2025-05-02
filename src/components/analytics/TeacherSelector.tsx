@@ -73,15 +73,15 @@ export function TeacherSelector({
     <div className="space-y-2">
       <label className="text-sm font-medium">Filter by Teacher:</label>
       <Select
-        value={selectedTeacherId || ""}
-        onValueChange={(value) => onTeacherChange(value || undefined)}
+        value={selectedTeacherId || "all"}
+        onValueChange={(value) => onTeacherChange(value === "all" ? undefined : value)}
         disabled={isLoading || teachers.length === 0}
       >
         <SelectTrigger className="w-full">
           <SelectValue placeholder="All Teachers" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="">All Teachers</SelectItem>
+          <SelectItem value="all">All Teachers</SelectItem>
           {teachers.map((teacher) => (
             <SelectItem key={teacher.id} value={teacher.id}>
               {teacher.name}
