@@ -1,236 +1,293 @@
-
-import { supabase } from "@/integrations/supabase/client";
-import { format, subDays } from "date-fns";
 import { 
+  AnalyticsFilters, 
+  AnalyticsSummary, 
   SessionData, 
-  TopicData, 
   StudyTimeData, 
-  AnalyticsFilters,
-  AnalyticsSummary
-} from "@/components/analytics/types";
-import { getMockAnalyticsData } from "@/utils/sessionLogging";
+  TopicData 
+} from '@/components/analytics/types';
+import { supabase } from '@/integrations/supabase/client';
+import { getMockAnalyticsData } from '@/utils/sessionLogging';
 
-// Helper to format date for Supabase queries
-const formatDateForQuery = (date: Date): string => {
-  return format(date, "yyyy-MM-dd");
-};
-
-// Check if using a test account
-const isTestAccount = (): boolean => {
-  return sessionStorage.getItem('testUserType') !== null;
-};
-
-// Fetch analytics summary for a school
-export const fetchAnalyticsSummary = async (
+/**
+ * Retrieves analytics summary data based on the provided filters.
+ * @param schoolId - The ID of the school.
+ * @param filters - The filters to apply to the data.
+ * @returns A promise that resolves to an AnalyticsSummary object.
+ */
+export const getAnalyticsSummary = async (
   schoolId: string,
   filters: AnalyticsFilters
-): Promise<AnalyticsSummary | null> => {
+): Promise<AnalyticsSummary> => {
   try {
-    // Handle test account
-    if (isTestAccount()) {
+    // Check if the user is a test user
+    const testUserType = sessionStorage.getItem('testUserType');
+    
+    if (testUserType) {
+      // Generate mock analytics data for test users
       const mockData = getMockAnalyticsData(schoolId, filters);
-      return mockData?.summary || null;
+      return mockData.summary;
     }
     
-    // Real account implementation
+    // Fetch analytics summary data from the database
     let query = supabase
-      .from("school_analytics_summary")
-      .select("*")
-      .eq("school_id", schoolId);
+      .from('session_logs')
+      .select('*')
+      .eq('school_id', schoolId);
     
-    // Apply filters (currently no date filtering on this view)
+    // Apply date range filter
+    if (filters.dateRange?.from) {
+      query = query.gte('session_start', filters.dateRange.from.toISOString());
+    }
+    if (filters.dateRange?.to) {
+      const endDate = new Date(filters.dateRange.to);
+      endDate.setDate(endDate.getDate() + 1); // Include the end date
+      query = query.lte('session_start', endDate.toISOString());
+    }
     
-    const { data, error } = await query.single();
+    const { data, error } = await query;
     
     if (error) {
-      console.error("Error fetching analytics summary:", error);
-      return null;
+      console.error('Error fetching analytics summary:', error);
+      throw new Error('Failed to fetch analytics summary');
     }
     
-    if (!data) return null;
+    // Calculate analytics summary from the data
+    const totalSessions = data.length;
+    const totalQueries = data.reduce((sum, session) => sum + session.num_queries, 0);
+    const activeStudents = new Set(data.map(session => session.user_id)).size;
+    
+    // Calculate average session duration in minutes
+    const totalDuration = data.reduce((sum, session) => {
+      const start = new Date(session.session_start).getTime();
+      const end = new Date(session.session_end).getTime();
+      return sum + (end - start);
+    }, 0);
+    
+    const avgSessionMinutes = totalSessions > 0 ? (totalDuration / (totalSessions * 60 * 1000)) : 0;
     
     return {
-      activeStudents: data.active_students || 0,
-      totalSessions: data.total_sessions || 0,
-      totalQueries: data.total_queries || 0,
-      avgSessionMinutes: data.avg_session_minutes || 0,
+      activeStudents,
+      totalSessions,
+      totalQueries,
+      avgSessionMinutes
     };
-  } catch (error) {
-    console.error("Error in fetchAnalyticsSummary:", error);
-    return null;
+  } catch (error: any) {
+    console.error('Error generating analytics summary:', error);
+    
+    // Return default values in case of an error
+    return {
+      activeStudents: 0,
+      totalSessions: 0,
+      totalQueries: 0,
+      avgSessionMinutes: 0
+    };
   }
 };
 
-// Fetch session logs for a school
-export const fetchSessionLogs = async (
+/**
+ * Retrieves session logs based on the provided filters.
+ * @param schoolId - The ID of the school.
+ * @param filters - The filters to apply to the data.
+ * @returns A promise that resolves to an array of SessionData objects.
+ */
+export const getSessionLogs = async (
   schoolId: string,
   filters: AnalyticsFilters
 ): Promise<SessionData[]> => {
   try {
-    // Handle test account
-    if (isTestAccount()) {
+    // Check if the user is a test user
+    const testUserType = sessionStorage.getItem('testUserType');
+    
+    if (testUserType) {
+      // Generate mock analytics data for test users
       const mockData = getMockAnalyticsData(schoolId, filters);
-      return mockData?.sessions || [];
+      return mockData.sessions;
     }
     
-    // Real account implementation
+    // Fetch session logs from the database
     let query = supabase
-      .from("session_query_counts")
-      .select("session_id, user_id, topic_or_content_used, num_queries, session_start, profiles!inner(full_name)")
-      .eq("school_id", schoolId);
+      .from('session_logs')
+      .select('*')
+      .eq('school_id', schoolId);
     
-    // Apply date range filter if provided
+    // Apply date range filter
     if (filters.dateRange?.from) {
-      query = query.gte("session_start", formatDateForQuery(filters.dateRange.from));
+      query = query.gte('session_start', filters.dateRange.from.toISOString());
     }
-    
     if (filters.dateRange?.to) {
-      // Add one day to include the end date fully
       const endDate = new Date(filters.dateRange.to);
-      endDate.setDate(endDate.getDate() + 1);
-      query = query.lt("session_start", formatDateForQuery(endDate));
+      endDate.setDate(endDate.getDate() + 1); // Include the end date
+      query = query.lte('session_start', endDate.toISOString());
     }
     
-    // Apply student filter if provided
+    // Apply student filter
     if (filters.studentId) {
-      query = query.eq("user_id", filters.studentId);
+      query = query.eq('user_id', filters.studentId);
     }
-    
-    // Order by most recent first
-    query = query.order("session_start", { ascending: false });
     
     const { data, error } = await query;
     
     if (error) {
-      console.error("Error fetching session logs:", error);
-      return [];
+      console.error('Error fetching session logs:', error);
+      throw new Error('Failed to fetch session logs');
     }
     
-    return (data || []).map(item => {
-      // Calculate a rough duration (for display purposes)
-      // In a real implementation, you would use actual session_end data
-      const duration = Math.floor(Math.random() * 30) + 10; // Random between 10-40 mins for demo
-      
-      return {
-        id: item.session_id || "",
-        student: (item.profiles as any).full_name || "Unknown Student",
-        topic: item.topic_or_content_used || "General",
-        queries: item.num_queries || 0,
-        duration: `${duration} min`,
-        startTime: item.session_start || "",
-      };
-    });
-  } catch (error) {
-    console.error("Error in fetchSessionLogs:", error);
+    // Format the data into SessionData objects
+    const sessionLogs: SessionData[] = data.map(session => ({
+      id: session.id,
+      student: session.user_id, // Replace with actual student name if available
+      topic: session.topic_or_content_used,
+      queries: session.num_queries,
+      duration: calculateDuration(session.session_start, session.session_end),
+      startTime: session.session_start
+    }));
+    
+    return sessionLogs;
+  } catch (error: any) {
+    console.error('Error generating session logs:', error);
     return [];
   }
 };
 
-// Fetch most studied topics for a school
-export const fetchTopics = async (
+/**
+ * Retrieves topic data based on the provided school ID and filters.
+ * @param schoolId - The ID of the school.
+ * @param filters - The filters to apply to the data.
+ * @returns A promise that resolves to an array of TopicData objects.
+ */
+export const getTopicData = async (
   schoolId: string,
   filters: AnalyticsFilters
 ): Promise<TopicData[]> => {
   try {
-    // Handle test account
-    if (isTestAccount()) {
+    // Check if the user is a test user
+    const testUserType = sessionStorage.getItem('testUserType');
+    
+    if (testUserType) {
+      // Generate mock analytics data for test users
       const mockData = getMockAnalyticsData(schoolId, filters);
-      return mockData?.topics || [];
+      return mockData.topics;
     }
     
-    // Real account implementation
+    // Fetch topic data from the database
     let query = supabase
-      .from("most_studied_topics")
-      .select("topic_or_content_used, count_of_sessions")
-      .eq("school_id", schoolId)
-      .order("count_of_sessions", { ascending: false })
-      .limit(10);
+      .from('session_logs')
+      .select('topic_or_content_used')
+      .eq('school_id', schoolId);
     
-    // Currently no date filtering on this view
+    // Apply date range filter
+    if (filters.dateRange?.from) {
+      query = query.gte('session_start', filters.dateRange.from.toISOString());
+    }
+    if (filters.dateRange?.to) {
+      const endDate = new Date(filters.dateRange.to);
+      endDate.setDate(endDate.getDate() + 1); // Include the end date
+      query = query.lte('session_start', endDate.toISOString());
+    }
     
     const { data, error } = await query;
     
     if (error) {
-      console.error("Error fetching topics:", error);
-      return [];
+      console.error('Error fetching topic data:', error);
+      throw new Error('Failed to fetch topic data');
     }
     
-    return (data || [])
-      .filter(item => item.topic_or_content_used) // Filter out null topics
-      .map(item => ({
-        name: item.topic_or_content_used || "General",
-        value: item.count_of_sessions || 0,
-      }));
-  } catch (error) {
-    console.error("Error in fetchTopics:", error);
+    // Count the occurrences of each topic
+    const topicCounts: { [topic: string]: number } = {};
+    data.forEach(session => {
+      const topic = session.topic_or_content_used;
+      topicCounts[topic] = (topicCounts[topic] || 0) + 1;
+    });
+    
+    // Convert the topic counts into TopicData objects
+    const topicData: TopicData[] = Object.entries(topicCounts).map(([name, value]) => ({
+      name,
+      value
+    }));
+    
+    return topicData;
+  } catch (error: any) {
+    console.error('Error generating topic data:', error);
     return [];
   }
 };
 
-// Fetch weekly study time by student
-export const fetchStudyTime = async (
+/**
+ * Retrieves study time data based on the provided school ID and filters.
+ * @param schoolId - The ID of the school.
+ * @param filters - The filters to apply to the data.
+ * @returns A promise that resolves to an array of StudyTimeData objects.
+ */
+export const getStudyTimeData = async (
   schoolId: string,
   filters: AnalyticsFilters
 ): Promise<StudyTimeData[]> => {
   try {
-    // Handle test account
-    if (isTestAccount()) {
+    // Check if the user is a test user
+    const testUserType = sessionStorage.getItem('testUserType');
+    
+    if (testUserType) {
+      // Generate mock analytics data for test users
       const mockData = getMockAnalyticsData(schoolId, filters);
-      return mockData?.studyTime || [];
+      return mockData.studyTime;
     }
     
-    // Real account implementation
+    // Fetch study time data from the database
     let query = supabase
-      .from("student_weekly_study_time")
-      .select("*")
-      .eq("school_id", schoolId);
+      .from('session_logs')
+      .select('user_id, session_start, session_end')
+      .eq('school_id', schoolId);
     
-    // Apply student filter if provided
-    if (filters.studentId) {
-      query = query.eq("user_id", filters.studentId);
+    // Apply date range filter
+    if (filters.dateRange?.from) {
+      query = query.gte('session_start', filters.dateRange.from.toISOString());
     }
-    
-    // Order by study hours (descending)
-    query = query.order("study_hours", { ascending: false });
+    if (filters.dateRange?.to) {
+      const endDate = new Date(filters.dateRange.to);
+      endDate.setDate(endDate.getDate() + 1); // Include the end date
+      query = query.lte('session_start', endDate.toISOString());
+    }
     
     const { data, error } = await query;
     
     if (error) {
-      console.error("Error fetching study time:", error);
-      return [];
+      console.error('Error fetching study time data:', error);
+      throw new Error('Failed to fetch study time data');
     }
     
-    return (data || [])
-      .filter(item => item.student_name) // Filter out entries with no name
-      .map(item => ({
-        name: item.student_name || "Unknown Student",
-        hours: Number(item.study_hours) || 0,
-      }));
-  } catch (error) {
-    console.error("Error in fetchStudyTime:", error);
+    // Calculate the total study time for each student
+    const studentStudyTime: { [studentId: string]: number } = {};
+    data.forEach(session => {
+      const studentId = session.user_id;
+      const start = new Date(session.session_start).getTime();
+      const end = new Date(session.session_end).getTime();
+      studentStudyTime[studentId] = (studentStudyTime[studentId] || 0) + (end - start);
+    });
+    
+    // Convert the student study time into StudyTimeData objects
+    const studyTimeData: StudyTimeData[] = Object.entries(studentStudyTime).map(([name, hours]) => ({
+      name, // Replace with actual student name if available
+      hours: hours / (60 * 60 * 1000) // Convert milliseconds to hours
+    }));
+    
+    return studyTimeData;
+  } catch (error: any) {
+    console.error('Error generating study time data:', error);
     return [];
   }
 };
 
-// Get a human-readable representation of the date range
-export const getDateRangeText = (dateRange?: { from?: Date; to?: Date }): string => {
-  if (!dateRange) {
-    const now = new Date();
-    const oneMonthAgo = subDays(now, 30);
-    return `${format(oneMonthAgo, 'MMM d, yyyy')} - ${format(now, 'MMM d, yyyy')}`;
-  }
-  
-  if (dateRange.from && dateRange.to) {
-    return `${format(dateRange.from, 'MMM d, yyyy')} - ${format(dateRange.to, 'MMM d, yyyy')}`;
-  }
-  
-  if (dateRange.from) {
-    return `From ${format(dateRange.from, 'MMM d, yyyy')}`;
-  }
-  
-  if (dateRange.to) {
-    return `Until ${format(dateRange.to, 'MMM d, yyyy')}`;
-  }
-  
-  return "All time";
+/**
+ * Calculates the duration between two timestamps in a human-readable format.
+ * @param start - The start timestamp.
+ * @param end - The end timestamp.
+ * @returns A string representing the duration in minutes and seconds.
+ */
+const calculateDuration = (start: string, end: string): string => {
+  const startTime = new Date(start).getTime();
+  const endTime = new Date(end).getTime();
+  const duration = endTime - startTime;
+  const minutes = Math.floor(duration / (60 * 1000));
+  const seconds = Math.floor((duration % (60 * 1000)) / 1000);
+  return `${minutes} min ${seconds} sec`;
 };

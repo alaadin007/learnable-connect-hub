@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
@@ -52,7 +51,7 @@ const ChatWithAI = () => {
     
     // Update session topic if we have an active session
     if (sessionId && sessionLogger.hasActiveSession()) {
-      sessionLogger.updateTopic(sessionId, e.target.value).catch(err => {
+      sessionLogger.updateTopic(sessionId).catch(err => {
         console.error("Failed to update session topic:", err);
       });
     }

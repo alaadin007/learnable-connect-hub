@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -75,7 +74,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     const initializeChat = async () => {
       if (!sessionId && !selectedConversationId) {
         // Start a new session and conversation
-        const newSessionId = await sessionLogger.startSession(topic);
+        // Fix: Pass the required user ID parameter to startSession
+        const newSessionId = await sessionLogger.startSession(topic, user?.id || 'anonymous');
         if (newSessionId) {
           onSessionStart(newSessionId);
         } else {
@@ -91,7 +91,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     if (!sessionId && !selectedConversationId) {
       initializeChat();
     }
-  }, [sessionId, topic, onSessionStart, toast, selectedConversationId]);
+  }, [sessionId, topic, onSessionStart, toast, selectedConversationId, user?.id]);
 
   const createConversation = async (): Promise<string | null> => {
     try {
