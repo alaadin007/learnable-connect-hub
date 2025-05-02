@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -13,7 +12,8 @@ import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import VoiceRecorder from "./VoiceRecorder"; 
 import TextToSpeech from "./TextToSpeech";
-import TypingIndicator from "./TypingIndicator"; // Import our new component
+import TypingIndicator from "./TypingIndicator";
+import { sessionLogger } from "@/utils/sessionLogging";
 
 interface Message {
   id: string;
@@ -42,7 +42,8 @@ const ChatInterface = ({ sessionId, topic, onSessionStart }: ChatInterfaceProps)
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [useDocuments, setUseDocuments] = useState<boolean>(true);
-  const [isTyping, setIsTyping] = useState(false); // Add typing indicator state
+  const [isTyping, setIsTyping] = useState(false);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(sessionId || null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   
@@ -50,6 +51,62 @@ const ChatInterface = ({ sessionId, topic, onSessionStart }: ChatInterfaceProps)
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Initialize or use provided session
+  useEffect(() => {
+    const initSession = async () => {
+      // If we already have a session ID provided, use it
+      if (sessionId) {
+        setActiveSessionId(sessionId);
+        return;
+      }
+      
+      // Otherwise, if user starts interacting and no session exists, create one
+      if (!sessionLogger.hasActiveSession() && messages.length === 0) {
+        try {
+          const newSessionId = await sessionLogger.startSession(topic);
+          setActiveSessionId(newSessionId);
+          if (onSessionStart) {
+            onSessionStart(newSessionId);
+          }
+        } catch (error) {
+          console.error("Failed to start session:", error);
+        }
+      }
+    };
+    
+    if (user) {
+      initSession();
+    }
+    
+    // Clean up session when component unmounts
+    return () => {
+      if (sessionLogger.hasActiveSession() && !sessionId) {
+        // Only end the session if we created it (not if it was passed as prop)
+        sessionLogger.endSession({
+          messageCount: messages.length,
+          lastActivity: new Date().toISOString()
+        }).catch(error => {
+          console.error("Error ending session:", error);
+        });
+      }
+    };
+  }, [user, sessionId, onSessionStart, topic]);
+  
+  // Update session topic if it changes
+  useEffect(() => {
+    const updateSessionTopic = async () => {
+      if (sessionLogger.hasActiveSession() && topic) {
+        try {
+          await sessionLogger.updateTopic(topic);
+        } catch (error) {
+          console.error("Failed to update session topic:", error);
+        }
+      }
+    };
+    
+    updateSessionTopic();
+  }, [topic]);
 
   // Load conversation if conversationId changes or on component mount
   useEffect(() => {
@@ -111,15 +168,37 @@ const ChatInterface = ({ sessionId, topic, onSessionStart }: ChatInterfaceProps)
     setMessages((prevMessages) => [...prevMessages, userMessage]);
     setInputValue("");
     setIsLoading(true);
-    setIsTyping(true); // Show typing indicator when sending message
+    setIsTyping(true);
+    
+    // Make sure we have an active session before proceeding
+    if (!activeSessionId && !sessionLogger.hasActiveSession()) {
+      try {
+        const newSessionId = await sessionLogger.startSession(topic);
+        setActiveSessionId(newSessionId);
+        if (onSessionStart) {
+          onSessionStart(newSessionId);
+        }
+      } catch (error) {
+        console.error("Failed to start session:", error);
+      }
+    }
     
     try {
+      // Increment query count
+      if (sessionLogger.hasActiveSession()) {
+        try {
+          await sessionLogger.incrementQueryCount();
+        } catch (error) {
+          console.error("Failed to increment query count:", error);
+        }
+      }
+      
       // Call the ask-ai edge function
       const { data, error } = await supabase.functions.invoke("ask-ai", {
         body: {
           question: userMessage.content,
           conversationId: currentConversationId,
-          sessionId: sessionId,
+          sessionId: activeSessionId || sessionLogger.getSessionId(),
           topic: topic,
           useDocuments: useDocuments
         },
@@ -153,12 +232,15 @@ const ChatInterface = ({ sessionId, topic, onSessionStart }: ChatInterfaceProps)
       }
       
       // Handle session ID if provided by the callback
-      if (onSessionStart && data.sessionId && !sessionId) {
-        onSessionStart(data.sessionId);
+      if (data.sessionId && !activeSessionId) {
+        setActiveSessionId(data.sessionId);
+        if (onSessionStart) {
+          onSessionStart(data.sessionId);
+        }
       }
     } catch (error: any) {
       console.error("Error calling ask-ai function:", error);
-      setIsTyping(false); // Make sure to hide typing indicator on error
+      setIsTyping(false);
       toast({
         title: "Error",
         description: "Failed to get a response from the AI. Please try again.",

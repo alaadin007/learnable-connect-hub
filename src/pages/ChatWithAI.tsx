@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
@@ -12,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Loader2, MessageSquare } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { sessionLogger } from "@/utils/sessionLogging";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 interface Conversation {
@@ -32,6 +32,13 @@ const ChatWithAI = () => {
 
   const handleTopicChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setTopic(e.target.value);
+    
+    // Update session topic if we have an active session
+    if (sessionId && sessionLogger.hasActiveSession()) {
+      sessionLogger.updateTopic(e.target.value).catch(err => {
+        console.error("Failed to update session topic:", err);
+      });
+    }
   };
 
   const handleSessionStart = (newSessionId: string) => {
@@ -48,6 +55,22 @@ const ChatWithAI = () => {
       loadConversations();
     }
   }, [user]);
+  
+  // End session when user leaves page
+  useEffect(() => {
+    return () => {
+      if (sessionLogger.hasActiveSession()) {
+        const performanceData = {
+          completedTime: new Date().toISOString(),
+          conversationsViewed: conversations.length
+        };
+        
+        sessionLogger.endSession(performanceData).catch(error => {
+          console.error("Error ending session on unmount:", error);
+        });
+      }
+    };
+  }, [conversations.length]);
 
   const loadConversations = async () => {
     setLoadingConversations(true);
