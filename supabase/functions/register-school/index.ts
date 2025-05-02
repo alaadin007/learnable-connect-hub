@@ -22,8 +22,27 @@ serve(async (req) => {
   
   try {
     // Get request data
-    const { schoolName, adminEmail, adminPassword, adminFullName } = await req.json() as SchoolRegistrationData;
-    console.log(`Registering school: ${schoolName} with admin: ${adminEmail}`);
+    let requestData;
+    try {
+      requestData = await req.json();
+      console.log("Request data received:", JSON.stringify({
+        schoolName: requestData.schoolName,
+        adminEmail: requestData.adminEmail,
+        adminFullName: requestData.adminFullName,
+        // Not logging password for security
+      }));
+    } catch (parseError) {
+      console.error("Failed to parse request JSON:", parseError);
+      return new Response(
+        JSON.stringify({ error: "Invalid request format" }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        }
+      );
+    }
+    
+    const { schoolName, adminEmail, adminPassword, adminFullName } = requestData as SchoolRegistrationData;
     
     // Get request URL to determine origin for redirects
     const requestUrl = new URL(req.url);
@@ -37,6 +56,13 @@ serve(async (req) => {
     
     // Validate required fields
     if (!schoolName || !adminEmail || !adminPassword || !adminFullName) {
+      console.error("Missing required fields:", {
+        hasSchoolName: !!schoolName,
+        hasAdminEmail: !!adminEmail,
+        hasAdminPassword: !!adminPassword,
+        hasAdminFullName: !!adminFullName
+      });
+      
       return new Response(
         JSON.stringify({ 
           error: "Missing required fields. School name, admin email, admin password, and admin full name are required." 
@@ -49,11 +75,26 @@ serve(async (req) => {
     }
     
     // Create a Supabase client with the service role key (for admin operations)
-    // IMPORTANT: This key is only available server-side in edge functions
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL") as string,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") as string
-    );
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    
+    if (!supabaseUrl || !supabaseServiceRoleKey) {
+      console.error("Missing Supabase environment variables:", {
+        hasUrl: !!supabaseUrl,
+        hasServiceRoleKey: !!supabaseServiceRoleKey
+      });
+      
+      return new Response(
+        JSON.stringify({ error: "Server configuration error - missing Supabase credentials" }),
+        { 
+          status: 500, 
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        }
+      );
+    }
+    
+    // Create the Supabase admin client
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
     
     // Generate a school code
     const { data: schoolCodeData, error: schoolCodeError } = await supabaseAdmin.rpc(
@@ -63,7 +104,7 @@ serve(async (req) => {
     if (schoolCodeError) {
       console.error("Error generating school code:", schoolCodeError);
       return new Response(
-        JSON.stringify({ error: "Failed to generate school code" }),
+        JSON.stringify({ error: "Failed to generate school code", details: schoolCodeError.message }),
         { 
           status: 500, 
           headers: { ...corsHeaders, "Content-Type": "application/json" }
@@ -86,7 +127,7 @@ serve(async (req) => {
     if (schoolCodeInsertError) {
       console.error("Error inserting school code:", schoolCodeInsertError);
       return new Response(
-        JSON.stringify({ error: "Failed to register school code" }),
+        JSON.stringify({ error: "Failed to register school code", details: schoolCodeInsertError.message }),
         { 
           status: 500, 
           headers: { ...corsHeaders, "Content-Type": "application/json" }
@@ -107,7 +148,7 @@ serve(async (req) => {
     if (schoolError || !schoolData) {
       console.error("Error creating school:", schoolError);
       return new Response(
-        JSON.stringify({ error: "Failed to create school record" }),
+        JSON.stringify({ error: "Failed to create school record", details: schoolError?.message }),
         { 
           status: 500, 
           headers: { ...corsHeaders, "Content-Type": "application/json" }
@@ -117,6 +158,27 @@ serve(async (req) => {
     
     const schoolId = schoolData.id;
     console.log(`School created with ID: ${schoolId}`);
+    
+    // Check if user already exists
+    const { data: existingUserData, error: checkUserError } = await supabaseAdmin
+      .from("profiles")
+      .select("id")
+      .eq("user_type", "school")
+      .eq("school_code", schoolCode)
+      .maybeSingle();
+      
+    if (checkUserError) {
+      console.error("Error checking for existing user:", checkUserError);
+    } else if (existingUserData?.id) {
+      console.log("User already exists for this school code");
+      return new Response(
+        JSON.stringify({ error: "A school admin already exists with this email" }),
+        { 
+          status: 409, 
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        }
+      );
+    }
     
     // Set up redirect URL for email confirmation
     const redirectURL = `${frontendURL}/login?email_confirmed=true`;
@@ -137,16 +199,53 @@ serve(async (req) => {
       email_confirm_redirect_url: redirectURL
     });
     
-    if (userError || !userData.user) {
+    if (userError) {
       console.error("Error creating admin user:", userError);
+      
+      // If the error is because the email is already registered, return a specific error
+      if (userError.message.includes("already registered")) {
+        return new Response(
+          JSON.stringify({ 
+            error: "Email already registered", 
+            message: "This email address is already registered. Please use a different email address or try logging in." 
+          }),
+          { 
+            status: 409, 
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          }
+        );
+      }
+      
       // Clean up: remove school if user creation fails
-      await supabaseAdmin
-        .from("schools")
-        .delete()
-        .eq("id", schoolId);
+      try {
+        await supabaseAdmin
+          .from("schools")
+          .delete()
+          .eq("id", schoolId);
+        
+        await supabaseAdmin
+          .from("school_codes")
+          .delete()
+          .eq("code", schoolCode);
+          
+        console.log("Cleaned up school and code entries after user creation failed");
+      } catch (cleanupError) {
+        console.error("Error cleaning up after failed user creation:", cleanupError);
+      }
         
       return new Response(
-        JSON.stringify({ error: "Failed to create admin user account" }),
+        JSON.stringify({ error: "Failed to create admin user account", details: userError.message }),
+        { 
+          status: 500, 
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        }
+      );
+    }
+    
+    if (!userData || !userData.user) {
+      console.error("No user data returned when creating admin");
+      return new Response(
+        JSON.stringify({ error: "Failed to create admin user - no user data returned" }),
         { 
           status: 500, 
           headers: { ...corsHeaders, "Content-Type": "application/json" }
@@ -184,11 +283,20 @@ serve(async (req) => {
     
     if (teacherError) {
       console.error("Error creating teacher record:", teacherError);
+      
       // Clean up: remove user if teacher record creation fails
-      await supabaseAdmin.auth.admin.deleteUser(adminUserId);
+      try {
+        await supabaseAdmin.auth.admin.deleteUser(adminUserId);
+        await supabaseAdmin.from("profiles").delete().eq("id", adminUserId);
+        await supabaseAdmin.from("schools").delete().eq("id", schoolId);
+        await supabaseAdmin.from("school_codes").delete().eq("code", schoolCode);
+        console.log("Cleaned up after teacher record creation failed");
+      } catch (cleanupError) {
+        console.error("Error during cleanup:", cleanupError);
+      }
       
       return new Response(
-        JSON.stringify({ error: "Failed to create teacher admin record" }),
+        JSON.stringify({ error: "Failed to create teacher admin record", details: teacherError.message }),
         { 
           status: 500, 
           headers: { ...corsHeaders, "Content-Type": "application/json" }
@@ -198,6 +306,7 @@ serve(async (req) => {
 
     // Make multiple attempts to send confirmation email to improve delivery reliability
     let emailSent = false;
+    let emailError = null;
     const maxAttempts = 3;
     
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -208,6 +317,7 @@ serve(async (req) => {
         
         if (resendError) {
           console.error(`Attempt ${attempt}: Error sending confirmation email:`, resendError);
+          emailError = resendError;
           
           if (attempt === maxAttempts) {
             console.error(`All ${maxAttempts} attempts to send email failed.`);
@@ -220,11 +330,15 @@ serve(async (req) => {
           emailSent = true;
           break; // Email sent successfully, exit the loop
         }
-      } catch (emailError) {
-        console.error(`Attempt ${attempt}: Failed to send confirmation email:`, emailError);
+      } catch (attemptError) {
+        console.error(`Attempt ${attempt}: Failed to send confirmation email:`, attemptError);
+        emailError = attemptError;
         
         if (attempt === maxAttempts) {
           console.error(`All ${maxAttempts} attempts to send email failed.`);
+        } else {
+          // Wait before trying again
+          await new Promise(resolve => setTimeout(resolve, 500));
         }
       }
     }
@@ -237,6 +351,7 @@ serve(async (req) => {
         schoolCode,
         adminUserId,
         emailSent,
+        emailError: emailError ? emailError.message : null,
         message: emailSent 
           ? "School and admin account successfully created. Please check your email (including spam folder) to verify your account." 
           : "School and admin account created, but there was a problem sending the verification email. Please use the 'Forgot Password' option on the login page to request another verification email."
@@ -250,7 +365,11 @@ serve(async (req) => {
   } catch (error: any) {
     console.error("Unexpected error:", error);
     return new Response(
-      JSON.stringify({ error: "An unexpected error occurred" }),
+      JSON.stringify({ 
+        error: "An unexpected error occurred", 
+        details: error.message || "Unknown error",
+        stack: error.stack || "No stack trace available" 
+      }),
       { 
         status: 500, 
         headers: { ...corsHeaders, "Content-Type": "application/json" }
