@@ -64,7 +64,7 @@ const ChatInterface = ({ sessionId, topic, onSessionStart }: ChatInterfaceProps)
       // Otherwise, if user starts interacting and no session exists, create one
       if (!sessionLogger.hasActiveSession() && messages.length === 0) {
         try {
-          const newSessionId = await sessionLogger.startSession(topic);
+          const newSessionId = await sessionLogger.createSession(topic);
           setActiveSessionId(newSessionId);
           if (onSessionStart) {
             onSessionStart(newSessionId);
@@ -173,7 +173,7 @@ const ChatInterface = ({ sessionId, topic, onSessionStart }: ChatInterfaceProps)
     // Make sure we have an active session before proceeding
     if (!activeSessionId && !sessionLogger.hasActiveSession()) {
       try {
-        const newSessionId = await sessionLogger.startSession(topic);
+        const newSessionId = await sessionLogger.createSession(topic);
         setActiveSessionId(newSessionId);
         if (onSessionStart) {
           onSessionStart(newSessionId);

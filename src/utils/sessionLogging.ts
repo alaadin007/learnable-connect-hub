@@ -138,6 +138,11 @@ class SessionLogger {
     }
   }
 
+  // Adding this method as an alias for createSession to fix the error
+  async startSession(topic?: string): Promise<string> {
+    return this.createSession(topic);
+  }
+
   hasActiveSession(): boolean {
     return this.sessionId !== null;
   }
