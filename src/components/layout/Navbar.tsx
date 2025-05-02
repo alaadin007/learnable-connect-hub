@@ -78,7 +78,7 @@ const Navbar = () => {
           {/* Logo */}
           <div className="flex-shrink-0">
             <Link to="/" className="flex items-center">
-              <span className="ml-2 text-xl font-bold text-learnable-dark">
+              <span className="ml-2 text-xl font-bold gradient-text">
                 LearnAble
               </span>
             </Link>
