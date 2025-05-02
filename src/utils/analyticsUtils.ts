@@ -78,14 +78,33 @@ export const getAnalyticsSummary = async (
   schoolId: string,
   filters: AnalyticsFilters
 ): Promise<AnalyticsSummary> => {
+  // Default summary object to return in case of errors or no data
+  const defaultSummary: AnalyticsSummary = {
+    activeStudents: 0,
+    totalSessions: 0,
+    totalQueries: 0,
+    avgSessionMinutes: 0
+  };
+
   try {
+    // Check if schoolId is valid
+    if (!schoolId || typeof schoolId !== 'string' || schoolId.trim() === '') {
+      console.warn('Invalid schoolId provided to getAnalyticsSummary:', schoolId);
+      return defaultSummary;
+    }
+
     // Check if the user is a test user
     const testUserType = sessionStorage.getItem('testUserType');
     
     if (testUserType) {
       // Generate mock analytics data for test users
-      const mockData = getMockAnalyticsData(schoolId, filters);
-      return mockData.summary;
+      try {
+        const mockData = getMockAnalyticsData(schoolId, filters);
+        return mockData.summary || defaultSummary;
+      } catch (error) {
+        console.error('Error generating mock analytics data:', error);
+        return defaultSummary;
+      }
     }
     
     // Fetch analytics summary data from the database
@@ -108,16 +127,23 @@ export const getAnalyticsSummary = async (
     
     if (error) {
       console.error('Error fetching analytics summary:', error);
-      throw new Error('Failed to fetch analytics summary');
+      return defaultSummary;
+    }
+    
+    // Ensure data is an array before processing
+    if (!Array.isArray(data)) {
+      console.warn('Data returned from query is not an array:', data);
+      return defaultSummary;
     }
     
     // Calculate analytics summary from the data
     const totalSessions = data.length;
-    const totalQueries = data.reduce((sum, session) => sum + session.num_queries, 0);
+    const totalQueries = data.reduce((sum, session) => sum + (session.num_queries || 0), 0);
     const activeStudents = new Set(data.map(session => session.user_id)).size;
     
     // Calculate average session duration in minutes
     const totalDuration = data.reduce((sum, session) => {
+      if (!session.session_start || !session.session_end) return sum;
       const start = new Date(session.session_start).getTime();
       const end = new Date(session.session_end).getTime();
       return sum + (end - start);
@@ -133,14 +159,7 @@ export const getAnalyticsSummary = async (
     };
   } catch (error: any) {
     console.error('Error generating analytics summary:', error);
-    
-    // Return default values in case of an error
-    return {
-      activeStudents: 0,
-      totalSessions: 0,
-      totalQueries: 0,
-      avgSessionMinutes: 0
-    };
+    return defaultSummary;
   }
 };
 
@@ -155,26 +174,41 @@ export const getSessionLogs = async (
   filters: AnalyticsFilters
 ): Promise<SessionData[]> => {
   try {
+    // Check if schoolId is valid
+    if (!schoolId || typeof schoolId !== 'string' || schoolId.trim() === '') {
+      console.warn('Invalid schoolId provided to getSessionLogs:', schoolId);
+      return [];
+    }
+
     // Check if the user is a test user
     const testUserType = sessionStorage.getItem('testUserType');
     
     if (testUserType) {
       // Generate mock analytics data for test users
-      const mockData = getMockAnalyticsData(schoolId, filters);
-      return mockData.sessions.map(session => ({
-        id: session.id,
-        userId: session.student || "",  // Using student name as userId for mock data
-        userName: session.student || "",
-        topicOrContent: session.topic || "",
-        startTime: session.startTime,
-        endTime: null,
-        duration: session.duration,
-        numQueries: session.queries || 0,
-        // Keep original properties for backward compatibility
-        student: session.student,
-        topic: session.topic,
-        queries: session.queries
-      }));
+      try {
+        const mockData = getMockAnalyticsData(schoolId, filters);
+        if (!mockData.sessions || !Array.isArray(mockData.sessions)) {
+          return [];
+        }
+        
+        return mockData.sessions.map(session => ({
+          id: session.id || `mock-${Math.random().toString(36).substr(2, 9)}`,
+          userId: session.student || "",
+          userName: session.student || "",
+          topicOrContent: session.topic || "",
+          startTime: session.startTime || "",
+          endTime: null,
+          duration: session.duration || "N/A",
+          numQueries: session.queries || 0,
+          // Keep original properties for backward compatibility
+          student: session.student || "",
+          topic: session.topic || "",
+          queries: session.queries || 0
+        }));
+      } catch (error) {
+        console.error('Error generating mock session logs:', error);
+        return [];
+      }
     }
     
     // Fetch session logs from the database
@@ -202,23 +236,28 @@ export const getSessionLogs = async (
     
     if (error) {
       console.error('Error fetching session logs:', error);
-      throw new Error('Failed to fetch session logs');
+      return [];
+    }
+    
+    // Ensure data is an array before mapping
+    if (!Array.isArray(data)) {
+      return [];
     }
     
     // Format the data into SessionData objects
     const sessionLogs: SessionData[] = data.map(session => ({
-      id: session.id,
-      userId: session.user_id,
-      userName: session.user_id, // Replace with actual student name if available
-      topicOrContent: session.topic_or_content_used,
-      startTime: session.session_start,
-      endTime: session.session_end,
-      duration: calculateDuration(session.session_start, session.session_end),
-      numQueries: session.num_queries,
+      id: session.id || `db-${Math.random().toString(36).substr(2, 9)}`,
+      userId: session.user_id || "",
+      userName: session.user_id || "", // Replace with actual student name if available
+      topicOrContent: session.topic_or_content_used || "",
+      startTime: session.session_start || "",
+      endTime: session.session_end || "",
+      duration: calculateDuration(session.session_start || "", session.session_end || ""),
+      numQueries: session.num_queries || 0,
       // Keep original properties for backward compatibility
-      student: session.user_id,
-      topic: session.topic_or_content_used,
-      queries: session.num_queries
+      student: session.user_id || "",
+      topic: session.topic_or_content_used || "",
+      queries: session.num_queries || 0
     }));
     
     return sessionLogs;
@@ -239,19 +278,34 @@ export const getTopicData = async (
   filters: AnalyticsFilters
 ): Promise<TopicData[]> => {
   try {
+    // Check if schoolId is valid
+    if (!schoolId || typeof schoolId !== 'string' || schoolId.trim() === '') {
+      console.warn('Invalid schoolId provided to getTopicData:', schoolId);
+      return [];
+    }
+
     // Check if the user is a test user
     const testUserType = sessionStorage.getItem('testUserType');
     
     if (testUserType) {
       // Generate mock analytics data for test users
-      const mockData = getMockAnalyticsData(schoolId, filters);
-      return mockData.topics.map(topic => ({
-        topic: topic.name || "",
-        count: topic.value || 0,
-        // Keep original properties for backward compatibility
-        name: topic.name,
-        value: topic.value
-      }));
+      try {
+        const mockData = getMockAnalyticsData(schoolId, filters);
+        if (!mockData.topics || !Array.isArray(mockData.topics)) {
+          return [];
+        }
+        
+        return mockData.topics.map(topic => ({
+          topic: topic.name || "",
+          count: topic.value || 0,
+          // Keep original properties for backward compatibility
+          name: topic.name || "",
+          value: topic.value || 0
+        }));
+      } catch (error) {
+        console.error('Error generating mock topic data:', error);
+        return [];
+      }
     }
     
     // Fetch topic data from the database
@@ -274,13 +328,18 @@ export const getTopicData = async (
     
     if (error) {
       console.error('Error fetching topic data:', error);
-      throw new Error('Failed to fetch topic data');
+      return [];
+    }
+    
+    // Ensure data is an array before processing
+    if (!Array.isArray(data)) {
+      return [];
     }
     
     // Count the occurrences of each topic
     const topicCounts: { [topic: string]: number } = {};
     data.forEach(session => {
-      const topic = session.topic_or_content_used;
+      const topic = session.topic_or_content_used || 'General';
       topicCounts[topic] = (topicCounts[topic] || 0) + 1;
     });
     
@@ -311,20 +370,35 @@ export const getStudyTimeData = async (
   filters: AnalyticsFilters
 ): Promise<StudyTimeData[]> => {
   try {
+    // Check if schoolId is valid
+    if (!schoolId || typeof schoolId !== 'string' || schoolId.trim() === '') {
+      console.warn('Invalid schoolId provided to getStudyTimeData:', schoolId);
+      return [];
+    }
+
     // Check if the user is a test user
     const testUserType = sessionStorage.getItem('testUserType');
     
     if (testUserType) {
       // Generate mock analytics data for test users
-      const mockData = getMockAnalyticsData(schoolId, filters);
-      return mockData.studyTime.map(item => ({
-        week: new Date().getWeek(),
-        year: new Date().getFullYear(),
-        hours: item.hours,
-        studentName: item.name,
-        // Keep original properties for backward compatibility
-        name: item.name
-      }));
+      try {
+        const mockData = getMockAnalyticsData(schoolId, filters);
+        if (!mockData.studyTime || !Array.isArray(mockData.studyTime)) {
+          return [];
+        }
+        
+        return mockData.studyTime.map(item => ({
+          week: new Date().getWeek(),
+          year: new Date().getFullYear(),
+          hours: item.hours || 0,
+          studentName: item.name || "",
+          // Keep original properties for backward compatibility
+          name: item.name || ""
+        }));
+      } catch (error) {
+        console.error('Error generating mock study time data:', error);
+        return [];
+      }
     }
     
     // Fetch study time data from the database
@@ -347,13 +421,19 @@ export const getStudyTimeData = async (
     
     if (error) {
       console.error('Error fetching study time data:', error);
-      throw new Error('Failed to fetch study time data');
+      return [];
+    }
+    
+    // Ensure data is an array before processing
+    if (!Array.isArray(data)) {
+      return [];
     }
     
     // Calculate the total study time for each student
     const studentStudyTime: { [studentId: string]: number } = {};
     data.forEach(session => {
-      const studentId = session.user_id;
+      if (!session.session_start || !session.session_end) return;
+      const studentId = session.user_id || "unknown";
       const start = new Date(session.session_start).getTime();
       const end = new Date(session.session_end).getTime();
       studentStudyTime[studentId] = (studentStudyTime[studentId] || 0) + (end - start);
@@ -398,12 +478,28 @@ Date.prototype.getWeek = function(): number {
  * @returns A string representing the duration in minutes and seconds.
  */
 const calculateDuration = (start: string, end: string): string => {
-  const startTime = new Date(start).getTime();
-  const endTime = new Date(end).getTime();
-  const duration = endTime - startTime;
-  const minutes = Math.floor(duration / (60 * 1000));
-  const seconds = Math.floor((duration % (60 * 1000)) / 1000);
-  return `${minutes} min ${seconds} sec`;
+  if (!start || !end) return "N/A";
+  
+  try {
+    const startTime = new Date(start).getTime();
+    const endTime = new Date(end).getTime();
+    
+    if (isNaN(startTime) || isNaN(endTime)) {
+      return "N/A";
+    }
+    
+    const duration = endTime - startTime;
+    if (duration <= 0) {
+      return "0 min 0 sec";
+    }
+    
+    const minutes = Math.floor(duration / (60 * 1000));
+    const seconds = Math.floor((duration % (60 * 1000)) / 1000);
+    return `${minutes} min ${seconds} sec`;
+  } catch (error) {
+    console.error("Error calculating duration:", error);
+    return "N/A";
+  }
 };
 
 /**
@@ -417,6 +513,12 @@ export const getSchoolPerformance = async (
   filters: AnalyticsFilters
 ): Promise<{ summary: SchoolPerformanceSummary | null; monthlyData: SchoolPerformanceData[] }> => {
   try {
+    // Check if schoolId is valid
+    if (!schoolId || typeof schoolId !== 'string' || schoolId.trim() === '') {
+      console.warn('Invalid schoolId provided to getSchoolPerformance:', schoolId);
+      return { summary: null, monthlyData: [] };
+    }
+
     // Check if the user is a test user
     const testUserType = sessionStorage.getItem('testUserType');
     
@@ -481,7 +583,7 @@ export const getSchoolPerformance = async (
     
     if (summaryError) {
       console.error('Error fetching school performance summary:', summaryError);
-      throw new Error('Failed to fetch school performance summary');
+      return { summary: null, monthlyData: [] };
     }
     
     // Get monthly improvement data
@@ -495,12 +597,12 @@ export const getSchoolPerformance = async (
     
     if (monthlyError) {
       console.error('Error fetching school monthly performance:', monthlyError);
-      throw new Error('Failed to fetch school monthly performance');
+      return { summary: summaryData?.length > 0 ? summaryData[0] : null, monthlyData: [] };
     }
     
     return {
-      summary: summaryData.length > 0 ? summaryData[0] : null,
-      monthlyData: monthlyData || []
+      summary: Array.isArray(summaryData) && summaryData.length > 0 ? summaryData[0] : null,
+      monthlyData: Array.isArray(monthlyData) ? monthlyData : []
     };
   } catch (error: any) {
     console.error('Error generating school performance data:', error);
@@ -519,6 +621,12 @@ export const getTeacherPerformance = async (
   filters: AnalyticsFilters
 ): Promise<TeacherPerformanceData[]> => {
   try {
+    // Check if schoolId is valid
+    if (!schoolId || typeof schoolId !== 'string' || schoolId.trim() === '') {
+      console.warn('Invalid schoolId provided to getTeacherPerformance:', schoolId);
+      return [];
+    }
+    
     // Check if the user is a test user
     const testUserType = sessionStorage.getItem('testUserType');
     
@@ -574,13 +682,13 @@ export const getTeacherPerformance = async (
     
     if (error) {
       console.error('Error fetching teacher performance data:', error);
-      throw new Error('Failed to fetch teacher performance data');
+      return [];
     }
     
-    // Filter by teacher ID if provided
-    let filteredData = teacherData || [];
+    // Filter by teacher ID if provided and ensure we return an array
+    let filteredData: TeacherPerformanceData[] = Array.isArray(teacherData) ? teacherData : [];
     
-    if (teacherId) {
+    if (teacherId && filteredData.length > 0) {
       filteredData = filteredData.filter(teacher => teacher.teacher_id === teacherId);
     }
     
@@ -602,6 +710,12 @@ export const getStudentPerformance = async (
   filters: AnalyticsFilters
 ): Promise<StudentPerformanceData[]> => {
   try {
+    // Check if schoolId is valid
+    if (!schoolId || typeof schoolId !== 'string' || schoolId.trim() === '') {
+      console.warn('Invalid schoolId provided to getStudentPerformance:', schoolId);
+      return [];
+    }
+
     // Check if the user is a test user
     const testUserType = sessionStorage.getItem('testUserType');
     
@@ -663,13 +777,13 @@ export const getStudentPerformance = async (
     
     if (error) {
       console.error('Error fetching student performance data:', error);
-      throw new Error('Failed to fetch student performance data');
+      return [];
     }
     
-    // Filter by student ID if provided
-    let filteredData = studentData || [];
+    // Filter by student ID if provided and ensure we return an array
+    let filteredData: StudentPerformanceData[] = Array.isArray(studentData) ? studentData : [];
     
-    if (studentId) {
+    if (studentId && filteredData.length > 0) {
       filteredData = filteredData.filter(student => student.student_id === studentId);
     }
     

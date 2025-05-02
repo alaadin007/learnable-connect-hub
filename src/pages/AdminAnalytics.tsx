@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
@@ -56,11 +55,16 @@ const AdminAnalytics = () => {
   const [studentPerformanceData, setStudentPerformanceData] = useState([]);
 
   // Get the school_id from the profile, handling both profile structures
-  const schoolId = profile?.school_id || (profile as any)?.school?.id;
+  // Add null check and default to empty string if undefined
+  const schoolId = profile?.school_id || (profile as any)?.school?.id || "";
 
   // Memoized loadAnalyticsData function to prevent unnecessary re-renders
   const loadAnalyticsData = useCallback(async () => {
-    if (!schoolId) return;
+    if (!schoolId) {
+      setIsLoading(false);
+      return;
+    }
+    
     setIsLoading(true);
     
     try {
@@ -69,13 +73,16 @@ const AdminAnalytics = () => {
       setSummary(summaryData);
       
       const sessionData = await fetchSessionLogs(schoolId, filters);
-      setSessions(sessionData);
+      // Ensure we always set an array, even if the data is undefined
+      setSessions(Array.isArray(sessionData) ? sessionData : []);
       
       const topicData = await fetchTopics(schoolId, filters);
-      setTopics(topicData);
+      // Ensure we always set an array, even if the data is undefined
+      setTopics(Array.isArray(topicData) ? topicData : []);
       
       const studyTimeData = await fetchStudyTime(schoolId, filters);
-      setStudyTime(studyTimeData);
+      // Ensure we always set an array, even if the data is undefined
+      setStudyTime(Array.isArray(studyTimeData) ? studyTimeData : []);
       
       // Performance metrics (only load when on performance tab)
       if (activeTab === "performance") {
@@ -84,14 +91,17 @@ const AdminAnalytics = () => {
         };
         
         const schoolPerformance = await fetchSchoolPerformance(schoolId, performanceFilters);
-        setSchoolPerformanceData(schoolPerformance.monthlyData);
-        setSchoolPerformanceSummary(schoolPerformance.summary);
+        // Ensure we always set arrays or objects, even if data is undefined
+        setSchoolPerformanceData(Array.isArray(schoolPerformance.monthlyData) ? schoolPerformance.monthlyData : []);
+        setSchoolPerformanceSummary(schoolPerformance.summary || null);
         
         const teacherPerformance = await fetchTeacherPerformance(schoolId, performanceFilters);
-        setTeacherPerformanceData(teacherPerformance);
+        // Ensure we always set an array, even if the data is undefined
+        setTeacherPerformanceData(Array.isArray(teacherPerformance) ? teacherPerformance : []);
         
         const studentPerformance = await fetchStudentPerformance(schoolId, performanceFilters);
-        setStudentPerformanceData(studentPerformance);
+        // Ensure we always set an array, even if the data is undefined
+        setStudentPerformanceData(Array.isArray(studentPerformance) ? studentPerformance : []);
       }
     } catch (error: any) {
       console.error("Error loading analytics data:", error);
