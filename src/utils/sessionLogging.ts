@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { format } from 'date-fns';
 import { getWeek } from 'date-fns';
 
-// Helper function for getting week number if not using date-fns
+// Helper function for getting week number if not using date-fns getWeek
 // This can be removed if you use date-fns getWeek
 Date.prototype.getWeek = function() {
   var date = new Date(this.getTime());
@@ -15,6 +15,104 @@ Date.prototype.getWeek = function() {
   // Adjust to Thursday in week 1 and count number of weeks from date to week1.
   return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000
                         - 3 + (week1.getDay() + 6) % 7) / 7);
+};
+
+// Add these functions that are being imported by sessionLogger.ts
+export const logSessionStart = async (topic?: string) => {
+  try {
+    const { data, error } = await supabase.functions.invoke('create-session-log', {
+      body: { topic }
+    });
+    
+    if (error) {
+      console.error('Error starting session:', error);
+      return null;
+    }
+    
+    return data;
+  } catch (e) {
+    console.error('Error starting session:', e);
+    return null;
+  }
+};
+
+export const logSessionEnd = async (logId: string, performanceData?: any) => {
+  try {
+    const { error } = await supabase.functions.invoke('end-session', {
+      body: { 
+        logId, 
+        performanceData 
+      }
+    });
+    
+    if (error) {
+      console.error('Error ending session:', error);
+      return false;
+    }
+    
+    return true;
+  } catch (e) {
+    console.error('Error ending session:', e);
+    return false;
+  }
+};
+
+export const updateSessionTopic = async (logId: string, topic: string) => {
+  try {
+    const { error } = await supabase.functions.invoke('update-session', {
+      body: { 
+        logId, 
+        topic 
+      }
+    });
+    
+    if (error) {
+      console.error('Error updating session topic:', error);
+      return false;
+    }
+    
+    return true;
+  } catch (e) {
+    console.error('Error updating session topic:', e);
+    return false;
+  }
+};
+
+export const incrementQueryCount = async (logId: string) => {
+  try {
+    const { error } = await supabase.rpc('increment_session_query_count', { log_id: logId });
+    
+    if (error) {
+      console.error('Error incrementing query count:', error);
+      return false;
+    }
+    
+    return true;
+  } catch (e) {
+    console.error('Error incrementing query count:', e);
+    return false;
+  }
+};
+
+// Add this function referenced in AuthContext.tsx
+export const populateTestAccountWithSessions = async (userId: string, schoolId: string, numSessions = 10) => {
+  try {
+    const { error } = await supabase.rpc('populatetestaccountwithsessions', { 
+      userid: userId,
+      schoolid: schoolId,
+      num_sessions: numSessions
+    });
+    
+    if (error) {
+      console.error('Error populating test account with sessions:', error);
+      return false;
+    }
+    
+    return true;
+  } catch (e) {
+    console.error('Error populating test account with sessions:', e);
+    return false;
+  }
 };
 
 interface MockSession {

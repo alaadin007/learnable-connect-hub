@@ -8,12 +8,16 @@ import {
   SessionData,
   TopicData,
   StudyTimeData,
-  SchoolPerformanceSummary,
-  SchoolPerformanceData,
+  SchoolPerformanceSummary as SchoolPerfSummary,
+  SchoolPerformanceData as SchoolPerfData,
   TeacherPerformanceData,
   StudentPerformanceData,
   DateRange
 } from '@/components/analytics/types';
+
+// Renamed the imported types to avoid conflicts
+type SchoolPerformanceData = SchoolPerfData;
+type SchoolPerformanceSummary = SchoolPerfSummary;
 
 /**
  * Helper to create text representation of date range
@@ -68,22 +72,22 @@ export const fetchSessionLogs = async (
     // Convert mock data to expected SessionData format
     return mockData.map(session => ({
       id: session.id,
-      student_name: session.userName || session.student || "Unknown",
+      student_name: session.userName || "Unknown",
       student_id: session.userId || "",
       session_date: session.startTime || "",
       duration_minutes: typeof session.duration === 'string' ? 
         parseInt(session.duration) : 
         (typeof session.duration === 'number' ? session.duration : 0),
-      topics: [session.topicOrContent || session.topic || "General"],
+      topics: [session.topicOrContent || "General"],
       questions_asked: session.numQueries || session.queries || 0,
       questions_answered: session.numQueries || session.queries || 0,
       
       // Keep backward compatibility fields
       userId: session.userId,
       userName: session.userName,
-      student: session.student,
+      student: session.userName, // Change this from session.student
       topicOrContent: session.topicOrContent,
-      topic: session.topic,
+      topic: session.topicOrContent, // Change this from session.topic
       startTime: session.startTime,
       endTime: session.endTime,
       duration: session.duration,
