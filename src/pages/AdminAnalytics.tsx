@@ -3,219 +3,189 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { 
-  AnalyticsFilters, 
-  AnalyticsExport, 
-  AnalyticsSummaryCards 
-} from "@/components/analytics";
-import StudyTimeChart from "@/components/analytics/StudyTimeChart";
-import TopicsChart from "@/components/analytics/TopicsChart";
-import SessionsTable from "@/components/analytics/SessionsTable";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
 import { 
   fetchAnalyticsSummary, 
-  fetchSessionLogs, 
-  fetchTopics, 
+  fetchSessionLogs,
+  fetchTopics,
   fetchStudyTime,
   getDateRangeText
 } from "@/utils/analyticsUtils";
 import { 
-  AnalyticsFilters as FiltersType, 
-  SessionData, 
-  TopicData, 
-  StudyTimeData, 
-  AnalyticsSummary 
-} from "@/components/analytics/types";
-import { School, BarChart2 } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Skeleton } from "@/components/ui/skeleton";
-import { subDays } from "date-fns";
-import { toast } from "sonner";
+  AnalyticsFilters,
+  TopicsChart,
+  StudyTimeChart,
+  SessionsTable,
+  AnalyticsExport,
+  AnalyticsSummaryCards
+} from "@/components/analytics";
+import { AnalyticsFilters as FiltersType } from "@/components/analytics/types";
+import { useToast } from "@/components/ui/use-toast";
 
 const AdminAnalytics = () => {
-  const { profile, schoolId } = useAuth();
-  const [filters, setFilters] = useState<FiltersType>({
-    dateRange: {
-      from: subDays(new Date(), 30), // Last 30 days by default
-      to: new Date()
-    }
-  });
-  
-  const [summary, setSummary] = useState<AnalyticsSummary>({
-    activeStudents: 0,
-    totalSessions: 0,
-    totalQueries: 0,
-    avgSessionMinutes: 0
-  });
-  
-  const [sessions, setSessions] = useState<SessionData[]>([]);
-  const [topics, setTopics] = useState<TopicData[]>([]);
-  const [studyTime, setStudyTime] = useState<StudyTimeData[]>([]);
-  const [loading, setLoading] = useState(true);
-  
-  // Date range text for display and export
-  const dateRangeText = getDateRangeText(filters.dateRange);
-  
-  // Fetch analytics data
+  const { profile } = useAuth();
+  const [summary, setSummary] = useState(null);
+  const [sessions, setSessions] = useState([]);
+  const [topics, setTopics] = useState([]);
+  const [studyTime, setStudyTime] = useState([]);
+  const [filters, setFilters] = useState<FiltersType>({});
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
+
   useEffect(() => {
-    const fetchData = async () => {
-      if (!schoolId) return;
-      
-      setLoading(true);
-      
-      try {
-        // Fetch all data in parallel
-        const [summaryData, sessionsData, topicsData, studyTimeData] = await Promise.all([
-          fetchAnalyticsSummary(schoolId, filters),
-          fetchSessionLogs(schoolId, filters),
-          fetchTopics(schoolId, filters),
-          fetchStudyTime(schoolId, filters)
-        ]);
-        
-        // Update state with fetched data
-        if (summaryData) setSummary(summaryData);
-        setSessions(sessionsData);
-        setTopics(topicsData);
-        setStudyTime(studyTimeData);
-      } catch (error) {
-        console.error("Error fetching analytics data:", error);
-        toast.error("Failed to load analytics data. Please try again.");
-      } finally {
-        setLoading(false);
-      }
-    };
+    loadAnalyticsData();
+  }, [profile?.school_id, filters]);
+
+  const loadAnalyticsData = async () => {
+    if (!profile?.school_id) return;
+    setIsLoading(true);
     
-    fetchData();
-  }, [schoolId, filters]);
-  
-  // Handle filters change
+    try {
+      const summaryData = await fetchAnalyticsSummary(profile.school_id, filters);
+      setSummary(summaryData);
+      
+      const sessionData = await fetchSessionLogs(profile.school_id, filters);
+      setSessions(sessionData);
+      
+      const topicData = await fetchTopics(profile.school_id, filters);
+      setTopics(topicData);
+      
+      const studyTimeData = await fetchStudyTime(profile.school_id, filters);
+      setStudyTime(studyTimeData);
+    } catch (error: any) {
+      console.error("Error loading analytics data:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load analytics data.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleFiltersChange = (newFilters: FiltersType) => {
     setFilters(newFilters);
   };
-  
+
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
       <main className="flex-grow bg-learnable-super-light py-8">
         <div className="container mx-auto px-4">
-          <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-bold gradient-text mb-2">School Analytics Dashboard</h1>
-              <p className="text-learnable-gray">
-                Comprehensive analytics for {profile?.school_name || "your school"}
-              </p>
-            </div>
-            
-            <div className="flex items-center">
-              <School className="w-5 h-5 mr-2 text-learnable-blue" />
-              <span className="font-medium">School Code: </span>
-              <span className="font-mono ml-1">{profile?.school_code || "Not available"}</span>
-            </div>
-          </div>
-          
-          {/* Filters and Export */}
           <div className="mb-6">
-            <div className="flex flex-col md:flex-row justify-between gap-4 mb-4">
-              <h2 className="text-xl font-semibold flex items-center">
-                <BarChart2 className="w-5 h-5 mr-2 text-learnable-blue" />
-                Analytics Overview
-              </h2>
-              
-              <AnalyticsExport
-                summary={summary}
-                sessions={sessions}
-                topics={topics}
-                studyTimes={studyTime}
-                dateRangeText={dateRangeText}
-              />
-            </div>
-            
-            <AnalyticsFilters 
-              filters={filters} 
-              onFiltersChange={handleFiltersChange} 
-            />
-            
-            <div className="text-sm text-muted-foreground mb-4">
-              Showing data for: <strong>{dateRangeText}</strong>
-            </div>
+            <h1 className="text-3xl font-bold gradient-text mb-2">Admin Analytics</h1>
+            <p className="text-learnable-gray">
+              Track school-wide learning analytics and student progress
+            </p>
           </div>
           
-          {/* Summary Cards */}
-          <AnalyticsSummaryCards summary={summary} isLoading={loading} />
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>School Information</CardTitle>
+              <CardDescription>View analytics for your school</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <div className="flex flex-col sm:flex-row sm:items-center">
+                  <span className="font-medium min-w-32">Name:</span>
+                  <span>{profile?.school_name || "Not available"}</span>
+                </div>
+                <div className="flex flex-col sm:flex-row sm:items-center">
+                  <span className="font-medium min-w-32">Code:</span>
+                  <span>{profile?.school_code || "Not available"}</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
           
-          {/* Analytics Content */}
-          <Tabs defaultValue="overview" className="space-y-4">
-            <TabsList>
-              <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="sessions">Sessions</TabsTrigger>
-              <TabsTrigger value="students">Students</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="overview">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {loading ? (
-                  <>
-                    <Skeleton className="h-[350px] w-full" />
-                    <Skeleton className="h-[350px] w-full" />
-                  </>
-                ) : (
-                  <>
-                    <TopicsChart 
-                      data={topics} 
-                      title="Most Studied Topics" 
-                      description="Most frequently accessed topics at your school"
-                    />
-                    
-                    <StudyTimeChart 
-                      data={studyTime} 
-                      title="Student Study Time" 
-                      description="Hours studied per student this week"
-                    />
-                  </>
-                )}
-              </div>
-            </TabsContent>
-            
-            <TabsContent value="sessions">
-              {loading ? (
-                <Skeleton className="h-[400px] w-full" />
-              ) : (
-                <SessionsTable 
-                  sessions={sessions} 
-                  title="Recent Learning Sessions" 
-                  description="Details of student learning sessions"
-                />
-              )}
-            </TabsContent>
-            
-            <TabsContent value="students">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {loading ? (
-                  <Skeleton className="h-[400px] w-full" />
-                ) : (
-                  <StudyTimeChart 
-                    data={studyTime} 
-                    title="Student Engagement" 
-                    description="Hours studied per student this week"
-                  />
-                )}
-                
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Student Performance</CardTitle>
+          <AnalyticsFilters 
+            filters={filters}
+            onFiltersChange={handleFiltersChange}
+            showStudentSelector={true}
+          />
+          
+          {isLoading ? (
+            <div className="space-y-4">
+              <Skeleton className="w-full h-40" />
+              <Skeleton className="w-full h-40" />
+              <Skeleton className="w-full h-60" />
+            </div>
+          ) : !summary ? (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error!</AlertTitle>
+              <AlertDescription>
+                Failed to load analytics data. Please try again.
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <div className="space-y-6">
+              <AnalyticsSummaryCards summary={summary} isLoading={isLoading} />
+              
+              <Card>
+                <CardHeader className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <CardTitle className="text-xl font-bold">
+                      Recent Learning Sessions
+                    </CardTitle>
                     <CardDescription>
-                      Detailed student performance analytics will be available in a future update.
+                      Details of student learning sessions
+                      {filters.dateRange && (
+                        <span className="ml-2">
+                          ({getDateRangeText(filters.dateRange)})
+                        </span>
+                      )}
                     </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-muted-foreground">
-                      This feature is coming soon. You'll be able to see detailed analytics on individual student performance,
-                      including strengths, areas for improvement, and comparison to class averages.
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
-          </Tabs>
+                  </div>
+                  <AnalyticsExport data={sessions} filename="sessions.csv" />
+                </CardHeader>
+                <CardContent>
+                  <SessionsTable 
+                    sessions={sessions} 
+                    title="Recent Learning Sessions" 
+                    description="Details of student learning sessions"
+                  />
+                </CardContent>
+              </Card>
+              
+              <Tabs defaultValue="topics" className="w-full">
+                <TabsList>
+                  <TabsTrigger value="topics">Most Studied Topics</TabsTrigger>
+                  <TabsTrigger value="studytime">Student Study Time</TabsTrigger>
+                </TabsList>
+                <TabsContent value="topics">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Most Studied Topics</CardTitle>
+                      <CardDescription>
+                        Top 10 topics students are currently studying
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <TopicsChart data={topics} />
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+                <TabsContent value="studytime">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Student Study Time</CardTitle>
+                      <CardDescription>
+                        Weekly study time per student
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <StudyTimeChart data={studyTime} />
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              </Tabs>
+            </div>
+          )}
         </div>
       </main>
       <Footer />

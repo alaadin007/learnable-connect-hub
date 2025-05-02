@@ -1,249 +1,143 @@
-import React, { useState, useRef, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Send, Loader2, User, Bot } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2, Send, BookOpen, Archive, FileText } from "lucide-react";
+import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from "@/contexts/AuthContext";
-import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import VoiceRecorder from "./VoiceRecorder"; 
-import TextToSpeech from "./TextToSpeech";
-import TypingIndicator from "./TypingIndicator";
-import { sessionLogger } from "@/utils/sessionLogging";
+import { supabase } from "@/integrations/supabase/client";
+import { sessionLogger } from "@/utils/sessionLogger";
 
-interface Message {
+interface ChatMessage {
   id: string;
+  role: "user" | "assistant";
   content: string;
-  isUser: boolean;
-  timestamp: Date;
-  sourceCitations?: SourceCitation[];
-}
-
-interface SourceCitation {
-  filename: string;
-  document_id: string;
+  timestamp: string;
 }
 
 interface ChatInterfaceProps {
-  sessionId?: string;
-  topic?: string;
-  onSessionStart?: (sessionId: string) => void;
+  sessionId: string | undefined;
+  topic: string;
+  onSessionStart: (sessionId: string) => void;
 }
 
-const ChatInterface = ({ sessionId, topic, onSessionStart }: ChatInterfaceProps) => {
+const ChatInterface: React.FC<ChatInterfaceProps> = ({ sessionId, topic, onSessionStart }) => {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState<string>("");
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const { user } = useAuth();
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [inputValue, setInputValue] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-  const [useDocuments, setUseDocuments] = useState<boolean>(true);
-  const [isTyping, setIsTyping] = useState(false);
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(sessionId || null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
-  
-  // Scroll to bottom whenever messages change
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const [conversationId, setConversationId] = useState<string | null>(null);
 
-  // Initialize or use provided session
+  // Function to scroll to the bottom of the chat
+  const scrollToBottom = useCallback(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, []);
+
+  // Load existing messages when conversationId changes
   useEffect(() => {
-    const initSession = async () => {
-      // If we already have a session ID provided, use it
-      if (sessionId) {
-        setActiveSessionId(sessionId);
-        return;
-      }
-      
-      // Otherwise, if user starts interacting and no session exists, create one
-      if (!sessionLogger.hasActiveSession() && messages.length === 0) {
-        try {
-          const newSessionId = await sessionLogger.createSession(topic);
-          setActiveSessionId(newSessionId);
-          if (onSessionStart) {
-            onSessionStart(newSessionId);
+    if (conversationId) {
+      loadMessages(conversationId);
+    } else {
+      setMessages([]); // Clear messages if no conversation is selected
+    }
+  }, [conversationId]);
+
+  // Scroll to bottom on new messages
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, scrollToBottom]);
+
+  // Initialize session and conversation
+  useEffect(() => {
+    const initializeChat = async () => {
+      if (!sessionId) {
+        // Start a new session and conversation
+        const newSessionId = await sessionLogger.startSession(topic);
+        if (newSessionId) {
+          onSessionStart(newSessionId);
+          const newConversationId = await createConversation(newSessionId);
+          if (newConversationId) {
+            setConversationId(newConversationId);
           }
-        } catch (error) {
-          console.error("Failed to start session:", error);
+        } else {
+          toast({
+            title: "Error",
+            description: "Failed to start a new session.",
+            variant: "destructive",
+          });
         }
       }
     };
-    
-    if (user) {
-      initSession();
-    }
-    
-    // Clean up session when component unmounts
-    return () => {
-      if (sessionLogger.hasActiveSession() && !sessionId) {
-        // Only end the session if we created it (not if it was passed as prop)
-        sessionLogger.endSession({
-          messageCount: messages.length,
-          lastActivity: new Date().toISOString()
-        }).catch(error => {
-          console.error("Error ending session:", error);
-        });
-      }
-    };
-  }, [user, sessionId, onSessionStart, topic]);
-  
-  // Update session topic if it changes
-  useEffect(() => {
-    const updateSessionTopic = async () => {
-      if (sessionLogger.hasActiveSession() && topic) {
-        try {
-          await sessionLogger.updateTopic(topic);
-        } catch (error) {
-          console.error("Failed to update session topic:", error);
-        }
-      }
-    };
-    
-    updateSessionTopic();
-  }, [topic]);
 
-  // Load conversation if conversationId changes or on component mount
-  useEffect(() => {
-    if (currentConversationId) {
-      loadConversationMessages(currentConversationId);
+    if (!sessionId) {
+      initializeChat();
     }
-  }, [currentConversationId]);
+  }, [sessionId, topic, onSessionStart, toast]);
 
-  // Load messages for a specific conversation
-  const loadConversationMessages = async (conversationId: string) => {
-    if (!conversationId) return;
-    
-    setIsLoadingHistory(true);
-    
+  const createConversation = async (sessionId: string): Promise<string | null> => {
+    try {
+      const { data, error } = await supabase
+        .from('conversations')
+        .insert([{ 
+          user_id: user?.id, 
+          session_id: sessionId,
+          title: `Conversation started on ${new Date().toLocaleDateString()}`,
+          topic: topic,
+          last_message_at: new Date().toISOString()
+        }])
+        .select('id')
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      toast({
+        title: "New Conversation",
+        description: "A new conversation has been started.",
+      });
+      return data.id;
+    } catch (error: any) {
+      console.error("Error creating conversation:", error);
+      toast({
+        title: "Error",
+        description: "Failed to create a new conversation.",
+        variant: "destructive",
+      });
+      return null;
+    }
+  };
+
+  const loadMessages = async (conversationId: string) => {
+    setIsLoading(true);
     try {
       const { data, error } = await supabase
         .from('messages')
         .select('*')
         .eq('conversation_id', conversationId)
-        .order('timestamp', { ascending: true });
-      
+        .order('created_at', { ascending: true });
+
       if (error) {
         throw error;
       }
-      
-      // Transform to our Message format
-      if (data) {
-        const formattedMessages = data.map(msg => ({
-          id: msg.id,
-          content: msg.content,
-          isUser: msg.sender === 'user',
-          timestamp: new Date(msg.timestamp)
-        }));
-        
-        setMessages(formattedMessages);
-      }
-    } catch (error: any) {
-      console.error("Error loading conversation messages:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load conversation history.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoadingHistory(false);
-    }
-  };
 
-  const handleSend = async () => {
-    if (!inputValue.trim()) return;
-    
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      content: inputValue.trim(),
-      isUser: true,
-      timestamp: new Date(),
-    };
-    
-    setMessages((prevMessages) => [...prevMessages, userMessage]);
-    setInputValue("");
-    setIsLoading(true);
-    setIsTyping(true);
-    
-    // Make sure we have an active session before proceeding
-    if (!activeSessionId && !sessionLogger.hasActiveSession()) {
-      try {
-        const newSessionId = await sessionLogger.createSession(topic);
-        setActiveSessionId(newSessionId);
-        if (onSessionStart) {
-          onSessionStart(newSessionId);
-        }
-      } catch (error) {
-        console.error("Failed to start session:", error);
-      }
-    }
-    
-    try {
-      // Increment query count
-      if (sessionLogger.hasActiveSession()) {
-        try {
-          await sessionLogger.incrementQueryCount();
-        } catch (error) {
-          console.error("Failed to increment query count:", error);
-        }
-      }
-      
-      // Call the ask-ai edge function
-      const { data, error } = await supabase.functions.invoke("ask-ai", {
-        body: {
-          question: userMessage.content,
-          conversationId: currentConversationId,
-          sessionId: activeSessionId || sessionLogger.getSessionId(),
-          topic: topic,
-          useDocuments: useDocuments
-        },
-      });
-      
-      if (error) {
-        throw new Error(error.message);
-      }
-      
-      // Hide typing indicator before adding AI response
-      setIsTyping(false);
-      
-      // Add AI response to messages
-      const aiMessage: Message = {
-        id: `ai-${Date.now()}`,
-        content: data.response,
-        isUser: false,
-        timestamp: new Date(),
-      };
-      
-      // Add source citations if present
-      if (data.sourceCitations && data.sourceCitations.length > 0) {
-        aiMessage.sourceCitations = data.sourceCitations;
-      }
-      
-      setMessages((prevMessages) => [...prevMessages, aiMessage]);
-      
-      // If this is a new conversation, save the conversation ID
-      if (data.conversationId && !currentConversationId) {
-        setCurrentConversationId(data.conversationId);
-      }
-      
-      // Handle session ID if provided by the callback
-      if (data.sessionId && !activeSessionId) {
-        setActiveSessionId(data.sessionId);
-        if (onSessionStart) {
-          onSessionStart(data.sessionId);
-        }
-      }
+      const formattedMessages = data.map(msg => ({
+        id: msg.id,
+        role: msg.role,
+        content: msg.content,
+        timestamp: msg.created_at,
+      }));
+
+      setMessages(formattedMessages);
     } catch (error: any) {
-      console.error("Error calling ask-ai function:", error);
-      setIsTyping(false);
+      console.error("Error loading messages:", error);
       toast({
         title: "Error",
-        description: "Failed to get a response from the AI. Please try again.",
+        description: "Failed to load messages.",
         variant: "destructive",
       });
     } finally {
@@ -251,168 +145,164 @@ const ChatInterface = ({ sessionId, topic, onSessionStart }: ChatInterfaceProps)
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
+  const sendMessage = async () => {
+    if (!input.trim() || isLoading) return;
+
+    setIsLoading(true);
+    const newMessage: ChatMessage = {
+      id: uuidv4(),
+      role: "user",
+      content: input,
+      timestamp: new Date().toISOString(),
+    };
+    
+    setMessages((prev) => [...prev, newMessage]);
+    setInput("");
+
+    try {
+      // Optimistic UI update
+      const aiResponse = await getAIResponse(input);
+      const aiMessage: ChatMessage = {
+        id: uuidv4(),
+        role: "assistant",
+        content: aiResponse,
+        timestamp: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, aiMessage]);
+
+      // Log query count
+      if (sessionId) {
+        await sessionLogger.incrementQueryCount(sessionId);
+      }
+
+      // Save messages to Supabase
+      await saveMessageToSupabase(newMessage, aiMessage);
+      
+      // Update conversation last message timestamp
+      await updateConversationLastMessageTime();
+    } catch (error: any) {
+      console.error("Error sending message:", error);
+      toast({
+        title: "Error",
+        description: "Failed to send message.",
+        variant: "destructive",
+      });
+      // Revert optimistic update on failure (remove last message)
+      setMessages((prev) => prev.slice(0, -1));
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Start a new conversation
-  const startNewConversation = () => {
-    setCurrentConversationId(null);
-    setMessages([]);
+  const getAIResponse = async (message: string): Promise<string> => {
+    // Simulate AI response delay
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    return `AI Response: ${message}`;
   };
 
-  // Handle transcribed text from voice recorder
-  const handleVoiceTranscription = (text: string) => {
-    setInputValue(text);
+  const saveMessageToSupabase = async (userMessage: ChatMessage, aiMessage: ChatMessage) => {
+    try {
+      // Save user message
+      await supabase.from('messages').insert([
+        {
+          conversation_id: conversationId,
+          content: userMessage.content,
+          role: userMessage.role,
+          created_at: userMessage.timestamp,
+        },
+        {
+          conversation_id: conversationId,
+          content: aiMessage.content,
+          role: aiMessage.role,
+          created_at: aiMessage.timestamp,
+        },
+      ]);
+    } catch (error: any) {
+      console.error("Error saving message to Supabase:", error);
+      toast({
+        title: "Error",
+        description: "Failed to save message to database.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const updateConversationLastMessageTime = async () => {
+    try {
+      await supabase
+        .from('conversations')
+        .update({ last_message_at: new Date().toISOString() })
+        .eq('id', conversationId);
+    } catch (error: any) {
+      console.error("Error updating conversation last_message_at:", error);
+    }
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault(); // Prevent newline in input
+      sendMessage();
+    }
   };
 
   return (
-    <Card className="w-full h-[600px] flex flex-col">
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>Chat with LearnAble AI</CardTitle>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center space-x-2">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="flex items-center space-x-2">
-                    <Switch 
-                      id="use-documents" 
-                      checked={useDocuments} 
-                      onCheckedChange={setUseDocuments}
-                    />
-                    <Label htmlFor="use-documents" className="flex items-center gap-1">
-                      <FileText className="h-4 w-4" />
-                      <span>Use Documents</span>
-                    </Label>
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent>
-                  When enabled, the AI will reference your uploaded documents to answer questions
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-          {currentConversationId && (
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={startNewConversation}
-            >
-              New Conversation
-            </Button>
-          )}
-        </div>
+    <Card className="h-[calc(100vh-200px)] flex flex-col">
+      <CardHeader>
+        <CardTitle>LearnAble AI Chat</CardTitle>
       </CardHeader>
-      
-      <CardContent className="flex-grow overflow-y-auto p-4">
-        {isLoadingHistory ? (
-          <div className="flex justify-center items-center h-full">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {messages.length === 0 ? (
-              <div className="text-center text-muted-foreground py-8">
-                Ask a question to start chatting with LearnAble AI
-              </div>
-            ) : (
-              messages.map((message) => (
+      <CardContent className="flex-grow overflow-hidden">
+        <ScrollArea className="h-full">
+          <div className="flex flex-col space-y-4 p-4">
+            {messages.map((message) => (
+              <div
+                key={message.id}
+                className={`flex flex-col ${message.role === "user" ? "items-end" : "items-start"
+                  }`}
+              >
                 <div
-                  key={message.id}
-                  className={`flex ${message.isUser ? "justify-end" : "justify-start"}`}
-                >
-                  <div
-                    className={`max-w-[80%] rounded-lg p-3 ${
-                      message.isUser
-                        ? "bg-blue-500 text-white"
-                        : "bg-muted text-foreground"
+                  className={`rounded-lg px-4 py-2 max-w-[80%] ${message.role === "user"
+                      ? "bg-learnable-light text-learnable-dark"
+                      : "bg-learnable-blue-light text-learnable-dark"
                     }`}
-                  >
-                    <div className="flex justify-between items-start">
-                      <p className="whitespace-pre-wrap flex-grow">{message.content}</p>
-                      {!message.isUser && (
-                        <div className="ml-2 mt-1">
-                          <TextToSpeech text={message.content} />
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Source Citations */}
-                    {!message.isUser && message.sourceCitations && message.sourceCitations.length > 0 && (
-                      <div className="mt-3 pt-2 border-t border-gray-200 dark:border-gray-700">
-                        <div className="text-xs font-medium flex items-center gap-1 mb-1 text-muted-foreground">
-                          <BookOpen className="h-3 w-3" />
-                          <span>Sources:</span>
-                        </div>
-                        <div className="flex flex-wrap gap-1">
-                          {message.sourceCitations.map((citation, index) => (
-                            <Badge 
-                              key={index} 
-                              variant="outline" 
-                              className="text-xs flex items-center gap-1"
-                            >
-                              <Archive className="h-3 w-3" />
-                              {citation.filename}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    
-                    <div
-                      className={`text-xs mt-1 ${
-                        message.isUser ? "text-blue-100" : "text-muted-foreground"
-                      }`}
-                    >
-                      {message.timestamp.toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </div>
-                  </div>
+                >
+                  {message.content}
                 </div>
-              ))
-            )}
-            
-            {/* Typing indicator - only show when the AI is typing */}
-            {isTyping && (
-              <div className="flex justify-start">
-                <div className="bg-muted text-foreground rounded-lg">
-                  <TypingIndicator />
+                <span className="text-xs text-gray-500 mt-1">
+                  {message.role === "user" ? "You" : "LearnAble AI"} -{" "}
+                  {new Date(message.timestamp).toLocaleTimeString()}
+                </span>
+              </div>
+            ))}
+            {isLoading && (
+              <div className="flex items-start">
+                <div className="rounded-lg px-4 py-2 max-w-[80%] bg-learnable-blue-light text-learnable-dark">
+                  <Loader2 className="h-4 w-4 animate-spin" />
                 </div>
               </div>
             )}
-            
-            <div ref={messagesEndRef} />
+            <div ref={bottomRef} />
           </div>
-        )}
+        </ScrollArea>
       </CardContent>
-      
       <CardFooter>
-        <div className="flex w-full items-center space-x-2">
-          <Textarea
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
+        <div className="w-full flex items-center space-x-2">
+          <Input
+            type="text"
+            placeholder="Type your message..."
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Type your question here..."
-            className="flex-grow"
-            disabled={isLoading || isLoadingHistory}
+            disabled={isLoading}
           />
-          <VoiceRecorder onTranscriptionComplete={handleVoiceTranscription} />
-          <Button 
-            onClick={handleSend} 
-            disabled={isLoading || isLoadingHistory || !inputValue.trim()}
-            className="transition-all duration-200 relative"
-          >
-            {isLoading ? 
-              <Loader2 className="h-4 w-4 animate-spin" /> : 
+          <Button onClick={sendMessage} disabled={isLoading}>
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Sending...
+              </>
+            ) : (
               <Send className="h-4 w-4" />
-            }
-            <span className="sr-only">Send message</span>
+            )}
           </Button>
         </div>
       </CardFooter>

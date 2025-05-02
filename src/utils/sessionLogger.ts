@@ -6,5 +6,6 @@ export const sessionLogger = {
   startSession: logSessionStart,
   endSession: logSessionEnd,
   updateTopic: updateSessionTopic,
-  incrementQueryCount: incrementQueryCount
+  incrementQueryCount: incrementQueryCount,
+  hasActiveSession: () => !!sessionStorage.getItem('activeSessionId')
 };

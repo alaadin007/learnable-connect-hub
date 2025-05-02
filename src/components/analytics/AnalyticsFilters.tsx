@@ -4,7 +4,6 @@ import { DateRangePicker } from "./DateRangePicker";
 import { StudentSelector } from "./StudentSelector";
 import { Card, CardContent } from "@/components/ui/card";
 import { Filter } from "lucide-react";
-import { DateRange } from "react-day-picker";
 import { AnalyticsFilters as FiltersType } from "./types";
 
 interface AnalyticsFiltersProps {
@@ -18,7 +17,7 @@ export function AnalyticsFilters({
   onFiltersChange,
   showStudentSelector = false 
 }: AnalyticsFiltersProps) {
-  const handleDateRangeChange = (range: DateRange | undefined) => {
+  const handleDateRangeChange = (range: { from?: Date; to?: Date } | undefined) => {
     onFiltersChange({
       ...filters,
       dateRange: range || { from: undefined, to: undefined }
