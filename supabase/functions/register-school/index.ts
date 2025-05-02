@@ -25,6 +25,11 @@ serve(async (req) => {
     const { schoolName, adminEmail, adminPassword, adminFullName } = await req.json() as SchoolRegistrationData;
     console.log(`Registering school: ${schoolName} with admin: ${adminEmail}`);
     
+    // Get request URL to determine origin for redirects
+    const requestUrl = new URL(req.url);
+    const origin = requestUrl.origin;
+    console.log(`Request origin: ${origin}`);
+    
     // Validate required fields
     if (!schoolName || !adminEmail || !adminPassword || !adminFullName) {
       return new Response(
@@ -117,7 +122,9 @@ serve(async (req) => {
         user_type: "school", // Designate as school admin
         school_code: schoolCode,
         school_name: schoolName
-      }
+      },
+      // Add redirect URLs to ensure confirmation redirects to the right place
+      email_confirm_redirect_url: origin
     });
     
     if (userError || !userData.user) {
