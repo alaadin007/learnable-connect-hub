@@ -1,12 +1,14 @@
+
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { Loader2, Info, School, Users, GraduationCap } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const TEST_ACCOUNTS = {
   school: {
@@ -15,6 +17,13 @@ const TEST_ACCOUNTS = {
     role: "School Admin",
     description: "Access the school administrator dashboard and manage teachers",
     redirectPath: "/admin",
+    features: [
+      "School analytics dashboard",
+      "Teacher management",
+      "Invite new teachers",
+      "School-wide statistics",
+      "Student performance metrics"
+    ]
   },
   teacher: {
     email: "teacher.test@learnable.edu",
@@ -22,6 +31,13 @@ const TEST_ACCOUNTS = {
     role: "Teacher",
     description: "Access teacher analytics and student management",
     redirectPath: "/teacher/analytics",
+    features: [
+      "Student management",
+      "Class analytics",
+      "Assessment creation",
+      "Learning materials management",
+      "AI chat assistance"
+    ]
   },
   student: {
     email: "student.test@learnable.edu",
@@ -29,6 +45,13 @@ const TEST_ACCOUNTS = {
     role: "Student",
     description: "Access student dashboard with learning tools",
     redirectPath: "/dashboard",
+    features: [
+      "AI learning assistant",
+      "Document management",
+      "Assessment submission",
+      "Learning materials access",
+      "Performance tracking"
+    ]
   }
 };
 
@@ -38,10 +61,12 @@ const TestAccounts = () => {
   const navigate = useNavigate();
   const { setTestUser } = useAuth();
   const [loadingAccount, setLoadingAccount] = useState<AccountType | null>(null);
+  const [dataCreationLoading, setDataCreationLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const createTestAccounts = async () => {
     try {
+      setDataCreationLoading(true);
       // Add toast ID to prevent duplicate toasts
       toast.loading("Checking test accounts status...", { 
         id: "test-accounts-status" 
@@ -88,6 +113,7 @@ const TestAccounts = () => {
       });
       return false;
     } finally {
+      setDataCreationLoading(false);
       toast.dismiss("test-accounts-status");
     }
   };
@@ -98,7 +124,7 @@ const TestAccounts = () => {
     const account = TEST_ACCOUNTS[accountType];
     
     try {
-      // Use test mode directly without trying real authentication
+      // Use the enhanced setTestUser that populates data automatically
       await setTestUser(accountType);
       toast.success(`Logged in as ${account.role} (test mode)`, {
         id: `login-success-${accountType}`
@@ -109,6 +135,17 @@ const TestAccounts = () => {
       setErrorMessage(`Login failed: ${error.message || "Unknown error"}`);
     } finally {
       setLoadingAccount(null);
+    }
+  };
+
+  const getAccountIcon = (accountType: AccountType) => {
+    switch (accountType) {
+      case "school":
+        return <School className="h-8 w-8 text-blue-600" />;
+      case "teacher":
+        return <Users className="h-8 w-8 text-green-600" />;
+      case "student":
+        return <GraduationCap className="h-8 w-8 text-purple-600" />;
     }
   };
 
@@ -131,8 +168,16 @@ const TestAccounts = () => {
           <h1 className="text-3xl font-bold text-center text-learnable-blue mb-2">Test Accounts</h1>
           <p className="text-center text-gray-600 mb-6">
             Test the application using these pre-configured accounts for different user roles. Each 
-            account provides access to a specific part of the platform.
+            account provides access to a specific part of the platform with fully functional features.
           </p>
+          
+          <Alert className="mb-6 bg-amber-50">
+            <Info className="h-4 w-4" />
+            <AlertDescription>
+              All test accounts are automatically populated with sample data to demonstrate the full functionality of the platform.
+              You can refresh the data or create new test accounts using the button below.
+            </AlertDescription>
+          </Alert>
           
           <div className="flex justify-center space-x-4 mb-6">
             <Button 
@@ -146,92 +191,61 @@ const TestAccounts = () => {
               variant="default" 
               className="bg-learnable-blue hover:bg-learnable-blue/90"
               onClick={createTestAccounts}
+              disabled={dataCreationLoading}
             >
-              Refresh Test Accounts
+              {dataCreationLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Refreshing Test Data...
+                </>
+              ) : (
+                "Refresh Test Data"
+              )}
             </Button>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* School Admin Card */}
-            <div className="border rounded shadow-sm p-6">
-              <h2 className="text-xl font-semibold mb-2">School Admin</h2>
-              <p className="text-gray-600 text-sm mb-4">
-                Access the school administrator dashboard and manage teachers
-              </p>
-              <div className="mb-4">
-                <p className="font-medium mb-1 text-sm">Login credentials</p>
-                <p className="text-xs font-mono bg-gray-50 p-1 rounded mb-1">Email: school.test@learnable.edu</p>
-                <p className="text-xs font-mono bg-gray-50 p-1 rounded">Password: school123</p>
+            {Object.entries(TEST_ACCOUNTS).map(([type, account]) => (
+              <div key={type} className="border rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow">
+                <div className="flex items-center mb-4">
+                  {getAccountIcon(type as AccountType)}
+                  <h2 className="text-xl font-semibold ml-3">{account.role}</h2>
+                </div>
+                <p className="text-gray-600 text-sm mb-4">
+                  {account.description}
+                </p>
+                <div className="mb-4">
+                  <p className="font-medium mb-2 text-sm">Features:</p>
+                  <ul className="text-xs space-y-1 mb-4">
+                    {account.features.map((feature, index) => (
+                      <li key={index} className="flex items-center">
+                        <svg className="w-3 h-3 mr-1 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                        {feature}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="font-medium mb-1 text-sm">Login credentials</p>
+                  <p className="text-xs font-mono bg-gray-50 p-1 rounded mb-1">Email: {account.email}</p>
+                  <p className="text-xs font-mono bg-gray-50 p-1 rounded">Password: {account.password}</p>
+                </div>
+                <Button 
+                  className="w-full bg-blue-700 hover:bg-blue-800" 
+                  onClick={() => handleUseAccount(type as AccountType)}
+                  disabled={loadingAccount !== null}
+                >
+                  {loadingAccount === type ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Logging in...
+                    </>
+                  ) : (
+                    `Login as ${account.role}`
+                  )}
+                </Button>
               </div>
-              <Button 
-                className="w-full bg-blue-700 hover:bg-blue-800" 
-                onClick={() => handleUseAccount("school")}
-                disabled={loadingAccount !== null}
-              >
-                {loadingAccount === "school" ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Logging in...
-                  </>
-                ) : (
-                  "Login as School Admin"
-                )}
-              </Button>
-            </div>
-
-            {/* Teacher Card */}
-            <div className="border rounded shadow-sm p-6">
-              <h2 className="text-xl font-semibold mb-2">Teacher</h2>
-              <p className="text-gray-600 text-sm mb-4">
-                Access teacher analytics and student management
-              </p>
-              <div className="mb-4">
-                <p className="font-medium mb-1 text-sm">Login credentials</p>
-                <p className="text-xs font-mono bg-gray-50 p-1 rounded mb-1">Email: teacher.test@learnable.edu</p>
-                <p className="text-xs font-mono bg-gray-50 p-1 rounded">Password: teacher123</p>
-              </div>
-              <Button 
-                className="w-full bg-blue-700 hover:bg-blue-800" 
-                onClick={() => handleUseAccount("teacher")}
-                disabled={loadingAccount !== null}
-              >
-                {loadingAccount === "teacher" ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Logging in...
-                  </>
-                ) : (
-                  "Login as Teacher"
-                )}
-              </Button>
-            </div>
-
-            {/* Student Card */}
-            <div className="border rounded shadow-sm p-6">
-              <h2 className="text-xl font-semibold mb-2">Student</h2>
-              <p className="text-gray-600 text-sm mb-4">
-                Access student dashboard with learning tools
-              </p>
-              <div className="mb-4">
-                <p className="font-medium mb-1 text-sm">Login credentials</p>
-                <p className="text-xs font-mono bg-gray-50 p-1 rounded mb-1">Email: student.test@learnable.edu</p>
-                <p className="text-xs font-mono bg-gray-50 p-1 rounded">Password: student123</p>
-              </div>
-              <Button 
-                className="w-full bg-blue-700 hover:bg-blue-800" 
-                onClick={() => handleUseAccount("student")}
-                disabled={loadingAccount !== null}
-              >
-                {loadingAccount === "student" ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Logging in...
-                  </>
-                ) : (
-                  "Login as Student"
-                )}
-              </Button>
-            </div>
+            ))}
           </div>
         </div>
       </main>

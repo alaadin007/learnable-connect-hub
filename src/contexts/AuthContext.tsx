@@ -132,13 +132,13 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       }
 
       if (profileData) {
-        // Handle case where organization might be missing or null
+        // Initialize with null organization to handle the case where it might be missing
         let safeProfileData: UserProfile = {
           ...profileData,
-          organization: null // Default to null
+          organization: null 
         };
 
-        // Fix here: Check for null first before accessing properties
+        // Check if organization exists and is a valid object before accessing its properties
         if (
           profileData.organization !== null &&
           typeof profileData.organization === 'object' &&
@@ -264,7 +264,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
     }
   };
 
-  // Method to set a test user for quick testing
+  // Enhanced setTestUser method to provide more comprehensive test data
   const setTestUser = async (
     type: 'school' | 'teacher' | 'student',
     schoolIndex: number = 0
@@ -312,6 +312,27 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       } as Session;
 
       setSession(mockSession);
+
+      // For test accounts, pre-populate with appropriate data based on role
+      if (type === 'student') {
+        // Generate sample sessions and assessment data for student
+        await supabase.functions.invoke("populate-test-performance", {
+          body: { 
+            userId: mockId, 
+            schoolId: mockProfile.organization?.id,
+            numAssessments: 10
+          }
+        });
+      } else if (type === 'teacher') {
+        // Generate students and their assessment data for this teacher
+        await populateTestAccountWithSessions(mockId, mockProfile.organization?.id || '', 15);
+      } else if (type === 'school') {
+        // For school admin, populate test data for the entire school
+        // This will create teacher and student data
+        await supabase.functions.invoke("create-test-accounts", {
+          body: { createAccounts: true }
+        });
+      }
 
       toast.success(`Logged in as test ${type}`);
     } catch (error) {
