@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Mic, Loader2, StopCircle } from "lucide-react";
 import { toast } from "sonner";
@@ -12,8 +12,31 @@ interface VoiceRecorderProps {
 const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptionComplete }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const timerRef = useRef<number | null>(null);
+
+  // Add timer for recording duration
+  useEffect(() => {
+    if (isRecording) {
+      timerRef.current = window.setInterval(() => {
+        setRecordingDuration(prev => prev + 1);
+      }, 1000);
+    } else {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      setRecordingDuration(0);
+    }
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [isRecording]);
 
   const startRecording = useCallback(async () => {
     try {
@@ -37,6 +60,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptionComplete }
       
       mediaRecorder.start();
       setIsRecording(true);
+      toast.success("Recording started. Speak clearly into your microphone.");
     } catch (err) {
       console.error('Error accessing microphone:', err);
       toast.error("Could not access microphone. Please check permissions.");
@@ -51,6 +75,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptionComplete }
       mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
       
       setIsRecording(false);
+      toast.info("Processing your voice input...");
     }
   };
 
@@ -73,6 +98,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptionComplete }
         
         if (data.text) {
           onTranscriptionComplete(data.text);
+          toast.success("Voice input processed successfully!");
         } else {
           toast.error("Could not transcribe audio. Please try again.");
         }
@@ -86,19 +112,30 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptionComplete }
     }
   };
 
+  // Format recording time as MM:SS
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
   return (
     <Button 
-      variant="outline" 
+      variant={isRecording ? "destructive" : "outline"} 
       size="icon"
       onClick={isRecording ? stopRecording : startRecording}
       disabled={isProcessing}
       className="flex items-center justify-center"
       type="button"
+      title={isRecording ? "Stop recording" : "Record voice message"}
     >
       {isProcessing ? (
         <Loader2 className="h-4 w-4 animate-spin" />
       ) : isRecording ? (
-        <StopCircle className="h-4 w-4 text-red-500" />
+        <div className="flex items-center">
+          <StopCircle className="h-4 w-4" />
+          <span className="ml-1 text-xs">{formatTime(recordingDuration)}</span>
+        </div>
       ) : (
         <Mic className="h-4 w-4" />
       )}

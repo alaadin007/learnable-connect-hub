@@ -36,3 +36,7 @@ verify_jwt = true
 [[edge_functions]]
 name = "transcribe-audio"
 verify_jwt = true
+
+[[edge_functions]]
+name = "text-to-speech"
+verify_jwt = true
