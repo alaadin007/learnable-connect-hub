@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { useNavigate } from "react-router-dom";
@@ -14,6 +15,7 @@ export interface UserProfile {
   full_name: string | null;
   school_code: string | null;
   school_name: string | null;
+  school_id?: string | null; // Added school_id property
   created_at: string;
   updated_at: string;
 }
