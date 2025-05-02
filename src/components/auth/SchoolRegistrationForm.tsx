@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, Mail } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 import {
@@ -42,6 +42,7 @@ type SchoolRegistrationFormValues = z.infer<typeof schoolRegistrationSchema>;
 const SchoolRegistrationForm: React.FC = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = React.useState(false);
+  const [emailSent, setEmailSent] = React.useState(false);
 
   // Initialize form
   const form = useForm<SchoolRegistrationFormValues>({
@@ -82,29 +83,27 @@ const SchoolRegistrationForm: React.FC = () => {
       }
 
       if (responseData.success) {
-        // Show success message with school details
+        // Set email sent state to true
+        setEmailSent(true);
+        
+        // Show success message with school details and clear confirmation about email
         toast.success(
-          `School "${data.schoolName}" successfully registered! School code: ${responseData.schoolCode}`,
+          `School "${data.schoolName}" successfully registered!`,
           {
-            description: "Please check your email to confirm your account.",
-            duration: 6000, // Show for 6 seconds
+            description: `Your school code is: ${responseData.schoolCode}. Please check your email (${data.adminEmail}) to complete the verification process.`,
+            duration: 10000, // Show for 10 seconds
           }
         );
         
-        // Optionally auto-login the admin user
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: data.adminEmail,
-          password: data.adminPassword,
-        });
-
-        if (signInError) {
-          console.error("Auto login error:", signInError);
-          toast.error("School created, but automatic login failed. Please log in manually.");
-          navigate("/login");
-        } else {
-          toast.success("You've been automatically logged in!");
-          navigate("/dashboard");
-        }
+        // We don't auto-login since email needs to be verified first
+        toast.info(
+          "Email verification required",
+          {
+            description: "Please check your inbox and verify your email before logging in.",
+            duration: 8000,
+            icon: <Mail className="h-4 w-4" />,
+          }
+        );
       } else {
         toast.error(`Registration failed: ${responseData.error || "Unknown error"}`);
       }
@@ -115,6 +114,35 @@ const SchoolRegistrationForm: React.FC = () => {
       setIsLoading(false);
     }
   };
+
+  // Show a different UI when email has been sent
+  if (emailSent) {
+    return (
+      <div className="w-full max-w-md mx-auto px-4">
+        <div className="bg-white rounded-lg shadow-md p-8 text-center">
+          <div className="bg-green-100 text-green-800 rounded-full p-4 w-16 h-16 flex items-center justify-center mx-auto mb-4">
+            <Mail className="h-8 w-8" />
+          </div>
+          <h2 className="text-2xl font-semibold mb-3 gradient-text">Check Your Email</h2>
+          <p className="text-gray-600 mb-6">
+            We've sent a verification link to your email address. Please check your inbox and verify your account to continue.
+          </p>
+          <div className="space-y-4">
+            <Button 
+              variant="outline" 
+              className="w-full" 
+              onClick={() => navigate("/login")}
+            >
+              Go to Login
+            </Button>
+            <p className="text-sm text-gray-500">
+              Didn't receive an email? Check your spam folder or contact support.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full max-w-md mx-auto px-4">

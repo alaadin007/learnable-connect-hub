@@ -116,7 +116,7 @@ serve(async (req) => {
     const { data: userData, error: userError } = await supabaseAdmin.auth.admin.createUser({
       email: adminEmail,
       password: adminPassword,
-      email_confirm: true, // Auto-confirm email for admin users
+      email_confirm: false, // Changed to false to require email confirmation
       user_metadata: {
         full_name: adminFullName,
         user_type: "school", // Designate as school admin
@@ -124,7 +124,7 @@ serve(async (req) => {
         school_name: schoolName
       },
       // Add redirect URLs to ensure confirmation redirects to the right place
-      email_confirm_redirect_url: origin
+      email_confirm_redirect_url: `${origin}/login?email_confirmed=true`
     });
     
     if (userError || !userData.user) {
