@@ -16,6 +16,7 @@ interface TopicsChartProps {
   data: TopicData[];
   title?: string;
   description?: string;
+  isLoading?: boolean;
 }
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ff7300', '#4CAF50', '#9C27B0', '#3F51B5'];
@@ -24,13 +25,18 @@ const RADIAN = Math.PI / 180;
 const TopicsChart = ({ 
   data, 
   title = "Most Studied Topics", 
-  description = "Distribution of topics studied by students" 
+  description = "Distribution of topics studied by students",
+  isLoading = false 
 }: TopicsChartProps) => {
-  // Prepare data for chart
-  const chartData = data.map(item => ({
-    name: item.topic || item.name || "Unknown",
-    value: item.count || item.value || 0
-  }));
+  // Prepare data for chart - only if we have data
+  const chartData = React.useMemo(() => {
+    if (!data || data.length === 0) return [];
+    
+    return data.map(item => ({
+      name: item.topic || item.name || "Unknown",
+      value: item.count || item.value || 0
+    }));
+  }, [data]);
 
   // Custom label renderer for the pie chart
   const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, index }: any) => {
@@ -55,7 +61,11 @@ const TopicsChart = ({
       </CardHeader>
       <CardContent className="pt-2">
         <div className="h-[300px] w-full">
-          {chartData.length > 0 ? (
+          {isLoading ? (
+            <div className="flex h-full items-center justify-center">
+              <p className="text-muted-foreground">Loading chart data...</p>
+            </div>
+          ) : chartData.length > 0 ? (
             <ChartContainer
               config={{
                 // Define color themes for our data
@@ -98,4 +108,4 @@ const TopicsChart = ({
   );
 };
 
-export default TopicsChart;
+export default React.memo(TopicsChart);

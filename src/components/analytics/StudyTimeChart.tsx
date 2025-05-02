@@ -18,18 +18,24 @@ interface StudyTimeChartProps {
   data: StudyTimeData[];
   title?: string;
   description?: string;
+  isLoading?: boolean;
 }
 
 const StudyTimeChart = ({ 
   data, 
   title = "Weekly Study Time", 
-  description = "Hours studied per student this week" 
+  description = "Hours studied per student this week",
+  isLoading = false 
 }: StudyTimeChartProps) => {
-  // Prepare data for chart
-  const chartData = data.map(item => ({
-    name: item.studentName || item.name || `Week ${item.week}`,
-    hours: item.hours || 0
-  }));
+  // Prepare data for chart - only if we have data
+  const chartData = React.useMemo(() => {
+    if (!data || data.length === 0) return [];
+    
+    return data.map(item => ({
+      name: item.studentName || item.name || `Week ${item.week}`,
+      hours: item.hours || 0
+    }));
+  }, [data]);
 
   return (
     <Card className="w-full">
@@ -39,7 +45,11 @@ const StudyTimeChart = ({
       </CardHeader>
       <CardContent className="pt-2">
         <div className="h-[300px] w-full">
-          {chartData.length > 0 ? (
+          {isLoading ? (
+            <div className="flex h-full items-center justify-center">
+              <p className="text-muted-foreground">Loading chart data...</p>
+            </div>
+          ) : chartData.length > 0 ? (
             <ChartContainer 
               config={{
                 hours: { color: "#3b82f6" } // Blue color for bars
@@ -74,4 +84,4 @@ const StudyTimeChart = ({
   );
 };
 
-export default StudyTimeChart;
+export default React.memo(StudyTimeChart);

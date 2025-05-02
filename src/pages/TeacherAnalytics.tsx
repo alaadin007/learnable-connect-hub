@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useState } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
 import { useAuth } from "@/contexts/AuthContext";
@@ -8,6 +8,7 @@ import AnalyticsDashboard from "@/components/analytics/AnalyticsDashboard";
 
 const TeacherAnalytics = () => {
   const { profile } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
 
   return (
     <div className="min-h-screen flex flex-col">

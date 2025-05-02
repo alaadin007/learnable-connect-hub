@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
 import { useAuth } from "@/contexts/AuthContext";
@@ -58,19 +58,8 @@ const AdminAnalytics = () => {
   // Get the school_id from the profile, handling both profile structures
   const schoolId = profile?.school_id || (profile as any)?.school?.id;
 
-  useEffect(() => {
-    if (schoolId) {
-      // Update the filters with the schoolId
-      setFilters(prevFilters => ({
-        ...prevFilters,
-        schoolId: schoolId
-      }));
-      
-      loadAnalyticsData();
-    }
-  }, [schoolId, filters, activeTab]);
-
-  const loadAnalyticsData = async () => {
+  // Memoized loadAnalyticsData function to prevent unnecessary re-renders
+  const loadAnalyticsData = useCallback(async () => {
     if (!schoolId) return;
     setIsLoading(true);
     
@@ -114,7 +103,22 @@ const AdminAnalytics = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [schoolId, filters, activeTab, toast]);
+
+  useEffect(() => {
+    if (schoolId) {
+      // Update the filters with the schoolId
+      setFilters(prevFilters => ({
+        ...prevFilters,
+        schoolId: schoolId
+      }));
+    }
+  }, [schoolId]);
+
+  // Separate effect for loading data to prevent infinite loops
+  useEffect(() => {
+    loadAnalyticsData();
+  }, [loadAnalyticsData]);
 
   const handleFiltersChange = (newFilters: FiltersType) => {
     setFilters(newFilters);
@@ -218,6 +222,7 @@ const AdminAnalytics = () => {
                         sessions={sessions} 
                         title="Recent Learning Sessions" 
                         description="Details of student learning sessions"
+                        isLoading={isLoading}
                       />
                     </CardContent>
                   </Card>
@@ -227,12 +232,14 @@ const AdminAnalytics = () => {
                       data={topics}
                       title="Most Studied Topics"
                       description="Top 10 topics students are currently studying"
+                      isLoading={isLoading}
                     />
                     
                     <StudyTimeChart
                       data={studyTime}
                       title="Student Study Time"
                       description="Weekly study time per student"
+                      isLoading={isLoading}
                     />
                   </div>
                 </TabsContent>
