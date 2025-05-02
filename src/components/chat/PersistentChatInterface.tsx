@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -5,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, Loader2, MessageCircle } from 'lucide-react';
+import { Send, Loader2, MessageCircle, Paperclip } from 'lucide-react';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
 import { Badge } from '@/components/ui/badge';
@@ -38,6 +39,7 @@ const PersistentChatInterface: React.FC<PersistentChatInterfaceProps> = ({
   const { user } = useAuth();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [loadingHistory, setLoadingHistory] = useState(!!conversationId);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Start session on component mount
   useEffect(() => {
@@ -202,6 +204,90 @@ const PersistentChatInterface: React.FC<PersistentChatInterfaceProps> = ({
     }
   };
 
+  const handleFileUpload = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0 || isLoading) return;
+    
+    const file = files[0];
+    
+    // Check file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("File too large. Please upload a file smaller than 10MB");
+      return;
+    }
+    
+    // Check file type
+    const fileExt = file.name.split('.').pop()?.toLowerCase();
+    if (!['pdf', 'jpg', 'jpeg', 'png'].includes(fileExt || '')) {
+      toast.error("Unsupported file type. Please upload a PDF, JPG or PNG file");
+      return;
+    }
+    
+    setIsLoading(true);
+    
+    try {
+      // Create a unique file path using user ID
+      const filePath = `${user?.id}/${Date.now()}_${file.name}`;
+      
+      // Upload file to Supabase Storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('user-content')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false,
+        });
+      
+      if (uploadError) throw uploadError;
+      
+      // Get public URL for the file
+      const { data: urlData } = await supabase.storage
+        .from('user-content')
+        .getPublicUrl(filePath);
+      
+      const publicUrl = urlData.publicUrl;
+      
+      // Add file message to UI
+      const fileMessage = {
+        id: uuidv4(),
+        role: 'user' as const,
+        content: `📎 [${file.name}](${publicUrl})`,
+        timestamp: new Date().toISOString()
+      };
+      
+      setMessages(prev => [...prev, fileMessage]);
+      
+      // Save file message to database
+      const { data: saveData, error: saveError } = await supabase.functions.invoke('save-chat-message', {
+        body: {
+          message: fileMessage,
+          conversationId,
+          sessionId
+        }
+      });
+      
+      if (saveError) throw saveError;
+      
+      // If this is a new conversation, notify the parent component
+      if (saveData.conversationId && !conversationId && onConversationCreated) {
+        onConversationCreated(saveData.conversationId);
+      }
+      
+      toast.success(`File ${file.name} uploaded successfully`);
+      
+    } catch (error) {
+      console.error("Error uploading file:", error);
+      toast.error("Failed to upload file");
+    } finally {
+      setIsLoading(false);
+      // Reset file input
+      if (event.target) event.target.value = '';
+    }
+  };
+
   // Format timestamp for display
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp);
@@ -211,7 +297,6 @@ const PersistentChatInterface: React.FC<PersistentChatInterfaceProps> = ({
   const handleTranscriptionComplete = (text: string) => {
     setInput(text);
   };
-
   
   return (
     <Card className="h-full flex flex-col">
@@ -298,14 +383,33 @@ const PersistentChatInterface: React.FC<PersistentChatInterfaceProps> = ({
       </CardContent>
       <CardFooter className="border-t pt-4">
         <div className="w-full flex items-center space-x-2">
-          <Input
-            type="text"
-            placeholder="Type your message..."
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={isLoading || loadingHistory}
-          />
+          <div className="relative flex-grow">
+            <Input
+              type="text"
+              placeholder="Type your message..."
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={isLoading || loadingHistory}
+              className="pr-10"
+            />
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="absolute right-0 top-0"
+              onClick={handleFileUpload}
+              disabled={isLoading || loadingHistory}
+            >
+              <Paperclip className="h-4 w-4 text-gray-500" />
+            </Button>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              className="hidden"
+              accept=".pdf,.jpg,.jpeg,.png"
+            />
+          </div>
           <VoiceRecorder onTranscriptionComplete={handleTranscriptionComplete} />
           <Button onClick={handleSubmit} disabled={isLoading || !input.trim() || loadingHistory}>
             {isLoading ? (

@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -144,7 +145,8 @@ const sessionLogger = {
       if (window.location.pathname === '/test-accounts' || 
           window.location.pathname === '/admin' ||
           window.location.pathname.startsWith('/admin/') ||
-          window.location.pathname === '/dashboard') {
+          window.location.pathname === '/dashboard' ||
+          window.location.pathname === '/documents') {
         return null;
       }
       

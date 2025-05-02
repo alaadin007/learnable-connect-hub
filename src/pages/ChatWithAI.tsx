@@ -84,7 +84,7 @@ const ChatWithAI = () => {
           <div className="mb-6">
             <h1 className="text-3xl font-bold gradient-text mb-2">Chat with AI</h1>
             <p className="text-learnable-gray">
-              Get help with your studies by asking questions to our AI assistant
+              Get help with your studies by asking questions to our AI assistant. Attach documents to provide more context.
             </p>
           </div>
           

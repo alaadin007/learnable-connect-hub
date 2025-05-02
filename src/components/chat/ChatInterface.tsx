@@ -1,9 +1,10 @@
+
 // Update the import for useToast to the correct path
 import React, { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Send } from "lucide-react";
+import { Send, Paperclip } from "lucide-react";
 import { useToast } from "@/hooks/use-toast"; // Updated import path
 
 interface ChatMessage {
@@ -17,6 +18,7 @@ const ChatInterface = () => {
   const [input, setInput] = useState("");
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     // Scroll to bottom on message change
@@ -53,6 +55,57 @@ const ChatInterface = () => {
     });
   };
 
+  const handleFileUpload = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      
+      // Check file size (max 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        toast({
+          title: "File too large",
+          description: "Please upload a file smaller than 10MB",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Check file type
+      const fileExt = file.name.split('.').pop()?.toLowerCase();
+      if (!['pdf', 'jpg', 'jpeg', 'png'].includes(fileExt || '')) {
+        toast({
+          title: "Unsupported file type",
+          description: "Please upload a PDF, JPG or PNG file",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      toast({
+        title: "File attached",
+        description: `${file.name} has been attached and will be referenced by the AI.`,
+      });
+      
+      // Add a message about the file
+      const fileMessage: ChatMessage = {
+        id: Date.now().toString(),
+        text: `📎 File attached: ${file.name}`,
+        isUserMessage: true,
+      };
+      
+      setMessages((prevMessages) => [...prevMessages, fileMessage]);
+      
+      // Reset the file input
+      if (event.target) {
+        event.target.value = '';
+      }
+    }
+  };
+
   return (
     <Card className="w-full h-[600px] flex flex-col">
       <CardContent className="flex-grow overflow-y-auto" ref={chatContainerRef}>
@@ -73,16 +126,34 @@ const ChatInterface = () => {
       </CardContent>
       <div className="p-4 border-t">
         <div className="flex items-center space-x-2">
-          <Input
-            type="text"
-            placeholder="Type your message..."
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                handleSendMessage();
-              }
-            }}
+          <div className="relative flex-grow">
+            <Input
+              type="text"
+              placeholder="Type your message..."
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  handleSendMessage();
+                }
+              }}
+              className="pr-10"
+            />
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="absolute right-0 top-0" 
+              onClick={handleFileUpload}
+            >
+              <Paperclip className="h-4 w-4 text-gray-500" />
+            </Button>
+          </div>
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            className="hidden"
+            accept=".pdf,.jpg,.jpeg,.png"
           />
           <Button onClick={handleSendMessage}>
             <Send className="w-4 h-4 mr-2" />

@@ -1,9 +1,9 @@
 import React, { useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import { Button } from "@/components/ui/button";
 import { MessageSquare, BookOpen, BarChart3, Users, School, FileText } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import Footer from "@/components/layout/Footer";
 
@@ -83,12 +83,6 @@ const Dashboard = () => {
             icon={<MessageSquare className="h-10 w-10" />}
             onClick={() => navigate("/chat")}
           />
-          <DashboardCard
-            title="Learning Materials"
-            description="Upload and manage learning materials"
-            icon={<BookOpen className="h-10 w-10" />}
-            onClick={() => navigate("/documents")}
-          />
         </div>
       );
     }
@@ -115,12 +109,6 @@ const Dashboard = () => {
             icon={<MessageSquare className="h-10 w-10" />}
             onClick={() => navigate("/chat")}
           />
-          <DashboardCard
-            title="Learning Materials"
-            description="Upload and manage learning materials"
-            icon={<BookOpen className="h-10 w-10" />}
-            onClick={() => navigate("/documents")}
-          />
         </div>
       );
     }
@@ -133,12 +121,6 @@ const Dashboard = () => {
           description="Get help with your studies from our AI learning assistant"
           icon={<MessageSquare className="h-10 w-10" />}
           onClick={() => navigate("/chat")}
-        />
-        <DashboardCard
-          title="Learning Materials"
-          description="Access and manage your learning materials"
-          icon={<BookOpen className="h-10 w-10" />}
-          onClick={() => navigate("/documents")}
         />
         <DashboardCard
           title="Assessments"
