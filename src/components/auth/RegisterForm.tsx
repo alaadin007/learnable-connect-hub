@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,14 +11,8 @@ import { supabase } from "@/integrations/supabase/client";
 
 const RegisterForm = () => {
   const [isLoading, setIsLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<"school" | "teacher" | "student">("school");
+  const [activeTab, setActiveTab] = useState<"teacher" | "student">("teacher");
   const { signUp } = useAuth();
-
-  // School registration state
-  const [schoolName, setSchoolName] = useState("");
-  const [adminName, setAdminName] = useState("");
-  const [schoolEmail, setSchoolEmail] = useState("");
-  const [schoolPassword, setSchoolPassword] = useState("");
 
   // Teacher registration state
   const [teacherName, setTeacherName] = useState("");
@@ -103,30 +96,6 @@ const RegisterForm = () => {
     }
   };
 
-  const handleRegisterSchool = async (event: React.FormEvent) => {
-    event.preventDefault();
-    
-    if (!schoolName || !adminName || !schoolEmail || !schoolPassword) {
-      toast.error("Please fill in all fields");
-      return;
-    }
-
-    setIsLoading(true);
-    
-    try {
-      await signUp(schoolEmail, schoolPassword, {
-        user_type: 'school',
-        full_name: adminName,
-        school_name: schoolName
-      });
-    } catch (error) {
-      console.error("Registration error:", error);
-      // Error handling is done in signUp function
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleRegisterTeacher = async (event: React.FormEvent) => {
     event.preventDefault();
     
@@ -196,69 +165,15 @@ const RegisterForm = () => {
         </CardHeader>
         <CardContent>
           <Tabs 
-            defaultValue="school" 
+            defaultValue="teacher" 
             className="w-full"
             value={activeTab}
-            onValueChange={(value) => setActiveTab(value as "school" | "teacher" | "student")}
+            onValueChange={(value) => setActiveTab(value as "teacher" | "student")}
           >
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="school">School</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="teacher">Teacher</TabsTrigger>
               <TabsTrigger value="student">Student</TabsTrigger>
             </TabsList>
-            <TabsContent value="school" className="mt-4">
-              <form onSubmit={handleRegisterSchool} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="school-name">School Name</Label>
-                  <Input 
-                    id="school-name" 
-                    placeholder="Enter school name"
-                    value={schoolName}
-                    onChange={(e) => setSchoolName(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="admin-name">Administrator Name</Label>
-                  <Input 
-                    id="admin-name" 
-                    placeholder="Full name"
-                    value={adminName}
-                    onChange={(e) => setAdminName(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="school-email">Email</Label>
-                  <Input 
-                    id="school-email" 
-                    type="email" 
-                    placeholder="admin@yourschool.edu"
-                    value={schoolEmail}
-                    onChange={(e) => setSchoolEmail(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="school-password">Password</Label>
-                  <Input 
-                    id="school-password" 
-                    type="password"
-                    value={schoolPassword}
-                    onChange={(e) => setSchoolPassword(e.target.value)}
-                    required
-                    minLength={6}
-                  />
-                </div>
-                <Button 
-                  type="submit" 
-                  className="w-full gradient-bg"
-                  disabled={isLoading}
-                >
-                  {isLoading ? "Registering..." : "Register School"}
-                </Button>
-              </form>
-            </TabsContent>
             <TabsContent value="teacher" className="mt-4">
               <form onSubmit={handleRegisterTeacher} className="space-y-4">
                 <div className="space-y-2">
