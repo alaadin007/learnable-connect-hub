@@ -37,9 +37,10 @@ serve(async (req: Request) => {
     );
 
     // Get request body
-    const { logId, action, topic = null } = await req.json();
+    const requestData = await req.json();
+    const { log_id, action, topic } = requestData;
 
-    if (!logId) {
+    if (!log_id) {
       return new Response(JSON.stringify({ error: "Log ID is required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -50,42 +51,30 @@ serve(async (req: Request) => {
     let error;
 
     // Perform the requested action
-    switch (action) {
-      case "increment_query":
-        // Increment query count
-        ({ data: result, error } = await supabaseClient.rpc(
-          "increment_session_query_count",
-          { log_id: logId }
-        ));
-        break;
-      case "update_topic":
-        if (!topic) {
-          return new Response(
-            JSON.stringify({ error: "Topic is required for update_topic action" }),
-            {
-              status: 400,
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            }
-          );
+    if (action === "increment_query") {
+      // Increment query count
+      ({ data: result, error } = await supabaseClient.rpc(
+        "increment_session_query_count",
+        { log_id }
+      ));
+    } else if (topic) {
+      // Update topic
+      ({ data: result, error } = await supabaseClient.rpc("update_session_topic", {
+        log_id,
+        topic,
+      }));
+    } else {
+      return new Response(
+        JSON.stringify({ error: "Either action or topic must be specified" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
-        // Update topic
-        ({ data: result, error } = await supabaseClient.rpc("update_session_topic", {
-          log_id: logId,
-          topic,
-        }));
-        break;
-      default:
-        return new Response(
-          JSON.stringify({ error: "Invalid action specified" }),
-          {
-            status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        );
+      );
     }
 
     if (error) {
-      console.error(`Error performing ${action}:`, error);
+      console.error(`Error performing operation:`, error);
       return new Response(JSON.stringify({ error: error.message }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

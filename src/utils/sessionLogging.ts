@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 type PerformanceData = {
@@ -94,7 +93,7 @@ class SessionLogger {
       const { error } = await supabase.functions.invoke('update-session', {
         body: { 
           log_id: this.sessionId,
-          increment_query: true 
+          action: 'increment_query' 
         }
       });
       
@@ -138,7 +137,8 @@ class SessionLogger {
     }
   }
 
-  // Adding this method as an alias for createSession to fix the error
+  // We'll keep this as an alias for createSession for backwards compatibility
+  // but mark it as deprecated to encourage using createSession directly
   async startSession(topic?: string): Promise<string> {
     return this.createSession(topic);
   }
