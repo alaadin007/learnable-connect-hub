@@ -8,6 +8,8 @@ import Dashboard from '@/pages/Dashboard'
 import SchoolAdmin from '@/pages/SchoolAdmin'
 import AdminTeacherManagement from '@/pages/AdminTeacherManagement'
 import TeacherStudents from '@/pages/TeacherStudents'
+import TeacherAnalytics from '@/pages/TeacherAnalytics'  // Import TeacherAnalytics
+import AdminAnalytics from '@/pages/AdminAnalytics'  // Import AdminAnalytics
 import About from '@/pages/About'
 import Contact from '@/pages/Contact'
 import PrivacyPolicy from './pages/PrivacyPolicy'
@@ -30,7 +32,9 @@ function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/admin" element={<SchoolAdmin />} />
           <Route path="/admin/teacher-management" element={<AdminTeacherManagement />} />
+          <Route path="/admin/analytics" element={<AdminAnalytics />} />
           <Route path="/teacher/students" element={<TeacherStudents />} />
+          <Route path="/teacher/analytics" element={<TeacherAnalytics />} />
           <Route path="/about" element={<About />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/privacy" element={<PrivacyPolicy />} />

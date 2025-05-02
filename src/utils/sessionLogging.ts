@@ -1,3 +1,4 @@
+
 // Add this at the top of the file if needed
 import { supabase } from "@/integrations/supabase/client";
 import { format, getWeek } from 'date-fns';
