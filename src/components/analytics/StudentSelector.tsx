@@ -1,5 +1,5 @@
 
-import * as React from "react";
+import React from "react";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -15,12 +15,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { useState } from "react";
-
-interface Student {
-  id: string;
-  name: string;
-}
+import { Student } from "./types";
 
 interface StudentSelectorProps {
   students: Student[];
@@ -28,8 +23,12 @@ interface StudentSelectorProps {
   onStudentSelect: (student: Student | null) => void;
 }
 
-export function StudentSelector({ students, selectedStudent, onStudentSelect }: StudentSelectorProps) {
-  const [open, setOpen] = useState(false);
+export function StudentSelector({ 
+  students, 
+  selectedStudent, 
+  onStudentSelect 
+}: StudentSelectorProps) {
+  const [open, setOpen] = React.useState(false);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -40,18 +39,18 @@ export function StudentSelector({ students, selectedStudent, onStudentSelect }: 
           aria-expanded={open}
           className="w-full justify-between"
         >
-          {selectedStudent ? selectedStudent.name : "Select student..."}
+          {selectedStudent
+            ? selectedStudent.name
+            : "Select student..."}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-full p-0">
         <Command>
-          <CommandInput placeholder="Search student..." />
+          <CommandInput placeholder="Search students..." />
           <CommandEmpty>No student found.</CommandEmpty>
           <CommandGroup>
-            <CommandItem
-              key="all"
-              value="all"
+            <CommandItem 
               onSelect={() => {
                 onStudentSelect(null);
                 setOpen(false);
@@ -60,7 +59,7 @@ export function StudentSelector({ students, selectedStudent, onStudentSelect }: 
               <Check
                 className={cn(
                   "mr-2 h-4 w-4",
-                  !selectedStudent ? "opacity-100" : "opacity-0"
+                  selectedStudent === null ? "opacity-100" : "opacity-0"
                 )}
               />
               All Students
@@ -68,7 +67,6 @@ export function StudentSelector({ students, selectedStudent, onStudentSelect }: 
             {students.map((student) => (
               <CommandItem
                 key={student.id}
-                value={student.name}
                 onSelect={() => {
                   onStudentSelect(student);
                   setOpen(false);
@@ -77,7 +75,9 @@ export function StudentSelector({ students, selectedStudent, onStudentSelect }: 
                 <Check
                   className={cn(
                     "mr-2 h-4 w-4",
-                    selectedStudent?.id === student.id ? "opacity-100" : "opacity-0"
+                    selectedStudent?.id === student.id
+                      ? "opacity-100"
+                      : "opacity-0"
                   )}
                 />
                 {student.name}

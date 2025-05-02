@@ -15,21 +15,25 @@ const TeacherAnalytics = () => {
       <main className="flex-grow bg-learnable-super-light py-8">
         <div className="container mx-auto px-4">
           <div className="mb-6">
-            <h1 className="text-3xl font-bold gradient-text mb-2">Teacher Analytics Dashboard</h1>
+            <h1 className="text-3xl font-bold gradient-text mb-2">Teacher Analytics</h1>
             <p className="text-learnable-gray">
-              Monitor student engagement and performance data
+              Track student progress and learning analytics
             </p>
           </div>
           
           <Card className="mb-6">
             <CardHeader>
-              <CardTitle>School Information</CardTitle>
-              <CardDescription>Analytics for your school</CardDescription>
+              <CardTitle>Teacher Information</CardTitle>
+              <CardDescription>View analytics for your students</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
                 <div className="flex flex-col sm:flex-row sm:items-center">
-                  <span className="font-medium min-w-32">School Name:</span>
+                  <span className="font-medium min-w-32">Name:</span>
+                  <span>{profile?.full_name || "Not available"}</span>
+                </div>
+                <div className="flex flex-col sm:flex-row sm:items-center">
+                  <span className="font-medium min-w-32">School:</span>
                   <span>{profile?.school_name || "Not available"}</span>
                 </div>
               </div>

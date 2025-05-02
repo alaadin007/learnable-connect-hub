@@ -1,12 +1,16 @@
 
-import * as React from "react";
+import React from "react";
 import { format } from "date-fns";
-import { CalendarIcon } from "lucide-react";
-import { DateRange } from "react-day-picker";
+import { Calendar as CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { DateRange } from "react-day-picker";
 
 interface DateRangePickerProps {
   dateRange: DateRange | undefined;
@@ -20,7 +24,7 @@ export function DateRangePicker({ dateRange, onDateRangeChange }: DateRangePicke
         <PopoverTrigger asChild>
           <Button
             id="date"
-            variant="outline"
+            variant={"outline"}
             className={cn(
               "w-full justify-start text-left font-normal",
               !dateRange && "text-muted-foreground"
@@ -37,7 +41,7 @@ export function DateRangePicker({ dateRange, onDateRangeChange }: DateRangePicke
                 format(dateRange.from, "LLL dd, y")
               )
             ) : (
-              <span>Select a date range</span>
+              <span>Pick a date range</span>
             )}
           </Button>
         </PopoverTrigger>
@@ -49,7 +53,6 @@ export function DateRangePicker({ dateRange, onDateRangeChange }: DateRangePicke
             selected={dateRange}
             onSelect={onDateRangeChange}
             numberOfMonths={2}
-            className={cn("p-3 pointer-events-auto")}
           />
         </PopoverContent>
       </Popover>

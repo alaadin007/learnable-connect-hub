@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Navbar from "@/components/layout/Navbar";
-import { BookOpen, FileText, MessageSquare, Users } from "lucide-react";
+import { BookOpen, FileText, MessageSquare, Users, BarChart2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import FileUpload from "@/components/documents/FileUpload";
 import FileList from "@/components/documents/FileList";
@@ -181,6 +181,24 @@ const Dashboard = () => {
                     <Link to="/teacher/students">
                       <Users className="mr-2 h-4 w-4" />
                       View Students
+                    </Link>
+                  </Button>
+                )}
+                
+                {profile?.user_type === 'teacher' && (
+                  <Button variant="outline" className="w-full justify-start" asChild>
+                    <Link to="/teacher/analytics">
+                      <BarChart2 className="mr-2 h-4 w-4" />
+                      View Analytics
+                    </Link>
+                  </Button>
+                )}
+                
+                {profile?.user_type === 'school' && (
+                  <Button variant="outline" className="w-full justify-start" asChild>
+                    <Link to="/admin/analytics">
+                      <BarChart2 className="mr-2 h-4 w-4" />
+                      School Analytics
                     </Link>
                   </Button>
                 )}
