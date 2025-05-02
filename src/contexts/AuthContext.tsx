@@ -102,6 +102,8 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       } else {
         setProfile(null);
         setUserRole(null);
+        setIsSuperviser(false);
+        setSchoolId(null);
       }
     });
   }, []);
@@ -136,19 +138,19 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
           organization: null // Default to null
         };
 
-        // Check if we have organization data and it's not an error
-        // Make sure to check if the organization exists and is a valid object
-        if (profileData.organization && 
-            typeof profileData.organization === 'object' && 
-            !('error' in profileData.organization) && 
-            profileData.organization !== null) {
+        // Fix here: Check for null first before accessing properties
+        if (
+          profileData.organization !== null &&
+          typeof profileData.organization === 'object' &&
+          !('error' in profileData.organization)
+        ) {
           safeProfileData.organization = profileData.organization;
         }
 
         setProfile(safeProfileData);
         setUserRole(profileData.user_type || null);
         setIsSuperviser(profileData.user_type === "superviser");
-        
+
         // Safely access organization.id with null check
         setSchoolId(safeProfileData.organization?.id || null);
 
@@ -229,6 +231,8 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       setUser(null);
       setProfile(null);
       setUserRole(null);
+      setIsSuperviser(false);
+      setSchoolId(null);
       navigate("/");
     } catch (error: any) {
       toast.error(error.error_description || error.message);
@@ -279,7 +283,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
         aud: "authenticated",
         created_at: new Date().toISOString()
       } as unknown as User; // Type assertion to User
-      
+
       // Create mock profile based on user type
       const mockProfile: UserProfile = {
         id: mockId,
@@ -291,14 +295,14 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
           code: `TEST${schoolIndex}`
         }
       };
-      
+
       // Set context values
       setUser(mockUser);
       setProfile(mockProfile);
       setUserRole(type);
       setIsSuperviser(false);
       setSchoolId(mockProfile.organization?.id || null);
-      
+
       // Create a fake session
       const mockSession = {
         user: mockUser,
@@ -306,9 +310,9 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
         refresh_token: "test-refresh-token",
         expires_at: Date.now() + 3600000
       } as Session;
-      
+
       setSession(mockSession);
-      
+
       toast.success(`Logged in as test ${type}`);
     } catch (error) {
       console.error("Error setting test user:", error);
