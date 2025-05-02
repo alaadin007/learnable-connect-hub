@@ -49,6 +49,7 @@ const AdminTeacherManagement = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
+  const [schoolId, setSchoolId] = useState<string | null>(null);
   
   const form = useForm<TeacherFormValues>({
     resolver: zodResolver(inviteTeacherSchema),
@@ -60,33 +61,65 @@ const AdminTeacherManagement = () => {
   
   const selectedMethod = form.watch("method");
   
+  // Get school ID from profile or fetch it
+  useEffect(() => {
+    const getSchoolId = async () => {
+      if (profile) {
+        // Try to get school ID directly from RPC function
+        const { data, error } = await supabase.rpc("get_user_school_id");
+        
+        if (error) {
+          console.error("Error getting school ID:", error);
+          return;
+        }
+        
+        if (data) {
+          setSchoolId(data);
+        }
+      }
+    };
+    
+    getSchoolId();
+  }, [profile]);
+  
   // Load teachers and invitations
   useEffect(() => {
     const fetchTeacherData = async () => {
+      if (!schoolId) return;
+      
       try {
         // Fetch teachers
         const { data: teachersData, error: teachersError } = await supabase
           .from("teachers")
-          .select(`
-            id, 
-            is_supervisor,
-            profiles!inner(
-              full_name,
-              created_at
-            )
-          `)
-          .eq("school_id", profile?.school_id);
+          .select("id, is_supervisor")
+          .eq("school_id", schoolId);
           
         if (teachersError) throw teachersError;
         
-        // Format teacher data
-        const formattedTeachers = teachersData?.map(teacher => ({
-          id: teacher.id,
-          full_name: teacher.profiles?.full_name || null,
-          email: teacher.id, // Using ID as email placeholder
-          is_supervisor: teacher.is_supervisor,
-          created_at: teacher.profiles?.created_at,
-        })) || [];
+        // Get profiles for these teachers
+        const formattedTeachers: Teacher[] = [];
+        
+        for (const teacher of teachersData || []) {
+          // Get profile information for each teacher
+          const { data: profileData, error: profileError } = await supabase
+            .from("profiles")
+            .select("full_name, created_at")
+            .eq("id", teacher.id)
+            .single();
+          
+          if (profileError) {
+            console.error("Error fetching profile:", profileError);
+            continue;
+          }
+          
+          formattedTeachers.push({
+            id: teacher.id,
+            full_name: profileData?.full_name || null,
+            email: teacher.id, // Using ID as email placeholder
+            is_supervisor: teacher.is_supervisor || false,
+            created_at: profileData?.created_at || new Date().toISOString(),
+          });
+        }
         
         setTeachers(formattedTeachers);
         
@@ -105,12 +138,17 @@ const AdminTeacherManagement = () => {
       }
     };
     
-    if (profile?.school_id) {
+    if (schoolId) {
       fetchTeacherData();
     }
-  }, [profile?.school_id]);
+  }, [schoolId]);
   
   const onSubmit = async (values: TeacherFormValues) => {
+    if (!schoolId) {
+      toast.error("Unable to determine your school. Please try again later.");
+      return;
+    }
+    
     setIsLoading(true);
     
     try {
@@ -159,27 +197,33 @@ const AdminTeacherManagement = () => {
       }
       
       // Also refresh teachers if we created an account directly
-      if (values.method === "create") {
+      if (values.method === "create" && schoolId) {
         const { data: teachersData } = await supabase
           .from("teachers")
-          .select(`
-            id, 
-            is_supervisor,
-            profiles!inner(
-              full_name,
-              created_at
-            )
-          `)
-          .eq("school_id", profile?.school_id);
+          .select("id, is_supervisor")
+          .eq("school_id", schoolId);
           
         if (teachersData) {
-          const formattedTeachers = teachersData.map(teacher => ({
-            id: teacher.id,
-            full_name: teacher.profiles?.full_name || null,
-            email: teacher.id,
-            is_supervisor: teacher.is_supervisor,
-            created_at: teacher.profiles?.created_at,
-          }));
+          const formattedTeachers: Teacher[] = [];
+          
+          for (const teacher of teachersData || []) {
+            // Get profile information for each teacher
+            const { data: profileData } = await supabase
+              .from("profiles")
+              .select("full_name, created_at")
+              .eq("id", teacher.id)
+              .single();
+            
+            if (profileData) {
+              formattedTeachers.push({
+                id: teacher.id,
+                full_name: profileData.full_name || null,
+                email: teacher.id,
+                is_supervisor: teacher.is_supervisor || false,
+                created_at: profileData.created_at || new Date().toISOString(),
+              });
+            }
+          }
           
           setTeachers(formattedTeachers);
         }
