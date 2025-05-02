@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -99,6 +100,14 @@ const Navbar = () => {
   // Check if we're on the test accounts page to hide the entire navbar
   const isTestAccountsPage = location.pathname === "/test-accounts";
 
+  // Helper function to determine if a link is active
+  const isActiveLink = (href) => {
+    if (href === "/admin" && (location.pathname === "/admin" || location.pathname.startsWith("/admin/"))) {
+      return true;
+    }
+    return location.pathname === href;
+  };
+
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
       <div className="container mx-auto px-4 sm:px-6">
@@ -128,7 +137,10 @@ const Navbar = () => {
                 <Link
                   key={link.name}
                   to={link.href}
-                  className="text-learnable-gray hover:text-learnable-blue font-medium"
+                  className={cn(
+                    "text-learnable-gray hover:text-learnable-blue font-medium",
+                    isActiveLink(link.href) && "text-learnable-blue font-bold"
+                  )}
                 >
                   {link.name}
                 </Link>
@@ -181,7 +193,12 @@ const Navbar = () => {
               <Link
                 key={link.name}
                 to={link.href}
-                className="block px-3 py-2 text-base font-medium text-learnable-dark hover:bg-learnable-super-light rounded-md"
+                className={cn(
+                  "block px-3 py-2 text-base font-medium rounded-md",
+                  isActiveLink(link.href)
+                    ? "bg-learnable-super-light text-learnable-blue"
+                    : "text-learnable-dark hover:bg-learnable-super-light"
+                )}
                 onClick={() => setIsOpen(false)}
               >
                 {link.name}
