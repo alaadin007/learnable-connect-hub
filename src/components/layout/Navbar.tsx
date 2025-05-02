@@ -1,107 +1,189 @@
 
-import React from "react";
+import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { LogOut, Settings, User } from "lucide-react";
+import Logo from "../../../public/LearnAble-logo.svg";
+import { Menu, X } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
+import { useMobile } from "@/hooks/use-mobile";
 
 const Navbar = () => {
-  const { user, profile, signOut } = useAuth();
+  const { user, signOut, profile } = useAuth();
   const navigate = useNavigate();
+  const [isOpen, setIsOpen] = useState(false);
+  const isMobile = useMobile();
 
-  const handleSignOut = async () => {
+  const toggleMenu = () => setIsOpen(!isOpen);
+  
+  const handleLogout = async () => {
     await signOut();
-    navigate("/login");
+    navigate("/");
+    setIsOpen(false);
   };
 
-  const getUserMenu = (profile: any) => {
-    if (!profile) return [];
-    
-    const userType = profile.user_type;
-    const menuItems = [];
-    
-    if (userType === 'school' || userType === 'school_admin') {
-      menuItems.push({ label: 'Admin Panel', href: '/admin' });
-      menuItems.push({ label: 'Teacher Management', href: '/admin/teacher-management' });
-      menuItems.push({ label: 'Analytics', href: '/admin/analytics' });
-    } else if (userType === 'teacher') {
-      menuItems.push({ label: 'Dashboard', href: '/dashboard' });
-      menuItems.push({ label: 'Student Management', href: '/teacher/students' });
-      menuItems.push({ label: 'Analytics', href: '/teacher/analytics' });
-    } else if (userType === 'student') {
-      menuItems.push({ label: 'Dashboard', href: '/dashboard' });
-      menuItems.push({ label: 'Chat with AI', href: '/chat' });
-    }
-    
-    menuItems.push({ label: 'Sign Out', href: '#', action: 'signOut' });
-    
-    return menuItems;
+  const getProfileType = () => {
+    if (!profile) return null;
+    return profile.user_type;
   };
+
+  const userType = getProfileType();
+
+  // Navigation links based on user type
+  const getNavLinks = () => {
+    if (!user) {
+      return [
+        { name: "Home", href: "/" },
+        { name: "Features", href: "/features" },
+        { name: "Pricing", href: "/pricing" },
+        { name: "About", href: "/about" },
+        { name: "Contact", href: "/contact" },
+      ];
+    }
+
+    if (userType === "school") {
+      return [
+        { name: "Dashboard", href: "/dashboard" },
+        { name: "School Admin", href: "/admin" },
+        { name: "Teachers", href: "/admin/teacher-management" },
+        { name: "Analytics", href: "/admin/analytics" },
+        { name: "Chat", href: "/chat" },
+        { name: "Documents", href: "/documents" },
+      ];
+    }
+
+    if (userType === "teacher") {
+      return [
+        { name: "Dashboard", href: "/dashboard" },
+        { name: "Students", href: "/teacher/students" },
+        { name: "Analytics", href: "/teacher/analytics" },
+        { name: "Chat", href: "/chat" },
+        { name: "Documents", href: "/documents" },
+      ];
+    }
+
+    // Default for students and others
+    return [
+      { name: "Dashboard", href: "/dashboard" },
+      { name: "Chat", href: "/chat" },
+      { name: "Documents", href: "/documents" },
+    ];
+  };
+
+  const navLinks = getNavLinks();
 
   return (
-    <nav className="bg-white py-4 shadow-sm">
-      <div className="container mx-auto px-4 flex items-center justify-between">
-        <Link to="/" className="text-2xl font-bold text-blue-600">
-          Learnable
-        </Link>
-        <div className="flex items-center space-x-6">
-          <Link to="/about" className="text-gray-600 hover:text-gray-800">
-            About
-          </Link>
-          <Link to="/contact" className="text-gray-600 hover:text-gray-800">
-            Contact
-          </Link>
-          <Link to="/features" className="text-gray-600 hover:text-gray-800">
-            Features
-          </Link>
-          <Link to="/pricing" className="text-gray-600 hover:text-gray-800">
-            Pricing
-          </Link>
-          {!user ? (
-            <div className="space-x-3">
-              <Link to="/login">
-                <Button variant="outline">Log In</Button>
+    <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
+      <div className="container mx-auto px-4 sm:px-6">
+        <div className="flex justify-between items-center h-16">
+          {/* Logo */}
+          <div className="flex-shrink-0">
+            <Link to="/" className="flex items-center">
+              <img src={Logo} alt="LearnAble Logo" className="h-10" />
+              <span className="ml-2 text-xl font-bold text-learnable-dark">
+                LearnAble
+              </span>
+            </Link>
+          </div>
+
+          {/* Mobile menu button */}
+          <div className="md:hidden">
+            <Button variant="ghost" size="icon" onClick={toggleMenu}>
+              {isOpen ? <X /> : <Menu />}
+            </Button>
+          </div>
+
+          {/* Desktop navigation */}
+          <nav className="hidden md:flex space-x-8">
+            {navLinks.map((link) => (
+              <Link
+                key={link.name}
+                to={link.href}
+                className="text-learnable-gray hover:text-learnable-blue font-medium"
+              >
+                {link.name}
               </Link>
-              <Link to="/register">
-                <Button className="bg-blue-600 hover:bg-blue-700">Sign Up</Button>
-              </Link>
-            </div>
-          ) : (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="h-8 w-8 p-0">
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage src={user?.user_metadata?.avatar_url} />
-                    <AvatarFallback>
-                      {profile?.full_name?.slice(0, 2).toUpperCase() || user.email?.slice(0, 2).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
+            ))}
+          </nav>
+
+          {/* Auth buttons - desktop */}
+          <div className="hidden md:flex items-center space-x-4">
+            {user ? (
+              <Button onClick={handleLogout} variant="outline">
+                Sign Out
+              </Button>
+            ) : (
+              <>
+                <Button 
+                  variant="outline" 
+                  onClick={() => navigate("/login")}
+                >
+                  Sign In
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-56" align="end" forceMount>
-                <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {getUserMenu(profile).map((item, index) => (
-                  <DropdownMenuItem key={index} onClick={item.action === 'signOut' ? handleSignOut : () => navigate(item.href)}>
-                    {item.label === 'Sign Out' ? <LogOut className="mr-2 h-4 w-4" /> : item.label === 'Settings' ? <Settings className="mr-2 h-4 w-4" /> : <User className="mr-2 h-4 w-4" />}
-                    <span>{item.label}</span>
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+                <Button 
+                  onClick={() => navigate("/register")}
+                >
+                  Get Started
+                </Button>
+              </>
+            )}
+          </div>
         </div>
       </div>
-    </nav>
+
+      {/* Mobile menu */}
+      <div
+        className={cn(
+          "fixed inset-0 z-40 bg-white transform transition-transform duration-300 ease-in-out md:hidden",
+          isOpen ? "translate-x-0" : "translate-x-full"
+        )}
+        style={{ top: "64px" }}
+      >
+        <div className="pt-5 pb-6 px-4 space-y-4 divide-y divide-gray-100">
+          <div className="space-y-1">
+            {navLinks.map((link) => (
+              <Link
+                key={link.name}
+                to={link.href}
+                className="block px-3 py-2 text-base font-medium text-learnable-dark hover:bg-learnable-super-light rounded-md"
+                onClick={() => setIsOpen(false)}
+              >
+                {link.name}
+              </Link>
+            ))}
+          </div>
+          <div className="pt-4 space-y-4">
+            {user ? (
+              <Button onClick={handleLogout} variant="outline" className="w-full">
+                Sign Out
+              </Button>
+            ) : (
+              <>
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    navigate("/login");
+                    setIsOpen(false);
+                  }}
+                  className="w-full"
+                >
+                  Sign In
+                </Button>
+                <Button 
+                  onClick={() => {
+                    navigate("/register");
+                    setIsOpen(false);
+                  }}
+                  className="w-full"
+                >
+                  Get Started
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </header>
   );
 };
 

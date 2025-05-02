@@ -1,177 +1,181 @@
 
-import React, { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React from "react";
 import Navbar from "@/components/layout/Navbar";
-import Footer from "@/components/landing/Footer";
-import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { MessageSquare, BarChart2, Users, BookOpen } from "lucide-react";
-
-type UserRoleExtended = 'school' | 'school_admin' | 'teacher' | 'student';
-
-interface MenuItem {
-  title: string;
-  description: string;
-  link: string;
-  icon: React.ReactNode;
-}
+import { MessageSquare, BookOpen, BarChart3, Users, School } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import Footer from "@/components/layout/Footer";
 
 const Dashboard = () => {
-  const { user, profile, signOut } = useAuth();
+  const { user, profile } = useAuth();
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(true);
-  
-  useEffect(() => {
-    // If user is not logged in, redirect to login page
-    if (!user && !isLoading) {
+
+  // Redirect if not logged in
+  React.useEffect(() => {
+    if (!user) {
       navigate("/login");
     }
-    
-    // Set loading to false once we've checked auth state
-    setIsLoading(false);
-  }, [user, navigate, isLoading]);
-  
-  if (isLoading) {
-    return <div>Loading...</div>;
+  }, [user, navigate]);
+
+  // Return a loading state if profile isn't loaded yet
+  if (!user || !profile) {
+    return (
+      <div>
+        <Navbar />
+        <div className="container mx-auto px-4 py-8">
+          <h1 className="text-3xl font-bold mb-6">Loading...</h1>
+        </div>
+      </div>
+    );
   }
-  
-  // Function to determine user role and appropriate links
-  const getRoleBasedLinks = () => {
-    if (!profile) return [];
-    
-    const userType = profile.user_type as UserRoleExtended;
-    
-    if (userType === 'school' || userType === 'school_admin') {
-      return [
-        { 
-          title: "School Management", 
-          description: "Manage your school settings and configuration", 
-          link: "/admin", 
-          icon: <Users className="h-6 w-6" /> 
-        },
-        { 
-          title: "Teacher Management", 
-          description: "Add, remove, and manage teachers in your school", 
-          link: "/admin/teacher-management", 
-          icon: <Users className="h-6 w-6" /> 
-        },
-        { 
-          title: "Analytics Dashboard", 
-          description: "View detailed analytics about your school", 
-          link: "/admin/analytics", 
-          icon: <BarChart2 className="h-6 w-6" /> 
-        }
-      ];
-    } else if (userType === 'teacher') {
-      return [
-        { 
-          title: "Student Management", 
-          description: "Manage your students and their access", 
-          link: "/teacher/students", 
-          icon: <Users className="h-6 w-6" /> 
-        },
-        { 
-          title: "Analytics Dashboard", 
-          description: "View analytics about your students' learning", 
-          link: "/teacher/analytics", 
-          icon: <BarChart2 className="h-6 w-6" /> 
-        }
-      ];
-    } else if (userType === 'student') {
-      return [
-        { 
-          title: "Chat with AI", 
-          description: "Get AI-powered help with your studies", 
-          link: "/chat", 
-          icon: <MessageSquare className="h-6 w-6" /> 
-        },
-        { 
-          title: "Study Materials", 
-          description: "Access your learning resources", 
-          link: "/materials", 
-          icon: <BookOpen className="h-6 w-6" /> 
-        }
-      ];
+
+  const renderUserDashboard = () => {
+    // Check user type and render appropriate dashboard
+    const userType = profile.user_type;
+
+    // School Admin Dashboard
+    if (userType === "school") {
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <DashboardCard
+            title="School Admin"
+            description="Manage your school settings and configurations"
+            icon={<School className="h-10 w-10" />}
+            onClick={() => navigate("/admin")}
+          />
+          <DashboardCard
+            title="Teacher Management"
+            description="Add, remove, and manage teacher accounts"
+            icon={<Users className="h-10 w-10" />}
+            onClick={() => navigate("/admin/teacher-management")}
+          />
+          <DashboardCard
+            title="Analytics"
+            description="View school-wide performance analytics"
+            icon={<BarChart3 className="h-10 w-10" />}
+            onClick={() => navigate("/admin/analytics")}
+          />
+          <DashboardCard
+            title="Chat with AI"
+            description="Get help from our AI learning assistant"
+            icon={<MessageSquare className="h-10 w-10" />}
+            onClick={() => navigate("/chat")}
+          />
+          <DashboardCard
+            title="Learning Materials"
+            description="Upload and manage learning materials"
+            icon={<BookOpen className="h-10 w-10" />}
+            onClick={() => navigate("/documents")}
+          />
+        </div>
+      );
     }
-    return [];
+
+    // Teacher Dashboard
+    if (userType === "teacher") {
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <DashboardCard
+            title="Student Management"
+            description="Manage your students and classes"
+            icon={<Users className="h-10 w-10" />}
+            onClick={() => navigate("/teacher/students")}
+          />
+          <DashboardCard
+            title="Analytics"
+            description="View student performance analytics"
+            icon={<BarChart3 className="h-10 w-10" />}
+            onClick={() => navigate("/teacher/analytics")}
+          />
+          <DashboardCard
+            title="Chat with AI"
+            description="Get help from our AI learning assistant"
+            icon={<MessageSquare className="h-10 w-10" />}
+            onClick={() => navigate("/chat")}
+          />
+          <DashboardCard
+            title="Learning Materials"
+            description="Upload and manage learning materials"
+            icon={<BookOpen className="h-10 w-10" />}
+            onClick={() => navigate("/documents")}
+          />
+        </div>
+      );
+    }
+
+    // Student Dashboard (default)
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <DashboardCard
+          title="Chat with AI"
+          description="Get help with your studies from our AI learning assistant"
+          icon={<MessageSquare className="h-10 w-10" />}
+          onClick={() => navigate("/chat")}
+        />
+        <DashboardCard
+          title="Learning Materials"
+          description="Upload and manage your learning materials"
+          icon={<BookOpen className="h-10 w-10" />}
+          onClick={() => navigate("/documents")}
+        />
+      </div>
+    );
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <>
       <Navbar />
-      <main className="flex-grow bg-learnable-super-light py-8">
-        <div className="container mx-auto px-4">
-          <div className="mb-6">
-            <h1 className="text-3xl font-bold gradient-text mb-2">Welcome, {profile?.full_name || user?.email}</h1>
-            <p className="text-learnable-gray">
-              {profile?.user_type === 'school' || profile?.user_type === 'school_admin' ? 'School Admin Dashboard' : 
-               profile?.user_type === 'teacher' ? 'Teacher Dashboard' : 
-               'Student Dashboard'}
-            </p>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* User Info Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Your Information</CardTitle>
-                <CardDescription>Your account details</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <div className="flex flex-col">
-                    <span className="text-sm text-muted-foreground">Email</span>
-                    <span>{user?.email}</span>
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-sm text-muted-foreground">Name</span>
-                    <span>{profile?.full_name || 'Not set'}</span>
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-sm text-muted-foreground">Role</span>
-                    <span className="capitalize">{profile?.user_type?.replace('_', ' ') || 'Not set'}</span>
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-sm text-muted-foreground">School</span>
-                    <span>{profile?.school_name || 'Not associated with a school'}</span>
-                  </div>
-                </div>
-              </CardContent>
-              <CardFooter>
-                <Button variant="outline" onClick={signOut}>Sign Out</Button>
-              </CardFooter>
-            </Card>
-            
-            {/* Role-based cards */}
-            {getRoleBasedLinks().map((item, index) => (
-              <Card key={index}>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle>{item.title}</CardTitle>
-                    <div className="p-2 bg-primary/10 rounded-full">
-                      {item.icon}
-                    </div>
-                  </div>
-                  <CardDescription>{item.description}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    Click below to access this feature
-                  </p>
-                </CardContent>
-                <CardFooter>
-                  <Button asChild className="w-full">
-                    <Link to={item.link}>Go to {item.title}</Link>
-                  </Button>
-                </CardFooter>
-              </Card>
-            ))}
-          </div>
+      <main className="container mx-auto px-4 py-8 min-h-screen">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold mb-2">Welcome, {profile.full_name}</h1>
+          <p className="text-gray-600">
+            {profile.user_type === "school"
+              ? "Manage your school, teachers, and view analytics"
+              : profile.user_type === "teacher"
+              ? "Manage your students and view their progress"
+              : "Access your learning resources and get help from our AI"}
+          </p>
         </div>
+
+        {renderUserDashboard()}
       </main>
       <Footer />
-    </div>
+    </>
+  );
+};
+
+interface DashboardCardProps {
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+  onClick: () => void;
+}
+
+const DashboardCard: React.FC<DashboardCardProps> = ({
+  title,
+  description,
+  icon,
+  onClick,
+}) => {
+  return (
+    <Card className="hover:shadow-md transition-shadow">
+      <CardHeader>
+        <CardTitle className="flex items-center">
+          <div className="text-learnable-blue mr-4">{icon}</div>
+          {title}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="text-gray-600">{description}</p>
+      </CardContent>
+      <CardFooter>
+        <Button onClick={onClick} className="w-full">
+          Go to {title}
+        </Button>
+      </CardFooter>
+    </Card>
   );
 };
 

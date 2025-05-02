@@ -81,8 +81,9 @@ const PersistentChatInterface: React.FC<PersistentChatInterfaceProps> = ({
   const loadChatHistory = async (convoId: string) => {
     setLoadingHistory(true);
     try {
+      // Fix: Change from params to queryKey for proper URL parameter handling
       const { data, error } = await supabase.functions.invoke('get-chat-history', {
-        params: { conversationId: convoId }
+        body: { conversationId: convoId }
       });
       
       if (error) throw error;
