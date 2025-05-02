@@ -22,9 +22,16 @@ const Navbar = () => {
     location.pathname === "/pricing" || 
     location.pathname === "/about" || 
     location.pathname === "/contact";
+  
+  // Also never show the logged-in state on auth pages
+  const isAuthPage = 
+    location.pathname === "/login" || 
+    location.pathname === "/register" ||
+    location.pathname === "/school-registration" ||
+    location.pathname.startsWith("/invitation/");
 
-  // Only consider the user as logged in if they have a session AND we're not on a public landing page
-  const isLoggedIn = user && !isPublicPage;
+  // Only consider the user as logged in if they have a session AND we're not on a public or auth page
+  const isLoggedIn = user && !isPublicPage && !isAuthPage;
 
   const toggleMenu = () => setIsOpen(!isOpen);
   
@@ -125,17 +132,21 @@ const Navbar = () => {
               </Button>
             ) : (
               <>
-                <Button 
-                  variant="outline" 
-                  onClick={() => navigate("/login")}
-                >
-                  Log In
-                </Button>
-                <Button 
-                  onClick={() => navigate("/register")}
-                >
-                  Get Started
-                </Button>
+                {!isAuthPage && (
+                  <Button 
+                    variant="outline" 
+                    onClick={() => navigate("/login")}
+                  >
+                    Log In
+                  </Button>
+                )}
+                {!isAuthPage && (
+                  <Button 
+                    onClick={() => navigate("/register")}
+                  >
+                    Get Started
+                  </Button>
+                )}
               </>
             )}
           </div>
@@ -170,25 +181,29 @@ const Navbar = () => {
               </Button>
             ) : (
               <>
-                <Button 
-                  variant="outline" 
-                  onClick={() => {
-                    navigate("/login");
-                    setIsOpen(false);
-                  }}
-                  className="w-full"
-                >
-                  Log In
-                </Button>
-                <Button 
-                  onClick={() => {
-                    navigate("/register");
-                    setIsOpen(false);
-                  }}
-                  className="w-full"
-                >
-                  Get Started
-                </Button>
+                {!isAuthPage && (
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      navigate("/login");
+                      setIsOpen(false);
+                    }}
+                    className="w-full"
+                  >
+                    Log In
+                  </Button>
+                )}
+                {!isAuthPage && (
+                  <Button 
+                    onClick={() => {
+                      navigate("/register");
+                      setIsOpen(false);
+                    }}
+                    className="w-full"
+                  >
+                    Get Started
+                  </Button>
+                )}
               </>
             )}
           </div>
