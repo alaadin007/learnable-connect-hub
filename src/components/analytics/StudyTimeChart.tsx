@@ -24,6 +24,12 @@ const StudyTimeChart = ({
   title = "Weekly Study Time", 
   description = "Hours studied per student this week" 
 }: StudyTimeChartProps) => {
+  // Prepare data for chart
+  const chartData = data.map(item => ({
+    name: item.studentName || item.name || `Week ${item.week}`,
+    hours: item.hours || 0
+  }));
+
   return (
     <Card className="w-full">
       <CardHeader>
@@ -32,10 +38,10 @@ const StudyTimeChart = ({
       </CardHeader>
       <CardContent className="pt-2">
         <div className="h-[300px] w-full">
-          {data.length > 0 ? (
+          {chartData.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
-                data={data}
+                data={chartData}
                 margin={{
                   top: 5,
                   right: 30,

@@ -21,8 +21,8 @@ export function AnalyticsFilters({
     onFiltersChange({
       ...filters,
       dateRange: {
-        from: range?.from || undefined,
-        to: range?.to || undefined
+        from: range?.from,
+        to: range?.to
       }
     });
   };

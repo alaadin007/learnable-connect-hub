@@ -24,6 +24,12 @@ const TopicsChart = ({
   title = "Most Studied Topics", 
   description = "Distribution of topics studied by students" 
 }: TopicsChartProps) => {
+  // Prepare data for chart
+  const chartData = data.map(item => ({
+    name: item.topic || item.name || "Unknown",
+    value: item.count || item.value || 0
+  }));
+
   return (
     <Card className="w-full">
       <CardHeader>
@@ -32,11 +38,11 @@ const TopicsChart = ({
       </CardHeader>
       <CardContent className="pt-2">
         <div className="h-[300px] w-full">
-          {data.length > 0 ? (
+          {chartData.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={data}
+                  data={chartData}
                   cx="50%"
                   cy="50%"
                   labelLine={false}
@@ -45,7 +51,7 @@ const TopicsChart = ({
                   fill="#8884d8"
                   dataKey="value"
                 >
-                  {data.map((entry, index) => (
+                  {chartData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>

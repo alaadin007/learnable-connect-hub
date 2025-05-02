@@ -29,8 +29,13 @@ export interface SessionData {
   topicOrContent: string;
   startTime: string;
   endTime: string | null;
-  duration: number | null;
+  duration: number | null | string;
   numQueries: number;
+  
+  // Additional properties used in the existing code
+  student?: string;
+  topic?: string;
+  queries?: number;
 }
 
 // Topic data for charts
@@ -38,6 +43,10 @@ export interface TopicData {
   topic: string;
   count: number;
   percentage?: number;
+  
+  // Additional properties used in the existing code
+  name?: string;
+  value?: number;
 }
 
 // Study time data for charts
@@ -46,6 +55,9 @@ export interface StudyTimeData {
   year: number;
   hours: number;
   studentName?: string;
+  
+  // Additional properties used in the existing code
+  name?: string;
 }
 
 // Analytics summary

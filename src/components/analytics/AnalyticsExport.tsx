@@ -33,7 +33,10 @@ export function AnalyticsExport({
     
     // Prepare topics data
     const topicsHeader = ["Topic", "Count"];
-    const topicsData = topics.map(topic => [topic.name, topic.value.toString()]);
+    const topicsData = topics.map(topic => [
+      topic.topic || topic.name || "Unknown",
+      (topic.count || topic.value || 0).toString()
+    ]);
     const topicsCSV = [
       ["Most Studied Topics", ""],
       topicsHeader,
@@ -43,7 +46,10 @@ export function AnalyticsExport({
     
     // Prepare study time data
     const studyTimeHeader = ["Student", "Hours"];
-    const studyTimeData = studyTimes.map(item => [item.name, item.hours.toString()]);
+    const studyTimeData = studyTimes.map(item => [
+      item.studentName || item.name || "Unknown",
+      item.hours.toString()
+    ]);
     const studyTimeCSV = [
       ["Weekly Study Time", ""],
       studyTimeHeader,
@@ -54,10 +60,10 @@ export function AnalyticsExport({
     // Prepare sessions data
     const sessionsHeader = ["Student", "Topic", "Queries", "Duration", "Date"];
     const sessionsData = sessions.map(session => [
-      session.student,
-      session.topic || "General",
-      session.queries.toString(),
-      session.duration,
+      session.userName || session.student || "Unknown",
+      session.topicOrContent || session.topic || "General",
+      (session.numQueries || session.queries || 0).toString(),
+      typeof session.duration === 'string' ? session.duration : `${session.duration} min`,
       new Date(session.startTime).toLocaleString()
     ]);
     const sessionsCSV = [

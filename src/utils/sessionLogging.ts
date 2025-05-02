@@ -198,7 +198,7 @@ export const getMockAnalyticsData = (
   };
   
   // Generate mock session data
-  const sessions: SessionData[] = [];
+  const sessions: any[] = [];
   const studentNames = [
     "Emma Thompson",
     "Liam Johnson",
@@ -234,25 +234,44 @@ export const getMockAnalyticsData = (
     
     sessions.push({
       id: `sess-${i}-${uuidv4().substring(0, 8)}`,
+      userId: `user-${i}`,
+      userName: studentNames[Math.floor(Math.random() * studentNames.length)],
+      topicOrContent: topics[Math.floor(Math.random() * topics.length)],
+      numQueries: Math.floor(Math.random() * 15) + 3,
+      duration: `${Math.floor(Math.random() * 30) + 5} min`,
+      startTime: sessionDate.toISOString(),
+      endTime: null,
+      // Keep original properties for backward compatibility
       student: studentNames[Math.floor(Math.random() * studentNames.length)],
       topic: topics[Math.floor(Math.random() * topics.length)],
       queries: Math.floor(Math.random() * 15) + 3,
-      duration: `${Math.floor(Math.random() * 30) + 5} min`,
-      startTime: sessionDate.toISOString(),
     });
   }
   
   // Generate topics data
-  const topicsData: TopicData[] = topics.map((topic, index) => ({
-    name: topic,
-    value: Math.floor(Math.random() * 50) + 10,
-  }));
+  const topicsData: any[] = topics.map((topic, index) => {
+    const count = Math.floor(Math.random() * 50) + 10;
+    return {
+      topic: topic,
+      count: count,
+      // Keep original properties for backward compatibility
+      name: topic,
+      value: count,
+    };
+  });
   
   // Generate study time data
-  const studyTime: StudyTimeData[] = studentNames.slice(0, 8).map((name, index) => ({
-    name,
-    hours: Math.floor(Math.random() * 10) + 2,
-  }));
+  const studyTime: any[] = studentNames.slice(0, 8).map((name, index) => {
+    const hours = Math.floor(Math.random() * 10) + 2;
+    return {
+      week: new Date().getWeek(),
+      year: new Date().getFullYear(),
+      hours: hours,
+      studentName: name,
+      // Keep original properties for backward compatibility
+      name: name,
+    };
+  });
   
   // Apply filters if needed
   let filteredSessions = [...sessions];
@@ -262,11 +281,11 @@ export const getMockAnalyticsData = (
     filteredSessions = filteredSessions.filter(session => {
       const sessionDate = new Date(session.startTime);
       
-      if (filters.dateRange.from && sessionDate < filters.dateRange.from) {
+      if (filters.dateRange?.from && sessionDate < filters.dateRange.from) {
         return false;
       }
       
-      if (filters.dateRange.to) {
+      if (filters.dateRange?.to) {
         const endDate = new Date(filters.dateRange.to);
         endDate.setDate(endDate.getDate() + 1); // Include the end date
         if (sessionDate > endDate) {
@@ -281,7 +300,7 @@ export const getMockAnalyticsData = (
   // Apply student filter
   if (filters.studentId) {
     const studentName = studentNames.find((_, i) => i === parseInt(filters.studentId || "0"));
-    filteredSessions = filteredSessions.filter(s => s.student === studentName);
+    filteredSessions = filteredSessions.filter(s => s.student === studentName || s.userName === studentName);
   }
   
   return {

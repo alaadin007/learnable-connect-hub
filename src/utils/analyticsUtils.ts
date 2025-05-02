@@ -58,7 +58,7 @@ export interface StudentPerformanceData {
  * @returns A string representing the date range.
  */
 export const getDateRangeText = (dateRange: { from?: Date; to?: Date }): string => {
-  if (!dateRange.from && !dateRange.to) {
+  if (!dateRange?.from && !dateRange?.to) {
     return 'All Time';
   }
   
@@ -161,7 +161,20 @@ export const getSessionLogs = async (
     if (testUserType) {
       // Generate mock analytics data for test users
       const mockData = getMockAnalyticsData(schoolId, filters);
-      return mockData.sessions;
+      return mockData.sessions.map(session => ({
+        id: session.id,
+        userId: session.student || "",  // Using student name as userId for mock data
+        userName: session.student || "",
+        topicOrContent: session.topic || "",
+        startTime: session.startTime,
+        endTime: null,
+        duration: session.duration,
+        numQueries: session.queries || 0,
+        // Keep original properties for backward compatibility
+        student: session.student,
+        topic: session.topic,
+        queries: session.queries
+      }));
     }
     
     // Fetch session logs from the database
@@ -195,11 +208,17 @@ export const getSessionLogs = async (
     // Format the data into SessionData objects
     const sessionLogs: SessionData[] = data.map(session => ({
       id: session.id,
-      student: session.user_id, // Replace with actual student name if available
-      topic: session.topic_or_content_used,
-      queries: session.num_queries,
+      userId: session.user_id,
+      userName: session.user_id, // Replace with actual student name if available
+      topicOrContent: session.topic_or_content_used,
+      startTime: session.session_start,
+      endTime: session.session_end,
       duration: calculateDuration(session.session_start, session.session_end),
-      startTime: session.session_start
+      numQueries: session.num_queries,
+      // Keep original properties for backward compatibility
+      student: session.user_id,
+      topic: session.topic_or_content_used,
+      queries: session.num_queries
     }));
     
     return sessionLogs;
@@ -226,7 +245,13 @@ export const getTopicData = async (
     if (testUserType) {
       // Generate mock analytics data for test users
       const mockData = getMockAnalyticsData(schoolId, filters);
-      return mockData.topics;
+      return mockData.topics.map(topic => ({
+        topic: topic.name || "",
+        count: topic.value || 0,
+        // Keep original properties for backward compatibility
+        name: topic.name,
+        value: topic.value
+      }));
     }
     
     // Fetch topic data from the database
@@ -260,9 +285,12 @@ export const getTopicData = async (
     });
     
     // Convert the topic counts into TopicData objects
-    const topicData: TopicData[] = Object.entries(topicCounts).map(([name, value]) => ({
-      name,
-      value
+    const topicData: TopicData[] = Object.entries(topicCounts).map(([topicName, count]) => ({
+      topic: topicName,
+      count: count,
+      // Keep original properties for backward compatibility
+      name: topicName,
+      value: count
     }));
     
     return topicData;
@@ -289,7 +317,14 @@ export const getStudyTimeData = async (
     if (testUserType) {
       // Generate mock analytics data for test users
       const mockData = getMockAnalyticsData(schoolId, filters);
-      return mockData.studyTime;
+      return mockData.studyTime.map(item => ({
+        week: new Date().getWeek(),
+        year: new Date().getFullYear(),
+        hours: item.hours,
+        studentName: item.name,
+        // Keep original properties for backward compatibility
+        name: item.name
+      }));
     }
     
     // Fetch study time data from the database
@@ -325,9 +360,13 @@ export const getStudyTimeData = async (
     });
     
     // Convert the student study time into StudyTimeData objects
-    const studyTimeData: StudyTimeData[] = Object.entries(studentStudyTime).map(([name, hours]) => ({
-      name, // Replace with actual student name if available
-      hours: hours / (60 * 60 * 1000) // Convert milliseconds to hours
+    const studyTimeData: StudyTimeData[] = Object.entries(studentStudyTime).map(([studentName, hours]) => ({
+      week: new Date().getWeek(),
+      year: new Date().getFullYear(),
+      hours: hours / (60 * 60 * 1000), // Convert milliseconds to hours
+      studentName: studentName, // Replace with actual student name if available
+      // Keep original properties for backward compatibility
+      name: studentName
     }));
     
     return studyTimeData;
@@ -335,6 +374,21 @@ export const getStudyTimeData = async (
     console.error('Error generating study time data:', error);
     return [];
   }
+};
+
+// Add a helper method to Date prototype to get the current week number
+declare global {
+  interface Date {
+    getWeek(): number;
+  }
+}
+
+Date.prototype.getWeek = function(): number {
+  const date = new Date(this.getTime());
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7);
+  const week1 = new Date(date.getFullYear(), 0, 4);
+  return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
 };
 
 /**

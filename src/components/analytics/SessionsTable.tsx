@@ -45,10 +45,10 @@ const SessionsTable = ({
             {sessions.length > 0 ? (
               sessions.map((session) => (
                 <TableRow key={session.id}>
-                  <TableCell className="font-medium">{session.student}</TableCell>
-                  <TableCell>{session.topic}</TableCell>
-                  <TableCell>{session.queries}</TableCell>
-                  <TableCell>{session.duration}</TableCell>
+                  <TableCell className="font-medium">{session.userName || session.student}</TableCell>
+                  <TableCell>{session.topicOrContent || session.topic}</TableCell>
+                  <TableCell>{session.numQueries || session.queries}</TableCell>
+                  <TableCell>{typeof session.duration === 'string' ? session.duration : `${session.duration} min`}</TableCell>
                   <TableCell>{session.startTime}</TableCell>
                 </TableRow>
               ))
