@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { format, subDays } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
@@ -31,7 +32,6 @@ interface AnalyticsDashboardProps {
 
 const AnalyticsDashboard = ({ userRole, isLoading: externalLoading }: AnalyticsDashboardProps) => {
   const { schoolId } = useAuth();
-  // Fixed: Initialize isLoading as a boolean instead of true specifically
   const [isLoading, setIsLoading] = useState<boolean>(externalLoading || true);
   const [dateRange, setDateRange] = useState<DateRange>({
     from: subDays(new Date(), 30),
@@ -116,12 +116,15 @@ const AnalyticsDashboard = ({ userRole, isLoading: externalLoading }: AnalyticsD
         if (studyError) throw studyError;
         
         const formattedStudyData: StudyTimeData[] = studyData?.map(item => ({
-          week: Number(item.week_number) || 0,
-          year: Number(item.year) || new Date().getFullYear(),
-          hours: Number(item.study_hours) || 0,
-          studentName: item.student_name || 'Unknown',
+          student_name: item.student_name || 'Unknown',
+          student_id: item.user_id || '',
+          total_minutes: Number(item.study_hours || 0) * 60,
           // For backward compatibility
-          name: item.student_name || 'Unknown'
+          studentName: item.student_name || 'Unknown',
+          name: item.student_name || 'Unknown',
+          hours: Number(item.study_hours || 0),
+          week: Number(item.week_number) || 0,
+          year: Number(item.year) || new Date().getFullYear()
         })) || [];
         
         setStudyTimeData(formattedStudyData);
@@ -201,25 +204,35 @@ const AnalyticsDashboard = ({ userRole, isLoading: externalLoading }: AnalyticsD
         const formattedSessionsData: SessionData[] = sessionsData?.map(session => {
           // Calculate session duration
           let duration = "N/A";
+          let durationMinutes = 0;
           if (session.session_end && session.session_start) {
             const startTime = new Date(session.session_start);
             const endTime = new Date(session.session_end);
             const durationMs = endTime.getTime() - startTime.getTime();
-            const durationMin = Math.round(durationMs / (1000 * 60));
-            duration = `${durationMin} min`;
+            durationMinutes = Math.round(durationMs / (1000 * 60));
+            duration = `${durationMinutes} min`;
           }
+          
+          const sessionDate = format(new Date(session.session_start), 'MMM dd, yyyy');
           
           return {
             id: session.id,
+            student_name: userNameMap[session.user_id] || "Unknown",
+            student_id: session.user_id,
+            session_date: sessionDate,
+            duration_minutes: durationMinutes,
+            topics: [session.topic_or_content_used || "General"],
+            questions_asked: session.num_queries,
+            questions_answered: session.num_queries,
+            
+            // Backward compatibility properties
             userId: session.user_id,
             userName: userNameMap[session.user_id] || "Unknown",
             topicOrContent: session.topic_or_content_used || "General",
-            startTime: format(new Date(session.session_start), 'MMM dd, yyyy'),
+            startTime: sessionDate,
             endTime: session.session_end,
             duration: duration,
             numQueries: session.num_queries,
-            
-            // Backward compatibility properties
             student: userNameMap[session.user_id] || "Unknown",
             topic: session.topic_or_content_used || "General",
             queries: session.num_queries
@@ -258,16 +271,16 @@ const AnalyticsDashboard = ({ userRole, isLoading: externalLoading }: AnalyticsD
           };
           
           const schoolPerformance = await fetchSchoolPerformance(schoolId, performanceFilters);
-          setSchoolPerformanceData(schoolPerformance.monthlyData);
-          setSchoolPerformanceSummary(schoolPerformance.summary);
+          setSchoolPerformanceData(schoolPerformance.monthlyData || []);
+          setSchoolPerformanceSummary(schoolPerformance.summary || null);
           
           // Fetch teacher performance data
           const teacherPerformance = await fetchTeacherPerformance(schoolId, performanceFilters);
-          setTeacherPerformanceData(teacherPerformance);
+          setTeacherPerformanceData(teacherPerformance || []);
           
           // Fetch student performance data
           const studentPerformance = await fetchStudentPerformance(schoolId, performanceFilters);
-          setStudentPerformanceData(studentPerformance);
+          setStudentPerformanceData(studentPerformance || []);
         }
       } catch (error) {
         console.error("Error fetching analytics data:", error);

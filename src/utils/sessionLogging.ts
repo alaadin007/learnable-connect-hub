@@ -1,6 +1,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import { format, addMinutes, subDays } from 'date-fns';
+import { supabase } from '@/integrations/supabase/client';
 import { 
   AnalyticsFilters, 
   AnalyticsSummary,

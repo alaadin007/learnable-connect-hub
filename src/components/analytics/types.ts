@@ -1,4 +1,3 @@
-
 import { DateRange as CalendarDateRange } from "react-day-picker";
 
 export interface DateRange extends CalendarDateRange {
@@ -31,13 +30,13 @@ export interface SessionData {
   questions_answered: number;
   
   // Compatibility fields for existing code
-  userName?: string;
   userId?: string;
+  userName?: string;
   student?: string;
   topicOrContent?: string;
   topic?: string;
   startTime?: string;
-  endTime?: string;
+  endTime?: string | null;
   duration?: string | number;
   numQueries?: number;
   queries?: number;
