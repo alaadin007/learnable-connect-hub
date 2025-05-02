@@ -25,3 +25,5 @@ verify_jwt = true
 [functions.end-session]
 verify_jwt = true
 
+[functions.generate-summary]
+verify_jwt = true

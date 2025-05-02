@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
@@ -9,8 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Loader2, MessageSquare } from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { MessageSquare } from "lucide-react";
+import { ConversationList } from "@/components/chat/ConversationList";
 import { sessionLogger } from "@/utils/sessionLogger";
 
 interface Conversation {
@@ -18,6 +19,10 @@ interface Conversation {
   title: string;
   topic: string | null;
   last_message_at: string;
+  starred?: boolean;
+  tags?: string[];
+  category?: string;
+  summary?: string;
 }
 
 const ChatWithAI = () => {
@@ -28,6 +33,7 @@ const ChatWithAI = () => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loadingConversations, setLoadingConversations] = useState<boolean>(false);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const [categoryInput, setCategoryInput] = useState<string>("");
 
   const handleTopicChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setTopic(e.target.value);
@@ -102,14 +108,73 @@ const ChatWithAI = () => {
 
   const startNewConversation = () => {
     setSelectedConversationId(null);
+    setCategoryInput("");
   };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { 
-      hour: '2-digit', 
-      minute: '2-digit'
-    });
+  
+  const updateConversationCategory = async () => {
+    if (!selectedConversationId || !categoryInput.trim()) return;
+    
+    try {
+      const { error } = await supabase
+        .from('conversations')
+        .update({ category: categoryInput.trim() })
+        .eq('id', selectedConversationId);
+      
+      if (error) throw error;
+      
+      // Update local state
+      setConversations(prevConversations => 
+        prevConversations.map(conv => 
+          conv.id === selectedConversationId 
+            ? { ...conv, category: categoryInput.trim() } 
+            : conv
+        )
+      );
+      
+      toast({
+        title: "Category updated",
+        description: "The conversation category has been updated.",
+      });
+    } catch (error: any) {
+      console.error("Error updating category:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update conversation category.",
+        variant: "destructive",
+      });
+    }
+  };
+  
+  const toggleStarConversation = async (conversationId: string) => {
+    const conversation = conversations.find(c => c.id === conversationId);
+    if (!conversation) return;
+    
+    const newStarredState = !conversation.starred;
+    
+    try {
+      const { error } = await supabase
+        .from('conversations')
+        .update({ starred: newStarredState })
+        .eq('id', conversationId);
+      
+      if (error) throw error;
+      
+      // Update local state
+      setConversations(prevConversations => 
+        prevConversations.map(conv => 
+          conv.id === conversationId 
+            ? { ...conv, starred: newStarredState } 
+            : conv
+        )
+      );
+    } catch (error: any) {
+      console.error("Error toggling star:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update conversation.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -127,7 +192,8 @@ const ChatWithAI = () => {
               <ChatInterface 
                 sessionId={sessionId} 
                 topic={topic}
-                onSessionStart={handleSessionStart} 
+                onSessionStart={handleSessionStart}
+                selectedConversationId={selectedConversationId}
               />
             </div>
             
@@ -153,56 +219,53 @@ const ChatWithAI = () => {
                 </CardContent>
               </Card>
               
-              <Card>
-                <CardHeader className="flex-row items-center justify-between">
-                  <CardTitle>Past Conversations</CardTitle>
-                  <Button variant="outline" size="sm" onClick={loadConversations}>
-                    Refresh
-                  </Button>
-                </CardHeader>
-                <CardContent>
-                  {loadingConversations ? (
-                    <div className="flex justify-center py-4">
-                      <Loader2 className="h-6 w-6 animate-spin" />
+              <ConversationList 
+                conversations={conversations}
+                loadingConversations={loadingConversations}
+                onSelectConversation={selectConversation}
+                onStartNewConversation={startNewConversation}
+                onRefreshConversations={loadConversations}
+              />
+              
+              {selectedConversationId && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Conversation Settings</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="category">Category</Label>
+                      <div className="flex gap-2">
+                        <Input 
+                          id="category" 
+                          value={categoryInput}
+                          onChange={(e) => setCategoryInput(e.target.value)}
+                          placeholder="E.g. Homework, Research, Exam Prep..."
+                        />
+                        <Button 
+                          variant="outline" 
+                          onClick={updateConversationCategory}
+                        >
+                          Save
+                        </Button>
+                      </div>
                     </div>
-                  ) : conversations.length === 0 ? (
-                    <p className="text-center py-4 text-muted-foreground">
-                      No conversations yet. Start chatting!
-                    </p>
-                  ) : (
-                    <ScrollArea className="h-[240px] pr-4">
-                      <ul className="space-y-2">
-                        {conversations.map((convo) => (
-                          <li key={convo.id}>
-                            <Button
-                              variant="ghost"
-                              className="w-full justify-start text-left h-auto py-2 px-3"
-                              onClick={() => selectConversation(convo.id)}
-                            >
-                              <div className="flex flex-col items-start gap-1">
-                                <div className="flex items-center gap-2">
-                                  <MessageSquare className="h-4 w-4" />
-                                  <span className="font-medium truncate max-w-[180px]">
-                                    {convo.title || "Untitled Conversation"}
-                                  </span>
-                                </div>
-                                <span className="text-xs text-muted-foreground">
-                                  {formatDate(convo.last_message_at)}
-                                </span>
-                                {convo.topic && (
-                                  <span className="text-xs px-2 py-0.5 bg-muted rounded-full">
-                                    {convo.topic}
-                                  </span>
-                                )}
-                              </div>
-                            </Button>
-                          </li>
-                        ))}
-                      </ul>
-                    </ScrollArea>
-                  )}
-                </CardContent>
-              </Card>
+                    
+                    <div>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => toggleStarConversation(selectedConversationId)}
+                        className="w-full"
+                      >
+                        {conversations.find(c => c.id === selectedConversationId)?.starred 
+                          ? "Remove Star" 
+                          : "Star Conversation"
+                        }
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
               
               <Card>
                 <CardHeader>

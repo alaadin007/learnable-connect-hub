@@ -20,7 +20,10 @@ export function AnalyticsFilters({
   const handleDateRangeChange = (range: { from?: Date; to?: Date } | undefined) => {
     onFiltersChange({
       ...filters,
-      dateRange: range || { from: undefined, to: undefined }
+      dateRange: {
+        from: range?.from || undefined,
+        to: range?.to || undefined
+      }
     });
   };
 

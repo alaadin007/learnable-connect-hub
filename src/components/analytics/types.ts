@@ -1,11 +1,20 @@
 
-// Define types for analytics data
-export interface Student {
-  id: string;
-  name: string;
+export interface AnalyticsFilters {
+  dateRange: {
+    from: Date | undefined;
+    to: Date | undefined;
+  };
+  studentId?: string;
 }
 
-export interface SessionData {
+export interface AnalyticsSummary {
+  activeStudents: number;
+  totalSessions: number;
+  totalQueries: number;
+  avgSessionMinutes: number;
+}
+
+export interface Session {
   id: string;
   student: string;
   topic: string;
@@ -24,19 +33,7 @@ export interface StudyTimeData {
   hours: number;
 }
 
-// New interface for analytics filters
-export interface AnalyticsFilters {
-  dateRange?: {
-    from?: Date;
-    to?: Date;
-  };
-  studentId?: string;
-}
-
-// Interface for summary statistics
-export interface AnalyticsSummary {
-  activeStudents: number;
-  totalSessions: number;
-  totalQueries: number;
-  avgSessionMinutes: number;
+export interface Student {
+  id: string;
+  name: string;
 }

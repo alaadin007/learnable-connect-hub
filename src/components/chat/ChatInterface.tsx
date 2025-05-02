@@ -1,8 +1,9 @@
+
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Send, Loader2, User, Bot } from "lucide-react";
+import { Send, Loader2, Star, ThumbsUp, ThumbsDown } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/components/ui/use-toast";
 import { v4 as uuidv4 } from 'uuid';
@@ -15,15 +16,23 @@ interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   timestamp: string;
+  is_important?: boolean;
+  feedback_rating?: number;
 }
 
 interface ChatInterfaceProps {
   sessionId: string | undefined;
   topic: string;
   onSessionStart: (sessionId: string) => void;
+  selectedConversationId?: string | null;
 }
 
-const ChatInterface: React.FC<ChatInterfaceProps> = ({ sessionId, topic, onSessionStart }) => {
+const ChatInterface: React.FC<ChatInterfaceProps> = ({ 
+  sessionId, 
+  topic, 
+  onSessionStart, 
+  selectedConversationId 
+}) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -31,18 +40,28 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ sessionId, topic, onSessi
   const { toast } = useToast();
   const bottomRef = useRef<HTMLDivElement>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [conversationTitle, setConversationTitle] = useState<string>("");
 
   // Function to scroll to the bottom of the chat
   const scrollToBottom = useCallback(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
 
+  // Update conversation ID when selectedConversationId changes
+  useEffect(() => {
+    if (selectedConversationId) {
+      setConversationId(selectedConversationId);
+    }
+  }, [selectedConversationId]);
+
   // Load existing messages when conversationId changes
   useEffect(() => {
     if (conversationId) {
       loadMessages(conversationId);
+      loadConversationDetails(conversationId);
     } else {
       setMessages([]); // Clear messages if no conversation is selected
+      setConversationTitle(""); // Clear title
     }
   }, [conversationId]);
 
@@ -54,15 +73,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ sessionId, topic, onSessi
   // Initialize session and conversation
   useEffect(() => {
     const initializeChat = async () => {
-      if (!sessionId) {
+      if (!sessionId && !selectedConversationId) {
         // Start a new session and conversation
         const newSessionId = await sessionLogger.startSession(topic);
         if (newSessionId) {
           onSessionStart(newSessionId);
-          const newConversationId = await createConversation(newSessionId);
-          if (newConversationId) {
-            setConversationId(newConversationId);
-          }
         } else {
           toast({
             title: "Error",
@@ -73,20 +88,27 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ sessionId, topic, onSessi
       }
     };
 
-    if (!sessionId) {
+    if (!sessionId && !selectedConversationId) {
       initializeChat();
     }
-  }, [sessionId, topic, onSessionStart, toast]);
+  }, [sessionId, topic, onSessionStart, toast, selectedConversationId]);
 
-  const createConversation = async (sessionId: string): Promise<string | null> => {
+  const createConversation = async (): Promise<string | null> => {
     try {
+      // Get user's school ID
+      const { data: schoolData, error: schoolError } = await supabase.rpc('get_user_school_id');
+      
+      if (schoolError) {
+        throw schoolError;
+      }
+      
       const { data, error } = await supabase
         .from('conversations')
         .insert([{ 
-          user_id: user?.id, 
-          session_id: sessionId,
+          user_id: user?.id as string, 
+          school_id: schoolData,
           title: `Conversation started on ${new Date().toLocaleDateString()}`,
-          topic: topic,
+          topic: topic || null,
           last_message_at: new Date().toISOString()
         }])
         .select('id')
@@ -112,6 +134,30 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ sessionId, topic, onSessi
     }
   };
 
+  const loadConversationDetails = async (conversationId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('conversations')
+        .select('title, topic')
+        .eq('id', conversationId)
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      if (data) {
+        setConversationTitle(data.title || "Untitled Conversation");
+        if (data.topic) {
+          // Update the topic in the parent component
+          // Note: We're assuming there's a way to pass this back to the parent
+        }
+      }
+    } catch (error: any) {
+      console.error("Error loading conversation details:", error);
+    }
+  };
+
   const loadMessages = async (conversationId: string) => {
     setIsLoading(true);
     try {
@@ -119,18 +165,21 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ sessionId, topic, onSessi
         .from('messages')
         .select('*')
         .eq('conversation_id', conversationId)
-        .order('created_at', { ascending: true });
+        .order('timestamp', { ascending: true });
 
       if (error) {
         throw error;
       }
 
+      // Convert from database format to chat message format
       const formattedMessages = data.map(msg => ({
         id: msg.id,
-        role: msg.role,
+        role: msg.sender === 'user' ? 'user' : 'assistant',
         content: msg.content,
-        timestamp: msg.created_at,
-      }));
+        timestamp: msg.timestamp,
+        is_important: msg.is_important,
+        feedback_rating: msg.feedback_rating
+      })) as ChatMessage[];
 
       setMessages(formattedMessages);
     } catch (error: any) {
@@ -160,6 +209,17 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ sessionId, topic, onSessi
     setInput("");
 
     try {
+      // Create a new conversation if we don't have one
+      let currentConvoId = conversationId;
+      if (!currentConvoId) {
+        currentConvoId = await createConversation();
+        if (currentConvoId) {
+          setConversationId(currentConvoId);
+        } else {
+          throw new Error("Failed to create conversation");
+        }
+      }
+
       // Optimistic UI update
       const aiResponse = await getAIResponse(input);
       const aiMessage: ChatMessage = {
@@ -176,10 +236,15 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ sessionId, topic, onSessi
       }
 
       // Save messages to Supabase
-      await saveMessageToSupabase(newMessage, aiMessage);
+      await saveMessagesToSupabase(currentConvoId, newMessage, aiMessage);
       
       // Update conversation last message timestamp
-      await updateConversationLastMessageTime();
+      await updateConversationLastMessageTime(currentConvoId);
+
+      // Update conversation title if this is the first message
+      if (messages.length === 0) {
+        await updateConversationTitle(currentConvoId, input);
+      }
     } catch (error: any) {
       console.error("Error sending message:", error);
       toast({
@@ -200,41 +265,129 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ sessionId, topic, onSessi
     return `AI Response: ${message}`;
   };
 
-  const saveMessageToSupabase = async (userMessage: ChatMessage, aiMessage: ChatMessage) => {
+  const saveMessagesToSupabase = async (convoId: string, userMessage: ChatMessage, aiMessage: ChatMessage) => {
     try {
-      // Save user message
+      // Save user message and AI response
       await supabase.from('messages').insert([
         {
-          conversation_id: conversationId,
+          conversation_id: convoId,
           content: userMessage.content,
-          role: userMessage.role,
-          created_at: userMessage.timestamp,
+          sender: 'user',
+          timestamp: userMessage.timestamp,
         },
         {
-          conversation_id: conversationId,
+          conversation_id: convoId,
           content: aiMessage.content,
-          role: aiMessage.role,
-          created_at: aiMessage.timestamp,
+          sender: 'ai',
+          timestamp: aiMessage.timestamp,
         },
       ]);
     } catch (error: any) {
-      console.error("Error saving message to Supabase:", error);
+      console.error("Error saving messages to Supabase:", error);
       toast({
         title: "Error",
-        description: "Failed to save message to database.",
+        description: "Failed to save messages to database.",
         variant: "destructive",
       });
     }
   };
 
-  const updateConversationLastMessageTime = async () => {
+  const updateConversationLastMessageTime = async (convoId: string) => {
     try {
       await supabase
         .from('conversations')
         .update({ last_message_at: new Date().toISOString() })
-        .eq('id', conversationId);
+        .eq('id', convoId);
     } catch (error: any) {
       console.error("Error updating conversation last_message_at:", error);
+    }
+  };
+
+  const updateConversationTitle = async (convoId: string, firstMessage: string) => {
+    // Generate a title from the first message (first 30 chars)
+    const title = firstMessage.length > 30
+      ? `${firstMessage.substring(0, 30)}...`
+      : firstMessage;
+
+    try {
+      await supabase
+        .from('conversations')
+        .update({ title })
+        .eq('id', convoId);
+
+      setConversationTitle(title);
+    } catch (error: any) {
+      console.error("Error updating conversation title:", error);
+    }
+  };
+
+  const toggleMessageImportance = async (messageId: string) => {
+    const message = messages.find(m => m.id === messageId);
+    if (!message || !conversationId) return;
+
+    const newImportance = !message.is_important;
+
+    try {
+      // Update in database
+      await supabase
+        .from('messages')
+        .update({ is_important: newImportance })
+        .eq('id', messageId);
+
+      // Update in state
+      setMessages(prevMessages => 
+        prevMessages.map(msg => 
+          msg.id === messageId 
+            ? { ...msg, is_important: newImportance } 
+            : msg
+        )
+      );
+
+      toast({
+        title: newImportance ? "Marked as important" : "Unmarked as important",
+        description: "Message updated successfully.",
+      });
+    } catch (error: any) {
+      console.error("Error updating message importance:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update message.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const recordFeedback = async (messageId: string, rating: number) => {
+    const message = messages.find(m => m.id === messageId);
+    if (!message || message.role !== 'assistant' || !conversationId) return;
+    
+    try {
+      // Update in database
+      await supabase
+        .from('messages')
+        .update({ feedback_rating: rating })
+        .eq('id', messageId);
+
+      // Update in state
+      setMessages(prevMessages => 
+        prevMessages.map(msg => 
+          msg.id === messageId 
+            ? { ...msg, feedback_rating: rating } 
+            : msg
+        )
+      );
+
+      toast({
+        title: "Feedback recorded",
+        description: "Thank you for your feedback!",
+      });
+    } catch (error: any) {
+      console.error("Error recording feedback:", error);
+      toast({
+        title: "Error",
+        description: "Failed to record feedback.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -248,7 +401,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ sessionId, topic, onSessi
   return (
     <Card className="h-[calc(100vh-200px)] flex flex-col">
       <CardHeader>
-        <CardTitle>LearnAble AI Chat</CardTitle>
+        <CardTitle>
+          {conversationId ? conversationTitle : "LearnAble AI Chat"}
+        </CardTitle>
       </CardHeader>
       <CardContent className="flex-grow overflow-hidden">
         <ScrollArea className="h-full">
@@ -256,17 +411,60 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ sessionId, topic, onSessi
             {messages.map((message) => (
               <div
                 key={message.id}
-                className={`flex flex-col ${message.role === "user" ? "items-end" : "items-start"
-                  }`}
+                className={`flex flex-col ${message.role === "user" ? "items-end" : "items-start"}`}
               >
-                <div
-                  className={`rounded-lg px-4 py-2 max-w-[80%] ${message.role === "user"
-                      ? "bg-learnable-light text-learnable-dark"
-                      : "bg-learnable-blue-light text-learnable-dark"
-                    }`}
-                >
-                  {message.content}
+                <div className="flex items-start gap-2">
+                  <div
+                    className={`rounded-lg px-4 py-2 max-w-[80%] ${
+                      message.role === "user"
+                        ? "bg-learnable-light text-learnable-dark"
+                        : "bg-learnable-blue-light text-learnable-dark"
+                    } ${message.is_important ? "border-2 border-yellow-400" : ""}`}
+                  >
+                    {message.content}
+                  </div>
+                  
+                  {conversationId && (
+                    <div className="flex flex-col gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => toggleMessageImportance(message.id)}
+                        title={message.is_important ? "Unmark as important" : "Mark as important"}
+                      >
+                        <Star 
+                          className={`h-4 w-4 ${message.is_important ? "text-yellow-400 fill-yellow-400" : "text-gray-400"}`} 
+                        />
+                      </Button>
+                      
+                      {message.role === "assistant" && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className={`h-6 w-6 ${message.feedback_rating === 1 ? "bg-green-100 dark:bg-green-900" : ""}`}
+                            onClick={() => recordFeedback(message.id, 1)}
+                            title="Helpful"
+                          >
+                            <ThumbsUp className={`h-4 w-4 ${message.feedback_rating === 1 ? "text-green-600" : "text-gray-400"}`} />
+                          </Button>
+                          
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className={`h-6 w-6 ${message.feedback_rating === -1 ? "bg-red-100 dark:bg-red-900" : ""}`}
+                            onClick={() => recordFeedback(message.id, -1)}
+                            title="Not helpful"
+                          >
+                            <ThumbsDown className={`h-4 w-4 ${message.feedback_rating === -1 ? "text-red-600" : "text-gray-400"}`} />
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
+                
                 <span className="text-xs text-gray-500 mt-1">
                   {message.role === "user" ? "You" : "LearnAble AI"} -{" "}
                   {new Date(message.timestamp).toLocaleTimeString()}

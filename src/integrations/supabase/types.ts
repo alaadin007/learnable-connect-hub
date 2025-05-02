@@ -11,28 +11,40 @@ export type Database = {
     Tables: {
       conversations: {
         Row: {
+          category: string | null
           created_at: string
           id: string
           last_message_at: string
           school_id: string
+          starred: boolean | null
+          summary: string | null
+          tags: string[] | null
           title: string | null
           topic: string | null
           user_id: string
         }
         Insert: {
+          category?: string | null
           created_at?: string
           id?: string
           last_message_at?: string
           school_id: string
+          starred?: boolean | null
+          summary?: string | null
+          tags?: string[] | null
           title?: string | null
           topic?: string | null
           user_id: string
         }
         Update: {
+          category?: string | null
           created_at?: string
           id?: string
           last_message_at?: string
           school_id?: string
+          starred?: boolean | null
+          summary?: string | null
+          tags?: string[] | null
           title?: string | null
           topic?: string | null
           user_id?: string
@@ -122,21 +134,27 @@ export type Database = {
         Row: {
           content: string
           conversation_id: string
+          feedback_rating: number | null
           id: string
+          is_important: boolean | null
           sender: string
           timestamp: string
         }
         Insert: {
           content: string
           conversation_id: string
+          feedback_rating?: number | null
           id?: string
+          is_important?: boolean | null
           sender: string
           timestamp?: string
         }
         Update: {
           content?: string
           conversation_id?: string
+          feedback_rating?: number | null
           id?: string
+          is_important?: boolean | null
           sender?: string
           timestamp?: string
         }
