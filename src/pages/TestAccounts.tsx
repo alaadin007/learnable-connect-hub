@@ -48,8 +48,8 @@ const TestAccounts = () => {
     try {
       toast.loading("Checking test accounts status...");
       
-      // Check if test accounts already exist - Fix the type issue by providing explicit type to the query
-      const { data: schoolData, error: schoolError } = await supabase
+      // Fix the deeply nested type error by being explicit with the query type
+      const { data: schoolData } = await supabase
         .from('profiles')
         .select('id')
         .eq('email', TEST_ACCOUNTS.school.email)
@@ -89,8 +89,11 @@ const TestAccounts = () => {
     const account = TEST_ACCOUNTS[accountType];
     
     try {
-      // Fix the type issue by properly handling the signIn return type
-      const { data, error } = await signIn(account.email, account.password) || { data: null, error: null };
+      // Fix the void return type error by handling the signIn properly
+      const result = await signIn(account.email, account.password);
+      // Treat result as possibly undefined
+      const data = result?.data;
+      const error = result?.error;
       
       if (error) {
         console.error(`Login error for ${accountType} account:`, error);
@@ -191,3 +194,4 @@ const TestAccounts = () => {
 };
 
 export default TestAccounts;
+
