@@ -1,14 +1,159 @@
 
-// Import necessary functions from sessionLogging
-import { logSessionStart, logSessionEnd, updateSessionTopic, incrementQueryCount } from './sessionLogging';
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+
+// Log session start in Supabase
+const logSessionStart = async (topic: string, userId?: string): Promise<string | null> => {
+  try {
+    // If not testing with a mock userId, use the edge function
+    if (!userId) {
+      const { data, error } = await supabase.functions.invoke("create-session-log", {
+        body: { topic }
+      });
+
+      if (error) {
+        console.error("Error starting session:", error);
+        return null;
+      }
+
+      return data?.logId || null;
+    } else {
+      // For test accounts, we need special handling
+      // First get the school ID for this user
+      const { data: userData } = await supabase
+        .from('students')
+        .select('school_id')
+        .eq('id', userId)
+        .single();
+        
+      if (!userData?.school_id) {
+        console.error("No school ID found for test user");
+        return null;
+      }
+      
+      // Then create the session log directly
+      const { data: sessionData, error: sessionError } = await supabase
+        .from('session_logs')
+        .insert({
+          user_id: userId,
+          school_id: userData.school_id,
+          topic_or_content_used: topic
+        })
+        .select('id')
+        .single();
+        
+      if (sessionError) {
+        console.error("Error creating test session:", sessionError);
+        return null;
+      }
+      
+      return sessionData?.id || null;
+    }
+  } catch (error) {
+    console.error("Error starting session:", error);
+    return null;
+  }
+};
+
+// Log session end in Supabase
+const logSessionEnd = async (topic: string, performanceData?: any): Promise<void> => {
+  try {
+    // Get current active session from localStorage
+    const activeSessionId = localStorage.getItem("activeSessionId");
+    if (!activeSessionId) {
+      console.warn("No active session found to end");
+      return;
+    }
+
+    // Call the endpoint to end the session
+    const { error } = await supabase.functions.invoke("end-session", {
+      body: { logId: activeSessionId, performanceData }
+    });
+
+    if (error) {
+      console.error("Error ending session:", error);
+      return;
+    }
+
+    // Clear the active session
+    localStorage.removeItem("activeSessionId");
+  } catch (error) {
+    console.error("Error ending session:", error);
+  }
+};
+
+// Update session topic in Supabase
+const updateSessionTopic = async (topic: string): Promise<void> => {
+  try {
+    // Get current active session from localStorage
+    const activeSessionId = localStorage.getItem("activeSessionId");
+    if (!activeSessionId) {
+      console.warn("No active session found to update topic");
+      return;
+    }
+
+    // Call the endpoint to update the session topic
+    const { error } = await supabase.functions.invoke("update-session", {
+      body: { logId: activeSessionId, topic }
+    });
+
+    if (error) {
+      console.error("Error updating session topic:", error);
+    }
+  } catch (error) {
+    console.error("Error updating session topic:", error);
+  }
+};
+
+// Increment query count for a session
+const incrementQueryCount = async (): Promise<void> => {
+  try {
+    // Get current active session from localStorage
+    const activeSessionId = localStorage.getItem("activeSessionId");
+    if (!activeSessionId) {
+      console.warn("No active session found to increment query count");
+      return;
+    }
+
+    // Call the RPC function to increment the query count
+    const { error } = await supabase.rpc("increment_session_query_count", {
+      log_id: activeSessionId
+    });
+
+    if (error) {
+      console.error("Error incrementing query count:", error);
+    }
+  } catch (error) {
+    console.error("Error incrementing query count:", error);
+  }
+};
+
+// Check if there is an active session
+const hasActiveSession = (): boolean => {
+  return localStorage.getItem("activeSessionId") !== null;
+};
 
 // Create a wrapper object to match what the components expect
 const sessionLogger = {
-  startSession: logSessionStart,
-  endSession: logSessionEnd,
-  updateSessionTopic: updateSessionTopic,
-  incrementQueryCount: incrementQueryCount,
-  hasActiveSession: () => true // Added this function since it's called in ChatWithAI.tsx but wasn't defined
+  startSession: async (topic: string, userId?: string): Promise<boolean> => {
+    try {
+      const sessionId = await logSessionStart(topic, userId);
+      if (sessionId) {
+        localStorage.setItem("activeSessionId", sessionId);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Error in startSession:", error);
+      return false;
+    }
+  },
+  endSession: async (topic: string, performanceData?: any): Promise<void> => {
+    await logSessionEnd(topic, performanceData);
+  },
+  updateSessionTopic,
+  incrementQueryCount,
+  hasActiveSession
 };
 
 export default sessionLogger;

@@ -1,23 +1,32 @@
 
-import React from "react";
+import React, { useEffect } from "react";
 import Navbar from "@/components/layout/Navbar";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, BookOpen, BarChart3, Users, School } from "lucide-react";
+import { MessageSquare, BookOpen, BarChart3, Users, School, FileText } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import Footer from "@/components/layout/Footer";
 
 const Dashboard = () => {
-  const { user, profile } = useAuth();
+  const { user, profile, userRole } = useAuth();
   const navigate = useNavigate();
 
   // Redirect if not logged in
-  React.useEffect(() => {
+  useEffect(() => {
     if (!user) {
       navigate("/login");
     }
   }, [user, navigate]);
+  
+  // Redirect specific roles to their specialized dashboards
+  useEffect(() => {
+    if (userRole === "school") {
+      navigate("/admin");
+    } else if (userRole === "teacher") {
+      navigate("/teacher/analytics");
+    }
+  }, [userRole, navigate]);
 
   // Return a loading state if profile isn't loaded yet
   if (!user || !profile) {
@@ -116,9 +125,21 @@ const Dashboard = () => {
         />
         <DashboardCard
           title="Learning Materials"
-          description="Upload and manage your learning materials"
+          description="Access and manage your learning materials"
           icon={<BookOpen className="h-10 w-10" />}
           onClick={() => navigate("/documents")}
+        />
+        <DashboardCard
+          title="Assessments"
+          description="View and complete your assigned assessments"
+          icon={<FileText className="h-10 w-10" />}
+          onClick={() => navigate("/student/assessments")}
+        />
+        <DashboardCard
+          title="My Progress"
+          description="Track your performance and learning progress"
+          icon={<BarChart3 className="h-10 w-10" />}
+          onClick={() => navigate("/student/progress")}
         />
       </div>
     );
@@ -135,8 +156,13 @@ const Dashboard = () => {
               ? "Manage your school, teachers, and view analytics"
               : profile.user_type === "teacher"
               ? "Manage your students and view their progress"
-              : "Access your learning resources and get help from our AI"}
+              : "Access your learning resources and complete your assessments"}
           </p>
+          {profile.user_type === "student" && profile.organization && (
+            <p className="text-sm text-gray-500 mt-2">
+              School: {profile.organization.name}
+            </p>
+          )}
         </div>
 
         {renderUserDashboard()}

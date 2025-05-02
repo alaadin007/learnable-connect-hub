@@ -1083,6 +1083,10 @@ export type Database = {
         Args: { user_id: string }
         Returns: boolean
       }
+      is_user_supervisor: {
+        Args: { user_id: string }
+        Returns: boolean
+      }
       populatetestaccountwithsessions: {
         Args: { userid: string; schoolid: string; num_sessions?: number }
         Returns: undefined

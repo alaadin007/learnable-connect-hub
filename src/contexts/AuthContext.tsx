@@ -168,9 +168,46 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
             });
           }
 
+          // For student test accounts, ensure we have proper session tracking
           if (profileData.user_type === 'student') {
-            await sessionLogger.startSession('Test Session', userId);
-            await sessionLogger.endSession('Test Session');
+            // Check if there are existing sessions
+            const { data: existingSessions } = await supabase
+              .from('session_logs')
+              .select('id')
+              .eq('user_id', userId)
+              .limit(1);
+
+            // If no sessions exist, create test sessions
+            if (!existingSessions || existingSessions.length === 0) {
+              // First create a current active session
+              await sessionLogger.startSession('Test Session', userId);
+              
+              // Create some past sessions for history
+              const topics = ['Math', 'Science', 'History', 'Literature', 'Programming'];
+              const now = new Date();
+              
+              for (let i = 1; i <= 5; i++) {
+                const pastDate = new Date(now);
+                pastDate.setDate(now.getDate() - i);
+                
+                const { data: pastSession } = await supabase
+                  .from('session_logs')
+                  .insert({
+                    user_id: userId,
+                    school_id: safeProfileData.organization?.id,
+                    topic_or_content_used: topics[i % topics.length],
+                    session_start: pastDate.toISOString(),
+                    session_end: new Date(pastDate.getTime() + 45 * 60000).toISOString(), // 45 min session
+                    num_queries: Math.floor(Math.random() * 15) + 5 // 5-20 queries
+                  })
+                  .select();
+                
+                console.log('Created past session:', pastSession);
+              }
+            } else {
+              // Just ensure we have a current active session
+              await sessionLogger.startSession('Continued Test Session', userId);
+            }
           } else if (profileData.user_type === 'teacher') {
             const orgId = safeProfileData.organization?.id || '';
             if (orgId) {
@@ -229,6 +266,11 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
   const signOut = async () => {
     setIsLoading(true);
     try {
+      // If it's a student, end any active sessions
+      if (userRole === 'student') {
+        await sessionLogger.endSession('User logged out');
+      }
+      
       await supabase.auth.signOut();
       setSession(null);
       setUser(null);
@@ -267,7 +309,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
     }
   };
 
-  // Enhanced setTestUser method to provide more comprehensive test data
+  // Enhanced setTestUser method to provide more comprehensive test data for students
   const setTestUser = async (
     type: 'school' | 'teacher' | 'student',
     schoolIndex: number = 0
@@ -318,7 +360,10 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
 
       // For test accounts, pre-populate with appropriate data based on role
       if (type === 'student') {
-        // Generate sample sessions and assessment data for student
+        // Start a session for the student
+        await sessionLogger.startSession('Test Login Session', mockId);
+        
+        // Generate sample performance data for student
         await supabase.functions.invoke("populate-test-performance", {
           body: { 
             userId: mockId, 
@@ -326,6 +371,24 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
             numAssessments: 10
           }
         });
+        
+        // Generate sample sessions for historical data
+        const topics = ['Algebra', 'Chemistry', 'History', 'Literature', 'Computer Science'];
+        const now = new Date();
+        
+        for (let i = 1; i <= 5; i++) {
+          const pastDate = new Date(now);
+          pastDate.setDate(now.getDate() - i);
+          
+          await supabase.from('session_logs').insert({
+            user_id: mockId,
+            school_id: mockProfile.organization?.id,
+            topic_or_content_used: topics[i % topics.length],
+            session_start: pastDate.toISOString(),
+            session_end: new Date(pastDate.getTime() + 45 * 60000).toISOString(), // 45 min session
+            num_queries: Math.floor(Math.random() * 15) + 5 // 5-20 queries
+          });
+        }
       } else if (type === 'teacher') {
         // Generate students and their assessment data for this teacher
         await populateTestAccountWithSessions(mockId, mockProfile.organization?.id || '', 15);
@@ -338,6 +401,15 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       }
 
       toast.success(`Logged in as test ${type}`);
+      
+      // Redirect to the appropriate dashboard
+      if (type === 'student') {
+        navigate('/dashboard');
+      } else if (type === 'teacher') {
+        navigate('/teacher/analytics');
+      } else {
+        navigate('/admin');
+      }
     } catch (error) {
       console.error("Error setting test user:", error);
       toast.error("Failed to set test user");

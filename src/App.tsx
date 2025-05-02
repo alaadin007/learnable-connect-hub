@@ -1,58 +1,125 @@
 
-import { Route, Routes } from 'react-router-dom'
-import { Toaster } from "sonner";
-import Home from './pages/Home'
-import Login from '@/pages/Login'
-import Register from '@/pages/Register'
-import Dashboard from '@/pages/Dashboard'
-import SchoolAdmin from '@/pages/SchoolAdmin'
-import AdminTeacherManagement from '@/pages/AdminTeacherManagement'
-import TeacherStudents from '@/pages/TeacherStudents'
-import TeacherAnalytics from '@/pages/TeacherAnalytics'
-import AdminAnalytics from '@/pages/AdminAnalytics'
-import About from '@/pages/About'
-import Contact from '@/pages/Contact'
-import PrivacyPolicy from './pages/PrivacyPolicy'
-import TestAccounts from '@/pages/TestAccounts'
-import AcceptInvitation from '@/components/auth/AcceptInvitation'
-import ChatWithAI from '@/pages/ChatWithAI'
-import Features from '@/pages/Features'
-import Pricing from '@/pages/Pricing'
-import Documents from '@/pages/Documents'
-import { AuthProvider } from '@/contexts/AuthContext';
-import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
-
-// Create a client
-const queryClient = new QueryClient()
+import { Routes, Route } from "react-router-dom";
+import Home from "@/pages/Home";
+import About from "@/pages/About";
+import Features from "@/pages/Features";
+import Contact from "@/pages/Contact";
+import SchoolRegistration from "@/pages/SchoolRegistration";
+import Login from "@/pages/Login";
+import Register from "@/pages/Register";
+import Dashboard from "@/pages/Dashboard";
+import SchoolAdmin from "@/pages/SchoolAdmin";
+import AdminTeacherManagement from "@/pages/AdminTeacherManagement";
+import AdminTeachers from "@/pages/AdminTeachers";
+import AdminAnalytics from "@/pages/AdminAnalytics";
+import TeacherStudents from "@/pages/TeacherStudents";
+import TeacherAnalytics from "@/pages/TeacherAnalytics";
+import ChatWithAI from "@/pages/ChatWithAI";
+import Documents from "@/pages/Documents";
+import TeacherInvitation from "@/pages/TeacherInvitation";
+import { AuthProvider } from "@/contexts/AuthContext";
+import NotFound from "@/pages/NotFound";
+import PrivacyPolicy from "@/pages/PrivacyPolicy";
+import Pricing from "@/pages/Pricing";
+import Index from "@/pages/Index";
+import TestAccounts from "@/pages/TestAccounts";
+import ProtectedRoute from "@/components/auth/ProtectedRoute";
+import StudentAssessments from "@/pages/StudentAssessments";
+import StudentProgress from "@/pages/StudentProgress";
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/admin" element={<SchoolAdmin />} />
-          <Route path="/admin/teacher-management" element={<AdminTeacherManagement />} />
-          <Route path="/admin/analytics" element={<AdminAnalytics />} />
-          <Route path="/teacher/students" element={<TeacherStudents />} />
-          <Route path="/teacher/analytics" element={<TeacherAnalytics />} />
-          <Route path="/chat" element={<ChatWithAI />} />
-          <Route path="/documents" element={<Documents />} />
-          <Route path="/about" element={<About />} />
-          <Route path="/contact" element={<Contact />} />
-          <Route path="/features" element={<Features />} />
-          <Route path="/pricing" element={<Pricing />} />
-          <Route path="/privacy" element={<PrivacyPolicy />} />
-          <Route path="/test-accounts" element={<TestAccounts />} />
-          <Route path="/invite/:token" element={<AcceptInvitation />} />
-        </Routes>
-        <Toaster position="top-center" richColors />
-      </AuthProvider>
-    </QueryClientProvider>
-  )
+    <AuthProvider>
+      <Routes>
+        {/* Public routes */}
+        <Route path="/" element={<Index />} />
+        <Route path="/home" element={<Home />} />
+        <Route path="/about" element={<About />} />
+        <Route path="/features" element={<Features />} />
+        <Route path="/contact" element={<Contact />} />
+        <Route path="/pricing" element={<Pricing />} />
+        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/school-registration" element={<SchoolRegistration />} />
+        <Route path="/invitation/:token" element={<TeacherInvitation />} />
+        <Route path="/test-accounts" element={<TestAccounts />} />
+
+        {/* Protected routes - all user types */}
+        <Route path="/dashboard" element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        } />
+        
+        <Route path="/chat" element={
+          <ProtectedRoute>
+            <ChatWithAI />
+          </ProtectedRoute>
+        } />
+        
+        <Route path="/documents" element={
+          <ProtectedRoute>
+            <Documents />
+          </ProtectedRoute>
+        } />
+
+        {/* School admin routes */}
+        <Route path="/admin" element={
+          <ProtectedRoute requiredUserType="school">
+            <SchoolAdmin />
+          </ProtectedRoute>
+        } />
+        
+        <Route path="/admin/teacher-management" element={
+          <ProtectedRoute requiredUserType="school">
+            <AdminTeacherManagement />
+          </ProtectedRoute>
+        } />
+        
+        <Route path="/admin/teachers" element={
+          <ProtectedRoute requiredUserType="school">
+            <AdminTeachers />
+          </ProtectedRoute>
+        } />
+        
+        <Route path="/admin/analytics" element={
+          <ProtectedRoute requiredUserType="school">
+            <AdminAnalytics />
+          </ProtectedRoute>
+        } />
+
+        {/* Teacher routes */}
+        <Route path="/teacher/students" element={
+          <ProtectedRoute requiredUserType="teacher">
+            <TeacherStudents />
+          </ProtectedRoute>
+        } />
+        
+        <Route path="/teacher/analytics" element={
+          <ProtectedRoute requiredUserType="teacher">
+            <TeacherAnalytics />
+          </ProtectedRoute>
+        } />
+        
+        {/* Student routes */}
+        <Route path="/student/assessments" element={
+          <ProtectedRoute requiredUserType="student">
+            <StudentAssessments />
+          </ProtectedRoute>
+        } />
+        
+        <Route path="/student/progress" element={
+          <ProtectedRoute requiredUserType="student">
+            <StudentProgress />
+          </ProtectedRoute>
+        } />
+
+        {/* 404 route */}
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </AuthProvider>
+  );
 }
 
-export default App
+export default App;
