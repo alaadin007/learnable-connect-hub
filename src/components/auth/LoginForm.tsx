@@ -15,7 +15,7 @@ const LoginForm = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const { signIn, setTestUser } = useAuth();
+  const { signIn, setTestUser, userRole } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [loginError, setLoginError] = useState<string | null>(null);
@@ -37,6 +37,16 @@ const LoginForm = () => {
       });
     }
   }, [searchParams]);
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (userRole) {
+      const redirectPath = userRole === 'school' ? '/admin' : 
+                          userRole === 'teacher' ? '/teacher/analytics' : 
+                          '/dashboard';
+      navigate(redirectPath);
+    }
+  }, [userRole, navigate]);
 
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();

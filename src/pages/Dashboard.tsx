@@ -1,4 +1,3 @@
-
 import React, { useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -14,21 +13,21 @@ import AnalyticsDashboard from "@/components/analytics/AnalyticsDashboard";
 import Footer from "@/components/landing/Footer";
 
 const Dashboard = () => {
-  const { user, profile } = useAuth();
+  const { user, profile, userRole } = useAuth();
   const navigate = useNavigate();
   
   // Redirect users based on their role to their specialized dashboards
   useEffect(() => {
-    if (profile) {
+    if (userRole) {
       // Check user type and redirect accordingly
-      if (profile.user_type === 'school') {
+      if (userRole === 'school') {
         navigate('/admin');
-      } else if (profile.user_type === 'teacher') {
+      } else if (userRole === 'teacher') {
         navigate('/teacher/analytics');
       }
       // Student users stay on this dashboard
     }
-  }, [profile, navigate]);
+  }, [userRole, navigate]);
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">

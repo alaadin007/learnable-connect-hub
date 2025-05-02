@@ -33,22 +33,38 @@ const ProtectedRoute = ({
 
   // If we require a specific user type and the user doesn't have it
   if (requiredUserType && userRole !== requiredUserType) {
-    return <Navigate to="/dashboard" replace />;
+    // Redirect based on user role instead of generic dashboard
+    const redirectPath = userRole === 'school' ? '/admin' : 
+                        userRole === 'teacher' ? '/teacher/analytics' : 
+                        '/dashboard';
+    return <Navigate to={redirectPath} replace />;
   }
 
   // If we require specific roles and the user doesn't have one of them
   if (allowedRoles && userRole && !allowedRoles.includes(userRole)) {
-    return <Navigate to="/dashboard" replace />;
+    // Redirect based on user role instead of generic dashboard
+    const redirectPath = userRole === 'school' ? '/admin' : 
+                        userRole === 'teacher' ? '/teacher/analytics' : 
+                        '/dashboard';
+    return <Navigate to={redirectPath} replace />;
   }
 
   // If we require supervisor access and the user isn't a supervisor
   if (requireSupervisor && !isSuperviser) {
-    return <Navigate to="/dashboard" replace />;
+    // Redirect based on user role instead of generic dashboard
+    const redirectPath = userRole === 'school' ? '/admin' : 
+                        userRole === 'teacher' ? '/teacher/analytics' : 
+                        '/dashboard';
+    return <Navigate to={redirectPath} replace />;
   }
 
   // If we require same school access and the school IDs don't match
   if (requireSameSchool && schoolId && userSchoolId && schoolId !== userSchoolId) {
-    return <Navigate to="/dashboard" replace />;
+    // Redirect based on user role
+    const redirectPath = userRole === 'school' ? '/admin' : 
+                        userRole === 'teacher' ? '/teacher/analytics' : 
+                        '/dashboard';
+    return <Navigate to={redirectPath} replace />;
   }
 
   return <>{children}</>;
