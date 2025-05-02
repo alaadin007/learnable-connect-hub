@@ -10,6 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { sessionLogger } from "@/utils/sessionLogger";
 import { Badge } from "@/components/ui/badge";
+import VoiceRecorder from "./VoiceRecorder";
 import { 
   Tooltip,
   TooltipContent,
@@ -462,6 +463,14 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     window.open(`/documents/view/${docId}`, '_blank');
   };
 
+  const handleTranscriptionComplete = (text: string) => {
+    setInput(text);
+    
+    // Optionally, you could automatically send the message after transcription
+    // if you uncomment the following line
+    // setTimeout(() => sendMessage(), 500);
+  };
+
   return (
     <Card className="h-[calc(100vh-200px)] flex flex-col">
       <CardHeader className="flex flex-row items-center justify-between">
@@ -611,6 +620,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
             onKeyDown={handleKeyDown}
             disabled={isLoading}
           />
+          <VoiceRecorder onTranscriptionComplete={handleTranscriptionComplete} />
           <Button onClick={sendMessage} disabled={isLoading}>
             {isLoading ? (
               <>
