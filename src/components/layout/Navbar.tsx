@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -95,12 +96,18 @@ const Navbar = () => {
   // Check if we're on the test accounts page to hide the entire navbar
   const isTestAccountsPage = location.pathname === "/test-accounts";
 
-  // Improved helper function to determine if a link is active
+  // Fixed helper function to determine if a link is active
   const isActiveLink = (href) => {
     const currentPath = location.pathname;
     
+    // Handle dashboard link
+    if (href === "/dashboard") {
+      return currentPath === "/dashboard";
+    }
+    
     // Special case for the admin section
     if (href === "/admin") {
+      // Only highlight when exactly on /admin page
       return currentPath === "/admin";
     }
     
@@ -117,6 +124,24 @@ const Navbar = () => {
     // Special case for analytics
     if (href === "/admin/analytics") {
       return currentPath === "/admin/analytics";
+    }
+    
+    // Special case for teacher sections
+    if (href === "/teacher/students") {
+      return currentPath === "/teacher/students";
+    }
+    
+    if (href === "/teacher/analytics") {
+      return currentPath === "/teacher/analytics";
+    }
+    
+    // Special case for chat and documents
+    if (href === "/chat") {
+      return currentPath === "/chat";
+    }
+    
+    if (href === "/documents") {
+      return currentPath === "/documents";
     }
     
     // Direct match for other pages

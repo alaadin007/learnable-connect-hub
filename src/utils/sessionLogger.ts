@@ -1,10 +1,16 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 // Log session start in Supabase
 const logSessionStart = async (topic?: string, userId?: string): Promise<string | null> => {
   try {
+    // Don't log sessions on specific pages
+    if (window.location.pathname === '/test-accounts' || 
+        window.location.pathname === '/admin' ||
+        window.location.pathname.includes('/dashboard')) {
+      return null;
+    }
+    
     // If not testing with a mock userId, use the edge function
     if (!userId) {
       const { data, error } = await supabase.functions.invoke("create-session-log", {
@@ -134,8 +140,11 @@ const hasActiveSession = (): boolean => {
 const sessionLogger = {
   startSession: async (topic?: string, userId?: string): Promise<string | null> => {
     try {
-      // Don't start sessions on the test-accounts page
-      if (window.location.pathname === '/test-accounts') {
+      // Don't start sessions on admin pages or dashboard
+      if (window.location.pathname === '/test-accounts' || 
+          window.location.pathname === '/admin' ||
+          window.location.pathname.startsWith('/admin/') ||
+          window.location.pathname === '/dashboard') {
         return null;
       }
       

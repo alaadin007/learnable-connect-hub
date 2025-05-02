@@ -1,4 +1,3 @@
-
 import React, { useEffect } from "react";
 import Navbar from "@/components/layout/Navbar";
 import { Button } from "@/components/ui/button";
@@ -21,11 +20,23 @@ const Dashboard = () => {
   
   // Redirect specific roles to their specialized dashboards
   useEffect(() => {
-    if (userRole === "school") {
-      navigate("/admin");
-    } else if (userRole === "teacher") {
-      navigate("/teacher/analytics");
+    // We're keeping track of mounting to prevent unwanted redirects
+    const isMounted = { current: true };
+    
+    if (isMounted.current && userRole) {
+      if (userRole === "school") {
+        // Don't redirect if already on admin page
+        if (window.location.pathname !== "/admin") {
+          navigate("/admin");
+        }
+      } else if (userRole === "teacher") {
+        navigate("/teacher/analytics");
+      }
     }
+    
+    return () => {
+      isMounted.current = false;
+    };
   }, [userRole, navigate]);
 
   // Return a loading state if profile isn't loaded yet

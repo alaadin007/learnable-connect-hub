@@ -1,5 +1,4 @@
-
-import React from "react";
+import React, { useEffect } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
 import { useAuth } from "@/contexts/AuthContext";
@@ -7,7 +6,7 @@ import TeacherManagement from "@/components/school-admin/TeacherManagement";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Users, BarChart2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,9 +24,18 @@ export type TeacherInvitation = {
 };
 
 const SchoolAdmin = () => {
-  const { profile } = useAuth();
+  const { profile, userRole } = useAuth();
+  const navigate = useNavigate();
+  
   // Use optional chaining for organization properties
   const schoolId = profile?.organization?.id || null;
+  
+  // Verify correct user role
+  useEffect(() => {
+    if (userRole && userRole !== "school") {
+      navigate("/dashboard");
+    }
+  }, [userRole, navigate]);
 
   // Show error toast for failed teacher invitations API
   React.useEffect(() => {
