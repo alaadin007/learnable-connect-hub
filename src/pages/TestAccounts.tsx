@@ -47,12 +47,14 @@ const TestAccounts = () => {
     try {
       toast.loading("Checking test accounts status...");
       
-      // Avoid excessive type instantiation by simplifying the query and using type assertion
-      const { data: schoolData, error: schoolError } = await supabase
+      // Fix type instantiation error by using a simpler query approach with explicit typing
+      const { data, error } = await supabase
         .from('profiles')
         .select('id')
-        .eq('email', TEST_ACCOUNTS.school.email)
-        .maybeSingle();
+        .eq('email', TEST_ACCOUNTS.school.email);
+        
+      // Check if we have any results
+      const schoolData = data && data.length > 0 ? data[0] : null;
         
       if (!schoolData) {
         // If not, invoke the edge function to create them
