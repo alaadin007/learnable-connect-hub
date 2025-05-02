@@ -5,7 +5,7 @@ import Footer from "@/components/landing/Footer";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Mic, FileText, Star, BarChart, Volume, Users, FileCheck, Lock, BarChart2 } from "lucide-react";
+import { Mic, FileText, Star, BarChart, Volume, Users, FileCheck, Lock, BarChart2, ArrowRightLeft, Brain, Clock } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const TestAccounts = () => {
@@ -169,6 +169,30 @@ const TestAccounts = () => {
                         </p>
                       </div>
                     </div>
+
+                    <div className="flex items-start gap-4">
+                      <div className="p-2 bg-learnable-blue-light rounded-lg">
+                        <ArrowRightLeft className="h-6 w-6 text-learnable-blue" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-medium">Bidirectional Voice Interface</h3>
+                        <p className="text-gray-500 mt-1">
+                          Complete voice conversation cycle with both speech recognition and text-to-speech
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-start gap-4">
+                      <div className="p-2 bg-learnable-blue-light rounded-lg">
+                        <Brain className="h-6 w-6 text-learnable-blue" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-medium">Adaptive Learning</h3>
+                        <p className="text-gray-500 mt-1">
+                          AI adapts to student learning patterns and provides personalized assistance
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -226,6 +250,9 @@ const TestAccounts = () => {
                           <li>
                             <p>Verify document citations and source references in AI responses</p>
                           </li>
+                          <li>
+                            <p>Check processing time and accuracy for different document types and sizes</p>
+                          </li>
                         </ol>
                       </div>
                     </div>
@@ -248,6 +275,9 @@ const TestAccounts = () => {
                           </li>
                           <li>
                             <p>Verify voice features work with longer questions and various subject matters</p>
+                          </li>
+                          <li>
+                            <p>Test complete voice conversation cycle (speaking questions and listening to answers)</p>
                           </li>
                         </ol>
                       </div>
@@ -275,6 +305,35 @@ const TestAccounts = () => {
                           <li>
                             <p>Compare teacher vs. admin analytics views</p>
                           </li>
+                          <li>
+                            <p>Verify learning pattern insights and trend analysis over time</p>
+                          </li>
+                        </ol>
+                      </div>
+                    </div>
+
+                    <div>
+                      <h3 className="text-xl font-medium flex items-center gap-2 mb-3">
+                        <Clock className="h-5 w-5 text-learnable-blue" />
+                        Performance Testing
+                      </h3>
+                      <div className="bg-gray-50 p-4 rounded-lg">
+                        <ol className="space-y-3 list-decimal pl-5">
+                          <li>
+                            <p>Test response times with multiple concurrent users</p>
+                          </li>
+                          <li>
+                            <p>Measure document processing performance with large files</p>
+                          </li>
+                          <li>
+                            <p>Test analytics dashboard loading times with extensive data</p>
+                          </li>
+                          <li>
+                            <p>Verify real-time voice transcription performance</p>
+                          </li>
+                          <li>
+                            <p>Test text-to-speech generation speed and quality</p>
+                          </li>
                         </ol>
                       </div>
                     </div>
@@ -301,6 +360,7 @@ const TestAccounts = () => {
                         <li>Quality and educational value of AI responses</li>
                         <li>Ease of student management and invitation process</li>
                         <li>Document upload and context retrieval effectiveness</li>
+                        <li>Voice interface usability in classroom settings</li>
                         <li>Suggestions for additional features or improvements</li>
                       </ul>
                     </div>
@@ -315,6 +375,7 @@ const TestAccounts = () => {
                         <li>Voice feature accuracy and convenience</li>
                         <li>Quality and helpfulness of AI responses</li>
                         <li>Conversation organization and history features</li>
+                        <li>Text-to-speech clarity and natural sound</li>
                         <li>Overall learning experience and engagement</li>
                       </ul>
                     </div>
@@ -346,15 +407,27 @@ const TestAccounts = () => {
                   </p>
                 </li>
                 <li>
+                  <p className="font-medium">Test bidirectional voice conversations</p>
+                  <p className="text-gray-500 mt-1">
+                    Have complete voice-based conversations by speaking questions and listening to AI responses
+                  </p>
+                </li>
+                <li>
                   <p className="font-medium">Test analytics features (admin/teacher accounts)</p>
                   <p className="text-gray-500 mt-1">
-                    Filter data by student, teacher, date range, export reports
+                    Filter data by student, teacher, date range, export reports, and analyze learning patterns
                   </p>
                 </li>
                 <li>
                   <p className="font-medium">Test multi-tenant data separation</p>
                   <p className="text-gray-500 mt-1">
                     Log in with accounts from different schools to verify proper data isolation
+                  </p>
+                </li>
+                <li>
+                  <p className="font-medium">Test document integration</p>
+                  <p className="text-gray-500 mt-1">
+                    Upload documents and verify that the AI properly uses them as context for responding to questions
                   </p>
                 </li>
                 <li>
