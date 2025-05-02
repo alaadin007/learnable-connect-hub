@@ -1,6 +1,37 @@
-export interface DateRange {
-  from?: Date;
+import { DateRange as CalendarDateRange } from "react-day-picker";
+
+export interface DateRange extends CalendarDateRange {
+  from: Date | undefined;
   to?: Date;
+}
+
+export interface AnalyticsFilters {
+  dateRange?: DateRange;
+  schoolId?: string;
+  teacherId?: string;
+  studentId?: string;
+}
+
+export interface SessionData {
+  id: string;
+  student_name: string;
+  student_id: string;
+  session_date: string;
+  duration_minutes: number;
+  topics: string[];
+  questions_asked: number;
+  questions_answered: number;
+}
+
+export interface TopicData {
+  topic: string;
+  count: number;
+}
+
+export interface StudyTimeData {
+  student_name: string;
+  student_id: string;
+  total_minutes: number;
 }
 
 export interface Student {
@@ -8,65 +39,38 @@ export interface Student {
   name: string;
 }
 
-export interface SessionData {
+export interface Teacher {
   id: string;
-  userId: string;
-  userName: string;
-  topicOrContent: string;
-  startTime: string;
-  endTime: any;
-  duration: string;
-  numQueries: number;
-  student: string; // For backward compatibility
-  topic: string;   // For backward compatibility
-  queries: number; // For backward compatibility
-}
-
-export interface TopicData {
-  topic: string;
-  count: number;
-  name: string; // For backward compatibility
-  value: number; // For backward compatibility
-}
-
-export interface StudyTimeData {
-  week: number;
-  year: number;
-  hours: number;
-  studentName: string;
-	name: string; // For backward compatibility
-}
-
-export interface AnalyticsSummary {
-  activeStudents: number;
-  totalSessions: number;
-  totalQueries: number;
-  avgSessionMinutes: number;
-}
-
-export interface AnalyticsFilters {
-  dateRange?: DateRange;
-  studentId?: string;
-  teacherId?: string;
-  schoolId?: string;
-}
-
-export interface SchoolPerformanceData {
-  month: string;
-  average_score: number;
+  name: string;
 }
 
 export interface SchoolPerformanceSummary {
   average_score: number;
+  total_questions: number;
   improvement_rate: number;
 }
 
-export interface TeacherPerformanceData {
-  teacher_name: string;
+export interface SchoolPerformanceMonthly {
+  month: string;
   average_score: number;
+  total_questions: number;
 }
 
-export interface StudentPerformanceData {
-  student_name: string;
+export interface TeacherPerformance {
+  id: string;
+  name: string;
+  students_count: number;
   average_score: number;
+  total_questions: number;
+  improvement_rate: number;
+}
+
+export interface StudentPerformance {
+  id: string;
+  name: string;
+  teacher_name: string;
+  average_score: number;
+  total_questions: number;
+  improvement_rate: number;
+  last_active: string;
 }

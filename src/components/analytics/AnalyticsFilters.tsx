@@ -12,13 +12,15 @@ interface AnalyticsFiltersProps {
   onFiltersChange: (filters: FiltersType) => void;
   showStudentSelector?: boolean;
   showTeacherSelector?: boolean;
+  students?: { id: string; name: string }[]; // Add students prop
 }
 
 export function AnalyticsFilters({ 
   filters, 
   onFiltersChange,
   showStudentSelector = false,
-  showTeacherSelector = false 
+  showTeacherSelector = false,
+  students = [] // Default to empty array
 }: AnalyticsFiltersProps) {
   const handleDateRangeChange = (range: DateRange | undefined) => {
     // Ensure 'from' is defined in the DateRange as required by type
@@ -66,6 +68,7 @@ export function AnalyticsFilters({
             {showStudentSelector && (
               <div>
                 <StudentSelector 
+                  students={students}
                   selectedStudentId={filters.studentId} 
                   onStudentChange={handleStudentChange}
                 />

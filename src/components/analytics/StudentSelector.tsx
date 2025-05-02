@@ -1,20 +1,6 @@
 
 import React from "react";
-import { Check, ChevronsUpDown } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-} from "@/components/ui/command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Student } from "./types";
 
 interface StudentSelectorProps {
@@ -32,71 +18,46 @@ export function StudentSelector({
   onStudentSelect,
   onStudentChange
 }: StudentSelectorProps) {
-  const [open, setOpen] = React.useState(false);
-
   // Handle both the new and old API
-  const handleSelect = (student: Student | null) => {
-    if (onStudentSelect) {
+  const handleSelect = (value: string) => {
+    if (value === "all") {
+      if (onStudentSelect) {
+        onStudentSelect(null);
+      }
+      if (onStudentChange) {
+        onStudentChange(undefined);
+      }
+      return;
+    }
+    
+    // Find the student in the array
+    const student = students.find(s => s.id === value);
+    
+    if (onStudentSelect && student) {
       onStudentSelect(student);
     }
+    
     if (onStudentChange) {
-      onStudentChange(student?.id);
+      onStudentChange(value);
     }
-    setOpen(false);
   };
 
-  // Determine what to display in the button
-  const displayName = selectedStudent?.name || 
-    (selectedStudentId ? `Student ${selectedStudentId.substring(0, 5)}...` : "Select student...");
-
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          className="w-full justify-between"
-        >
-          {displayName}
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-full p-0">
-        <Command>
-          <CommandInput placeholder="Search students..." />
-          <CommandEmpty>No student found.</CommandEmpty>
-          <CommandGroup>
-            <CommandItem 
-              onSelect={() => handleSelect(null)}
-            >
-              <Check
-                className={cn(
-                  "mr-2 h-4 w-4",
-                  (!selectedStudent && !selectedStudentId) ? "opacity-100" : "opacity-0"
-                )}
-              />
-              All Students
-            </CommandItem>
-            {students.map((student) => (
-              <CommandItem
-                key={student.id}
-                onSelect={() => handleSelect(student)}
-              >
-                <Check
-                  className={cn(
-                    "mr-2 h-4 w-4",
-                    (selectedStudent?.id === student.id || selectedStudentId === student.id)
-                      ? "opacity-100"
-                      : "opacity-0"
-                  )}
-                />
-                {student.name}
-              </CommandItem>
-            ))}
-          </CommandGroup>
-        </Command>
-      </PopoverContent>
-    </Popover>
+    <Select 
+      value={selectedStudentId || "all"} 
+      onValueChange={handleSelect}
+    >
+      <SelectTrigger className="w-full">
+        <SelectValue placeholder="All Students" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="all">All Students</SelectItem>
+        {Array.isArray(students) && students.map((student) => (
+          <SelectItem key={student.id} value={student.id}>
+            {student.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }

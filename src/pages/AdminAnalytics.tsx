@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
@@ -25,7 +26,7 @@ import {
   AnalyticsExport,
   AnalyticsSummaryCards
 } from "@/components/analytics";
-import { AnalyticsFilters as FiltersType, SessionData, TopicData, StudyTimeData } from "@/components/analytics/types";
+import { AnalyticsFilters as FiltersType, SessionData, TopicData, StudyTimeData, Student } from "@/components/analytics/types";
 import { useToast } from "@/components/ui/use-toast";
 import { SchoolPerformancePanel } from "@/components/analytics/SchoolPerformancePanel";
 import { TeacherPerformanceTable } from "@/components/analytics/TeacherPerformanceTable";
@@ -37,6 +38,7 @@ const AdminAnalytics = () => {
   const [sessions, setSessions] = useState<SessionData[]>([]);
   const [topics, setTopics] = useState<TopicData[]>([]);
   const [studyTime, setStudyTime] = useState<StudyTimeData[]>([]);
+  const [students, setStudents] = useState<Student[]>([]); // Add students state
   const [filters, setFilters] = useState<FiltersType>({
     dateRange: {
       from: undefined,
@@ -57,6 +59,25 @@ const AdminAnalytics = () => {
   // Get the school_id from the profile, handling both profile structures
   // Add null check and default to empty string if undefined
   const schoolId = profile?.school_id || (profile as any)?.school?.id || "";
+
+  // Fetch students for the school
+  const fetchStudents = useCallback(async () => {
+    if (!schoolId) return;
+    
+    try {
+      // Mock data for students - in a real app, this would be an API call
+      // You should replace this with your actual API call
+      const mockStudents = [
+        { id: '1', name: 'Student 1' },
+        { id: '2', name: 'Student 2' },
+        { id: '3', name: 'Student 3' },
+      ];
+      
+      setStudents(mockStudents);
+    } catch (error) {
+      console.error("Error fetching students:", error);
+    }
+  }, [schoolId]);
 
   // Memoized loadAnalyticsData function to prevent unnecessary re-renders
   const loadAnalyticsData = useCallback(async () => {
@@ -122,8 +143,11 @@ const AdminAnalytics = () => {
         ...prevFilters,
         schoolId: schoolId
       }));
+      
+      // Fetch students when component mounts or schoolId changes
+      fetchStudents();
     }
-  }, [schoolId]);
+  }, [schoolId, fetchStudents]);
 
   // Separate effect for loading data to prevent infinite loops
   useEffect(() => {
@@ -177,6 +201,7 @@ const AdminAnalytics = () => {
             onFiltersChange={handleFiltersChange}
             showStudentSelector={true}
             showTeacherSelector={true}
+            students={students} // Pass students array to AnalyticsFilters
           />
           
           {isLoading ? (
