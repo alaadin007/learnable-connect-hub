@@ -41,7 +41,7 @@ const TeacherAnalytics = () => {
             </CardContent>
           </Card>
           
-          <AnalyticsDashboard userRole="teacher" />
+          <AnalyticsDashboard userRole="teacher" isLoading={isLoading} />
         </div>
       </main>
       <Footer />

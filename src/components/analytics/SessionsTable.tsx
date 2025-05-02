@@ -11,17 +11,20 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SessionData } from "./types";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface SessionsTableProps {
   sessions: SessionData[];
   title?: string;
   description?: string;
+  isLoading?: boolean;
 }
 
 const SessionsTable = ({ 
   sessions, 
   title = "Recent Sessions", 
-  description = "Latest student learning sessions" 
+  description = "Latest student learning sessions",
+  isLoading = false
 }: SessionsTableProps) => {
   return (
     <Card>
@@ -30,37 +33,45 @@ const SessionsTable = ({
         <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent>
-        <Table>
-          <TableCaption>A list of recent learning sessions</TableCaption>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Student</TableHead>
-              <TableHead>Topic</TableHead>
-              <TableHead>Queries</TableHead>
-              <TableHead>Duration</TableHead>
-              <TableHead>Date</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {sessions.length > 0 ? (
-              sessions.map((session) => (
-                <TableRow key={session.id}>
-                  <TableCell className="font-medium">{session.userName || session.student}</TableCell>
-                  <TableCell>{session.topicOrContent || session.topic}</TableCell>
-                  <TableCell>{session.numQueries || session.queries}</TableCell>
-                  <TableCell>{typeof session.duration === 'string' ? session.duration : `${session.duration} min`}</TableCell>
-                  <TableCell>{session.startTime}</TableCell>
-                </TableRow>
-              ))
-            ) : (
+        {isLoading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+          </div>
+        ) : (
+          <Table>
+            <TableCaption>A list of recent learning sessions</TableCaption>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={5} className="text-center h-24">
-                  No sessions recorded yet
-                </TableCell>
+                <TableHead>Student</TableHead>
+                <TableHead>Topic</TableHead>
+                <TableHead>Queries</TableHead>
+                <TableHead>Duration</TableHead>
+                <TableHead>Date</TableHead>
               </TableRow>
-            )}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {sessions.length > 0 ? (
+                sessions.map((session) => (
+                  <TableRow key={session.id}>
+                    <TableCell className="font-medium">{session.userName || session.student}</TableCell>
+                    <TableCell>{session.topicOrContent || session.topic}</TableCell>
+                    <TableCell>{session.numQueries || session.queries}</TableCell>
+                    <TableCell>{typeof session.duration === 'string' ? session.duration : `${session.duration} min`}</TableCell>
+                    <TableCell>{session.startTime}</TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center h-24">
+                    No sessions recorded yet
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        )}
       </CardContent>
     </Card>
   );
