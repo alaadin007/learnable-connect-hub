@@ -1,3 +1,4 @@
+
 import React, { useEffect } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
@@ -159,13 +160,21 @@ const SchoolAdmin = () => {
             </div>
           </div>
           
-          <Tabs defaultValue="teachers" className="space-y-4">
-            <TabsList>
-              <TabsTrigger value="teachers">Teachers</TabsTrigger>
-              <TabsTrigger value="students">Students</TabsTrigger>
-              <TabsTrigger value="settings">School Settings</TabsTrigger>
+          <div className="mb-4">
+            <TabsList className="w-full border-b">
+              <TabsTrigger value="teachers" className="flex-1">
+                Teachers
+              </TabsTrigger>
+              <TabsTrigger value="students" className="flex-1">
+                Students
+              </TabsTrigger>
+              <TabsTrigger value="settings" className="flex-1">
+                School Settings
+              </TabsTrigger>
             </TabsList>
-            
+          </div>
+          
+          <Tabs defaultValue="teachers" className="space-y-4">
             <TabsContent value="teachers" className="space-y-4">
               <TeacherManagement />
             </TabsContent>

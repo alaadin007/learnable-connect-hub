@@ -26,7 +26,9 @@ import TestAccounts from "@/pages/TestAccounts";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import StudentAssessments from "@/pages/StudentAssessments";
 import StudentProgress from "@/pages/StudentProgress";
-import StudentSettings from "@/pages/StudentSettings"; // Import the new page
+import StudentSettings from "@/pages/StudentSettings";
+import AdminStudents from "@/pages/AdminStudents";
+import SchoolSettings from "@/pages/SchoolSettings";
 
 function App() {
   return (
@@ -87,6 +89,18 @@ function App() {
         <Route path="/admin/analytics" element={
           <ProtectedRoute requiredUserType="school">
             <AdminAnalytics />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/admin/students" element={
+          <ProtectedRoute requiredUserType="school">
+            <AdminStudents />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/admin/settings" element={
+          <ProtectedRoute requiredUserType="school">
+            <SchoolSettings />
           </ProtectedRoute>
         } />
 

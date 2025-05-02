@@ -1,367 +1,246 @@
 
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { useForm } from "react-hook-form";
-import { format } from "date-fns";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
-import { toast } from "sonner";
-
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
-import { 
-  Form, 
-  FormControl, 
-  FormField, 
-  FormItem, 
-  FormLabel, 
-  FormMessage 
-} from "@/components/ui/form";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardHeader, 
-  CardTitle 
-} from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, PlusCircle, Trash2 } from "lucide-react";
+import { format } from "date-fns";
+import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-// Define the schema for our form
-const studentProfileSchema = z.object({
-  full_name: z.string().min(2, "Name must be at least 2 characters"),
-  email: z.string().email("Invalid email address"),
-  date_of_birth: z.date({
-    required_error: "Please select a date",
-  }),
-  subjects: z.array(
-    z.object({
-      name: z.string().min(2, "Subject name must be at least 2 characters"),
-      board: z.string().optional(),
-      level: z.string().optional(),
-    })
-  ).min(1, "Please add at least one subject"),
-});
-
-type StudentProfileFormValues = z.infer<typeof studentProfileSchema>;
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
 
 const StudentSettings = () => {
-  const { user, profile, updateProfile } = useAuth();
-  const navigate = useNavigate();
+  const { user, profile } = useAuth();
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>(undefined);
+  const [subjects, setSubjects] = useState("");
+  const [board, setBoard] = useState("");
+  const [level, setLevel] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
-  // Create a form instance with default values
-  const form = useForm<StudentProfileFormValues>({
-    resolver: zodResolver(studentProfileSchema),
-    defaultValues: {
-      full_name: profile?.full_name || "",
-      email: user?.email || "",
-      date_of_birth: undefined,
-      subjects: [{ name: "", board: "", level: "" }],
-    },
-  });
-
-  // Fetch existing profile data if available
   useEffect(() => {
-    const fetchStudentProfile = async () => {
-      if (!user?.id) return;
+    // Load initial profile data from the Auth context
+    if (profile) {
+      setFullName(profile.full_name || "");
+      setEmail(user?.email || "");
+    }
 
+    // Fetch additional student profile data if available
+    const fetchProfileData = async () => {
+      if (!user) return;
+      
+      setIsLoading(true);
       try {
         const { data, error } = await supabase
-          .from("student_profiles")
+          .from("profiles")
           .select("*")
           .eq("id", user.id)
           .single();
 
         if (error) throw error;
-
+        
         if (data) {
-          form.reset({
-            full_name: data.full_name || profile?.full_name || "",
-            email: user?.email || "",
-            date_of_birth: data.date_of_birth ? new Date(data.date_of_birth) : undefined,
-            subjects: data.subjects || [{ name: "", board: "", level: "" }],
-          });
+          // Set data from profiles table
+          if (data.full_name) setFullName(data.full_name);
+          
+          // Try to get additional metadata if available
+          const metadata = user.user_metadata || {};
+          
+          if (metadata.date_of_birth) {
+            setDateOfBirth(new Date(metadata.date_of_birth));
+          }
+          
+          if (metadata.subjects) {
+            setSubjects(Array.isArray(metadata.subjects) 
+              ? metadata.subjects.join(", ") 
+              : metadata.subjects);
+          }
+          
+          if (metadata.board) {
+            setBoard(metadata.board);
+          }
+          
+          if (metadata.level) {
+            setLevel(metadata.level);
+          }
         }
       } catch (error) {
         console.error("Error fetching student profile:", error);
+      } finally {
+        setIsLoading(false);
       }
     };
 
-    fetchStudentProfile();
-  }, [user, profile, form]);
+    fetchProfileData();
+  }, [user, profile]);
 
-  // Redirect if user is not logged in
-  useEffect(() => {
-    if (!user) {
-      navigate("/login", { state: { from: "/student/settings" } });
-    }
-  }, [user, navigate]);
-
-  const onSubmit = async (data: StudentProfileFormValues) => {
+  const handleSaveProfile = async () => {
     if (!user) return;
     
-    setIsLoading(true);
+    setIsSaving(true);
     try {
-      // Update the student_profiles table
-      const { error } = await supabase
-        .from("student_profiles")
-        .upsert({
-          id: user.id,
-          full_name: data.full_name,
-          date_of_birth: data.date_of_birth.toISOString().split('T')[0],
-          subjects: data.subjects,
-        });
-
-      if (error) throw error;
-
-      // Also update the general profiles table for the name
-      await updateProfile({ full_name: data.full_name });
+      // Convert subjects string to array
+      const subjectsArray = subjects
+        .split(",")
+        .map(subject => subject.trim())
+        .filter(subject => subject !== "");
+        
+      // Update the profiles table
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({
+          full_name: fullName,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", user.id);
+        
+      if (profileError) throw profileError;
+      
+      // Update user metadata
+      const { error: metadataError } = await supabase.auth.updateUser({
+        data: {
+          date_of_birth: dateOfBirth ? dateOfBirth.toISOString().split('T')[0] : null,
+          subjects: subjectsArray,
+          board,
+          level
+        }
+      });
+      
+      if (metadataError) throw metadataError;
 
       toast.success("Profile updated successfully!");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating profile:", error);
-      toast.error("Failed to update profile. Please try again.");
+      toast.error(error.message || "Failed to update profile");
     } finally {
-      setIsLoading(false);
+      setIsSaving(false);
     }
   };
-
-  const addSubject = () => {
-    const subjects = form.getValues().subjects;
-    form.setValue("subjects", [...subjects, { name: "", board: "", level: "" }]);
-  };
-
-  const removeSubject = (index: number) => {
-    const subjects = form.getValues().subjects;
-    if (subjects.length > 1) {
-      form.setValue("subjects", subjects.filter((_, i) => i !== index));
-    } else {
-      toast.error("You need at least one subject");
-    }
-  };
-
-  if (!user) {
-    return <div>Loading...</div>;
-  }
 
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
       <main className="flex-grow bg-learnable-super-light py-8">
         <div className="container mx-auto px-4">
-          <div className="mb-6">
-            <h1 className="text-3xl font-bold gradient-text mb-2">Student Settings</h1>
-            <p className="text-learnable-gray">
-              Update your personal information and study subjects
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Personal Information</CardTitle>
-                  <CardDescription>
-                    Update your profile details and preferences
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                      <FormField
-                        control={form.control}
-                        name="full_name"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Full Name</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Your full name" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
+          <h1 className="text-3xl font-bold mb-6 gradient-text">Student Settings</h1>
+          
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>Profile Information</CardTitle>
+              <CardDescription>
+                Update your personal information and academic details
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <p>Loading your profile...</p>
+              ) : (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="fullName">Full Name</Label>
+                      <Input 
+                        id="fullName" 
+                        value={fullName} 
+                        onChange={(e) => setFullName(e.target.value)}
+                        placeholder="Your full name" 
                       />
-
-                      <FormField
-                        control={form.control}
-                        name="email"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Email</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Your email" {...field} disabled />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="date_of_birth"
-                        render={({ field }) => (
-                          <FormItem className="flex flex-col">
-                            <FormLabel>Date of Birth</FormLabel>
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <FormControl>
-                                  <Button
-                                    variant="outline"
-                                    className={cn(
-                                      "pl-3 text-left font-normal",
-                                      !field.value && "text-muted-foreground"
-                                    )}
-                                  >
-                                    {field.value ? (
-                                      format(field.value, "PPP")
-                                    ) : (
-                                      <span>Pick a date</span>
-                                    )}
-                                    <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                  </Button>
-                                </FormControl>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-auto p-0" align="start">
-                                <Calendar
-                                  mode="single"
-                                  selected={field.value}
-                                  onSelect={field.onChange}
-                                  disabled={(date) =>
-                                    date > new Date() || date < new Date("1900-01-01")
-                                  }
-                                  initialFocus
-                                />
-                              </PopoverContent>
-                            </Popover>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <div className="space-y-4">
-                        <div className="flex justify-between items-center">
-                          <h3 className="text-lg font-medium">Subjects</h3>
-                          <Button 
-                            type="button" 
-                            onClick={addSubject} 
-                            variant="outline"
-                            size="sm"
-                          >
-                            <PlusCircle className="h-4 w-4 mr-2" />
-                            Add Subject
-                          </Button>
-                        </div>
-                        
-                        {form.getValues().subjects.map((_, index) => (
-                          <div key={index} className="p-4 border rounded-md space-y-3">
-                            <div className="flex justify-between items-center">
-                              <h4 className="font-medium">Subject {index + 1}</h4>
-                              {form.getValues().subjects.length > 1 && (
-                                <Button 
-                                  type="button"
-                                  variant="ghost" 
-                                  size="sm"
-                                  onClick={() => removeSubject(index)}
-                                >
-                                  <Trash2 className="h-4 w-4 text-red-500" />
-                                </Button>
-                              )}
-                            </div>
-                            
-                            <FormField
-                              control={form.control}
-                              name={`subjects.${index}.name`}
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>Subject Name</FormLabel>
-                                  <FormControl>
-                                    <Input placeholder="e.g., Biology" {...field} />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                            
-                            <FormField
-                              control={form.control}
-                              name={`subjects.${index}.board`}
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>Exam Board (if applicable)</FormLabel>
-                                  <FormControl>
-                                    <Input placeholder="e.g., AQA, Edexcel, AP" {...field} />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                            
-                            <FormField
-                              control={form.control}
-                              name={`subjects.${index}.level`}
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>Course Level (if applicable)</FormLabel>
-                                  <FormControl>
-                                    <Input placeholder="e.g., A-Level, GCSE, AP, IB" {...field} />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                          </div>
-                        ))}
-                      </div>
-
-                      <Button 
-                        type="submit" 
-                        disabled={isLoading} 
-                        className="w-full"
-                      >
-                        {isLoading ? "Updating..." : "Save Changes"}
-                      </Button>
-                    </form>
-                  </Form>
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="lg:col-span-1">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Account Information</CardTitle>
-                  <CardDescription>Your account details</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Account Type</p>
-                      <p>Student</p>
                     </div>
                     
-                    {profile?.organization && (
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground">School</p>
-                        <p>{profile.organization.name}</p>
-                      </div>
-                    )}
+                    <div className="space-y-2">
+                      <Label htmlFor="email">Email</Label>
+                      <Input 
+                        id="email" 
+                        value={email} 
+                        disabled
+                        placeholder="Your email address" 
+                      />
+                      <p className="text-sm text-muted-foreground">
+                        Email cannot be changed
+                      </p>
+                    </div>
                     
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Member Since</p>
-                      <p>{user?.created_at ? format(new Date(user.created_at), 'PP') : 'N/A'}</p>
+                    <div className="space-y-2">
+                      <Label>Date of Birth</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className={cn(
+                              "w-full justify-start text-left font-normal",
+                              !dateOfBirth && "text-muted-foreground"
+                            )}
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {dateOfBirth ? format(dateOfBirth, "PPP") : "Pick a date"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                          <Calendar
+                            mode="single"
+                            selected={dateOfBirth}
+                            onSelect={setDateOfBirth}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="board">Examination Board</Label>
+                      <Input 
+                        id="board" 
+                        value={board} 
+                        onChange={(e) => setBoard(e.target.value)}
+                        placeholder="e.g., AQA, OCR, AP, IB" 
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="level">Academic Level</Label>
+                      <Input 
+                        id="level" 
+                        value={level} 
+                        onChange={(e) => setLevel(e.target.value)}
+                        placeholder="e.g., GCSE, A-Level, AP Course" 
+                      />
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="subjects">Subjects</Label>
+                    <Textarea 
+                      id="subjects" 
+                      value={subjects} 
+                      onChange={(e) => setSubjects(e.target.value)}
+                      placeholder="Enter subjects separated by commas (e.g., Biology, Chemistry, Physics)" 
+                      rows={3}
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      List the subjects you are studying, separated by commas
+                    </p>
+                  </div>
+                  
+                  <Button 
+                    onClick={handleSaveProfile} 
+                    disabled={isSaving}
+                    className="gradient-bg"
+                  >
+                    {isSaving ? "Saving..." : "Save Changes"}
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </main>
       <Footer />
