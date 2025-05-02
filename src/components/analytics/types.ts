@@ -1,3 +1,4 @@
+
 import { DateRange as CalendarDateRange } from "react-day-picker";
 
 export interface DateRange extends CalendarDateRange {
@@ -74,33 +75,69 @@ export interface Teacher {
   name: string;
 }
 
+// Performance data types aligned with component expectations
 export interface SchoolPerformanceSummary {
-  average_score: number;
-  total_questions: number;
-  improvement_rate: number;
+  total_assessments: number;
+  students_with_submissions: number;
+  total_students: number;
+  avg_submissions_per_assessment: number;
+  avg_score: number;
+  completion_rate: number;
+  student_participation_rate: number;
+  
+  // Additional properties from utils
+  average_score?: number;
+  total_questions?: number;
+  improvement_rate?: number;
 }
 
-export interface SchoolPerformanceMonthly {
+export interface SchoolPerformanceData {
   month: string;
-  average_score: number;
-  total_questions: number;
+  avg_monthly_score: number;
+  monthly_completion_rate: number;
+  score_improvement_rate: number;
+  completion_improvement_rate: number;
+
+  // Additional properties from utils
+  average_score?: number;
+  total_questions?: number;
 }
 
-export interface TeacherPerformance {
-  id: string;
-  name: string;
-  students_count: number;
-  average_score: number;
-  total_questions: number;
-  improvement_rate: number;
-}
-
-export interface StudentPerformance {
-  id: string;
-  name: string;
+export interface TeacherPerformanceData {
+  teacher_id: string;
   teacher_name: string;
-  average_score: number;
-  total_questions: number;
-  improvement_rate: number;
-  last_active: string;
+  assessments_created: number;
+  students_assessed: number;
+  completion_rate: number;
+  avg_student_score: number;
+  avg_submissions_per_assessment: number;
+  
+  // Additional properties from utils
+  id?: string;
+  name?: string;
+  students_count?: number;
+  average_score?: number;
+  total_questions?: number;
+  improvement_rate?: number;
+}
+
+export interface StudentPerformanceData {
+  student_id: string;
+  student_name: string;
+  assessments_taken: number;
+  avg_score: number;
+  avg_time_spent_seconds: number;
+  assessments_completed: number;
+  completion_rate: number;
+  top_strengths: string;
+  top_weaknesses: string;
+  
+  // Additional properties from utils
+  id?: string;
+  name?: string;
+  teacher_name?: string;
+  average_score?: number;
+  total_questions?: number;
+  improvement_rate?: number;
+  last_active?: string;
 }

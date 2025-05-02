@@ -1,3 +1,4 @@
+
 // Import necessary functions
 import { format } from 'date-fns';
 import { getMockAnalyticsData } from './sessionLogging';
@@ -8,9 +9,9 @@ import {
   TopicData,
   StudyTimeData,
   SchoolPerformanceSummary,
-  SchoolPerformanceMonthly,
-  TeacherPerformance,
-  StudentPerformance,
+  SchoolPerformanceData,
+  TeacherPerformanceData as TeacherPerformance,
+  StudentPerformanceData as StudentPerformance,
   DateRange
 } from '@/components/analytics/types';
 
