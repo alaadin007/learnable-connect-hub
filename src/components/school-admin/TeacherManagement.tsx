@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,25 +23,34 @@ const TeacherManagement = () => {
   const [invitations, setInvitations] = useState<TeacherInvitation[]>([]);
   const [activeTeachers, setActiveTeachers] = useState<any[]>([]);
   const [isLoadingTeachers, setIsLoadingTeachers] = useState(true);
+  const schoolId = profile?.organization?.id || null;
 
   useEffect(() => {
-    loadInvitations();
-    loadActiveTeachers();
-  }, [profile]);
+    if (schoolId) {
+      loadInvitations();
+      loadActiveTeachers();
+    }
+  }, [schoolId]);
 
   const loadInvitations = async () => {
     try {
-      if (!profile?.organization?.id) return;
+      if (!schoolId) return;
       
       const { data, error } = await supabase
         .from("teacher_invitations")
         .select("*")
-        .eq("school_id", profile.organization.id)
+        .eq("school_id", schoolId)
         .order("created_at", { ascending: false });
       
       if (error) throw error;
       
-      setInvitations(data || []);
+      // Ensure the status is properly typed
+      const typedData = (data || []).map(item => ({
+        ...item,
+        status: item.status as "pending" | "accepted" | "rejected"
+      }));
+      
+      setInvitations(typedData);
     } catch (error) {
       console.error("Error loading invitations:", error);
       toast.error("Failed to load invitations", {
@@ -54,13 +62,13 @@ const TeacherManagement = () => {
   const loadActiveTeachers = async () => {
     setIsLoadingTeachers(true);
     try {
-      if (!profile?.organization?.id) return;
+      if (!schoolId) return;
       
       const { data, error } = await supabase
         .from("profiles")
         .select("*")
-        .eq("school_id", profile.organization.id)
-        .eq("role", "teacher");
+        .eq("school_id", schoolId)
+        .eq("user_type", "teacher");
       
       if (error) throw error;
       
@@ -88,14 +96,14 @@ const TeacherManagement = () => {
     setIsLoading(true);
     
     try {
-      if (!profile?.organization?.id) {
+      if (!schoolId) {
         throw new Error("No school ID found");
       }
       
       const { data, error } = await supabase.functions.invoke("invite-teacher", {
         body: {
           email: email.trim(),
-          schoolId: profile.organization.id,
+          schoolId: schoolId,
         },
       });
       
@@ -120,7 +128,7 @@ const TeacherManagement = () => {
   
   const cancelInvitation = async (invitationId: string, teacherEmail: string) => {
     try {
-      if (!profile?.organization?.id) {
+      if (!schoolId) {
         throw new Error("No school ID found");
       }
       
@@ -128,7 +136,7 @@ const TeacherManagement = () => {
         .from("teacher_invitations")
         .delete()
         .eq("id", invitationId)
-        .eq("school_id", profile.organization.id);
+        .eq("school_id", schoolId);
       
       if (error) throw error;
       
@@ -148,7 +156,7 @@ const TeacherManagement = () => {
   
   const revokeAccess = async (teacherId: string, teacherEmail: string) => {
     try {
-      if (!profile?.organization?.id) {
+      if (!schoolId) {
         throw new Error("No school ID found");
       }
       

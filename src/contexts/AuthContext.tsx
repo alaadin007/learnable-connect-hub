@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -6,6 +7,12 @@ import { toast } from 'sonner';
 // Define the UserRole type
 export type UserRole = 'school' | 'teacher' | 'student';
 
+interface Organization {
+  id: string;
+  name: string;
+  code: string;
+}
+
 interface UserProfile {
   id: string;
   email?: string;
@@ -13,6 +20,7 @@ interface UserProfile {
   full_name?: string;
   school_code?: string;
   school_name?: string;
+  organization?: Organization;
 }
 
 interface AuthContextType {
@@ -168,6 +176,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       full_name: `Test ${type.charAt(0).toUpperCase() + type.slice(1)}`,
       school_code: `TEST${schoolIndex}`,
       school_name: mockSchoolName,
+      organization: {
+        id: mockSchoolId,
+        name: mockSchoolName,
+        code: `TEST${schoolIndex}`
+      }
     };
     
     // Create mock user - cast as unknown first, then as User to satisfy TypeScript

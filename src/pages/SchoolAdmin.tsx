@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 const SchoolAdmin = () => {
   const { profile } = useAuth();
+  const schoolId = profile?.organization?.id || null;
 
   // Show error toast for failed teacher invitations API
   React.useEffect(() => {
@@ -34,14 +35,14 @@ const SchoolAdmin = () => {
               {
                 email: "teacher1@example.com",
                 status: "pending",
-                school_id: profile?.organization?.id,
+                school_id: schoolId,
                 invitation_token: "mock-token-1",
                 created_by: profile?.id,
               },
               {
                 email: "teacher2@example.com",
                 status: "accepted",
-                school_id: profile?.organization?.id,
+                school_id: schoolId,
                 invitation_token: "mock-token-2",
                 created_by: profile?.id,
               }
@@ -57,7 +58,7 @@ const SchoolAdmin = () => {
         // For demo purposes, always create mock invitations
         // We'll use try/catch here since this is initialization code
         try {
-          if (profile?.organization?.id) {
+          if (schoolId) {
             await createMockInvitations();
           }
         } catch (mockError) {
@@ -83,7 +84,7 @@ const SchoolAdmin = () => {
     
     // Comment this out for now as we're using mock data instead
     // displayErrorIfNeeded();
-  }, [profile]);
+  }, [profile, schoolId]);
 
   return (
     <div className="min-h-screen flex flex-col">
