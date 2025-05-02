@@ -72,12 +72,14 @@ const LoginForm = () => {
               });
               break;
             case 'teacher':
-              navigate('/dashboard');
+              // Redirect teacher to their analytics dashboard like test accounts
+              navigate('/teacher/analytics');
               toast.success("Login successful", {
                 description: `Welcome back, ${user.user_metadata.full_name || email}!`
               });
               break;
             case 'student':
+              // Students go to their dashboard
               navigate('/dashboard');
               toast.success("Login successful", {
                 description: `Welcome back, ${user.user_metadata.full_name || email}!`
@@ -126,6 +128,9 @@ const LoginForm = () => {
       // Navigate based on user type for test accounts
       if (type === 'school') {
         navigate('/admin');
+      } else if (type === 'teacher') {
+        // Ensure test teachers also go to analytics
+        navigate('/teacher/analytics');
       } else {
         navigate('/dashboard');
       }
