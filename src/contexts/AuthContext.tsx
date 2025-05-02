@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { useNavigate } from "react-router-dom";
@@ -91,37 +90,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Function to set a test user without authentication
   const setTestUser = async (type: 'school' | 'teacher' | 'student') => {
-    try {
-      // Create mock user and profile data
-      const { user: mockUser, profile: mockProfile } = createTestUserData(type);
+  try {
+    // Create mock user and profile data
+    const { user: mockUser, profile: mockProfile } = createTestUserData(type);
+    
+    // Set user data in state
+    setUser(mockUser);
+    setProfile(mockProfile);
+    setUserRole(type);
+    
+    // Set supervisor status based on role
+    setIsSuperviser(type === 'school');
+    
+    // Create a mock school ID for this session
+    const mockSchoolId = type === 'school' ? mockUser.id : 'test-school-id';
+    setSchoolId(mockSchoolId);
+    
+    // Store test user data in session storage
+    sessionStorage.setItem('testUserType', type);
+    
+    // Also store the user and profile data for session logging functionality
+    sessionStorage.setItem('testUser', JSON.stringify(mockUser));
+    sessionStorage.setItem('testProfile', JSON.stringify(mockProfile));
+    sessionStorage.setItem('testSchoolId', mockSchoolId);
+    
+    // Generate mock session data for analytics
+    if (type === 'school') {
+      // Import dynamically to avoid circular dependencies
+      const { populateTestAccountWithSessions } = await import('@/utils/sessionLogging');
       
-      // Set user data in state
-      setUser(mockUser);
-      setProfile(mockProfile);
-      setUserRole(type);
-      
-      // Set supervisor status based on role
-      setIsSuperviser(type === 'school');
-      
-      // Create a mock school ID for this session
-      const mockSchoolId = type === 'school' ? mockUser.id : 'test-school-id';
-      setSchoolId(mockSchoolId);
-      
-      // Store test user data in session storage
-      sessionStorage.setItem('testUserType', type);
-      
-      // Also store the user and profile data for session logging functionality
-      sessionStorage.setItem('testUser', JSON.stringify(mockUser));
-      sessionStorage.setItem('testProfile', JSON.stringify(mockProfile));
-      sessionStorage.setItem('testSchoolId', mockSchoolId);
-      
-      toast.success(`Logged in as Test ${type === 'school' ? 'School Admin' : type === 'teacher' ? 'Teacher' : 'Student'}`);
-      navigate("/dashboard");
-    } catch (error: any) {
-      console.error("Error setting test user:", error.message);
-      toast.error("Failed to set test user");
+      // For school admin, create mock data for multiple students
+      const studentCount = 10;
+      for (let i = 0; i < studentCount; i++) {
+        const studentId = `test-student-${i}-${Date.now()}`;
+        await populateTestAccountWithSessions(studentId, mockSchoolId, 10);
+      }
     }
-  };
+    
+    toast.success(`Logged in as Test ${type === 'school' ? 'School Admin' : type === 'teacher' ? 'Teacher' : 'Student'}`);
+    navigate("/dashboard");
+  } catch (error: any) {
+    console.error("Error setting test user:", error.message);
+    toast.error("Failed to set test user");
+  }
+};
 
   // Function to handle sign-in
   const signIn = async (email: string, password: string) => {
