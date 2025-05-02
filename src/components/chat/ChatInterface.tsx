@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +32,18 @@ interface ChatMessage {
   is_important?: boolean;
   feedback_rating?: number;
   document_citations?: SourceCitation[];
+}
+
+// Define the database message structure to match what's returned from Supabase
+interface DatabaseMessage {
+  id: string;
+  content: string;
+  conversation_id: string;
+  feedback_rating: number | null;
+  is_important: boolean;
+  sender: string;
+  timestamp: string;
+  document_citations?: SourceCitation[] | null;
 }
 
 interface ChatInterfaceProps {
@@ -190,7 +201,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
       }
 
       // Convert from database format to chat message format
-      const formattedMessages = data.map(msg => ({
+      // Now properly typed with DatabaseMessage which includes document_citations
+      const formattedMessages = data.map((msg: DatabaseMessage) => ({
         id: msg.id,
         role: msg.sender === 'user' ? 'user' : 'assistant',
         content: msg.content,
