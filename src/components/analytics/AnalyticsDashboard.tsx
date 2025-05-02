@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { format, subDays } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
@@ -27,11 +26,12 @@ import {
 
 interface AnalyticsDashboardProps {
   userRole: "school" | "teacher";
+  isLoading?: boolean;
 }
 
-const AnalyticsDashboard = ({ userRole }: AnalyticsDashboardProps) => {
+const AnalyticsDashboard = ({ userRole, isLoading: externalLoading }: AnalyticsDashboardProps) => {
   const { schoolId } = useAuth();
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(externalLoading || true);
   const [dateRange, setDateRange] = useState<DateRange>({
     from: subDays(new Date(), 30),
     to: new Date(),
@@ -350,11 +350,13 @@ const AnalyticsDashboard = ({ userRole }: AnalyticsDashboardProps) => {
               data={studyTimeData} 
               title="Weekly Study Time" 
               description={`Study hours per student ${selectedStudent ? 'for selected student' : ''}`}
+              isLoading={isLoading}
             />
             <TopicsChart 
               data={topicsData}
               title="Most Studied Topics"
               description="Distribution of topics studied by students"
+              isLoading={isLoading}
             />
           </div>
           
@@ -362,6 +364,7 @@ const AnalyticsDashboard = ({ userRole }: AnalyticsDashboardProps) => {
             sessions={sessionsData}
             title="Recent Learning Sessions"
             description="Latest student learning sessions"
+            isLoading={isLoading}
           />
         </TabsContent>
         
