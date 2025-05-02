@@ -49,7 +49,7 @@ const TestAccounts = () => {
       toast.loading("Checking test accounts status...");
       
       // Check if test accounts already exist
-      const { data: schoolData } = await supabase
+      const { data: schoolData, error: schoolError } = await supabase
         .from('profiles')
         .select('id')
         .eq('email', TEST_ACCOUNTS.school.email)
