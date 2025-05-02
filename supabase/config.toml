@@ -88,3 +88,6 @@ verify_jwt = true
 
 [functions.register-school]
 verify_jwt = false
+
+[functions.create-test-accounts]
+verify_jwt = false
