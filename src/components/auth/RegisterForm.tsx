@@ -25,6 +25,7 @@ const RegisterForm = () => {
   const [isVerifyingTeacherCode, setIsVerifyingTeacherCode] = useState(false);
   const [teacherSchoolName, setTeacherSchoolName] = useState("");
   const [teacherError, setTeacherError] = useState<string | null>(null);
+  const [teacherExistingRole, setTeacherExistingRole] = useState<string | null>(null);
 
   // Student registration state
   const [studentName, setStudentName] = useState("");
@@ -34,6 +35,7 @@ const RegisterForm = () => {
   const [isVerifyingStudentCode, setIsVerifyingStudentCode] = useState(false);
   const [studentSchoolName, setStudentSchoolName] = useState("");
   const [studentError, setStudentError] = useState<string | null>(null);
+  const [studentExistingRole, setStudentExistingRole] = useState<string | null>(null);
 
   const validateSchoolCode = async (code: string, userType: "teacher" | "student") => {
     if (!code) {
@@ -83,10 +85,45 @@ const RegisterForm = () => {
     }
   };
 
+  const checkEmailExistingRole = async (email: string): Promise<string | null> => {
+    try {
+      // Try to get the user's role from the profiles table
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('user_type')
+        .ilike('id', `%${email}%`) // This is a workaround since we can't directly query by email
+        .limit(1);
+      
+      if (error) {
+        console.error("Error checking user role:", error);
+        return null;
+      }
+      
+      if (data && data.length > 0 && data[0].user_type) {
+        // Return the role name with proper capitalization for display
+        const role = data[0].user_type;
+        switch (role) {
+          case 'school':
+            return 'School Administrator';
+          case 'teacher':
+            return 'Teacher';
+          case 'student':
+            return 'Student';
+          default:
+            return role.charAt(0).toUpperCase() + role.slice(1);
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      console.error("Error checking email role:", error);
+      return null;
+    }
+  };
+
   const checkIfEmailExists = async (email: string): Promise<boolean> => {
     try {
       // First, check if the email is already registered using a query to auth.users
-      // Instead of using admin.listUsers with filter property which is causing the TypeScript error
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: email,
         password: "dummy-password-for-check-only",
@@ -95,21 +132,10 @@ const RegisterForm = () => {
       // If there's no error or the error is not about invalid credentials, email might exist
       const emailExists = !signInError || (signInError && !signInError.message.includes("Invalid login credentials"));
       
-      // If we think the email exists, double-check by querying the profiles table
       if (emailExists) {
-        // Additional check to see if the email is in use by getting profiles
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select('id')
-          .limit(1);
-        
-        // If we can't check profiles, assume the email exists for safety
-        if (profileError) {
-          console.error("Error checking profiles:", profileError);
-          return true;
-        }
-        
-        return !!profileData && profileData.length > 0;
+        // Try to get the user role
+        const userRole = await checkEmailExistingRole(email);
+        return true;
       }
 
       return emailExists;
@@ -140,10 +166,12 @@ const RegisterForm = () => {
 
   const clearTeacherErrors = () => {
     setTeacherError(null);
+    setTeacherExistingRole(null);
   };
 
   const clearStudentErrors = () => {
     setStudentError(null);
+    setStudentExistingRole(null);
   };
 
   const handleRegisterTeacher = async (event: React.FormEvent) => {
@@ -166,8 +194,17 @@ const RegisterForm = () => {
       const emailExists = await checkIfEmailExists(teacherEmail);
       
       if (emailExists) {
+        // Try to get the user role
+        const userRole = await checkEmailExistingRole(teacherEmail);
+        setTeacherExistingRole(userRole);
+        
         setTeacherError(teacherEmail);
-        toast.error("This email is already registered", {
+        
+        const roleMessage = userRole 
+          ? `This email is already registered as a ${userRole}`
+          : "This email is already registered";
+          
+        toast.error(roleMessage, {
           description: "Please use a different email address. Each user can only have one role in the system."
         });
         return;
@@ -190,8 +227,17 @@ const RegisterForm = () => {
     } catch (error: any) {
       console.error("Registration error:", error);
       if (error.message?.includes("already registered")) {
+        // Try to get the user role
+        const userRole = await checkEmailExistingRole(teacherEmail);
+        setTeacherExistingRole(userRole);
+        
         setTeacherError(teacherEmail);
-        toast.error("This email is already registered", {
+        
+        const roleMessage = userRole 
+          ? `This email is already registered as a ${userRole}`
+          : "This email is already registered";
+          
+        toast.error(roleMessage, {
           description: "Please use a different email address. Each user can only have one role in the system."
         });
       } else {
@@ -222,8 +268,17 @@ const RegisterForm = () => {
       const emailExists = await checkIfEmailExists(studentEmail);
       
       if (emailExists) {
+        // Try to get the user role
+        const userRole = await checkEmailExistingRole(studentEmail);
+        setStudentExistingRole(userRole);
+        
         setStudentError(studentEmail);
-        toast.error("This email is already registered", {
+        
+        const roleMessage = userRole 
+          ? `This email is already registered as a ${userRole}`
+          : "This email is already registered";
+          
+        toast.error(roleMessage, {
           description: "Please use a different email address. Each user can only have one role in the system."
         });
         return;
@@ -246,8 +301,17 @@ const RegisterForm = () => {
     } catch (error: any) {
       console.error("Registration error:", error);
       if (error.message?.includes("already registered")) {
+        // Try to get the user role
+        const userRole = await checkEmailExistingRole(studentEmail);
+        setStudentExistingRole(userRole);
+        
         setStudentError(studentEmail);
-        toast.error("This email is already registered", {
+        
+        const roleMessage = userRole 
+          ? `This email is already registered as a ${userRole}`
+          : "This email is already registered";
+          
+        toast.error(roleMessage, {
           description: "Please use a different email address. Each user can only have one role in the system."
         });
       } else {
@@ -285,9 +349,14 @@ const RegisterForm = () => {
             {teacherError && (
               <Alert variant="destructive" className="mb-4">
                 <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Email Already Registered</AlertTitle>
+                <AlertTitle>
+                  {teacherExistingRole 
+                    ? `Email Already Registered as ${teacherExistingRole}` 
+                    : 'Email Already Registered'}
+                </AlertTitle>
                 <AlertDescription>
-                  The email address "{teacherError}" is already registered. 
+                  The email address "{teacherError}" is already registered
+                  {teacherExistingRole ? ` as a ${teacherExistingRole} account` : ''}.
                   Please use a different email or <Link to="/login" className="font-medium underline">login</Link> if this is your account.
                   Each user can only have one role in the system.
                 </AlertDescription>
@@ -378,9 +447,14 @@ const RegisterForm = () => {
             {studentError && (
               <Alert variant="destructive" className="mb-4">
                 <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Email Already Registered</AlertTitle>
+                <AlertTitle>
+                  {studentExistingRole 
+                    ? `Email Already Registered as ${studentExistingRole}` 
+                    : 'Email Already Registered'}
+                </AlertTitle>
                 <AlertDescription>
-                  The email address "{studentError}" is already registered. 
+                  The email address "{studentError}" is already registered
+                  {studentExistingRole ? ` as a ${studentExistingRole} account` : ''}.
                   Please use a different email or <Link to="/login" className="font-medium underline">login</Link> if this is your account.
                   Each user can only have one role in the system.
                 </AlertDescription>
