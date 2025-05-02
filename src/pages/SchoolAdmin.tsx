@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 const SchoolAdmin = () => {
   const { profile } = useAuth();
+  // Use optional chaining for organization properties
   const schoolId = profile?.organization?.id || null;
 
   // Show error toast for failed teacher invitations API

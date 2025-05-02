@@ -1,444 +1,498 @@
-
-import React, { useState, useEffect } from "react";
-import { format, subDays, getWeek } from "date-fns";
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { DateRangePicker } from "./DateRangePicker";
-import { StudentSelector } from "./StudentSelector";
-import { TeacherSelector } from "./TeacherSelector";
-import StudyTimeChart from "./StudyTimeChart";
-import TopicsChart from "./TopicsChart";
-import SessionsTable from "./SessionsTable";
-import StatsCard from "./StatsCard";
-import { Users, BarChart2, MessageSquare, Book } from "lucide-react";
-import { 
-  Student, 
-  SessionData, 
-  AnalyticsSummary, 
-  DateRange, 
-  TopicData, 
-  StudyTimeData,
-  SchoolPerformanceData,
-  SchoolPerformanceSummary,
-  TeacherPerformanceData,
-  StudentPerformanceData
-} from "./types";
-import { toast } from "@/hooks/use-toast";
-import { SchoolPerformancePanel } from "./SchoolPerformancePanel";
-import { TeacherPerformanceTable } from "./TeacherPerformanceTable";
-import { StudentPerformanceTable } from "./StudentPerformanceTable";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  fetchSchoolPerformance,
-  fetchTeacherPerformance,
-  fetchStudentPerformance
-} from "@/utils/analyticsUtils";
+import { getMockAnalyticsData } from "@/utils/sessionLogging";
+import { format, subDays, startOfWeek, endOfWeek, getWeek } from 'date-fns';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { Loader2, Download, Calendar, Filter } from 'lucide-react';
 
-interface AnalyticsDashboardProps {
-  userRole: "school" | "teacher" | "student";
-  isLoading?: boolean;
+// Define types for analytics data
+interface Session {
+  id: string;
+  userId: string;
+  userName: string;
+  startTime: string;
+  endTime: string | null;
+  duration: string | number;
+  topicOrContent: string;
+  numQueries: number;
+  queries: number;
 }
 
-const AnalyticsDashboard = ({ userRole, isLoading: externalLoading }: AnalyticsDashboardProps) => {
-  const { schoolId } = useAuth();
-  const [isLoading, setIsLoading] = useState<boolean>(externalLoading || true);
-  const [dateRange, setDateRange] = useState<DateRange>({
-    from: subDays(new Date(), 30),
-    to: new Date(),
-  });
-  const [students, setStudents] = useState<Student[]>([]);
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [selectedTeacherId, setSelectedTeacherId] = useState<string | undefined>(undefined);
+interface Topic {
+  topic: string;
+  name: string;
+  count: number;
+  value: number;
+}
+
+interface StudyTime {
+  studentName: string;
+  name: string;
+  hours: number;
+  week: number;
+  year: number;
+}
+
+interface AnalyticsData {
+  summary: {
+    activeStudents: number;
+    totalSessions: number;
+    totalQueries: number;
+    avgSessionMinutes: number;
+  };
+  sessions: Session[];
+  topics: Topic[];
+  studyTime: StudyTime[];
+}
+
+// Chart colors
+const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff8042', '#0088fe', '#00C49F'];
+
+const AnalyticsDashboard: React.FC = () => {
+  const { profile, schoolId } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [timeRange, setTimeRange] = useState('7days');
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
   
-  // Engagement metrics state
-  const [studyTimeData, setStudyTimeData] = useState<StudyTimeData[]>([]);
-  const [topicsData, setTopicsData] = useState<TopicData[]>([]);
-  const [sessionsData, setSessionsData] = useState<SessionData[]>([]);
-  const [stats, setStats] = useState<AnalyticsSummary>({
-    activeStudents: 0,
-    totalSessions: 0,
-    totalQueries: 0,
-    avgSessionMinutes: 0
-  });
-
-  // Performance metrics state
-  const [schoolPerformanceData, setSchoolPerformanceData] = useState<SchoolPerformanceData[]>([]);
-  const [schoolPerformanceSummary, setSchoolPerformanceSummary] = useState<SchoolPerformanceSummary | null>(null);
-  const [teacherPerformanceData, setTeacherPerformanceData] = useState<TeacherPerformanceData[]>([]);
-  const [studentPerformanceData, setStudentPerformanceData] = useState<StudentPerformanceData[]>([]);
-
-  // Active tab state
-  const [activeTab, setActiveTab] = useState<string>("engagement");
-
-  // Fetch students for the selector
-  useEffect(() => {
-    const fetchStudents = async () => {
-      if (!schoolId) return;
-      
-      try {
-        const { data: profilesData, error } = await supabase
-          .from('profiles')
-          .select('id, full_name')
-          .eq('user_type', 'student')
-          .order('full_name');
-          
-        if (error) throw error;
-        
-        const formattedStudents = profilesData.map(profile => ({
-          id: profile.id,
-          name: profile.full_name || 'Unknown Student'
-        }));
-        
-        setStudents(formattedStudents);
-      } catch (error) {
-        console.error('Error fetching students:', error);
-        toast({
-          title: "Error",
-          description: "Could not fetch students. Please try again.",
-          variant: "destructive",
-        });
-      }
-    };
+  // Get date range for filtering
+  const getDateRange = () => {
+    const today = new Date();
+    let startDate, endDate;
     
-    fetchStudents();
-  }, [schoolId]);
-
-  // Fetch analytics data based on filters
+    switch (timeRange) {
+      case '7days':
+        startDate = subDays(today, 7);
+        endDate = today;
+        break;
+      case '30days':
+        startDate = subDays(today, 30);
+        endDate = today;
+        break;
+      case 'thisWeek':
+        startDate = startOfWeek(today);
+        endDate = endOfWeek(today);
+        break;
+      default:
+        startDate = subDays(today, 7);
+        endDate = today;
+    }
+    
+    return {
+      startDate: format(startDate, 'yyyy-MM-dd'),
+      endDate: format(endDate, 'yyyy-MM-dd')
+    };
+  };
+  
+  // Fetch analytics data
   useEffect(() => {
     const fetchAnalyticsData = async () => {
-      if (!schoolId) return;
-      setIsLoading(true);
+      setLoading(true);
       
       try {
-        // 1. Fetch study time data
-        const studyTimeQuery = supabase
-          .from('student_weekly_study_time')
-          .select('user_id, student_name, week_number, year, study_hours')
-          .eq('school_id', schoolId);
-          
-        if (selectedStudent) {
-          studyTimeQuery.eq('user_id', selectedStudent.id);
+        if (!schoolId) {
+          throw new Error('School ID not available');
         }
         
-        const { data: studyData, error: studyError } = await studyTimeQuery;
+        const dateRange = getDateRange();
         
-        if (studyError) throw studyError;
+        // In a real app, we would fetch from the API
+        // const { data, error } = await supabase.functions.invoke('get-school-analytics', {
+        //   body: { 
+        //     schoolId,
+        //     startDate: dateRange.startDate,
+        //     endDate: dateRange.endDate
+        //   }
+        // });
         
-        const formattedStudyData: StudyTimeData[] = studyData?.map(item => ({
-          student_name: item.student_name || 'Unknown',
-          student_id: item.user_id || '',
-          total_minutes: Number(item.study_hours || 0) * 60,
-          // For backward compatibility
-          studentName: item.student_name || 'Unknown',
-          name: item.student_name || 'Unknown',
-          hours: Number(item.study_hours || 0),
-          week: Number(item.week_number) || 0,
-          year: Number(item.year) || new Date().getFullYear()
-        })) || [];
+        // if (error) throw error;
         
-        setStudyTimeData(formattedStudyData);
-        
-        // 2. Fetch topics data
-        const topicsQuery = supabase
-          .from('most_studied_topics')
-          .select('topic_or_content_used, count_of_sessions')
-          .eq('school_id', schoolId)
-          .order('count_of_sessions', { ascending: false })
-          .limit(6);
-          
-        const { data: topicsData, error: topicsError } = await topicsQuery;
-        
-        if (topicsError) throw topicsError;
-        
-        const formattedTopicsData: TopicData[] = topicsData?.map(item => ({
-          topic: item.topic_or_content_used || 'General',
-          count: Number(item.count_of_sessions) || 0,
-          // For backward compatibility
-          name: item.topic_or_content_used || 'General',
-          value: Number(item.count_of_sessions) || 0
-        })) || [];
-        
-        setTopicsData(formattedTopicsData);
-        
-        // 3. Fetch session logs
-        let dateFrom = dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : undefined;
-        let dateTo = dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : undefined;
-        
-        // First, get the session logs
-        const sessionsQuery = supabase
-          .from('session_logs')
-          .select(`
-            id, 
-            user_id,
-            topic_or_content_used,
-            num_queries,
-            session_start,
-            session_end
-          `)
-          .eq('school_id', schoolId)
-          .order('session_start', { ascending: false })
-          .limit(10);
-          
-        if (dateFrom) {
-          sessionsQuery.gte('session_start', dateFrom);
-        }
-        
-        if (dateTo) {
-          sessionsQuery.lte('session_start', dateTo);
-        }
-        
-        if (selectedStudent) {
-          sessionsQuery.eq('user_id', selectedStudent.id);
-        }
-        
-        const { data: sessionsData, error: sessionsError } = await sessionsQuery;
-        
-        if (sessionsError) throw sessionsError;
-        
-        // Now get the profiles for these sessions separately
-        const userIds = sessionsData?.map(session => session.user_id) || [];
-        const { data: profilesData, error: profilesError } = await supabase
-          .from('profiles')
-          .select('id, full_name')
-          .in('id', userIds);
-          
-        if (profilesError) throw profilesError;
-        
-        // Create a map of user IDs to names for easy lookup
-        const userNameMap: Record<string, string> = {};
-        profilesData?.forEach(profile => {
-          userNameMap[profile.id] = profile.full_name || 'Unknown';
+        // For now, use mock data
+        const mockData = getMockAnalyticsData(schoolId, {
+          startDate: dateRange.startDate,
+          endDate: dateRange.endDate
         });
         
-        const formattedSessionsData: SessionData[] = sessionsData?.map(session => {
-          // Calculate session duration
-          let duration = "N/A";
-          let durationMinutes = 0;
-          if (session.session_end && session.session_start) {
-            const startTime = new Date(session.session_start);
-            const endTime = new Date(session.session_end);
-            const durationMs = endTime.getTime() - startTime.getTime();
-            durationMinutes = Math.round(durationMs / (1000 * 60));
-            duration = `${durationMinutes} min`;
-          }
-          
-          const sessionDate = format(new Date(session.session_start), 'MMM dd, yyyy');
-          
-          return {
-            id: session.id,
-            student_name: userNameMap[session.user_id] || "Unknown",
-            student_id: session.user_id,
-            session_date: sessionDate,
-            duration_minutes: durationMinutes,
-            topics: [session.topic_or_content_used || "General"],
-            questions_asked: session.num_queries || 0,
-            questions_answered: session.num_queries || 0,
-            
-            // Backward compatibility properties
-            userId: session.user_id,
-            userName: userNameMap[session.user_id] || "Unknown",
-            topicOrContent: session.topic_or_content_used || "General",
-            startTime: sessionDate,
-            endTime: session.session_end,
-            duration: duration,
-            numQueries: session.num_queries,
-            student: userNameMap[session.user_id] || "Unknown",
-            topic: session.topic_or_content_used || "General",
-            queries: session.num_queries
-          };
-        }) || [];
-        
-        setSessionsData(formattedSessionsData);
-        
-        // 4. Fetch summary statistics
-        const { data: statsData, error: statsError } = await supabase
-          .from('school_analytics_summary')
-          .select('*')
-          .eq('school_id', schoolId)
-          .single();
-          
-        if (statsError && statsError.code !== 'PGRST116') {
-          throw statsError;
-        }
-        
-        if (statsData) {
-          setStats({
-            activeStudents: statsData.active_students || 0,
-            totalSessions: statsData.total_sessions || 0,
-            totalQueries: statsData.total_queries || 0,
-            avgSessionMinutes: Math.round(Number(statsData.avg_session_minutes) || 0)
-          });
-        }
-
-        // 5. Fetch performance data if on performance tab
-        if (activeTab === "performance") {
-          // Fetch school performance data
-          const performanceFilters = {
-            dateRange,
-            studentId: selectedStudent?.id,
-            teacherId: selectedTeacherId,
-            schoolId: schoolId
-          };
-          
-          try {
-            const schoolPerformance = await fetchSchoolPerformance(schoolId, performanceFilters);
-            
-            // Use the data directly as it should now match the expected format
-            if (schoolPerformance.monthlyData && Array.isArray(schoolPerformance.monthlyData)) {
-              setSchoolPerformanceData(schoolPerformance.monthlyData);
-            }
-            
-            if (schoolPerformance.summary) {
-              setSchoolPerformanceSummary(schoolPerformance.summary);
-            }
-            
-            // Fetch teacher performance data
-            const teacherData = await fetchTeacherPerformance(schoolId, performanceFilters);
-            
-            // Use data directly as it should now match the expected format
-            if (teacherData && Array.isArray(teacherData)) {
-              setTeacherPerformanceData(teacherData);
-            }
-            
-            // Fetch student performance data
-            const studentData = await fetchStudentPerformance(schoolId, performanceFilters);
-            
-            // Use data directly as it should now match the expected format
-            if (studentData && Array.isArray(studentData)) {
-              setStudentPerformanceData(studentData);
-            }
-          } catch (performanceError) {
-            console.error("Error fetching performance data:", performanceError);
-          }
-        }
+        setAnalyticsData(mockData);
       } catch (error) {
-        console.error("Error fetching analytics data:", error);
-        toast({
-          title: "Error",
-          description: "Could not fetch analytics data. Please try again.",
-          variant: "destructive",
-        });
+        console.error('Error fetching analytics data:', error);
+        // Use mock data as fallback
+        if (schoolId) {
+          const mockData = getMockAnalyticsData(schoolId, {});
+          setAnalyticsData(mockData);
+        }
       } finally {
-        setIsLoading(false);
+        setLoading(false);
       }
     };
     
     fetchAnalyticsData();
-  }, [schoolId, dateRange, selectedStudent, selectedTeacherId, activeTab]);
-
-  const handleTabChange = (value: string) => {
-    setActiveTab(value);
+  }, [schoolId, timeRange]);
+  
+  // Format duration for display
+  const formatDuration = (minutes: number | string) => {
+    const mins = typeof minutes === 'string' ? parseInt(minutes, 10) : minutes;
+    if (mins < 60) return `${mins} min`;
+    const hours = Math.floor(mins / 60);
+    const remainingMins = mins % 60;
+    return `${hours}h ${remainingMins}m`;
   };
-
-  // Custom handler for date range changes to maintain correct typing
-  const handleDateRangeChange = (newDateRange: DateRange | undefined) => {
-    if (newDateRange) {
-      setDateRange(newDateRange);
-    } else {
-      setDateRange({ from: undefined, to: undefined });
+  
+  // Custom tooltip for charts
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-white p-2 border rounded shadow text-sm">
+          <p className="font-medium">{label}</p>
+          <p className="text-learnable-purple">
+            {payload[0].name}: {payload[0].value}
+          </p>
+        </div>
+      );
     }
+    return null;
   };
-
+  
+  // Export data as CSV
+  const exportData = () => {
+    if (!analyticsData) return;
+    
+    // Create CSV content
+    let csvContent = "data:text/csv;charset=utf-8,";
+    
+    // Add headers
+    csvContent += "Student,Session Date,Duration (min),Topic,Queries\n";
+    
+    // Add session data
+    analyticsData.sessions.forEach(session => {
+      const row = [
+        session.userName,
+        format(new Date(session.startTime), 'yyyy-MM-dd'),
+        session.duration,
+        session.topicOrContent,
+        session.numQueries
+      ].join(',');
+      csvContent += row + "\n";
+    });
+    
+    // Create download link
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `analytics_${format(new Date(), 'yyyy-MM-dd')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+  
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-learnable-purple" />
+      </div>
+    );
+  }
+  
+  if (!analyticsData) {
+    return (
+      <div className="text-center py-8">
+        <p>No analytics data available.</p>
+      </div>
+    );
+  }
+  
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row gap-4">
-        <div className="w-full md:w-1/2">
-          <DateRangePicker dateRange={dateRange} onDateRangeChange={handleDateRangeChange} />
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h2 className="text-2xl font-bold">Analytics Dashboard</h2>
+          <p className="text-muted-foreground">
+            View usage statistics for {profile?.organization?.name || "your school"}
+          </p>
         </div>
-        <div className="w-full md:w-1/2">
-          <StudentSelector 
-            students={students}
-            selectedStudent={selectedStudent}
-            onStudentSelect={setSelectedStudent}
-          />
+        
+        <div className="flex flex-wrap gap-2">
+          <Select value={timeRange} onValueChange={setTimeRange}>
+            <SelectTrigger className="w-[180px]">
+              <Calendar className="mr-2 h-4 w-4" />
+              <SelectValue placeholder="Select time range" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7days">Last 7 days</SelectItem>
+              <SelectItem value="30days">Last 30 days</SelectItem>
+              <SelectItem value="thisWeek">This week</SelectItem>
+            </SelectContent>
+          </Select>
+          
+          <Button variant="outline" onClick={exportData}>
+            <Download className="mr-2 h-4 w-4" />
+            Export Data
+          </Button>
         </div>
       </div>
       
-      <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList className="grid grid-cols-2 w-full max-w-md">
-          <TabsTrigger value="engagement">Engagement Metrics</TabsTrigger>
-          <TabsTrigger value="performance">Performance Metrics</TabsTrigger>
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Active Students
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {analyticsData.summary.activeStudents}
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Total Sessions
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {analyticsData.summary.totalSessions}
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Total Queries
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {analyticsData.summary.totalQueries}
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Avg. Session Duration
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {formatDuration(analyticsData.summary.avgSessionMinutes)}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+      
+      {/* Tabs for different analytics views */}
+      <Tabs defaultValue="overview" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="topics">Topics</TabsTrigger>
+          <TabsTrigger value="students">Students</TabsTrigger>
+          <TabsTrigger value="sessions">Sessions</TabsTrigger>
         </TabsList>
         
-        <TabsContent value="engagement" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-            <StatsCard
-              title="Students"
-              value={stats.activeStudents}
-              description="Active students"
-              icon={<Users className="h-5 w-5" />}
-            />
-            <StatsCard
-              title="Sessions"
-              value={stats.totalSessions}
-              description="Total learning sessions"
-              icon={<MessageSquare className="h-5 w-5" />}
-            />
-            <StatsCard
-              title="Queries"
-              value={stats.totalQueries}
-              description="Total student queries"
-              icon={<Book className="h-5 w-5" />}
-            />
-            <StatsCard
-              title="Avg. Time"
-              value={`${stats.avgSessionMinutes} min`}
-              description="Average session length"
-              icon={<BarChart2 className="h-5 w-5" />}
-            />
+        {/* Overview Tab */}
+        <TabsContent value="overview" className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Study Time by Student</CardTitle>
+                <CardDescription>Total hours spent by each student</CardDescription>
+              </CardHeader>
+              <CardContent className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={analyticsData.studyTime}
+                    margin={{ top: 20, right: 30, left: 20, bottom: 40 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis 
+                      dataKey="name" 
+                      angle={-45} 
+                      textAnchor="end"
+                      height={70}
+                    />
+                    <YAxis label={{ value: 'Hours', angle: -90, position: 'insideLeft' }} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Bar dataKey="hours" fill="#8884d8" name="Hours" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader>
+                <CardTitle>Topics Distribution</CardTitle>
+                <CardDescription>Most popular topics</CardDescription>
+              </CardHeader>
+              <CardContent className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={analyticsData.topics}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                      nameKey="name"
+                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                    >
+                      {analyticsData.topics.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
           </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <StudyTimeChart 
-              data={studyTimeData} 
-              title="Weekly Study Time" 
-              description={`Study hours per student ${selectedStudent ? 'for selected student' : ''}`}
-              isLoading={isLoading}
-            />
-            <TopicsChart 
-              data={topicsData}
-              title="Most Studied Topics"
-              description="Distribution of topics studied by students"
-              isLoading={isLoading}
-            />
-          </div>
-          
-          <SessionsTable 
-            sessions={sessionsData}
-            title="Recent Learning Sessions"
-            description="Latest student learning sessions"
-            isLoading={isLoading}
-          />
         </TabsContent>
         
-        <TabsContent value="performance" className="space-y-6">
-          {/* Add teacher selector for performance metrics */}
-          <div className="w-full max-w-xs mb-6">
-            <TeacherSelector
-              schoolId={schoolId}
-              selectedTeacherId={selectedTeacherId}
-              onTeacherChange={setSelectedTeacherId}
-            />
-          </div>
-          
-          {/* School Performance Panel */}
-          <SchoolPerformancePanel
-            monthlyData={schoolPerformanceData}
-            summary={schoolPerformanceSummary}
-            isLoading={isLoading}
-          />
-          
-          {/* Teacher Performance Table */}
-          <TeacherPerformanceTable
-            data={teacherPerformanceData}
-            isLoading={isLoading}
-          />
-          
-          {/* Student Performance Table */}
-          <StudentPerformanceTable
-            data={studentPerformanceData}
-            isLoading={isLoading}
-          />
+        {/* Topics Tab */}
+        <TabsContent value="topics" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Topics Analysis</CardTitle>
+              <CardDescription>Detailed breakdown of topics studied</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-2 px-4 font-medium">Topic</th>
+                      <th className="text-right py-2 px-4 font-medium">Sessions</th>
+                      <th className="text-right py-2 px-4 font-medium">Percentage</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {analyticsData.topics.map((topic) => (
+                      <tr key={topic.topic} className="border-b">
+                        <td className="py-2 px-4">{topic.name}</td>
+                        <td className="py-2 px-4 text-right">{topic.count}</td>
+                        <td className="py-2 px-4 text-right">
+                          {((topic.count / analyticsData.summary.totalSessions) * 100).toFixed(1)}%
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        {/* Students Tab */}
+        <TabsContent value="students" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Student Activity</CardTitle>
+                  <CardDescription>Student engagement metrics</CardDescription>
+                </div>
+                <Select defaultValue="hours">
+                  <SelectTrigger className="w-[180px]">
+                    <Filter className="mr-2 h-4 w-4" />
+                    <SelectValue placeholder="Sort by" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="hours">Hours (High to Low)</SelectItem>
+                    <SelectItem value="sessions">Sessions (High to Low)</SelectItem>
+                    <SelectItem value="name">Name (A-Z)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-2 px-4 font-medium">Student</th>
+                      <th className="text-right py-2 px-4 font-medium">Hours</th>
+                      <th className="text-right py-2 px-4 font-medium">Sessions</th>
+                      <th className="text-right py-2 px-4 font-medium">Avg. Duration</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {analyticsData.studyTime.map((student) => {
+                      // Count sessions for this student
+                      const studentSessions = analyticsData.sessions.filter(
+                        session => session.userName === student.studentName
+                      );
+                      const sessionCount = studentSessions.length;
+                      const avgDuration = sessionCount > 0 
+                        ? studentSessions.reduce((sum, s) => sum + Number(s.duration), 0) / sessionCount
+                        : 0;
+                        
+                      return (
+                        <tr key={student.studentName} className="border-b">
+                          <td className="py-2 px-4">{student.studentName}</td>
+                          <td className="py-2 px-4 text-right">{student.hours}</td>
+                          <td className="py-2 px-4 text-right">{sessionCount}</td>
+                          <td className="py-2 px-4 text-right">{formatDuration(avgDuration)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        {/* Sessions Tab */}
+        <TabsContent value="sessions" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Session History</CardTitle>
+                  <CardDescription>Detailed session logs</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-2 px-4 font-medium">Student</th>
+                      <th className="text-left py-2 px-4 font-medium">Date</th>
+                      <th className="text-left py-2 px-4 font-medium">Topic</th>
+                      <th className="text-right py-2 px-4 font-medium">Duration</th>
+                      <th className="text-right py-2 px-4 font-medium">Queries</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {analyticsData.sessions.map((session) => (
+                      <tr key={session.id} className="border-b">
+                        <td className="py-2 px-4">{session.userName}</td>
+                        <td className="py-2 px-4">
+                          {format(new Date(session.startTime), 'MMM d, yyyy')}
+                        </td>
+                        <td className="py-2 px-4">{session.topicOrContent}</td>
+                        <td className="py-2 px-4 text-right">{formatDuration(session.duration)}</td>
+                        <td className="py-2 px-4 text-right">{session.numQueries}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

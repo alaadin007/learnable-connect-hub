@@ -1,6 +1,5 @@
 
-// This file is intended to re-export toast from the correct location
-// Import directly from radix-ui toast implementation
+// This file intended to export toast functionality to the app
 import {
   ToastProvider,
   ToastViewport,
@@ -11,8 +10,9 @@ import {
   ToastAction,
 } from "@/components/ui/toast";
 
-import { useToast } from "@/hooks/use-toast";
+import { useToast as useToastHook } from "@radix-ui/react-toast";
 
+// Export components from toast.tsx
 export {
   ToastProvider,
   ToastViewport,
@@ -21,8 +21,10 @@ export {
   ToastDescription,
   ToastClose,
   ToastAction,
-  useToast,
 };
+
+// Export the hook
+export const useToast = useToastHook;
 
 // Use sonner toast for notifications
 export { toast } from "sonner";
