@@ -35,7 +35,7 @@ import {
 } from "@/utils/analyticsUtils";
 
 interface AnalyticsDashboardProps {
-  userRole: "school" | "teacher";
+  userRole: "school" | "teacher" | "student";
   isLoading?: boolean;
 }
 

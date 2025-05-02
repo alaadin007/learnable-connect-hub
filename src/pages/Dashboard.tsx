@@ -162,8 +162,8 @@ const Dashboard = () => {
                     <CardDescription>Track your progress and performance</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    {/* Fix TypeScript error by explicitly including "student" as an acceptable value */}
-                    <AnalyticsDashboard userRole={"student" as "teacher" | "school" | "student"} isLoading={false} />
+                    {/* Now student is a valid userRole value */}
+                    <AnalyticsDashboard userRole="student" isLoading={false} />
                   </CardContent>
                 </Card>
               </TabsContent>
