@@ -48,14 +48,15 @@ const TestAccounts = () => {
     try {
       toast.loading("Checking test accounts status...");
       
-      // Fix the deeply nested type error by using a simpler approach with type assertion
+      // Fix the type error by explicitly declaring the return type of the query
       const { data: schoolData } = await supabase
         .from('profiles')
         .select('id')
         .eq('email', TEST_ACCOUNTS.school.email)
-        .limit(1) as { data: any[] | null };
+        .limit(1)
+        .single();
         
-      if (!schoolData || schoolData.length === 0) {
+      if (!schoolData) {
         // If not, invoke the edge function to create them
         toast.loading("Creating test accounts... (this may take a moment)");
         
