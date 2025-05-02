@@ -114,9 +114,13 @@ const AnalyticsDashboard = ({ userRole }: AnalyticsDashboardProps) => {
         
         if (studyError) throw studyError;
         
-        const formattedStudyData = studyData?.map(item => ({
-          name: item.student_name || 'Unknown',
-          hours: Number(item.study_hours) || 0
+        const formattedStudyData: StudyTimeData[] = studyData?.map(item => ({
+          week: Number(item.week_number) || 0,
+          year: Number(item.year) || new Date().getFullYear(),
+          hours: Number(item.study_hours) || 0,
+          studentName: item.student_name || 'Unknown',
+          // For backward compatibility
+          name: item.student_name || 'Unknown'
         })) || [];
         
         setStudyTimeData(formattedStudyData);
@@ -133,7 +137,10 @@ const AnalyticsDashboard = ({ userRole }: AnalyticsDashboardProps) => {
         
         if (topicsError) throw topicsError;
         
-        const formattedTopicsData = topicsData?.map(item => ({
+        const formattedTopicsData: TopicData[] = topicsData?.map(item => ({
+          topic: item.topic_or_content_used || 'General',
+          count: Number(item.count_of_sessions) || 0,
+          // For backward compatibility
           name: item.topic_or_content_used || 'General',
           value: Number(item.count_of_sessions) || 0
         })) || [];
@@ -208,8 +215,9 @@ const AnalyticsDashboard = ({ userRole }: AnalyticsDashboardProps) => {
             topicOrContent: session.topic_or_content_used || "General",
             startTime: format(new Date(session.session_start), 'MMM dd, yyyy'),
             endTime: session.session_end,
-            numQueries: session.num_queries,
             duration: duration,
+            numQueries: session.num_queries,
+            
             // Backward compatibility properties
             student: userNameMap[session.user_id] || "Unknown",
             topic: session.topic_or_content_used || "General",
@@ -281,7 +289,11 @@ const AnalyticsDashboard = ({ userRole }: AnalyticsDashboardProps) => {
 
   // Custom handler for date range changes to maintain correct typing
   const handleDateRangeChange = (newDateRange: DateRange | undefined) => {
-    setDateRange(newDateRange || { from: undefined, to: undefined });
+    if (newDateRange) {
+      setDateRange(newDateRange);
+    } else {
+      setDateRange({ from: undefined, to: undefined });
+    }
   };
 
   return (

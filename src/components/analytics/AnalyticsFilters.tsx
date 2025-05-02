@@ -18,9 +18,14 @@ export function AnalyticsFilters({
   showStudentSelector = false 
 }: AnalyticsFiltersProps) {
   const handleDateRangeChange = (range: DateRange | undefined) => {
+    // Ensure 'from' is defined in the DateRange as required by type
+    const updatedRange = range 
+      ? { ...range, from: range.from || undefined } 
+      : undefined;
+      
     onFiltersChange({
       ...filters,
-      dateRange: range
+      dateRange: updatedRange
     });
   };
 
