@@ -108,7 +108,7 @@ const Navbar = () => {
           <div className="hidden md:flex items-center space-x-4">
             {user ? (
               <Button onClick={handleLogout} variant="outline">
-                Sign Out
+                Log Out
               </Button>
             ) : (
               <>
@@ -116,7 +116,7 @@ const Navbar = () => {
                   variant="outline" 
                   onClick={() => navigate("/login")}
                 >
-                  Sign In
+                  Log In
                 </Button>
                 <Button 
                   onClick={() => navigate("/register")}
@@ -153,7 +153,7 @@ const Navbar = () => {
           <div className="pt-4 space-y-4">
             {user ? (
               <Button onClick={handleLogout} variant="outline" className="w-full">
-                Sign Out
+                Log Out
               </Button>
             ) : (
               <>
@@ -165,7 +165,7 @@ const Navbar = () => {
                   }}
                   className="w-full"
                 >
-                  Sign In
+                  Log In
                 </Button>
                 <Button 
                   onClick={() => {
