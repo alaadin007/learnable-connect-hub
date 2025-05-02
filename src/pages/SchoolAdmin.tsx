@@ -6,6 +6,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import TeacherManagement from "@/components/school-admin/TeacherManagement";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
+import { Users } from "lucide-react";
 
 const SchoolAdmin = () => {
   const { profile } = useAuth();
@@ -43,6 +46,16 @@ const SchoolAdmin = () => {
               </div>
             </CardContent>
           </Card>
+          
+          <div className="mb-6 flex justify-between items-center">
+            <h2 className="text-xl font-semibold">Quick Actions</h2>
+            <Link to="/admin/teacher-management">
+              <Button className="gradient-bg">
+                <Users className="mr-2 h-4 w-4" />
+                Advanced Teacher Management
+              </Button>
+            </Link>
+          </div>
           
           <Tabs defaultValue="teachers" className="space-y-4">
             <TabsList>

@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -25,6 +24,7 @@ import PricingPage from "./pages/Pricing";
 import AboutPage from "./pages/About";
 import ContactPage from "./pages/Contact";
 import SchoolRegistration from "./pages/SchoolRegistration";
+import AdminTeacherManagement from "./pages/AdminTeacherManagement";
 
 const queryClient = new QueryClient();
 
@@ -75,6 +75,13 @@ const App = () => (
               <Route path="/school-admin/teachers" element={
                 <ProtectedRoute allowedRoles={['school']} requireSupervisor={true}>
                   <SchoolAdmin />
+                </ProtectedRoute>
+              } />
+              
+              {/* Teacher Management page */}
+              <Route path="/admin/teacher-management" element={
+                <ProtectedRoute allowedRoles={['school']} requireSupervisor={true}>
+                  <AdminTeacherManagement />
                 </ProtectedRoute>
               } />
               

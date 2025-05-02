@@ -1,5 +1,8 @@
 
 project_id = "ldlgckwkdsvrfuymidrr"
 
-[functions.register-school]
-verify_jwt = false
+[functions.invite-teacher]
+verify_jwt = true
+
+[functions.create-teacher]
+verify_jwt = true

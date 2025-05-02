@@ -2,19 +2,26 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-// Set up CORS headers for cross-origin requests
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-interface CreateTeacherBody {
-  email: string;
-  full_name?: string;
+// Helper function to generate a random password
+function generateRandomPassword(length: number): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()";
+  let result = '';
+  const randomValues = new Uint8Array(length);
+  crypto.getRandomValues(randomValues);
+  
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(randomValues[i] % chars.length);
+  }
+  
+  return result;
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response(null, {
       headers: corsHeaders,
@@ -23,7 +30,7 @@ serve(async (req) => {
   }
 
   try {
-    // Create a Supabase client with the Auth context of the logged in user
+    // Create a Supabase client with auth context
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_ANON_KEY") ?? "",
@@ -34,17 +41,14 @@ serve(async (req) => {
       }
     );
 
-    // Create Supabase admin client for user creation
+    // Create admin client for user creation
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
     // Verify the user is logged in and is a school supervisor
-    const {
-      data: { user },
-      error: userError,
-    } = await supabaseClient.auth.getUser();
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
 
     if (userError || !user) {
       return new Response(
@@ -57,10 +61,10 @@ serve(async (req) => {
     }
 
     // Check if user is a school supervisor
-    const { data: teacherData, error: teacherError } = await supabaseClient
+    const { data: isSupervisor, error: supervisorError } = await supabaseClient
       .rpc("is_supervisor", { user_id: user.id });
 
-    if (teacherError || !teacherData) {
+    if (supervisorError || !isSupervisor) {
       return new Response(
         JSON.stringify({ error: "Only school supervisors can create teacher accounts" }),
         { 
@@ -102,7 +106,7 @@ serve(async (req) => {
     }
 
     // Parse the request body
-    const { email, full_name } = await req.json() as CreateTeacherBody;
+    const { email, full_name } = await req.json();
 
     if (!email) {
       return new Response(
@@ -121,7 +125,7 @@ serve(async (req) => {
     const { data: newUser, error: createUserError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password: tempPassword,
-      email_confirm: true,
+      email_confirm: true, // Skip email verification
       user_metadata: {
         user_type: 'teacher',
         full_name: full_name || '',
@@ -140,7 +144,7 @@ serve(async (req) => {
       );
     }
 
-    // Create teacher record in the database
+    // Create teacher record
     const { error: teacherInsertError } = await supabaseAdmin
       .from("teachers")
       .insert({
@@ -152,7 +156,7 @@ serve(async (req) => {
     if (teacherInsertError) {
       console.error("Error creating teacher record:", teacherInsertError);
       
-      // Attempt to delete the user if teacher record creation fails
+      // Delete the user if teacher record creation fails
       await supabaseAdmin.auth.admin.deleteUser(newUser.user.id);
       
       return new Response(
@@ -188,17 +192,3 @@ serve(async (req) => {
     );
   }
 });
-
-// Helper function to generate a random password
-function generateRandomPassword(length: number): string {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()";
-  let result = '';
-  const randomValues = new Uint8Array(length);
-  crypto.getRandomValues(randomValues);
-  
-  for (let i = 0; i < length; i++) {
-    result += chars.charAt(randomValues[i] % chars.length);
-  }
-  
-  return result;
-}
