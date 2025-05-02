@@ -170,9 +170,9 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({ 
-        message: "Teacher account created successfully",
+        message: "Teacher account created successfully", 
         data: { 
-          user_id: newUser.user.id,
+          email,
           temp_password: tempPassword
         }
       }),

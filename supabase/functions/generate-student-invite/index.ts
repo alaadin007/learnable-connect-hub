@@ -51,14 +51,17 @@ serve(async (req) => {
     }
 
     // Get the school_id of the logged in teacher
-    const { data: schoolId, error: schoolIdError } = await supabaseClient
-      .rpc("get_user_school_id");
+    const { data: teacherData, error: teacherError } = await supabaseClient
+      .from("teachers")
+      .select("school_id")
+      .eq("id", user.id)
+      .single();
 
-    if (schoolIdError || !schoolId) {
+    if (teacherError || !teacherData) {
       return new Response(
-        JSON.stringify({ error: "Could not determine school ID" }),
+        JSON.stringify({ error: "Only teachers can generate student invites" }),
         { 
-          status: 400,
+          status: 403,
           headers: { "Content-Type": "application/json", ...corsHeaders },
         }
       );
@@ -82,7 +85,7 @@ serve(async (req) => {
       const { data: invite, error: inviteError } = await supabaseClient
         .from("student_invites")
         .insert({
-          school_id: schoolId,
+          school_id: teacherData.school_id,
           teacher_id: user.id,
           code: inviteCode,
           expires_at: expirationDate.toISOString()
@@ -118,7 +121,7 @@ serve(async (req) => {
       const { data: invite, error: inviteError } = await supabaseClient
         .from("student_invites")
         .insert({
-          school_id: schoolId,
+          school_id: teacherData.school_id,
           teacher_id: user.id,
           code: inviteCode,
           email: email,
@@ -139,7 +142,6 @@ serve(async (req) => {
       }
 
       // In a production environment, here you would send an email with the invite code
-      // For now, we'll just return the invite code
       return new Response(
         JSON.stringify({ 
           message: "Student invite created successfully",

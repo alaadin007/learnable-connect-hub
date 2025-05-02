@@ -108,16 +108,24 @@ const StudentManagement = () => {
   };
 
   const fetchInvites = async () => {
+    if (!schoolId || !user?.id) {
+      return;
+    }
+    
     try {
-      const { data, error } = await supabase
-        .from('student_invites')
-        .select('*')
-        .eq('school_id', schoolId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
+      const response = await fetch(`https://ldlgckwkdsvrfuymidrr.supabase.co/rest/v1/student_invites?select=id,code,email,created_at,expires_at,status&school_id=eq.${schoolId}&teacher_id=eq.${user.id}&order=created_at.desc`, {
+        headers: {
+          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxkbGdja3drZHN2cmZ1eW1pZHJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDYwNTc2NzksImV4cCI6MjA2MTYzMzY3OX0.kItrTMcKThMXuwNDClYNTGkEq-1EVVldq1vFw7ZsKx0',
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ''}`
+        }
+      });
       
-      setInvites(data || []);
+      if (!response.ok) {
+        throw new Error('Failed to fetch invites');
+      }
+      
+      const inviteData = await response.json();
+      setInvites(inviteData as StudentInvite[]);
     } catch (error) {
       console.error('Error fetching invites:', error);
       toast.error('Failed to load student invites');

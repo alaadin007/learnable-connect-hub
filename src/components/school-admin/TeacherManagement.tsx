@@ -32,8 +32,8 @@ type Teacher = {
   id: string;
   is_supervisor: boolean;
   profile: {
-    full_name: string;
-    email: string;
+    full_name: string | null;
+    email: string | null;
   };
 };
 
@@ -69,9 +69,8 @@ const TeacherManagement = () => {
         .select(`
           id,
           is_supervisor,
-          profile:profiles(
-            full_name,
-            id
+          profiles:profiles(
+            full_name
           )
         `)
         .eq('school_id', schoolId);
@@ -80,21 +79,17 @@ const TeacherManagement = () => {
         throw error;
       }
 
-      // For each teacher, fetch their email (auth.users table is not accessible directly)
-      const teachersWithEmail = await Promise.all(
-        (data || []).map(async (teacher) => {
-          // Here we're simplifying by using the profile data since we can't directly fetch from auth
-          return {
-            ...teacher,
-            profile: {
-              ...teacher.profile,
-              email: teacher.profile?.email || 'Unknown email'
-            }
-          };
-        })
-      );
+      // Transform teachers data to include email
+      const teachersData = (data || []).map(teacher => ({
+        id: teacher.id,
+        is_supervisor: teacher.is_supervisor,
+        profile: {
+          full_name: teacher.profiles?.full_name || "Unknown",
+          email: teacher.id || "Unknown email" // Using ID as email placeholder
+        }
+      }));
 
-      setTeachers(teachersWithEmail);
+      setTeachers(teachersData);
     } catch (error) {
       console.error('Error fetching teachers:', error);
       toast.error('Failed to load teachers');
