@@ -1,3 +1,4 @@
+
 import React, {
   createContext,
   useState,
@@ -132,43 +133,42 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       }
 
       if (profileData) {
-        // Initialize with null organization to handle the case where it might be missing
-        const safeProfileData: UserProfile = {
+        let safeProfileData: UserProfile = {
           ...profileData,
-          organization: null
+          organization: null,
         };
 
-        // Check if organization exists and is a valid object before accessing its properties
-        if (
-          profileData.organization !== null &&
-          typeof profileData.organization === 'object' &&
-          !('error' in profileData.organization)
-        ) {
-          safeProfileData.organization = profileData.organization;
+        const org = profileData.organization;
+
+        if (org === null) {
+          safeProfileData.organization = null;
+        } else if (typeof org === 'object') {
+          if (!('error' in org)) {
+            safeProfileData.organization = org;
+          } else {
+            safeProfileData.organization = null;
+          }
+        } else {
+          safeProfileData.organization = null;
         }
 
         setProfile(safeProfileData);
         setUserRole(profileData.user_type || null);
         setIsSuperviser(profileData.user_type === "superviser");
 
-        // Safely access organization.id with null check
         setSchoolId(safeProfileData.organization?.id || null);
 
-        // Handle test accounts
         if (isTestAccount(user?.email || '')) {
           if (safeProfileData.organization && safeProfileData.organization.code === undefined) {
-            // Auto-assign test school code if missing
             await updateProfile({
               organization: { code: TEST_SCHOOL_CODE },
             });
           }
 
-          // Populate test account with session data
           if (profileData.user_type === 'student') {
             await sessionLogger.startSession('Test Session', userId);
             await sessionLogger.endSession('Test Session');
           } else if (profileData.user_type === 'teacher') {
-            // Make sure we have a valid organization ID
             const orgId = safeProfileData.organization?.id || '';
             if (orgId) {
               await populateTestAccountWithSessions(userId, orgId);
