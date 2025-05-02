@@ -32,3 +32,7 @@ verify_jwt = true
 [[edge_functions]]
 name = "process-document"
 verify_jwt = true
+
+[[edge_functions]]
+name = "transcribe-audio"
+verify_jwt = true

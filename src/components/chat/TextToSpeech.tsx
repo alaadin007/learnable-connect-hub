@@ -1,112 +1,64 @@
 
-import React, { useState, useRef } from "react";
-import { Volume, VolumeX, Loader2 } from "lucide-react";
+import React from 'react';
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/components/ui/use-toast";
+import { Volume2 } from "lucide-react";
+import { toast } from "sonner";
 
 interface TextToSpeechProps {
   text: string;
 }
 
 const TextToSpeech: React.FC<TextToSpeechProps> = ({ text }) => {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const { toast } = useToast();
-
-  const generateAndPlaySpeech = async () => {
-    if (isPlaying && audioRef.current) {
-      // If already playing, stop playback
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-      setIsPlaying(false);
-      return;
-    }
-
-    // Limit text length to prevent large requests
-    const maxLength = 4000;
-    const truncatedText = text.length > maxLength 
-      ? text.substring(0, maxLength) + "... (text truncated for speech)"
-      : text;
-
-    setIsLoading(true);
-    
-    try {
-      const { data, error } = await supabase.functions.invoke("text-to-speech", {
-        body: { 
-          text: truncatedText,
-          voice: "nova" // You can make this configurable
-        },
-      });
+  const speakText = () => {
+    if ('speechSynthesis' in window) {
+      // Cancel any ongoing speech
+      window.speechSynthesis.cancel();
       
-      if (error) {
-        throw new Error(error.message);
-      }
+      const utterance = new SpeechSynthesisUtterance(text);
       
-      if (data.audio) {
-        // Create audio from base64
-        const audioSrc = `data:audio/mp3;base64,${data.audio}`;
-        
-        if (!audioRef.current) {
-          audioRef.current = new Audio(audioSrc);
-          
-          audioRef.current.onended = () => {
-            setIsPlaying(false);
-          };
-          
-          audioRef.current.onerror = () => {
-            setIsPlaying(false);
-            toast({
-              title: "Playback Error",
-              description: "There was a problem playing the audio.",
-              variant: "destructive",
-            });
-          };
-        } else {
-          audioRef.current.src = audioSrc;
-        }
-        
-        // Play the audio
-        await audioRef.current.play();
-        setIsPlaying(true);
-        
-        toast({
-          title: "Audio started",
-          description: "AI response is being played.",
-        });
+      // Get available voices
+      let voices = window.speechSynthesis.getVoices();
+      
+      // If voices array is empty, wait for voices to load
+      if (voices.length === 0) {
+        window.speechSynthesis.onvoiceschanged = () => {
+          voices = window.speechSynthesis.getVoices();
+          setVoice(utterance, voices);
+          window.speechSynthesis.speak(utterance);
+        };
       } else {
-        throw new Error("No audio data received");
+        setVoice(utterance, voices);
+        window.speechSynthesis.speak(utterance);
       }
-    } catch (error: any) {
-      console.error("Error generating speech:", error);
-      toast({
-        title: "Speech Generation Failed",
-        description: "Could not generate speech for this response.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
+    } else {
+      toast.error("Text-to-speech is not supported in your browser");
     }
+  };
+
+  const setVoice = (utterance: SpeechSynthesisUtterance, voices: SpeechSynthesisVoice[]) => {
+    // Try to find a good English voice
+    const preferredVoice = voices.find(voice => 
+      voice.lang.startsWith('en') && (voice.name.includes('Google') || voice.name.includes('Microsoft') || voice.name.includes('Natural'))
+    );
+    
+    if (preferredVoice) {
+      utterance.voice = preferredVoice;
+    }
+    
+    // Adjust speech parameters
+    utterance.rate = 1.0;  // Normal speed
+    utterance.pitch = 1.0; // Normal pitch
   };
 
   return (
     <Button
-      type="button"
       variant="ghost"
       size="icon"
       className="h-6 w-6"
-      onClick={generateAndPlaySpeech}
-      disabled={isLoading || !text.trim()}
-      title={isPlaying ? "Stop audio" : "Listen to response"}
+      onClick={speakText}
+      title="Read aloud"
     >
-      {isLoading ? (
-        <Loader2 className="h-4 w-4 animate-spin" />
-      ) : isPlaying ? (
-        <VolumeX className="h-4 w-4" />
-      ) : (
-        <Volume className="h-4 w-4" />
-      )}
+      <Volume2 className="h-4 w-4 text-gray-400" />
     </Button>
   );
 };
