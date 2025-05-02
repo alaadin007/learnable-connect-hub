@@ -48,12 +48,12 @@ const TestAccounts = () => {
     try {
       toast.loading("Checking test accounts status...");
       
-      // Fix the deeply nested type error by being explicit with the query type
+      // Fix the deeply nested type error by using a simpler approach with type assertion
       const { data: schoolData } = await supabase
         .from('profiles')
         .select('id')
         .eq('email', TEST_ACCOUNTS.school.email)
-        .limit(1);
+        .limit(1) as { data: any[] | null };
         
       if (!schoolData || schoolData.length === 0) {
         // If not, invoke the edge function to create them
@@ -89,11 +89,16 @@ const TestAccounts = () => {
     const account = TEST_ACCOUNTS[accountType];
     
     try {
-      // Fix the void return type error by handling the signIn properly
+      // Fix the type error by handling the return type properly
       const result = await signIn(account.email, account.password);
-      // Treat result as possibly undefined
-      const data = result?.data;
-      const error = result?.error;
+      
+      if (!result) {
+        // If signIn returns void or undefined/null, we handle accordingly
+        console.log("Sign in completed without explicit return value");
+        return;
+      }
+      
+      const { data, error } = result;
       
       if (error) {
         console.error(`Login error for ${accountType} account:`, error);
@@ -194,4 +199,3 @@ const TestAccounts = () => {
 };
 
 export default TestAccounts;
-

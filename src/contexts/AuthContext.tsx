@@ -28,7 +28,7 @@ interface AuthContextType {
   userRole: UserRole | null;
   isSuperviser: boolean;
   schoolId: string | null;
-  signIn: (email: string, password: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<{ data: any, error: any } | undefined>;
   signUp: (email: string, password: string, metadata: Record<string, any>) => Promise<void>;
   signOut: () => Promise<void>;
   refreshUserData: () => Promise<void>;
@@ -228,22 +228,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         // Use our test user function instead
         await setTestUser(userType as 'school' | 'teacher' | 'student', schoolIndex);
-        return;
+        return; // No return value for test accounts
       }
       
       // Normal sign-in for real users
-      const { error } = await supabase.auth.signInWithPassword({
+      const result = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (error) {
-        toast.error(error.message);
-        throw error;
+      if (result.error) {
+        toast.error(result.error.message);
+        throw result.error;
       }
       
       toast.success("Signed in successfully");
       navigate("/dashboard");
+      return result; // Return the result for real users
     } catch (error: any) {
       console.error("Error signing in:", error.message);
       throw error;
