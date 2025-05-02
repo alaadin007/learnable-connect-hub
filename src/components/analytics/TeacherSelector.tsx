@@ -8,6 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import { Loader2 } from "lucide-react";
 
 interface TeacherSelectorProps {
   schoolId: string;
@@ -78,15 +79,22 @@ export function TeacherSelector({
         disabled={isLoading || teachers.length === 0}
       >
         <SelectTrigger className="w-full">
-          <SelectValue placeholder="All Teachers" />
+          <SelectValue placeholder="Select teacher..." />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">All Teachers</SelectItem>
-          {teachers.map((teacher) => (
-            <SelectItem key={teacher.id} value={teacher.id}>
-              {teacher.name}
-            </SelectItem>
-          ))}
+          {isLoading ? (
+            <div className="flex items-center justify-center py-2">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground mr-2" />
+              <span className="text-sm text-muted-foreground">Loading...</span>
+            </div>
+          ) : (
+            teachers.map((teacher) => (
+              <SelectItem key={teacher.id} value={teacher.id}>
+                {teacher.name}
+              </SelectItem>
+            ))
+          )}
         </SelectContent>
       </Select>
     </div>

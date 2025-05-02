@@ -2,6 +2,7 @@
 import React from "react";
 import { DateRangePicker } from "./DateRangePicker";
 import { StudentSelector } from "./StudentSelector";
+import { TeacherSelector } from "./TeacherSelector";
 import { Card, CardContent } from "@/components/ui/card";
 import { Filter } from "lucide-react";
 import { AnalyticsFilters as FiltersType, DateRange } from "./types";
@@ -10,12 +11,14 @@ interface AnalyticsFiltersProps {
   filters: FiltersType;
   onFiltersChange: (filters: FiltersType) => void;
   showStudentSelector?: boolean;
+  showTeacherSelector?: boolean;
 }
 
 export function AnalyticsFilters({ 
   filters, 
   onFiltersChange,
-  showStudentSelector = false 
+  showStudentSelector = false,
+  showTeacherSelector = false 
 }: AnalyticsFiltersProps) {
   const handleDateRangeChange = (range: DateRange | undefined) => {
     // Ensure 'from' is defined in the DateRange as required by type
@@ -36,6 +39,13 @@ export function AnalyticsFilters({
     });
   };
 
+  const handleTeacherChange = (teacherId: string | undefined) => {
+    onFiltersChange({
+      ...filters,
+      teacherId
+    });
+  };
+
   return (
     <Card className="mb-6">
       <CardContent className="pt-6">
@@ -45,7 +55,7 @@ export function AnalyticsFilters({
             <span>Filter Analytics:</span>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full">
             <div>
               <DateRangePicker
                 dateRange={filters.dateRange}
@@ -58,6 +68,16 @@ export function AnalyticsFilters({
                 <StudentSelector 
                   selectedStudentId={filters.studentId} 
                   onStudentChange={handleStudentChange}
+                />
+              </div>
+            )}
+            
+            {showTeacherSelector && (
+              <div>
+                <TeacherSelector
+                  schoolId={typeof filters.schoolId === 'string' ? filters.schoolId : ''}
+                  selectedTeacherId={filters.teacherId}
+                  onTeacherChange={handleTeacherChange}
                 />
               </div>
             )}

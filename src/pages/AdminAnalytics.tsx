@@ -31,7 +31,6 @@ import { useToast } from "@/components/ui/use-toast";
 import { SchoolPerformancePanel } from "@/components/analytics/SchoolPerformancePanel";
 import { TeacherPerformanceTable } from "@/components/analytics/TeacherPerformanceTable";
 import { StudentPerformanceTable } from "@/components/analytics/StudentPerformanceTable";
-import { TeacherSelector } from "@/components/analytics/TeacherSelector";
 
 const AdminAnalytics = () => {
   const { profile } = useAuth();
@@ -43,10 +42,10 @@ const AdminAnalytics = () => {
     dateRange: {
       from: undefined,
       to: undefined
-    }
+    },
+    schoolId: "" // Initialize schoolId in filters
   });
   const [activeTab, setActiveTab] = useState<string>("engagement");
-  const [selectedTeacherId, setSelectedTeacherId] = useState<string | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
@@ -61,6 +60,12 @@ const AdminAnalytics = () => {
 
   useEffect(() => {
     if (schoolId) {
+      // Update the filters with the schoolId
+      setFilters(prevFilters => ({
+        ...prevFilters,
+        schoolId: schoolId
+      }));
+      
       loadAnalyticsData();
     }
   }, [schoolId, filters, activeTab]);
@@ -86,8 +91,7 @@ const AdminAnalytics = () => {
       // Performance metrics (only load when on performance tab)
       if (activeTab === "performance") {
         const performanceFilters = {
-          ...filters,
-          teacherId: selectedTeacherId,
+          ...filters
         };
         
         const schoolPerformance = await fetchSchoolPerformance(schoolId, performanceFilters);
@@ -158,6 +162,7 @@ const AdminAnalytics = () => {
             filters={filters}
             onFiltersChange={handleFiltersChange}
             showStudentSelector={true}
+            showTeacherSelector={true}
           />
           
           {isLoading ? (
@@ -245,14 +250,6 @@ const AdminAnalytics = () => {
                 </TabsContent>
                 
                 <TabsContent value="performance" className="space-y-6">
-                  <div className="w-full max-w-xs mb-6">
-                    <TeacherSelector
-                      schoolId={schoolId}
-                      selectedTeacherId={selectedTeacherId}
-                      onTeacherChange={setSelectedTeacherId}
-                    />
-                  </div>
-                  
                   <SchoolPerformancePanel
                     monthlyData={schoolPerformanceData}
                     summary={schoolPerformanceSummary}
