@@ -5,10 +5,26 @@ import Footer from "@/components/landing/Footer";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Mic, FileText, Star, BarChart, Volume, Users, FileCheck, Lock, BarChart2, ArrowRightLeft, Brain, Clock } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 const TestAccounts = () => {
+  const { setTestUser } = useAuth();
+
+  // Handler for direct login
+  const handleDirectLogin = async (type: 'school' | 'teacher' | 'student', schoolIndex: number = 0) => {
+    try {
+      await setTestUser(type, schoolIndex);
+      toast.success(`Logged in as ${type === 'school' ? 'School Admin' : type === 'teacher' ? 'Teacher' : 'Student'}`);
+    } catch (error) {
+      console.error("Login error:", error);
+      toast.error("Failed to log in");
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
@@ -39,6 +55,7 @@ const TestAccounts = () => {
                         <TableHead>Email</TableHead>
                         <TableHead>Password</TableHead>
                         <TableHead>Access Level</TableHead>
+                        <TableHead>Action</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -49,6 +66,15 @@ const TestAccounts = () => {
                         <TableCell>
                           <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Full Admin Access</Badge>
                         </TableCell>
+                        <TableCell>
+                          <Button 
+                            variant="secondary" 
+                            className="bg-learnable-blue text-white hover:bg-learnable-blue-dark"
+                            onClick={() => handleDirectLogin('school', 0)}
+                          >
+                            Login as Admin
+                          </Button>
+                        </TableCell>
                       </TableRow>
                       <TableRow>
                         <TableCell>Teacher</TableCell>
@@ -56,6 +82,15 @@ const TestAccounts = () => {
                         <TableCell>password123</TableCell>
                         <TableCell>
                           <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Teacher Access</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Button 
+                            variant="secondary" 
+                            className="bg-green-600 text-white hover:bg-green-700"
+                            onClick={() => handleDirectLogin('teacher', 0)}
+                          >
+                            Login as Teacher
+                          </Button>
                         </TableCell>
                       </TableRow>
                       <TableRow>
@@ -65,6 +100,15 @@ const TestAccounts = () => {
                         <TableCell>
                           <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">Student Access</Badge>
                         </TableCell>
+                        <TableCell>
+                          <Button 
+                            variant="secondary" 
+                            className="bg-purple-600 text-white hover:bg-purple-700"
+                            onClick={() => handleDirectLogin('student', 0)}
+                          >
+                            Login as Student
+                          </Button>
+                        </TableCell>
                       </TableRow>
                       <TableRow>
                         <TableCell>Second School Admin</TableCell>
@@ -73,6 +117,15 @@ const TestAccounts = () => {
                         <TableCell>
                           <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Full Admin Access</Badge>
                         </TableCell>
+                        <TableCell>
+                          <Button 
+                            variant="secondary" 
+                            className="bg-learnable-blue text-white hover:bg-learnable-blue-dark"
+                            onClick={() => handleDirectLogin('school', 1)}
+                          >
+                            Login as Admin
+                          </Button>
+                        </TableCell>
                       </TableRow>
                       <TableRow>
                         <TableCell>Second School Teacher</TableCell>
@@ -80,6 +133,15 @@ const TestAccounts = () => {
                         <TableCell>password123</TableCell>
                         <TableCell>
                           <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Teacher Access</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Button 
+                            variant="secondary" 
+                            className="bg-green-600 text-white hover:bg-green-700"
+                            onClick={() => handleDirectLogin('teacher', 1)}
+                          >
+                            Login as Teacher
+                          </Button>
                         </TableCell>
                       </TableRow>
                     </TableBody>

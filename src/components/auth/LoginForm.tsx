@@ -7,13 +7,13 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { AlertCircle, Clock } from "lucide-react";
+import { Clock } from "lucide-react";
 
 const LoginForm = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const { signIn } = useAuth();
+  const { signIn, setTestUser } = useAuth();
 
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -33,6 +33,14 @@ const LoginForm = () => {
       // Error is handled by the signIn function
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleQuickLogin = async (type: 'school' | 'teacher' | 'student', schoolIndex: number = 0) => {
+    try {
+      await setTestUser(type, schoolIndex);
+    } catch (error) {
+      console.error("Quick login error:", error);
     }
   };
 
@@ -56,12 +64,30 @@ const LoginForm = () => {
                 <p className="mt-1 text-sm text-amber-700">
                   Use our pre-configured test accounts for instant login without email verification.
                 </p>
-                <div className="mt-2">
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button 
+                    onClick={() => handleQuickLogin('school')}
+                    className="text-sm text-blue-800 font-semibold hover:text-blue-900 bg-blue-100 px-3 py-1 rounded-full transition-colors duration-200"
+                  >
+                    Admin Login
+                  </button>
+                  <button 
+                    onClick={() => handleQuickLogin('teacher')}
+                    className="text-sm text-green-800 font-semibold hover:text-green-900 bg-green-100 px-3 py-1 rounded-full transition-colors duration-200"
+                  >
+                    Teacher Login
+                  </button>
+                  <button 
+                    onClick={() => handleQuickLogin('student')}
+                    className="text-sm text-purple-800 font-semibold hover:text-purple-900 bg-purple-100 px-3 py-1 rounded-full transition-colors duration-200"
+                  >
+                    Student Login
+                  </button>
                   <Link 
                     to="/test-accounts" 
                     className="text-sm text-amber-800 font-semibold hover:text-amber-900 bg-amber-200 px-3 py-1 rounded-full transition-colors duration-200"
                   >
-                    Access Test Accounts →
+                    View All →
                   </Link>
                 </div>
               </div>

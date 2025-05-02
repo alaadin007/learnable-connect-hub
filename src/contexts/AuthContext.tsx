@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { useNavigate } from "react-router-dom";
@@ -32,19 +33,23 @@ interface AuthContextType {
   signUp: (email: string, password: string, metadata: Record<string, any>) => Promise<void>;
   signOut: () => Promise<void>;
   refreshUserData: () => Promise<void>;
-  setTestUser: (type: 'school' | 'teacher' | 'student') => Promise<void>;
+  setTestUser: (type: 'school' | 'teacher' | 'student', schoolIndex?: number) => Promise<void>;
 }
 
 // Create mock user data for test accounts
-const createTestUserData = (type: 'school' | 'teacher' | 'student'): { user: User, profile: UserProfile } => {
+const createTestUserData = (type: 'school' | 'teacher' | 'student', schoolIndex: number = 0): { user: User, profile: UserProfile } => {
   const mockId = `test-${type}-${Date.now()}`;
+  const isSecondSchool = schoolIndex > 0;
+  const schoolName = isSecondSchool ? 'Second Test School' : 'Test School';
+  const schoolCode = isSecondSchool ? 'SECONDTEST' : TEST_SCHOOL_CODE;
+  const emailDomain = isSecondSchool ? 'secondschool.edu' : 'testschool.edu';
   
   const mockProfile: UserProfile = {
     id: mockId,
     user_type: type,
     full_name: type === 'school' ? 'School Admin' : type === 'teacher' ? 'Test Teacher' : 'Test Student',
-    school_code: type === 'school' ? null : TEST_SCHOOL_CODE,
-    school_name: 'Test School',
+    school_code: type === 'school' ? null : schoolCode,
+    school_name: schoolName,
     school_id: null,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
@@ -61,7 +66,7 @@ const createTestUserData = (type: 'school' | 'teacher' | 'student'): { user: Use
     },
     aud: 'authenticated',
     created_at: mockProfile.created_at,
-    email: `${type}@testschool.edu`,
+    email: `${type === 'school' ? 'admin' : type}@${emailDomain}`,
     role: 'authenticated',
     updated_at: mockProfile.updated_at,
     phone: '',
@@ -91,10 +96,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [schoolId, setSchoolId] = useState<string | null>(null);
 
   // Function to set a test user without authentication
-  const setTestUser = async (type: 'school' | 'teacher' | 'student') => {
+  const setTestUser = async (type: 'school' | 'teacher' | 'student', schoolIndex: number = 0) => {
     try {
       // Create mock user and profile data
-      const { user: mockUser, profile: mockProfile } = createTestUserData(type);
+      const { user: mockUser, profile: mockProfile } = createTestUserData(type, schoolIndex);
       
       // Set user data in state
       setUser(mockUser);
@@ -105,7 +110,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsSuperviser(type === 'school');
       
       // Create a mock school ID for this session
-      const mockSchoolId = type === 'school' ? mockUser.id : 'test-school-id';
+      const mockSchoolId = type === 'school' ? mockUser.id : `test-school-id-${schoolIndex}`;
       setSchoolId(mockSchoolId);
       
       // Ensure the mock profile has a school_id property
@@ -113,6 +118,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       // Store test user data in session storage
       sessionStorage.setItem('testUserType', type);
+      sessionStorage.setItem('testSchoolIndex', schoolIndex.toString());
       
       // Also store the user and profile data for session logging functionality
       sessionStorage.setItem('testUser', JSON.stringify(mockUser));
@@ -131,11 +137,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await generateMockConversations(mockUser.id, mockSchoolId);
       }
       
-      toast.success(`Logged in as Test ${type === 'school' ? 'School Admin' : type === 'teacher' ? 'Teacher' : 'Student'}`);
       navigate("/dashboard");
     } catch (error: any) {
       console.error("Error setting test user:", error.message);
       toast.error("Failed to set test user");
+      throw error;
     }
   };
   
@@ -217,8 +223,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const type = email.split('@')[0] as 'admin' | 'teacher' | 'student';
         const userType = type === 'admin' ? 'school' : type;
         
+        // Determine if it's for second school
+        const isSecondSchool = email.includes('secondschool.edu');
+        const schoolIndex = isSecondSchool ? 1 : 0;
+        
         // Use our test user function instead
-        await setTestUser(userType as 'school' | 'teacher' | 'student');
+        await setTestUser(userType as 'school' | 'teacher' | 'student', schoolIndex);
         return;
       }
       
@@ -282,6 +292,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (testUserType) {
         // Just clear the session storage and reset state for test users
         sessionStorage.removeItem('testUserType');
+        sessionStorage.removeItem('testSchoolIndex');
         sessionStorage.removeItem('testUser');
         sessionStorage.removeItem('testProfile');
         sessionStorage.removeItem('testSchoolId');
@@ -373,13 +384,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const testUserType = sessionStorage.getItem('testUserType') as 'school' | 'teacher' | 'student' | null;
         
         if (testUserType) {
+          // Get school index from session storage if available
+          const schoolIndex = parseInt(sessionStorage.getItem('testSchoolIndex') || '0', 10);
+          
           // Restore the test user session
-          const { user: mockUser, profile: mockProfile } = createTestUserData(testUserType);
+          const { user: mockUser, profile: mockProfile } = createTestUserData(testUserType, schoolIndex);
           setUser(mockUser);
           setProfile(mockProfile);
           setUserRole(testUserType);
           setIsSuperviser(testUserType === 'school');
-          setSchoolId(testUserType === 'school' ? mockUser.id : 'test-school-id');
+          setSchoolId(testUserType === 'school' ? mockUser.id : `test-school-id-${schoolIndex}`);
           setLoading(false);
           return;
         }
