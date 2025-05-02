@@ -94,7 +94,7 @@ serve(async (req) => {
       );
     }
 
-    // Update student status to "approved"
+    // Update student status to "active"
     const { data, error: updateError } = await supabaseClient
       .from("students")
       .update({ status: "active" })

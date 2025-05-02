@@ -6,3 +6,13 @@ verify_jwt = true
 
 [functions.create-teacher]
 verify_jwt = true
+
+[functions.generate-student-invite]
+verify_jwt = true
+
+[functions.approve-student]
+verify_jwt = true
+
+[functions.revoke-student-access]
+verify_jwt = true
+

@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -104,7 +105,7 @@ const TeacherStudents = () => {
       if (!schoolId || !user?.id) return [] as StudentInvite[];
       
       try {
-        const response = await fetch(`https://ldlgckwkdsvrfuymidrr.supabase.co/rest/v1/teacher_invites?select=id,token,email,created_at,expires_at,status&school_id=eq.${schoolId}&teacher_id=eq.${user.id}&order=created_at.desc`, {
+        const response = await fetch(`https://ldlgckwkdsvrfuymidrr.supabase.co/rest/v1/student_invites?select=id,code,email,created_at,expires_at,status&school_id=eq.${schoolId}&teacher_id=eq.${user.id}&order=created_at.desc`, {
           headers: {
             'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxkbGdja3drZHN2cmZ1eW1pZHJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDYwNTc2NzksImV4cCI6MjA2MTYzMzY3OX0.kItrTMcKThMXuwNDClYNTGkEq-1EVVldq1vFw7ZsKx0',
             'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ''}`
@@ -120,7 +121,7 @@ const TeacherStudents = () => {
         // Convert the response data to our simplified StudentInvite type
         return responseData.map((item: any) => ({
           id: item.id || '',
-          token: item.token || null,
+          token: item.code || null,
           email: item.email || null,
           created_at: item.created_at || '',
           expires_at: item.expires_at || '',
@@ -137,7 +138,7 @@ const TeacherStudents = () => {
   // Generate invite code mutation
   const generateInviteCode = useMutation({
     mutationFn: async () => {
-      const response = await supabase.functions.invoke('invite-student', {
+      const response = await supabase.functions.invoke('generate-student-invite', {
         body: { method: 'code' }
       });
       
@@ -161,7 +162,7 @@ const TeacherStudents = () => {
   // Send email invite mutation
   const sendEmailInvite = useMutation({
     mutationFn: async (email: string) => {
-      const response = await supabase.functions.invoke('invite-student', {
+      const response = await supabase.functions.invoke('generate-student-invite', {
         body: { method: 'email', email }
       });
       
