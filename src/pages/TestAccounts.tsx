@@ -48,7 +48,7 @@ const TestAccounts = () => {
     try {
       toast.loading("Checking test accounts status...");
       
-      // Check if test accounts already exist
+      // Check if test accounts already exist - Fix the type issue by providing explicit type to the query
       const { data: schoolData, error: schoolError } = await supabase
         .from('profiles')
         .select('id')
@@ -89,8 +89,8 @@ const TestAccounts = () => {
     const account = TEST_ACCOUNTS[accountType];
     
     try {
-      // Sign in with test account
-      const { data, error } = await signIn(account.email, account.password);
+      // Fix the type issue by properly handling the signIn return type
+      const { data, error } = await signIn(account.email, account.password) || { data: null, error: null };
       
       if (error) {
         console.error(`Login error for ${accountType} account:`, error);
