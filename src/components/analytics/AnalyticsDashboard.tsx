@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { format, subDays, getWeek } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
@@ -279,31 +280,35 @@ const AnalyticsDashboard = ({ userRole, isLoading: externalLoading }: AnalyticsD
             schoolId: schoolId
           };
           
-          const schoolPerformance = await fetchSchoolPerformance(schoolId, performanceFilters);
-          
-          // Use the data directly as it should now match the expected format
-          if (schoolPerformance.monthlyData && Array.isArray(schoolPerformance.monthlyData)) {
-            setSchoolPerformanceData(schoolPerformance.monthlyData);
-          }
-          
-          if (schoolPerformance.summary) {
-            setSchoolPerformanceSummary(schoolPerformance.summary);
-          }
-          
-          // Fetch teacher performance data
-          const teacherData = await fetchTeacherPerformance(schoolId, performanceFilters);
-          
-          // Use data directly as it should now match the expected format
-          if (teacherData && Array.isArray(teacherData)) {
-            setTeacherPerformanceData(teacherData);
-          }
-          
-          // Fetch student performance data
-          const studentData = await fetchStudentPerformance(schoolId, performanceFilters);
-          
-          // Use data directly as it should now match the expected format
-          if (studentData && Array.isArray(studentData)) {
-            setStudentPerformanceData(studentData);
+          try {
+            const schoolPerformance = await fetchSchoolPerformance(schoolId, performanceFilters);
+            
+            // Use the data directly as it should now match the expected format
+            if (schoolPerformance.monthlyData && Array.isArray(schoolPerformance.monthlyData)) {
+              setSchoolPerformanceData(schoolPerformance.monthlyData);
+            }
+            
+            if (schoolPerformance.summary) {
+              setSchoolPerformanceSummary(schoolPerformance.summary);
+            }
+            
+            // Fetch teacher performance data
+            const teacherData = await fetchTeacherPerformance(schoolId, performanceFilters);
+            
+            // Use data directly as it should now match the expected format
+            if (teacherData && Array.isArray(teacherData)) {
+              setTeacherPerformanceData(teacherData);
+            }
+            
+            // Fetch student performance data
+            const studentData = await fetchStudentPerformance(schoolId, performanceFilters);
+            
+            // Use data directly as it should now match the expected format
+            if (studentData && Array.isArray(studentData)) {
+              setStudentPerformanceData(studentData);
+            }
+          } catch (performanceError) {
+            console.error("Error fetching performance data:", performanceError);
           }
         }
       } catch (error) {

@@ -40,7 +40,8 @@ export const fetchAnalyticsSummary = async (
 ): Promise<AnalyticsSummary> => {
   // For test accounts, use mock data
   if (!schoolId || schoolId === 'test') {
-    return getMockAnalyticsData(schoolId, filters).summary;
+    const mockData = getMockAnalyticsData(schoolId, filters);
+    return mockData.summary;
   }
   
   try {
