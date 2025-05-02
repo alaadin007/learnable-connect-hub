@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
@@ -94,9 +93,9 @@ const TeacherAnalytics = () => {
   };
 
   // Custom components that adapt to the expected props for the analytics components
-  const TopicsChart = ({ topics }: { topics: TopicData[] }) => {
+  const TopicsChart = ({ data }: { data: TopicData[] }) => {
     // Transform the data to match what the chart expects
-    const chartData = topics.map(t => ({
+    const chartData = data.map(t => ({
       name: t.topic,
       value: t.count
     }));
@@ -104,9 +103,9 @@ const TeacherAnalytics = () => {
     return <PieChart data={chartData} />;
   };
 
-  const StudyTimeChart = ({ studyTime }: { studyTime: StudyTimeData[] }) => {
+  const StudyTimeChart = ({ data }: { data: StudyTimeData[] }) => {
     // Transform the data to match what the chart expects
-    const chartData = studyTime.map(s => ({
+    const chartData = data.map(s => ({
       name: s.student_name,
       value: s.total_minutes
     }));
@@ -154,7 +153,8 @@ const TeacherAnalytics = () => {
               ) : (
                 <>
                   <AnalyticsSummaryCards 
-                    summary={summary} 
+                    summary={summary}
+                    isLoading={isLoading}
                     dateRange={dateRange}
                   />
                   
@@ -167,7 +167,7 @@ const TeacherAnalytics = () => {
                         </CardDescription>
                       </CardHeader>
                       <CardContent>
-                        <TopicsChart topics={topics.slice(0, 5)} />
+                        <TopicsChart data={topics.slice(0, 5)} />
                       </CardContent>
                     </Card>
                     
@@ -179,7 +179,7 @@ const TeacherAnalytics = () => {
                         </CardDescription>
                       </CardHeader>
                       <CardContent>
-                        <StudyTimeChart studyTime={studyTime.slice(0, 5)} />
+                        <StudyTimeChart data={studyTime.slice(0, 5)} />
                       </CardContent>
                     </Card>
                   </div>
@@ -245,7 +245,7 @@ const TeacherAnalytics = () => {
                   ) : (
                     <div className="space-y-8">
                       <div className="h-80">
-                        <TopicsChart topics={topics} />
+                        <TopicsChart data={topics} />
                       </div>
                       
                       <div className="overflow-x-auto">
@@ -297,7 +297,7 @@ const TeacherAnalytics = () => {
                   ) : (
                     <div className="space-y-8">
                       <div className="h-80">
-                        <StudyTimeChart studyTime={studyTime} />
+                        <StudyTimeChart data={studyTime} />
                       </div>
                       
                       <div className="overflow-x-auto">

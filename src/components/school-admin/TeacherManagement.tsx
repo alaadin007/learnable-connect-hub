@@ -1,5 +1,5 @@
+
 // Add import for TeacherInvitation type from SchoolAdmin
-import { TeacherInvitation } from "@/pages/SchoolAdmin";
 import React, { useState, useEffect } from "react";
 import {
   Card,
@@ -39,6 +39,19 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
+
+// Define TeacherInvitation type if not imported
+export interface TeacherInvitation {
+  id: string;
+  email: string;
+  status: string;
+  invitation_token: string;
+  school_id: string;
+  created_at: string;
+  expires_at: string;
+  created_by: string;
+  role?: string;
+}
 
 // Update component to use TeacherInvitation type
 const TeacherManagement = () => {
@@ -320,7 +333,7 @@ const TeacherManagement = () => {
                       />
                     </TableCell>
                     <TableCell>{invitation.email}</TableCell>
-                    <TableCell>{invitation.role}</TableCell>
+                    <TableCell>{invitation.role || "teacher"}</TableCell>
                     <TableCell>
                       {invitation.status === "pending" ? (
                         <Badge variant="secondary">Pending</Badge>

@@ -1,5 +1,5 @@
 
-import { type Toast, type ToastActionElement } from "@/components/ui/toast";
+import { type Toast } from "@/components/ui/toast";
 import { toast as sonnerToast } from "sonner";
 
 // Define types for our toast system

@@ -3,13 +3,15 @@ import React from "react";
 import StatsCard from "./StatsCard";
 import { Activity, MessageSquare, Clock, LayoutGrid } from "lucide-react";
 import { AnalyticsSummary } from "./types";
+import { DateRange } from "react-day-picker";
 
 interface AnalyticsSummaryCardsProps {
   summary: AnalyticsSummary;
-  isLoading: boolean;
+  isLoading?: boolean;
+  dateRange?: DateRange | undefined;
 }
 
-export function AnalyticsSummaryCards({ summary, isLoading }: AnalyticsSummaryCardsProps) {
+export function AnalyticsSummaryCards({ summary, isLoading, dateRange }: AnalyticsSummaryCardsProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
       <StatsCard

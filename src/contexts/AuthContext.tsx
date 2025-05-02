@@ -132,19 +132,30 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
 
       if (profileData) {
         // Handle case where organization might be missing or an error
-        const safeProfileData = {
+        let safeProfileData: UserProfile = {
           ...profileData,
-          organization: profileData.organization || { id: "", name: "", code: "" }
+          organization: {
+            id: "",
+            name: "",
+            code: ""
+          }
         };
 
-        setProfile(safeProfileData as UserProfile);
+        // Check if we have organization data and it's not an error
+        if (profileData.organization && 
+            typeof profileData.organization === 'object' && 
+            !('error' in profileData.organization)) {
+          safeProfileData.organization = profileData.organization;
+        }
+
+        setProfile(safeProfileData);
         setUserRole(profileData.user_type || null);
         setIsSuperviser(profileData.user_type === "superviser");
         setSchoolId(safeProfileData.organization?.id || null);
 
         // Handle test accounts
         if (isTestAccount(user?.email || '')) {
-          if (!safeProfileData.organization?.code) {
+          if (safeProfileData.organization && !safeProfileData.organization.code) {
             // Auto-assign test school code if missing
             await updateProfile({
               organization: { code: TEST_SCHOOL_CODE },
@@ -156,7 +167,11 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
             await sessionLogger.startSession('Test Session', userId);
             await sessionLogger.endSession('Test Session');
           } else if (profileData.user_type === 'teacher') {
-            await populateTestAccountWithSessions(userId, safeProfileData.organization?.id || '');
+            // Make sure we have a valid organization ID
+            const orgId = safeProfileData.organization?.id || '';
+            if (orgId) {
+              await populateTestAccountWithSessions(userId, orgId);
+            }
           }
         }
       }
@@ -260,7 +275,10 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
         email: `${type}.test@learnable.edu`,
         user_metadata: {
           full_name: `Test ${type.charAt(0).toUpperCase() + type.slice(1)}`
-        }
+        },
+        app_metadata: {},
+        aud: "authenticated",
+        created_at: new Date().toISOString()
       } as User;
       
       // Create mock profile based on user type
@@ -293,11 +311,9 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       setSession(mockSession);
       
       toast.success(`Logged in as test ${type}`);
-      return mockUser;
     } catch (error) {
       console.error("Error setting test user:", error);
       toast.error("Failed to set test user");
-      throw error;
     } finally {
       setIsLoading(false);
     }
@@ -309,7 +325,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
     profile,
     userRole,
     isLoading,
-    loading: isLoading, // Alias for backward compatibility
+    loading: isLoading,
     isSuperviser,
     schoolId,
     signIn,

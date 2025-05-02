@@ -1,4 +1,3 @@
-// Update the import for useToast to the correct path
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,14 +5,14 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Mail, Loader2 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast"; // Updated import path
+import { useToast } from "@/hooks/use-toast";
 
 const Contact = () => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const { toast: useToastHook } = useToast();
+  const { toast: uiToast } = useToast();
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -24,10 +23,7 @@ const Contact = () => {
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
       // Display success message
-      useToastHook.success({
-        title: "Message sent!",
-        description: "We'll get back to you soon.",
-      });
+      toast.success("Message sent! We'll get back to you soon.");
 
       // Clear form fields
       setName("");
@@ -35,10 +31,7 @@ const Contact = () => {
       setMessage("");
     } catch (error) {
       // Display error message
-      useToastHook.error({
-        title: "Failed to send message",
-        description: "Please try again later.",
-      });
+      toast.error("Failed to send message. Please try again later.");
     } finally {
       setIsLoading(false);
     }
