@@ -94,7 +94,7 @@ const SchoolAdmin = () => {
               <Card>
                 <CardHeader>
                   <CardTitle>School Settings</CardTitle>
-                  <CardDescription>Configure school preferences</CardDescription>
+                  <CardDescription>Configure school-wide settings</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <p className="text-muted-foreground">
