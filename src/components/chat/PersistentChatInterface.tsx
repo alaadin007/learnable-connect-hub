@@ -11,6 +11,8 @@ import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
 import { Badge } from '@/components/ui/badge';
 import sessionLogger from '@/utils/sessionLogger';
+import VoiceRecorder from './VoiceRecorder';
+import TextToSpeech from './TextToSpeech';
 
 interface ChatMessage {
   id: string;
@@ -207,6 +209,10 @@ const PersistentChatInterface: React.FC<PersistentChatInterfaceProps> = ({
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  const handleTranscriptionComplete = (text: string) => {
+    setInput(text);
+  };
+
   return (
     <Card className="h-full flex flex-col">
       <CardHeader className="pb-0">
@@ -245,27 +251,33 @@ const PersistentChatInterface: React.FC<PersistentChatInterfaceProps> = ({
                       : "items-start"
                   }`}
                 >
-                  <div
-                    className={`max-w-[85%] rounded-lg p-3 ${
-                      message.role === "user"
-                        ? "bg-primary text-primary-foreground"
-                        : message.role === "system"
-                        ? "bg-muted text-muted-foreground text-center"
-                        : "bg-secondary text-secondary-foreground"
-                    }`}
-                  >
-                    <div className="whitespace-pre-wrap">{message.content}</div>
-                    <div 
-                      className={`text-xs mt-1 ${
-                        message.role === "user" 
-                          ? "text-primary-foreground/70" 
+                  <div className="flex items-start gap-2">
+                    <div
+                      className={`max-w-[85%] rounded-lg p-3 ${
+                        message.role === "user"
+                          ? "bg-primary text-primary-foreground"
                           : message.role === "system"
-                          ? "text-muted-foreground"
-                          : "text-secondary-foreground/70"
-                      } flex justify-end`}
+                          ? "bg-muted text-muted-foreground text-center"
+                          : "bg-secondary text-secondary-foreground"
+                      }`}
                     >
-                      {formatTime(message.timestamp)}
+                      <div className="whitespace-pre-wrap">{message.content}</div>
+                      <div 
+                        className={`text-xs mt-1 ${
+                          message.role === "user" 
+                            ? "text-primary-foreground/70" 
+                            : message.role === "system"
+                            ? "text-muted-foreground"
+                            : "text-secondary-foreground/70"
+                        } flex justify-end`}
+                      >
+                        {formatTime(message.timestamp)}
+                      </div>
                     </div>
+                    
+                    {message.role === "assistant" && (
+                      <TextToSpeech text={message.content} />
+                    )}
                   </div>
                 </div>
               ))}
@@ -294,6 +306,7 @@ const PersistentChatInterface: React.FC<PersistentChatInterfaceProps> = ({
             onKeyDown={handleKeyDown}
             disabled={isLoading || loadingHistory}
           />
+          <VoiceRecorder onTranscriptionComplete={handleTranscriptionComplete} />
           <Button onClick={handleSubmit} disabled={isLoading || !input.trim() || loadingHistory}>
             {isLoading ? (
               <Loader2 className="h-4 w-4 animate-spin" />

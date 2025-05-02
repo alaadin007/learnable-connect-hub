@@ -11,6 +11,8 @@ import sessionLogger from "@/utils/sessionLogger";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import VoiceRecorder from "./VoiceRecorder";
+import TextToSpeech from "./TextToSpeech";
 
 interface Message {
   role: "user" | "assistant" | "system";
@@ -160,6 +162,10 @@ const AIChatInterface: React.FC<AIChatInterfaceProps> = ({
     }
   };
 
+  const handleTranscriptionComplete = (text: string) => {
+    setInput(text);
+  };
+
   // Format timestamp
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -202,27 +208,33 @@ const AIChatInterface: React.FC<AIChatInterfaceProps> = ({
                     : "items-start"
                 }`}
               >
-                <div
-                  className={`max-w-[85%] rounded-lg p-3 ${
-                    message.role === "user"
-                      ? "bg-primary text-primary-foreground"
-                      : message.role === "system"
-                      ? "bg-muted text-muted-foreground text-center"
-                      : "bg-secondary text-secondary-foreground"
-                  }`}
-                >
-                  <div className="whitespace-pre-wrap">{message.content}</div>
-                  <div 
-                    className={`text-xs mt-1 ${
-                      message.role === "user" 
-                        ? "text-primary-foreground/70" 
+                <div className="flex items-start gap-2">
+                  <div
+                    className={`max-w-[85%] rounded-lg p-3 ${
+                      message.role === "user"
+                        ? "bg-primary text-primary-foreground"
                         : message.role === "system"
-                        ? "text-muted-foreground"
-                        : "text-secondary-foreground/70"
-                    } flex justify-end`}
+                        ? "bg-muted text-muted-foreground text-center"
+                        : "bg-secondary text-secondary-foreground"
+                    }`}
                   >
-                    {formatTime(message.timestamp)}
+                    <div className="whitespace-pre-wrap">{message.content}</div>
+                    <div 
+                      className={`text-xs mt-1 ${
+                        message.role === "user" 
+                          ? "text-primary-foreground/70" 
+                          : message.role === "system"
+                          ? "text-muted-foreground"
+                          : "text-secondary-foreground/70"
+                      } flex justify-end`}
+                    >
+                      {formatTime(message.timestamp)}
+                    </div>
                   </div>
+                  
+                  {message.role === "assistant" && (
+                    <TextToSpeech text={message.content} />
+                  )}
                 </div>
               </div>
             ))}
@@ -260,6 +272,7 @@ const AIChatInterface: React.FC<AIChatInterfaceProps> = ({
               disabled={isLoading}
               rows={1}
             />
+            <VoiceRecorder onTranscriptionComplete={handleTranscriptionComplete} />
             <Button 
               type="submit" 
               size="icon" 

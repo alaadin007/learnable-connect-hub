@@ -34,14 +34,14 @@ const SchoolAdmin = () => {
               {
                 email: "teacher1@example.com",
                 status: "pending",
-                school_id: profile?.school_id,
+                school_id: profile?.organization?.id,
                 invitation_token: "mock-token-1",
                 created_by: profile?.id,
               },
               {
                 email: "teacher2@example.com",
                 status: "accepted",
-                school_id: profile?.school_id,
+                school_id: profile?.organization?.id,
                 invitation_token: "mock-token-2",
                 created_by: profile?.id,
               }
@@ -57,7 +57,7 @@ const SchoolAdmin = () => {
         // For demo purposes, always create mock invitations
         // We'll use try/catch here since this is initialization code
         try {
-          if (profile?.school_id) {
+          if (profile?.organization?.id) {
             await createMockInvitations();
           }
         } catch (mockError) {
@@ -106,11 +106,11 @@ const SchoolAdmin = () => {
               <div className="space-y-2">
                 <div className="flex flex-col sm:flex-row sm:items-center">
                   <span className="font-medium min-w-32">School Name:</span>
-                  <span>{profile?.school_name || "Not available"}</span>
+                  <span>{profile?.organization?.name || "Not available"}</span>
                 </div>
                 <div className="flex flex-col sm:flex-row sm:items-center">
                   <span className="font-medium min-w-32">School Code:</span>
-                  <span className="font-mono">{profile?.school_code || "Not available"}</span>
+                  <span className="font-mono">{profile?.organization?.code || "Not available"}</span>
                 </div>
                 <p className="text-sm text-muted-foreground mt-2">
                   Your school code is used to invite teachers and students to join your school.

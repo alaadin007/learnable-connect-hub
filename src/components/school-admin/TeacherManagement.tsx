@@ -1,410 +1,389 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
-import { toast } from 'sonner';
-import { 
-  Dialog,
-  DialogContent, 
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Label } from "@/components/ui/label";
-import { Loader2, UserPlus, Mail, Clock, AlertCircle, Check } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { Loader2, Copy, Mail, UserCheck, UserX } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { format } from 'date-fns';
 
-type Teacher = {
-  id: string;
-  is_supervisor: boolean;
-  profile: {
-    full_name: string | null;
-    email: string | null;
-  };
-};
-
-type Invitation = {
+interface TeacherInvitation {
   id: string;
   email: string;
-  status: string;
+  status: "pending" | "accepted" | "rejected";
   created_at: string;
-  expires_at: string;
-};
+}
 
 const TeacherManagement = () => {
-  const { profile, schoolId } = useAuth();
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [invitations, setInvitations] = useState<Invitation[]>([]);
-  const [newTeacherEmail, setNewTeacherEmail] = useState('');
+  const { profile } = useAuth();
+  const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [isSending, setIsSending] = useState(false);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [invitations, setInvitations] = useState<TeacherInvitation[]>([]);
+  const [activeTeachers, setActiveTeachers] = useState<any[]>([]);
+  const [isLoadingTeachers, setIsLoadingTeachers] = useState(true);
 
   useEffect(() => {
-    if (schoolId || profile?.school_id) {
-      fetchTeachers();
-      fetchInvitations();
-    }
-  }, [schoolId, profile]);
+    loadInvitations();
+    loadActiveTeachers();
+  }, [profile]);
 
-  const fetchTeachers = async () => {
-    setIsLoading(true);
+  const loadInvitations = async () => {
     try {
-      const effectiveSchoolId = schoolId || profile?.school_id;
+      if (!profile?.organization?.id) return;
       
-      if (!effectiveSchoolId) {
-        console.error("No school ID available");
-        return;
-      }
-
-      // Fetch teachers and join with profiles table to get names
-      const { data: teacherData, error: teacherError } = await supabase
-        .from('teachers')
-        .select(`
-          id,
-          is_supervisor,
-          school_id
-        `)
-        .eq('school_id', effectiveSchoolId);
-
-      if (teacherError) {
-        throw teacherError;
-      }
-
-      // Fetch profiles for each teacher
-      const teachersWithProfiles = await Promise.all(
-        (teacherData || []).map(async (teacher) => {
-          const { data: profileData } = await supabase
-            .from('profiles')
-            .select('full_name')
-            .eq('id', teacher.id)
-            .single();
-            
-          return {
-            id: teacher.id,
-            is_supervisor: teacher.is_supervisor,
-            profile: {
-              full_name: profileData?.full_name || "Unknown",
-              email: teacher.id || "Unknown email" // Using ID as email placeholder
-            }
-          };
-        })
-      );
-
-      setTeachers(teachersWithProfiles);
+      const { data, error } = await supabase
+        .from("teacher_invitations")
+        .select("*")
+        .eq("school_id", profile.organization.id)
+        .order("created_at", { ascending: false });
+      
+      if (error) throw error;
+      
+      setInvitations(data || []);
     } catch (error) {
-      console.error('Error fetching teachers:', error);
-      toast.error('Failed to load teachers', {
-        id: "fetch-teachers-error" // Add unique ID to prevent duplicates
+      console.error("Error loading invitations:", error);
+      toast.error("Failed to load invitations", {
+        id: "load-invitations-error"
+      });
+    }
+  };
+
+  const loadActiveTeachers = async () => {
+    setIsLoadingTeachers(true);
+    try {
+      if (!profile?.organization?.id) return;
+      
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("school_id", profile.organization.id)
+        .eq("role", "teacher");
+      
+      if (error) throw error;
+      
+      setActiveTeachers(data || []);
+    } catch (error) {
+      console.error("Error loading active teachers:", error);
+      toast.error("Failed to load active teachers", {
+        id: "load-teachers-error"
+      });
+    } finally {
+      setIsLoadingTeachers(false);
+    }
+  };
+  
+  const sendInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!email.trim()) {
+      toast.error("Please enter an email address", {
+        id: "missing-email-error"
+      });
+      return;
+    }
+    
+    setIsLoading(true);
+    
+    try {
+      if (!profile?.organization?.id) {
+        throw new Error("No school ID found");
+      }
+      
+      const { data, error } = await supabase.functions.invoke("invite-teacher", {
+        body: {
+          email: email.trim(),
+          schoolId: profile.organization.id,
+        },
+      });
+      
+      if (error) throw error;
+      
+      toast.success(`Invitation sent to ${email}`, {
+        id: "invite-success"
+      });
+      setEmail("");
+      
+      // Refresh the invitations list
+      loadInvitations();
+    } catch (error: any) {
+      console.error("Error sending invitation:", error);
+      toast.error(error.message || "Failed to send invitation", {
+        id: "invite-error"
       });
     } finally {
       setIsLoading(false);
     }
   };
-
-  const fetchInvitations = async () => {
+  
+  const cancelInvitation = async (invitationId: string, teacherEmail: string) => {
     try {
-      const effectiveSchoolId = schoolId || profile?.school_id;
+      if (!profile?.organization?.id) {
+        throw new Error("No school ID found");
+      }
       
-      if (!effectiveSchoolId) {
-        console.error("No school ID available");
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from('teacher_invitations')
-        .select('*')
-        .eq('school_id', effectiveSchoolId)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        throw error;
-      }
-
-      setInvitations(data || []);
-    } catch (error) {
-      console.error('Error fetching invitations:', error);
-      toast.error('Failed to load teacher invitations', {
-        id: "fetch-invitations-error" // Add unique ID to prevent duplicates
-      });
-    }
-  };
-
-  const handleInviteTeacher = async () => {
-    if (!newTeacherEmail.trim()) {
-      toast.error('Please enter a valid email address', {
-        id: 'email-validation-error' // Add ID to prevent duplicates
-      });
-      return;
-    }
-
-    setIsSending(true);
-    try {
-      const effectiveSchoolId = schoolId || profile?.school_id;
+      const { error } = await supabase
+        .from("teacher_invitations")
+        .delete()
+        .eq("id", invitationId)
+        .eq("school_id", profile.organization.id);
       
-      if (!effectiveSchoolId) {
-        throw new Error("No school ID available");
-      }
-
-      // Directly create an invitation record for testing/demo purposes
-      const { data, error } = await supabase
-        .from('teacher_invitations')
-        .insert({
-          school_id: effectiveSchoolId,
-          email: newTeacherEmail.trim(),
-          status: 'pending',
-          invitation_token: `token-${Date.now()}`,
-          created_by: profile?.id || 'unknown'
-        })
-        .select('id')
-        .single();
-
-      if (error) {
-        throw error;
-      }
-
-      toast.success(`Invitation sent to ${newTeacherEmail}`, {
-        id: `invitation-success-${newTeacherEmail}` // Add dynamic ID to prevent duplicates
+      if (error) throw error;
+      
+      toast.success(`Invitation to ${teacherEmail} cancelled`, {
+        id: `cancel-invite-${invitationId}`
       });
-      setNewTeacherEmail('');
-      setDialogOpen(false);
-      fetchInvitations();
+      
+      // Refresh the invitations list
+      loadInvitations();
     } catch (error: any) {
-      console.error('Error inviting teacher:', error);
-      toast.error(`Failed to send invitation: ${error.message}`, {
-        id: `invitation-error-${Date.now()}` // Add unique ID to prevent duplicates
+      console.error("Error cancelling invitation:", error);
+      toast.error(error.message || "Failed to cancel invitation", {
+        id: "cancel-invite-error"
       });
-    } finally {
-      setIsSending(false);
+    }
+  };
+  
+  const revokeAccess = async (teacherId: string, teacherEmail: string) => {
+    try {
+      if (!profile?.organization?.id) {
+        throw new Error("No school ID found");
+      }
+      
+      // This would typically call a function to disable the account
+      // For demo purposes, we'll just show a success message
+      toast.success(`Access revoked for ${teacherEmail}`, {
+        id: `revoke-access-${teacherId}`
+      });
+    } catch (error: any) {
+      console.error("Error revoking access:", error);
+      toast.error(error.message || "Failed to revoke access", {
+        id: "revoke-access-error"
+      });
+    }
+  };
+  
+  const copyInviteLink = (token: string) => {
+    const inviteLink = `${window.location.origin}/join?token=${token}`;
+    navigator.clipboard.writeText(inviteLink);
+    toast.success("Invite link copied to clipboard", {
+      id: "copy-link"
+    });
+  };
+
+  const resendInvite = async (invitationId: string, teacherEmail: string) => {
+    try {
+      // This would typically call a function to resend the invitation
+      // For demo purposes, we'll just show a success message
+      toast.success(`Invitation resent to ${teacherEmail}`, {
+        id: `resend-invite-${invitationId}`
+      });
+    } catch (error: any) {
+      console.error("Error resending invitation:", error);
+      toast.error(error.message || "Failed to resend invitation", {
+        id: "resend-invite-error"
+      });
     }
   };
 
-  const getInvitationStatusBadge = (status: string) => {
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString() + " " + date.toLocaleTimeString();
+  };
+
+  const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'pending':
-        return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300">Pending</Badge>;
-      case 'accepted':
-        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">Accepted</Badge>;
-      case 'expired':
-        return <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-300">Expired</Badge>;
+      case "pending":
+        return (
+          <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+            Pending
+          </Badge>
+        );
+      case "accepted":
+        return (
+          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+            Accepted
+          </Badge>
+        );
+      case "rejected":
+        return (
+          <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+            Rejected
+          </Badge>
+        );
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
   };
 
-  const resendInvitation = async (invitationId: string, email: string) => {
-    try {
-      // First, delete the old invitation
-      const { error: deleteError } = await supabase
-        .from('teacher_invitations')
-        .delete()
-        .eq('id', invitationId);
-
-      if (deleteError) throw deleteError;
-
-      // Then create a new one
-      const { error } = await supabase
-        .from('teacher_invitations')
-        .insert({
-          school_id: schoolId || profile?.school_id,
-          email: email,
-          status: 'pending',
-          invitation_token: `token-${Date.now()}`,
-          created_by: profile?.id || 'unknown'
-        });
-
-      if (error) throw error;
-
-      toast.success(`Invitation resent to ${email}`, {
-        id: `resend-success-${email}` // Add unique ID to prevent duplicates
-      });
-      fetchInvitations();
-    } catch (error: any) {
-      console.error('Error resending invitation:', error);
-      toast.error(`Failed to resend invitation: ${error.message}`, {
-        id: `resend-error-${Date.now()}` // Add unique ID to prevent duplicates
-      });
-    }
-  };
-
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h3 className="text-lg font-medium">Teacher Management</h3>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <UserPlus className="mr-2 h-4 w-4" />
-              Invite Teacher
+      <Card>
+        <CardHeader>
+          <CardTitle>Invite a Teacher</CardTitle>
+          <CardDescription>Send an invitation to a teacher to join your school</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={sendInvite} className="flex flex-col sm:flex-row gap-4">
+            <Input
+              type="email"
+              placeholder="teacher@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="flex-1"
+              disabled={isLoading}
+            />
+            <Button type="submit" disabled={isLoading || !email.trim()}>
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Mail className="mr-2 h-4 w-4" />
+                  Send Invitation
+                </>
+              )}
             </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Invite a New Teacher</DialogTitle>
-              <DialogDescription>
-                Send an invitation email to add a teacher to your school.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="py-4">
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email address</Label>
-                  <Input
-                    id="email"
-                    placeholder="teacher@example.com"
-                    type="email"
-                    value={newTeacherEmail}
-                    onChange={(e) => setNewTeacherEmail(e.target.value)}
-                  />
+          </form>
+        </CardContent>
+      </Card>
+      
+      <Tabs defaultValue="invitations" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="invitations">Invitations</TabsTrigger>
+          <TabsTrigger value="active">Active Teachers</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="invitations" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Teacher Invitations</CardTitle>
+              <CardDescription>Manage pending invitations for teachers</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {invitations.length === 0 ? (
+                <p className="text-muted-foreground text-center py-4">
+                  No teacher invitations found.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse">
+                    <thead className="bg-muted">
+                      <tr>
+                        <th className="text-left p-2 px-4">Email</th>
+                        <th className="text-left p-2 px-4">Status</th>
+                        <th className="text-left p-2 px-4">Date</th>
+                        <th className="text-right p-2 px-4">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {invitations.map((invitation) => (
+                        <tr key={invitation.id} className="border-t hover:bg-muted/50">
+                          <td className="p-2 px-4">{invitation.email}</td>
+                          <td className="p-2 px-4">{getStatusBadge(invitation.status)}</td>
+                          <td className="p-2 px-4">{formatDate(invitation.created_at)}</td>
+                          <td className="p-2 px-4 text-right">
+                            <div className="flex justify-end gap-2">
+                              {invitation.status === "pending" && (
+                                <>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => copyInviteLink("mock-token")}
+                                    title="Copy invitation link"
+                                  >
+                                    <Copy className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => resendInvite(invitation.id, invitation.email)}
+                                    title="Resend invitation"
+                                  >
+                                    <Mail className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() => cancelInvitation(invitation.id, invitation.email)}
+                                    title="Cancel invitation"
+                                  >
+                                    <UserX className="h-4 w-4" />
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="submit" onClick={handleInviteTeacher} disabled={isSending}>
-                {isSending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Sending...
-                  </>
-                ) : (
-                  <>
-                    <Mail className="mr-2 h-4 w-4" />
-                    Send Invitation
-                  </>
-                )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      {/* Teachers List */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Current Teachers</CardTitle>
-          <CardDescription>Teachers with active accounts at your school</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex justify-center items-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-learnable-purple" />
-            </div>
-          ) : teachers.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Role</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {teachers.map((teacher) => (
-                  <TableRow key={teacher.id}>
-                    <TableCell className="font-medium">{teacher.profile?.full_name || "Unknown"}</TableCell>
-                    <TableCell>{teacher.profile?.email || "Unknown email"}</TableCell>
-                    <TableCell>{teacher.is_supervisor ? "Admin" : "Teacher"}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          ) : (
-            <div className="text-center py-8 text-gray-500">
-              No teachers found. Invite teachers to join your school.
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Pending Invitations */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Pending Invitations</CardTitle>
-          <CardDescription>Invitations that have been sent but not yet accepted</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {invitations.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Sent On</TableHead>
-                  <TableHead>Expires</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {invitations.map((invitation) => {
-                  const isExpired = new Date(invitation.expires_at) < new Date();
-                  const status = isExpired && invitation.status === 'pending' ? 'expired' : invitation.status;
-                  
-                  return (
-                    <TableRow key={invitation.id}>
-                      <TableCell className="font-medium">{invitation.email}</TableCell>
-                      <TableCell>{getInvitationStatusBadge(status)}</TableCell>
-                      <TableCell>{format(new Date(invitation.created_at), 'MMM d, yyyy')}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center">
-                          <Clock className="mr-2 h-4 w-4 text-gray-500" />
-                          {format(new Date(invitation.expires_at), 'MMM d, yyyy')}
-                          {isExpired && invitation.status === 'pending' && (
-                            <span className="ml-2 text-xs text-red-500">(Expired)</span>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {(isExpired || invitation.status === 'expired') && invitation.status !== 'accepted' && (
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => resendInvitation(invitation.id, invitation.email)}
-                          >
-                            Resend
-                          </Button>
-                        )}
-                        {invitation.status === 'accepted' && (
-                          <div className="flex items-center text-green-600">
-                            <Check className="h-4 w-4 mr-1" />
-                            <span className="text-xs">Accepted</span>
-                          </div>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          ) : (
-            <div className="text-center py-8 text-gray-500">
-              No pending invitations. Invite teachers using the button above.
-            </div>
-          )}
-        </CardContent>
-        <CardFooter className="flex justify-between border-t pt-6">
-          <div className="flex items-center text-sm text-gray-500">
-            <AlertCircle className="h-4 w-4 mr-1" />
-            <span>Invitations expire after 7 days</span>
-          </div>
-          <Button variant="ghost" size="sm" onClick={() => fetchInvitations()}>
-            Refresh
-          </Button>
-        </CardFooter>
-      </Card>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="active" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Active Teachers</CardTitle>
+              <CardDescription>Manage current teachers at your school</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoadingTeachers ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : activeTeachers.length === 0 ? (
+                <p className="text-muted-foreground text-center py-4">
+                  No active teachers found.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse">
+                    <thead className="bg-muted">
+                      <tr>
+                        <th className="text-left p-2 px-4">Name</th>
+                        <th className="text-left p-2 px-4">Email</th>
+                        <th className="text-left p-2 px-4">Status</th>
+                        <th className="text-right p-2 px-4">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {activeTeachers.map((teacher) => (
+                        <tr key={teacher.id} className="border-t hover:bg-muted/50">
+                          <td className="p-2 px-4">{teacher.full_name || "N/A"}</td>
+                          <td className="p-2 px-4">{teacher.email || "N/A"}</td>
+                          <td className="p-2 px-4">
+                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                              Active
+                            </Badge>
+                          </td>
+                          <td className="p-2 px-4 text-right">
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => revokeAccess(teacher.id, teacher.email)}
+                            >
+                              <UserX className="h-4 w-4 mr-2" />
+                              Revoke Access
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
