@@ -38,7 +38,7 @@ export interface Student {
   name: string;
 }
 
-// Adding SessionData interface that was missing
+// Adding SessionData interface for analytics components
 export interface SessionData {
   id: string;
   student: string;
@@ -46,4 +46,29 @@ export interface SessionData {
   queries: number;
   duration: string;
   startTime: string;
+}
+
+// New interfaces for the improved conversation system
+export interface Conversation {
+  id: string;
+  title: string | null;
+  topic: string | null;
+  user_id: string;
+  school_id: string;
+  last_message_at: string;
+  created_at: string;
+  summary: string | null;
+  category: string | null;
+  tags: string[] | null;
+  starred: boolean | null;
+}
+
+export interface Message {
+  id: string;
+  content: string;
+  sender: string;
+  conversation_id: string;
+  timestamp: string;
+  is_important: boolean | null;
+  feedback_rating: number | null;
 }

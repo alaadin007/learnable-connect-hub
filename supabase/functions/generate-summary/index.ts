@@ -49,7 +49,7 @@ serve(async (req: Request) => {
     // Check if user has permission to access this conversation
     const { data: conversationData, error: conversationError } = await supabaseClient
       .from('conversations')
-      .select('id, user_id')
+      .select('id, user_id, topic, title')
       .eq('id', conversation_id)
       .single();
     
@@ -98,17 +98,43 @@ serve(async (req: Request) => {
       });
     }
 
-    // Generate a summary (this is a simple implementation - in production we would use AI)
-    // For now we'll just use the first message as a summary
-    const firstUserMessage = messages.find(msg => msg.sender === 'user')?.content || '';
-    const summary = firstUserMessage.length > 100 
-      ? firstUserMessage.substring(0, 100) + '...' 
-      : firstUserMessage;
+    // Generate a better summary using the first user messages
+    // Look for the first 2-3 user messages to create a more comprehensive summary
+    const userMessages = messages.filter(msg => msg.sender === 'user').slice(0, 3);
+    let summary = '';
+    
+    if (userMessages.length > 0) {
+      // If we have a topic, include it in the summary
+      if (conversationData.topic) {
+        summary = `Topic: ${conversationData.topic} - `;
+      }
+      
+      // Add content from the first few user messages
+      for (let i = 0; i < Math.min(2, userMessages.length); i++) {
+        const content = userMessages[i].content;
+        const shortenedContent = content.length > 100 ? content.substring(0, 100) + '...' : content;
+        summary += (i > 0 ? ' | ' : '') + shortenedContent;
+      }
+    } else {
+      summary = conversationData.title || "Untitled conversation";
+    }
+    
+    // Generate tags based on content analysis
+    const allText = userMessages.map(msg => msg.content).join(' ');
+    const tags = generateTags(allText, conversationData.topic);
+    
+    // Determine a category based on content or existing title/topic
+    const category = determineCategory(allText, conversationData.topic);
 
-    // Update the conversation with the summary
+    // Update the conversation with the summary, tags and category
     const { error: updateError } = await supabaseClient
       .from('conversations')
-      .update({ summary })
+      .update({ 
+        summary, 
+        tags,
+        category: category || null,
+        title: conversationData.title || generateTitle(summary)
+      })
       .eq('id', conversation_id);
     
     if (updateError) {
@@ -119,7 +145,7 @@ serve(async (req: Request) => {
     }
 
     return new Response(
-      JSON.stringify({ success: true, summary }),
+      JSON.stringify({ success: true, summary, tags, category }),
       {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -136,3 +162,70 @@ serve(async (req: Request) => {
     );
   }
 });
+
+// Function to generate tags from conversation content
+function generateTags(text: string, topic: string | null): string[] {
+  const tags: Set<string> = new Set();
+  
+  // Add topic-based tags
+  if (topic) {
+    const topicWords = topic.toLowerCase().split(/\s+/);
+    topicWords.forEach(word => {
+      if (word.length > 3) {
+        tags.add(word);
+      }
+    });
+  }
+  
+  // Common academic subjects to look for
+  const subjects = [
+    "math", "algebra", "calculus", "geometry", "physics", "chemistry", "biology",
+    "history", "geography", "literature", "english", "writing", "grammar",
+    "science", "computer", "programming", "language", "spanish", "french",
+    "psychology", "sociology", "economics", "philosophy", "music", "art"
+  ];
+  
+  // Look for subject mentions in the text
+  const lowercaseText = text.toLowerCase();
+  subjects.forEach(subject => {
+    if (lowercaseText.includes(subject)) {
+      tags.add(subject);
+    }
+  });
+  
+  // Convert set to array and limit to top 5 tags
+  return Array.from(tags).slice(0, 5);
+}
+
+// Function to determine category based on content analysis
+function determineCategory(text: string, topic: string | null): string | null {
+  const lowercaseText = text.toLowerCase();
+  const topicLower = topic ? topic.toLowerCase() : '';
+  
+  // Define category mapping with keywords
+  const categories = {
+    "Homework": ["homework", "assignment", "exercise", "problem set", "worksheet"],
+    "Exam Prep": ["exam", "test", "quiz", "study", "review", "midterm", "final"],
+    "Research": ["research", "paper", "essay", "thesis", "analysis", "investigate"],
+    "General Question": ["question", "explain", "how to", "what is", "why does", "help me understand"],
+    "Project": ["project", "build", "create", "design", "develop", "implement"]
+  };
+  
+  // Check for category matches
+  for (const [category, keywords] of Object.entries(categories)) {
+    for (const keyword of keywords) {
+      if (lowercaseText.includes(keyword) || (topicLower && topicLower.includes(keyword))) {
+        return category;
+      }
+    }
+  }
+  
+  return null;
+}
+
+// Generate a title from the summary
+function generateTitle(summary: string): string {
+  // Extract first part of summary (max 50 chars) for title
+  const titleText = summary.length > 50 ? summary.substring(0, 47) + '...' : summary;
+  return titleText;
+}
