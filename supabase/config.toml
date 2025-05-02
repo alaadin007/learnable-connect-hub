@@ -1,8 +1,5 @@
 
-project_id = "your-project-id"
+project_id = "ldlgckwkdsvrfuymidrr"
 
-[functions.transcribe-audio]
-verify_jwt = true
-
-[functions.text-to-speech]
-verify_jwt = true
+[functions.register-school]
+verify_jwt = false
