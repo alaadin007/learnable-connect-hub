@@ -155,173 +155,171 @@ const RegisterForm = () => {
   };
 
   return (
-    <div className="max-w-md w-full mx-auto p-4">
-      <Card className="w-full">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold">Create an account</CardTitle>
-          <CardDescription>
-            Choose your account type to get started
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Tabs 
-            defaultValue="teacher" 
-            className="w-full"
-            value={activeTab}
-            onValueChange={(value) => setActiveTab(value as "teacher" | "student")}
-          >
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="teacher">Teacher</TabsTrigger>
-              <TabsTrigger value="student">Student</TabsTrigger>
-            </TabsList>
-            <TabsContent value="teacher" className="mt-4">
-              <form onSubmit={handleRegisterTeacher} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="teacher-name">Full Name</Label>
+    <Card className="w-full">
+      <CardHeader className="space-y-1">
+        <CardTitle className="text-2xl font-bold">Create an account</CardTitle>
+        <CardDescription>
+          Choose your account type to get started
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Tabs 
+          defaultValue="teacher" 
+          className="w-full"
+          value={activeTab}
+          onValueChange={(value) => setActiveTab(value as "teacher" | "student")}
+        >
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="teacher">Teacher</TabsTrigger>
+            <TabsTrigger value="student">Student</TabsTrigger>
+          </TabsList>
+          <TabsContent value="teacher" className="mt-4">
+            <form onSubmit={handleRegisterTeacher} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="teacher-name">Full Name</Label>
+                <Input 
+                  id="teacher-name" 
+                  placeholder="Your name"
+                  value={teacherName}
+                  onChange={(e) => setTeacherName(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="teacher-email">Email</Label>
+                <Input 
+                  id="teacher-email" 
+                  type="email" 
+                  placeholder="teacher@yourschool.edu"
+                  value={teacherEmail}
+                  onChange={(e) => setTeacherEmail(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <Label htmlFor="school-code">School Code</Label>
+                  {teacherSchoolName && (
+                    <span className="text-xs text-green-600">{teacherSchoolName}</span>
+                  )}
+                </div>
+                <div className="flex space-x-2">
                   <Input 
-                    id="teacher-name" 
-                    placeholder="Your name"
-                    value={teacherName}
-                    onChange={(e) => setTeacherName(e.target.value)}
+                    id="school-code" 
+                    placeholder="Enter school registration code"
+                    value={teacherSchoolCode}
+                    onChange={(e) => setTeacherSchoolCode(e.target.value)}
                     required
                   />
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={handleVerifyTeacherCode}
+                    disabled={isVerifyingTeacherCode || !teacherSchoolCode}
+                  >
+                    {isVerifyingTeacherCode ? "Checking..." : "Verify"}
+                  </Button>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="teacher-email">Email</Label>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="teacher-password">Password</Label>
+                <Input 
+                  id="teacher-password" 
+                  type="password"
+                  value={teacherPassword}
+                  onChange={(e) => setTeacherPassword(e.target.value)}
+                  required
+                  minLength={6}
+                />
+              </div>
+              <Button 
+                type="submit" 
+                className="w-full gradient-bg"
+                disabled={isLoading || !teacherSchoolName}
+              >
+                {isLoading ? "Registering..." : "Register as Teacher"}
+              </Button>
+            </form>
+          </TabsContent>
+          <TabsContent value="student" className="mt-4">
+            <form onSubmit={handleRegisterStudent} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="student-name">Full Name</Label>
+                <Input 
+                  id="student-name" 
+                  placeholder="Your name"
+                  value={studentName}
+                  onChange={(e) => setStudentName(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="student-email">Email</Label>
+                <Input 
+                  id="student-email" 
+                  type="email" 
+                  placeholder="student@yourschool.edu"
+                  value={studentEmail}
+                  onChange={(e) => setStudentEmail(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <Label htmlFor="student-code">School Code</Label>
+                  {studentSchoolName && (
+                    <span className="text-xs text-green-600">{studentSchoolName}</span>
+                  )}
+                </div>
+                <div className="flex space-x-2">
                   <Input 
-                    id="teacher-email" 
-                    type="email" 
-                    placeholder="teacher@yourschool.edu"
-                    value={teacherEmail}
-                    onChange={(e) => setTeacherEmail(e.target.value)}
+                    id="student-code" 
+                    placeholder="Enter school registration code"
+                    value={studentSchoolCode}
+                    onChange={(e) => setStudentSchoolCode(e.target.value)}
                     required
                   />
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={handleVerifyStudentCode}
+                    disabled={isVerifyingStudentCode || !studentSchoolCode}
+                  >
+                    {isVerifyingStudentCode ? "Checking..." : "Verify"}
+                  </Button>
                 </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <Label htmlFor="school-code">School Code</Label>
-                    {teacherSchoolName && (
-                      <span className="text-xs text-green-600">{teacherSchoolName}</span>
-                    )}
-                  </div>
-                  <div className="flex space-x-2">
-                    <Input 
-                      id="school-code" 
-                      placeholder="Enter school registration code"
-                      value={teacherSchoolCode}
-                      onChange={(e) => setTeacherSchoolCode(e.target.value)}
-                      required
-                    />
-                    <Button 
-                      type="button" 
-                      variant="outline" 
-                      onClick={handleVerifyTeacherCode}
-                      disabled={isVerifyingTeacherCode || !teacherSchoolCode}
-                    >
-                      {isVerifyingTeacherCode ? "Checking..." : "Verify"}
-                    </Button>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="teacher-password">Password</Label>
-                  <Input 
-                    id="teacher-password" 
-                    type="password"
-                    value={teacherPassword}
-                    onChange={(e) => setTeacherPassword(e.target.value)}
-                    required
-                    minLength={6}
-                  />
-                </div>
-                <Button 
-                  type="submit" 
-                  className="w-full gradient-bg"
-                  disabled={isLoading || !teacherSchoolName}
-                >
-                  {isLoading ? "Registering..." : "Register as Teacher"}
-                </Button>
-              </form>
-            </TabsContent>
-            <TabsContent value="student" className="mt-4">
-              <form onSubmit={handleRegisterStudent} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="student-name">Full Name</Label>
-                  <Input 
-                    id="student-name" 
-                    placeholder="Your name"
-                    value={studentName}
-                    onChange={(e) => setStudentName(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="student-email">Email</Label>
-                  <Input 
-                    id="student-email" 
-                    type="email" 
-                    placeholder="student@yourschool.edu"
-                    value={studentEmail}
-                    onChange={(e) => setStudentEmail(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <Label htmlFor="student-code">School Code</Label>
-                    {studentSchoolName && (
-                      <span className="text-xs text-green-600">{studentSchoolName}</span>
-                    )}
-                  </div>
-                  <div className="flex space-x-2">
-                    <Input 
-                      id="student-code" 
-                      placeholder="Enter school registration code"
-                      value={studentSchoolCode}
-                      onChange={(e) => setStudentSchoolCode(e.target.value)}
-                      required
-                    />
-                    <Button 
-                      type="button" 
-                      variant="outline" 
-                      onClick={handleVerifyStudentCode}
-                      disabled={isVerifyingStudentCode || !studentSchoolCode}
-                    >
-                      {isVerifyingStudentCode ? "Checking..." : "Verify"}
-                    </Button>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="student-password">Password</Label>
-                  <Input 
-                    id="student-password" 
-                    type="password"
-                    value={studentPassword}
-                    onChange={(e) => setStudentPassword(e.target.value)}
-                    required
-                    minLength={6}
-                  />
-                </div>
-                <Button 
-                  type="submit" 
-                  className="w-full gradient-bg"
-                  disabled={isLoading || !studentSchoolName}
-                >
-                  {isLoading ? "Registering..." : "Register as Student"}
-                </Button>
-              </form>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-        <CardFooter>
-          <p className="text-sm text-gray-600 text-center w-full">
-            Already have an account?{" "}
-            <Link to="/login" className="text-learnable-blue hover:underline">
-              Log in
-            </Link>
-          </p>
-        </CardFooter>
-      </Card>
-    </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="student-password">Password</Label>
+                <Input 
+                  id="student-password" 
+                  type="password"
+                  value={studentPassword}
+                  onChange={(e) => setStudentPassword(e.target.value)}
+                  required
+                  minLength={6}
+                />
+              </div>
+              <Button 
+                type="submit" 
+                className="w-full gradient-bg"
+                disabled={isLoading || !studentSchoolName}
+              >
+                {isLoading ? "Registering..." : "Register as Student"}
+              </Button>
+            </form>
+          </TabsContent>
+        </Tabs>
+      </CardContent>
+      <CardFooter>
+        <p className="text-sm text-gray-600 text-center w-full">
+          Already have an account?{" "}
+          <Link to="/login" className="text-learnable-blue hover:underline">
+            Log in
+          </Link>
+        </p>
+      </CardFooter>
+    </Card>
   );
 };
 
