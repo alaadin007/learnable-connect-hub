@@ -10,8 +10,8 @@ import {
   StudyTimeData,
   SchoolPerformanceSummary,
   SchoolPerformanceData,
-  TeacherPerformanceData as TeacherPerformance,
-  StudentPerformanceData as StudentPerformance,
+  TeacherPerformanceData,
+  StudentPerformanceData,
   DateRange
 } from '@/components/analytics/types';
 
@@ -170,12 +170,6 @@ export const fetchStudyTime = async (
   }
 };
 
-export interface SchoolPerformanceData {
-  month: string;
-  average_score: number;
-  total_questions: number;
-}
-
 /**
  * Fetch school performance data
  */
@@ -191,14 +185,29 @@ export const fetchSchoolPerformance = async (
     if (!schoolId || schoolId === 'test') {
       // Generate mock monthly data
       const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
-      const monthlyData = months.map(month => ({
-        month,
+      const monthlyData: SchoolPerformanceData[] = months.map(month => ({
+        month: month,
+        avg_monthly_score: 70 + Math.floor(Math.random() * 20),
+        monthly_completion_rate: 75 + Math.floor(Math.random() * 15),
+        score_improvement_rate: 5 + Math.floor(Math.random() * 10),
+        completion_improvement_rate: 3 + Math.floor(Math.random() * 5),
+        
+        // Additional properties for utils compatibility
         average_score: 70 + Math.floor(Math.random() * 20),
         total_questions: 100 + Math.floor(Math.random() * 200)
       }));
       
       // Generate mock summary
-      const summary = {
+      const summary: SchoolPerformanceSummary = {
+        total_assessments: 120,
+        students_with_submissions: 95,
+        total_students: 110,
+        avg_submissions_per_assessment: 4.2,
+        avg_score: 85,
+        completion_rate: 87,
+        student_participation_rate: 92,
+        
+        // Additional properties for utils compatibility
         average_score: 85,
         total_questions: 1250,
         improvement_rate: 12.5
@@ -228,7 +237,7 @@ export const fetchSchoolPerformance = async (
 export const fetchTeacherPerformance = async (
   schoolId: string,
   filters: AnalyticsFilters
-): Promise<TeacherPerformance[]> => {
+): Promise<TeacherPerformanceData[]> => {
   try {
     // For test accounts or development, return mock data
     if (!schoolId || schoolId === 'test') {
@@ -241,8 +250,17 @@ export const fetchTeacherPerformance = async (
       ];
       
       return teacherNames.map((name, index) => ({
+        teacher_id: `teacher-${index}`,
+        teacher_name: name,
+        assessments_created: 10 + Math.floor(Math.random() * 15),
+        students_assessed: 15 + Math.floor(Math.random() * 15),
+        completion_rate: 70 + Math.floor(Math.random() * 25),
+        avg_student_score: 70 + Math.floor(Math.random() * 25),
+        avg_submissions_per_assessment: 3 + Math.floor(Math.random() * 4),
+        
+        // Additional properties for utils compatibility
         id: `teacher-${index}`,
-        name,
+        name: name,
         students_count: 15 + Math.floor(Math.random() * 15),
         average_score: 70 + Math.floor(Math.random() * 25),
         total_questions: 200 + Math.floor(Math.random() * 300),
@@ -265,7 +283,7 @@ export const fetchTeacherPerformance = async (
 export const fetchStudentPerformance = async (
   schoolId: string,
   filters: AnalyticsFilters
-): Promise<StudentPerformance[]> => {
+): Promise<StudentPerformanceData[]> => {
   try {
     // For test accounts or development, return mock data
     if (!schoolId || schoolId === 'test') {
@@ -295,11 +313,26 @@ export const fetchStudentPerformance = async (
         const lastActive = new Date(today);
         lastActive.setDate(today.getDate() - Math.floor(Math.random() * 14));
         
+        const avgScore = 65 + Math.floor(Math.random() * 30);
+        const assessmentsTaken = 5 + Math.floor(Math.random() * 10);
+        const assessmentsCompleted = Math.floor(assessmentsTaken * 0.8);
+        
         return {
+          student_id: `student-${index}`,
+          student_name: name,
+          assessments_taken: assessmentsTaken,
+          avg_score: avgScore,
+          avg_time_spent_seconds: 180 + Math.floor(Math.random() * 300),
+          assessments_completed: assessmentsCompleted,
+          completion_rate: Math.floor((assessmentsCompleted / assessmentsTaken) * 100),
+          top_strengths: "Critical thinking, Analysis",
+          top_weaknesses: "Time management, Organization",
+          
+          // Additional properties for utils compatibility
           id: `student-${index}`,
-          name,
+          name: name,
           teacher_name: teacherNames[Math.floor(Math.random() * teacherNames.length)],
-          average_score: 65 + Math.floor(Math.random() * 30),
+          average_score: avgScore,
           total_questions: 50 + Math.floor(Math.random() * 150),
           improvement_rate: Math.floor(Math.random() * 25) - 5,
           last_active: format(lastActive, 'MMM d, yyyy')

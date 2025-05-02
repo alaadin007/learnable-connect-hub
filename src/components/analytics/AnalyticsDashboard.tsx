@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { format, subDays } from "date-fns";
+import { format, subDays, getWeek } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { DateRangePicker } from "./DateRangePicker";
@@ -17,7 +17,7 @@ import {
   DateRange, 
   TopicData, 
   StudyTimeData,
-  SchoolPerformanceData as DashboardSchoolPerformanceData,
+  SchoolPerformanceData,
   SchoolPerformanceSummary,
   TeacherPerformanceData,
   StudentPerformanceData
@@ -30,8 +30,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   fetchSchoolPerformance,
   fetchTeacherPerformance,
-  fetchStudentPerformance,
-  SchoolPerformanceData
+  fetchStudentPerformance
 } from "@/utils/analyticsUtils";
 
 interface AnalyticsDashboardProps {
@@ -62,7 +61,7 @@ const AnalyticsDashboard = ({ userRole, isLoading: externalLoading }: AnalyticsD
   });
 
   // Performance metrics state
-  const [schoolPerformanceData, setSchoolPerformanceData] = useState<DashboardSchoolPerformanceData[]>([]);
+  const [schoolPerformanceData, setSchoolPerformanceData] = useState<SchoolPerformanceData[]>([]);
   const [schoolPerformanceSummary, setSchoolPerformanceSummary] = useState<SchoolPerformanceSummary | null>(null);
   const [teacherPerformanceData, setTeacherPerformanceData] = useState<TeacherPerformanceData[]>([]);
   const [studentPerformanceData, setStudentPerformanceData] = useState<StudentPerformanceData[]>([]);
@@ -231,8 +230,8 @@ const AnalyticsDashboard = ({ userRole, isLoading: externalLoading }: AnalyticsD
             session_date: sessionDate,
             duration_minutes: durationMinutes,
             topics: [session.topic_or_content_used || "General"],
-            questions_asked: session.num_queries,
-            questions_answered: session.num_queries,
+            questions_asked: session.num_queries || 0,
+            questions_answered: session.num_queries || 0,
             
             // Backward compatibility properties
             userId: session.user_id,
@@ -277,95 +276,35 @@ const AnalyticsDashboard = ({ userRole, isLoading: externalLoading }: AnalyticsD
             dateRange,
             studentId: selectedStudent?.id,
             teacherId: selectedTeacherId,
+            schoolId: schoolId
           };
           
           const schoolPerformance = await fetchSchoolPerformance(schoolId, performanceFilters);
           
-          // Map the received data to match the component's expected format
-          const mappedSchoolPerformanceData: DashboardSchoolPerformanceData[] = schoolPerformance.monthlyData.map(item => ({
-            month: item.month,
-            avg_monthly_score: item.average_score || 0,
-            monthly_completion_rate: item.total_questions ? (item.total_questions / 100) * 80 : 0, // Placeholder calculation
-            score_improvement_rate: item.average_score ? item.average_score * 0.1 : 0, // Placeholder calculation
-            completion_improvement_rate: 2.5, // Placeholder
-            
-            // Keep original properties
-            average_score: item.average_score,
-            total_questions: item.total_questions
-          }));
+          // Use the data directly as it should now match the expected format
+          if (schoolPerformance.monthlyData && Array.isArray(schoolPerformance.monthlyData)) {
+            setSchoolPerformanceData(schoolPerformance.monthlyData);
+          }
           
-          setSchoolPerformanceData(mappedSchoolPerformanceData);
-          
-          // Map the summary to expected format if it exists
           if (schoolPerformance.summary) {
-            const mappedSummary: SchoolPerformanceSummary = {
-              total_assessments: schoolPerformance.summary.total_questions || 0,
-              students_with_submissions: Math.round((schoolPerformance.summary.total_questions || 0) * 0.8), // Placeholder
-              total_students: Math.round((schoolPerformance.summary.total_questions || 0) * 0.9), // Placeholder
-              avg_submissions_per_assessment: 8, // Placeholder
-              avg_score: schoolPerformance.summary.average_score || 0,
-              completion_rate: 88, // Placeholder
-              student_participation_rate: 92, // Placeholder
-              
-              // Keep original properties
-              average_score: schoolPerformance.summary.average_score,
-              total_questions: schoolPerformance.summary.total_questions,
-              improvement_rate: schoolPerformance.summary.improvement_rate
-            };
-            
-            setSchoolPerformanceSummary(mappedSummary);
+            setSchoolPerformanceSummary(schoolPerformance.summary);
           }
           
           // Fetch teacher performance data
-          const teacherPerformanceData = await fetchTeacherPerformance(schoolId, performanceFilters);
+          const teacherData = await fetchTeacherPerformance(schoolId, performanceFilters);
           
-          // Map teacher data to the expected format
-          const mappedTeacherData: TeacherPerformanceData[] = teacherPerformanceData.map(teacher => ({
-            teacher_id: teacher.id,
-            teacher_name: teacher.name,
-            assessments_created: Math.round(teacher.total_questions / 10) || 0, // Placeholder
-            students_assessed: teacher.students_count || 0,
-            completion_rate: teacher.improvement_rate ? Math.abs(teacher.improvement_rate) + 80 : 85, // Placeholder
-            avg_student_score: teacher.average_score || 0,
-            avg_submissions_per_assessment: teacher.students_count ? teacher.total_questions / teacher.students_count : 0,
-            
-            // Keep original properties
-            id: teacher.id,
-            name: teacher.name,
-            students_count: teacher.students_count,
-            average_score: teacher.average_score,
-            total_questions: teacher.total_questions,
-            improvement_rate: teacher.improvement_rate
-          }));
-          
-          setTeacherPerformanceData(mappedTeacherData);
+          // Use data directly as it should now match the expected format
+          if (teacherData && Array.isArray(teacherData)) {
+            setTeacherPerformanceData(teacherData);
+          }
           
           // Fetch student performance data
-          const studentPerformanceData = await fetchStudentPerformance(schoolId, performanceFilters);
+          const studentData = await fetchStudentPerformance(schoolId, performanceFilters);
           
-          // Map student data to the expected format
-          const mappedStudentData: StudentPerformanceData[] = studentPerformanceData.map(student => ({
-            student_id: student.id,
-            student_name: student.name,
-            assessments_taken: Math.ceil(student.total_questions / 5) || 0, // Placeholder
-            assessments_completed: Math.floor((student.total_questions / 5) * 0.9) || 0, // Placeholder
-            avg_score: student.average_score || 0,
-            avg_time_spent_seconds: 180 + Math.random() * 300, // Placeholder: 3-8 minutes in seconds
-            completion_rate: student.improvement_rate ? Math.abs(student.improvement_rate) + 75 : 80, // Placeholder
-            top_strengths: "Critical thinking", // Placeholder
-            top_weaknesses: "Time management", // Placeholder
-            
-            // Keep original properties
-            id: student.id,
-            name: student.name,
-            teacher_name: student.teacher_name,
-            average_score: student.average_score,
-            total_questions: student.total_questions,
-            improvement_rate: student.improvement_rate,
-            last_active: student.last_active
-          }));
-          
-          setStudentPerformanceData(mappedStudentData);
+          // Use data directly as it should now match the expected format
+          if (studentData && Array.isArray(studentData)) {
+            setStudentPerformanceData(studentData);
+          }
         }
       } catch (error) {
         console.error("Error fetching analytics data:", error);
