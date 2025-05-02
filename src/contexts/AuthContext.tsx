@@ -139,7 +139,8 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
         // Check if we have organization data and it's not an error
         if (profileData.organization && 
             typeof profileData.organization === 'object' && 
-            !('error' in profileData.organization)) {
+            !('error' in profileData.organization) && 
+            profileData.organization !== null) {  // Added explicit null check
           safeProfileData.organization = profileData.organization;
         }
 
