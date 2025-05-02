@@ -89,8 +89,31 @@ const SchoolRegistrationForm: React.FC = () => {
       // Display toast notification that registration is in progress
       const loadingToast = toast.loading("Registering your school...");
       
-      // Check if email already exists first
-      const { data: emailCheckData, error: emailCheckError } = await supabase.auth.signInWithPassword({
+      // Check if email already exists in ANY role
+      const { data: { users }, error: getUserError } = await supabase.auth.admin.listUsers({
+        filter: {
+          email: data.adminEmail
+        }
+      });
+      
+      // If users array is not empty or we can't check (which is safer to assume might exist)
+      if (getUserError || (users && users.length > 0)) {
+        toast.dismiss(loadingToast);
+        setExistingEmailError(data.adminEmail);
+        toast.error(
+          "This email is already registered",
+          {
+            description: "Please use a different email address. Each user can only have one role in the system.",
+            duration: 8000,
+            icon: <AlertCircle className="h-5 w-5" />,
+          }
+        );
+        setIsLoading(false);
+        return;
+      }
+      
+      // Fallback check using sign-in attempt (in case admin API fails)
+      const { error: emailCheckError } = await supabase.auth.signInWithPassword({
         email: data.adminEmail,
         password: "dummy-password-for-check-only",
       });
@@ -103,7 +126,7 @@ const SchoolRegistrationForm: React.FC = () => {
         toast.error(
           "This email is already registered",
           {
-            description: "Please use a different email address or try logging in with this email if it's yours.",
+            description: "Please use a different email address. Each user can only have one role in the system.",
             duration: 8000,
             icon: <AlertCircle className="h-5 w-5" />,
           }
@@ -136,7 +159,7 @@ const SchoolRegistrationForm: React.FC = () => {
           toast.error(
             "This email is already registered",
             {
-              description: "Please use a different email address or try logging in with this email if it's yours.",
+              description: "Please use a different email address. Each user can only have one role in the system.",
               duration: 8000,
               icon: <AlertCircle className="h-5 w-5" />,
             }
@@ -157,7 +180,7 @@ const SchoolRegistrationForm: React.FC = () => {
           toast.error(
             "This email is already registered",
             {
-              description: "Please use a different email address or try logging in with this email if it's yours.",
+              description: "Please use a different email address. Each user can only have one role in the system.",
               duration: 8000,
               icon: <AlertCircle className="h-5 w-5" />,
             }

@@ -162,7 +162,7 @@ const Dashboard = () => {
                     <CardDescription>Track your progress and performance</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    {/* Fix #1: Update the userRole prop type from "student" to either "school" or "teacher" */}
+                    {/* Fix TypeScript error: Update userRole prop to "school" instead of "student" */}
                     <AnalyticsDashboard userRole="school" isLoading={false} />
                   </CardContent>
                 </Card>
@@ -206,7 +206,7 @@ const Dashboard = () => {
                   <Link to={profile?.user_type === 'teacher' ? "/teacher/analytics" : "#analytics"} onClick={(e) => {
                     if (profile?.user_type !== 'teacher') {
                       e.preventDefault();
-                      // Fix #2: Use querySelector with optional chaining and don't use click() directly
+                      // Fix TypeScript error: Use proper typecasting for the click method
                       const analyticsTab = document.querySelector('[data-value="analytics"]');
                       if (analyticsTab) {
                         (analyticsTab as HTMLElement).click();

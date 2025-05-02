@@ -84,6 +84,35 @@ const RegisterForm = () => {
     }
   };
 
+  const checkIfEmailExists = async (email: string): Promise<boolean> => {
+    try {
+      // First, check if the email is already registered using admin methods
+      const { data: { users }, error: getUserError } = await supabase.auth.admin.listUsers({
+        filter: {
+          email: email
+        }
+      });
+      
+      // If users array is not empty, the email exists
+      if (!getUserError && users && users.length > 0) {
+        return true;
+      }
+      
+      // Fallback check using sign-in attempt
+      const { error: emailCheckError } = await supabase.auth.signInWithPassword({
+        email: email,
+        password: "dummy-password-for-check-only",
+      });
+
+      // If there's no error or the error is not about invalid credentials, email might exist
+      return !emailCheckError || (emailCheckError && !emailCheckError.message.includes("Invalid login credentials"));
+    } catch (error) {
+      console.error("Error checking email existence:", error);
+      // In case of error, safer to assume it might exist
+      return true;
+    }
+  };
+
   const handleVerifyTeacherCode = async () => {
     setIsVerifyingTeacherCode(true);
     try {
@@ -126,18 +155,13 @@ const RegisterForm = () => {
     setIsLoading(true);
     
     try {
-      // Check if email already exists
-      const { error: emailCheckError } = await supabase.auth.signInWithPassword({
-        email: teacherEmail,
-        password: "dummy-password-for-check-only",
-      });
-
-      // If email exists or there's an unclear error, show error
-      if (!emailCheckError || (emailCheckError && !emailCheckError.message.includes("Invalid login credentials"))) {
+      // Check if email already exists in any role
+      const emailExists = await checkIfEmailExists(teacherEmail);
+      
+      if (emailExists) {
         setTeacherError(teacherEmail);
-        setIsLoading(false);
-        toast.error("This email address may already be registered", {
-          description: "Please use a different email or try logging in if this is your account."
+        toast.error("This email is already registered", {
+          description: "Please use a different email address. Each user can only have one role in the system."
         });
         return;
       }
@@ -161,7 +185,7 @@ const RegisterForm = () => {
       if (error.message?.includes("already registered")) {
         setTeacherError(teacherEmail);
         toast.error("This email is already registered", {
-          description: "Please use a different email or try logging in with this account."
+          description: "Please use a different email address. Each user can only have one role in the system."
         });
       } else {
         toast.error(`Registration failed: ${error.message || "Unknown error"}`);
@@ -187,18 +211,13 @@ const RegisterForm = () => {
     setIsLoading(true);
     
     try {
-      // Check if email already exists
-      const { error: emailCheckError } = await supabase.auth.signInWithPassword({
-        email: studentEmail,
-        password: "dummy-password-for-check-only",
-      });
-
-      // If email exists or there's an unclear error, show error
-      if (!emailCheckError || (emailCheckError && !emailCheckError.message.includes("Invalid login credentials"))) {
+      // Check if email already exists in any role
+      const emailExists = await checkIfEmailExists(studentEmail);
+      
+      if (emailExists) {
         setStudentError(studentEmail);
-        setIsLoading(false);
-        toast.error("This email address may already be registered", {
-          description: "Please use a different email or try logging in if this is your account."
+        toast.error("This email is already registered", {
+          description: "Please use a different email address. Each user can only have one role in the system."
         });
         return;
       }
@@ -222,7 +241,7 @@ const RegisterForm = () => {
       if (error.message?.includes("already registered")) {
         setStudentError(studentEmail);
         toast.error("This email is already registered", {
-          description: "Please use a different email or try logging in with this account."
+          description: "Please use a different email address. Each user can only have one role in the system."
         });
       } else {
         toast.error(`Registration failed: ${error.message || "Unknown error"}`);
@@ -261,8 +280,9 @@ const RegisterForm = () => {
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle>Email Already Registered</AlertTitle>
                 <AlertDescription>
-                  The email address "{teacherError}" may already be registered. 
+                  The email address "{teacherError}" is already registered. 
                   Please use a different email or <Link to="/login" className="font-medium underline">login</Link> if this is your account.
+                  Each user can only have one role in the system.
                 </AlertDescription>
               </Alert>
             )}
@@ -353,8 +373,9 @@ const RegisterForm = () => {
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle>Email Already Registered</AlertTitle>
                 <AlertDescription>
-                  The email address "{studentError}" may already be registered. 
+                  The email address "{studentError}" is already registered. 
                   Please use a different email or <Link to="/login" className="font-medium underline">login</Link> if this is your account.
+                  Each user can only have one role in the system.
                 </AlertDescription>
               </Alert>
             )}

@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -121,7 +120,7 @@ serve(async (req) => {
           return new Response(
             JSON.stringify({ 
               error: "Email already registered", 
-              message: "This email address is already registered. Please use a different email address or try logging in."
+              message: "This email address is already registered. Please use a different email address. Each user can only have one role in the system."
             }),
             { 
               status: 409, 
@@ -137,7 +136,7 @@ serve(async (req) => {
         return new Response(
           JSON.stringify({ 
             error: "Email already registered", 
-            message: "This email address is already registered. Please use a different email address or try logging in."
+            message: "This email address is already registered. Please use a different email address. Each user can only have one role in the system."
           }),
           { 
             status: 409, 
@@ -261,7 +260,7 @@ serve(async (req) => {
           
         console.log("Cleaned up school and code entries after user creation failed");
       } catch (cleanupError) {
-        console.error("Error cleaning up after failed user creation:", cleanupError);
+        console.error("Error during cleanup:", cleanupError);
       }
       
       // Special handling for "already registered" errors
