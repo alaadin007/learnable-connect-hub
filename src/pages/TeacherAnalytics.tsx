@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
@@ -28,9 +29,7 @@ import {
   StudyTimeData
 } from "@/components/analytics/types";
 import SessionsTable from "@/components/analytics/SessionsTable";
-import TopicsChart from "@/components/analytics/TopicsChart";
-import StudyTimeChart from "@/components/analytics/StudyTimeChart";
-import AnalyticsSummaryCards from "@/components/analytics/AnalyticsSummaryCards";
+import { AnalyticsSummaryCards } from "@/components/analytics/AnalyticsSummaryCards";
 
 const TeacherAnalytics = () => {
   const { user, profile } = useAuth();
@@ -92,6 +91,27 @@ const TeacherAnalytics = () => {
     const dateRangeText = getDateRangeText(dateRange);
     exportAnalyticsToCSV(summary, sessions, topics, studyTime, dateRangeText);
     toast.success("Analytics data exported successfully");
+  };
+
+  // Custom components that adapt to the expected props for the analytics components
+  const TopicsChart = ({ topics }: { topics: TopicData[] }) => {
+    // Transform the data to match what the chart expects
+    const chartData = topics.map(t => ({
+      name: t.topic,
+      value: t.count
+    }));
+
+    return <PieChart data={chartData} />;
+  };
+
+  const StudyTimeChart = ({ studyTime }: { studyTime: StudyTimeData[] }) => {
+    // Transform the data to match what the chart expects
+    const chartData = studyTime.map(s => ({
+      name: s.student_name,
+      value: s.total_minutes
+    }));
+
+    return <BarChart data={chartData} />;
   };
 
   return (
@@ -174,7 +194,8 @@ const TeacherAnalytics = () => {
                     <CardContent>
                       <SessionsTable 
                         sessions={sessions.slice(0, 5)} 
-                        userRole={userRole}
+                        title="Recent Sessions"
+                        description="Latest learning sessions"
                         isLoading={isLoading}
                       />
                     </CardContent>
@@ -199,7 +220,8 @@ const TeacherAnalytics = () => {
                   ) : (
                     <SessionsTable 
                       sessions={sessions} 
-                      userRole={userRole}
+                      title="All Sessions"
+                      description="Complete history of learning sessions"
                       isLoading={isLoading}
                     />
                   )}

@@ -1,4 +1,4 @@
-
+// Update import to use the correct hook path
 import React, { useState, useEffect, useCallback } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
@@ -27,7 +27,7 @@ import {
   AnalyticsSummaryCards
 } from "@/components/analytics";
 import { AnalyticsFilters as FiltersType, SessionData, TopicData, StudyTimeData, Student } from "@/components/analytics/types";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast"; // Updated import path
 import { SchoolPerformancePanel } from "@/components/analytics/SchoolPerformancePanel";
 import { TeacherPerformanceTable } from "@/components/analytics/TeacherPerformanceTable";
 import { StudentPerformanceTable } from "@/components/analytics/StudentPerformanceTable";
@@ -186,11 +186,11 @@ const AdminAnalytics = () => {
               <div className="space-y-2">
                 <div className="flex flex-col sm:flex-row sm:items-center">
                   <span className="font-medium min-w-32">Name:</span>
-                  <span className="text-foreground">{profile?.school_name || "Not available"}</span>
+                  <span className="text-foreground">{profile?.organization?.name || "Not available"}</span>
                 </div>
                 <div className="flex flex-col sm:flex-row sm:items-center">
                   <span className="font-medium min-w-32">Code:</span>
-                  <span className="text-foreground">{profile?.school_code || "Not available"}</span>
+                  <span className="text-foreground">{profile?.organization?.code || "Not available"}</span>
                 </div>
               </div>
             </CardContent>

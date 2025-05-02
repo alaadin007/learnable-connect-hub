@@ -19,10 +19,10 @@ const ProtectedRoute = ({
   requireSameSchool = false,
   schoolId
 }: ProtectedRouteProps) => {
-  const { user, profile, isSuperviser, loading, userRole, schoolId: userSchoolId } = useAuth();
+  const { user, profile, isSuperviser, isLoading, userRole, schoolId: userSchoolId } = useAuth();
   const location = useLocation();
 
-  if (loading) {
+  if (isLoading) {
     return <div className="flex items-center justify-center h-screen">Loading...</div>;
   }
 

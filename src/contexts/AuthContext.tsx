@@ -1,3 +1,4 @@
+
 import React, {
   createContext,
   useState,
@@ -17,28 +18,40 @@ import { isTestAccount, TEST_SCHOOL_CODE } from "@/integrations/supabase/client"
 import sessionLogger from "@/utils/sessionLogger";
 import { populateTestAccountWithSessions } from "@/utils/sessionLogging";
 
-type UserProfile = {
+export type UserRole = "school" | "teacher" | "student" | string;
+
+export type UserProfile = {
   id: string;
-  user_type?: string;
+  user_type?: UserRole;
   full_name?: string;
   organization?: {
     id: string;
     name: string;
     code: string;
   };
-  // Add other properties as needed
+  // Additional properties that might be used elsewhere
+  school_name?: string;
+  school_code?: string;
 };
 
 interface AuthContextType {
   session: Session | null;
   user: User | null;
   profile: UserProfile | null;
+  userRole: UserRole | null;
   isLoading: boolean;
+  loading: boolean; // Alias for isLoading for compatibility
   isSuperviser: boolean;
   schoolId: string | null;
-  signIn: (email: string) => Promise<void>;
+  signIn: (email: string, password?: string) => Promise<void>;
+  signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   updateProfile: (updates: any) => Promise<void>;
+  refreshProfile: () => Promise<void>;
+  setTestUser: (
+    type: 'school' | 'teacher' | 'student',
+    schoolIndex?: number
+  ) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -54,6 +67,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSuperviser, setIsSuperviser] = useState(false);
   const [schoolId, setSchoolId] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<UserRole | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -88,6 +102,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
         await fetchProfile(currentSession.user.id);
       } else {
         setProfile(null);
+        setUserRole(null);
       }
     });
   }, []);
@@ -116,13 +131,20 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       }
 
       if (profileData) {
-        setProfile(profileData as UserProfile);
+        // Handle case where organization might be missing or an error
+        const safeProfileData = {
+          ...profileData,
+          organization: profileData.organization || { id: "", name: "", code: "" }
+        };
+
+        setProfile(safeProfileData as UserProfile);
+        setUserRole(profileData.user_type || null);
         setIsSuperviser(profileData.user_type === "superviser");
-        setSchoolId(profileData.organization?.id || null);
+        setSchoolId(safeProfileData.organization?.id || null);
 
         // Handle test accounts
         if (isTestAccount(user?.email || '')) {
-          if (!profileData.organization?.code) {
+          if (!safeProfileData.organization?.code) {
             // Auto-assign test school code if missing
             await updateProfile({
               organization: { code: TEST_SCHOOL_CODE },
@@ -134,7 +156,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
             await sessionLogger.startSession('Test Session', userId);
             await sessionLogger.endSession('Test Session');
           } else if (profileData.user_type === 'teacher') {
-            await populateTestAccountWithSessions(userId, profileData.organization?.id || '');
+            await populateTestAccountWithSessions(userId, safeProfileData.organization?.id || '');
           }
         }
       }
@@ -144,14 +166,42 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
     }
   };
 
-  const signIn = async (email: string) => {
+  const refreshProfile = async () => {
+    if (user) {
+      await fetchProfile(user.id);
+    }
+  };
+
+  const signIn = async (email: string, password?: string) => {
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithOtp({ email });
-      if (error) throw error;
-      toast.success("Check your email for the magic link.");
+      // Handle password-based authentication if provided
+      if (password) {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+      } else {
+        // Fallback to OTP if no password
+        const { error } = await supabase.auth.signInWithOtp({ email });
+        if (error) throw error;
+        toast.success("Check your email for the magic link.");
+      }
     } catch (error: any) {
       toast.error(error.error_description || error.message);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const signUp = async (email: string, password: string) => {
+    setIsLoading(true);
+    try {
+      const { error } = await supabase.auth.signUp({ email, password });
+      if (error) throw error;
+      toast.success("Registration successful! Please check your email.");
+    } catch (error: any) {
+      toast.error(error.error_description || error.message);
+      throw error;
     } finally {
       setIsLoading(false);
     }
@@ -164,7 +214,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       setSession(null);
       setUser(null);
       setProfile(null);
-      setIsSuperviser(false);
+      setUserRole(null);
       navigate("/");
     } catch (error: any) {
       toast.error(error.error_description || error.message);
@@ -196,16 +246,78 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
     }
   };
 
+  // Method to set a test user for quick testing
+  const setTestUser = async (
+    type: 'school' | 'teacher' | 'student',
+    schoolIndex: number = 0
+  ) => {
+    setIsLoading(true);
+    try {
+      // Mock user and profile data for test accounts
+      const mockId = `test-${type}-${schoolIndex}`;
+      const mockUser = {
+        id: mockId,
+        email: `${type}.test@learnable.edu`,
+        user_metadata: {
+          full_name: `Test ${type.charAt(0).toUpperCase() + type.slice(1)}`
+        }
+      } as User;
+      
+      // Create mock profile based on user type
+      const mockProfile: UserProfile = {
+        id: mockId,
+        user_type: type,
+        full_name: `Test ${type.charAt(0).toUpperCase() + type.slice(1)}`,
+        organization: {
+          id: `test-school-${schoolIndex}`,
+          name: schoolIndex === 0 ? "Test School" : `Test School ${schoolIndex + 1}`,
+          code: `TEST${schoolIndex}`
+        }
+      };
+      
+      // Set context values
+      setUser(mockUser);
+      setProfile(mockProfile);
+      setUserRole(type);
+      setIsSuperviser(false);
+      setSchoolId(mockProfile.organization?.id || null);
+      
+      // Create a fake session
+      const mockSession = {
+        user: mockUser,
+        access_token: "test-token",
+        refresh_token: "test-refresh-token",
+        expires_at: Date.now() + 3600000
+      } as Session;
+      
+      setSession(mockSession);
+      
+      toast.success(`Logged in as test ${type}`);
+      return mockUser;
+    } catch (error) {
+      console.error("Error setting test user:", error);
+      toast.error("Failed to set test user");
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const value: AuthContextType = {
     session,
     user,
     profile,
+    userRole,
     isLoading,
+    loading: isLoading, // Alias for backward compatibility
     isSuperviser,
     schoolId,
     signIn,
+    signUp,
     signOut,
     updateProfile,
+    refreshProfile,
+    setTestUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

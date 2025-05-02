@@ -12,6 +12,18 @@ import { Users, BarChart2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
+// Define the basic type for teacher invitations
+export type TeacherInvitation = {
+  id: string;
+  email: string;
+  status: "pending" | "accepted" | "rejected";
+  school_id: string;
+  invitation_token: string;
+  created_by: string;
+  created_at: string;
+  expires_at: string;
+};
+
 const SchoolAdmin = () => {
   const { profile } = useAuth();
   // Use optional chaining for organization properties

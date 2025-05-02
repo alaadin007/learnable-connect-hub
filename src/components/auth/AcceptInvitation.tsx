@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, Navigate, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -93,6 +92,7 @@ export default function AcceptInvitation() {
     }
   };
 
+  // ... keep existing code (the rest of the component rendering)
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
