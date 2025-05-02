@@ -1,15 +1,12 @@
 
 // Base types for Analytics
 export interface DateRange {
-  from: Date;
+  from: Date | undefined;
   to?: Date;
 }
 
 export interface AnalyticsFilters {
-  dateRange?: {
-    from?: Date;
-    to?: Date;
-  };
+  dateRange?: DateRange;
   studentId?: string;
   teacherId?: string;
 }
@@ -32,7 +29,7 @@ export interface SessionData {
   duration: number | null | string;
   numQueries: number;
   
-  // Additional properties used in the existing code
+  // Additional properties used in the existing code for backward compatibility
   student?: string;
   topic?: string;
   queries?: number;
@@ -44,7 +41,7 @@ export interface TopicData {
   count: number;
   percentage?: number;
   
-  // Additional properties used in the existing code
+  // Additional properties used in the existing code for backward compatibility
   name?: string;
   value?: number;
 }
@@ -56,7 +53,7 @@ export interface StudyTimeData {
   hours: number;
   studentName?: string;
   
-  // Additional properties used in the existing code
+  // Additional properties used in the existing code for backward compatibility
   name?: string;
 }
 

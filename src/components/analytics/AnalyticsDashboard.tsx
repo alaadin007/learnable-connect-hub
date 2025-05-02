@@ -1,6 +1,6 @@
+
 import React, { useState, useEffect } from "react";
 import { format, subDays } from "date-fns";
-import { DateRange } from "react-day-picker";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { DateRangePicker } from "./DateRangePicker";
@@ -11,7 +11,7 @@ import TopicsChart from "./TopicsChart";
 import SessionsTable from "./SessionsTable";
 import StatsCard from "./StatsCard";
 import { Users, BarChart2, MessageSquare, Book } from "lucide-react";
-import { Student, SessionData, AnalyticsSummary } from "./types";
+import { Student, SessionData, AnalyticsSummary, DateRange, TopicData, StudyTimeData } from "./types";
 import { toast } from "@/hooks/use-toast";
 import { SchoolPerformancePanel } from "./SchoolPerformancePanel";
 import { TeacherPerformanceTable, TeacherPerformanceData } from "./TeacherPerformanceTable";
@@ -32,7 +32,7 @@ interface AnalyticsDashboardProps {
 const AnalyticsDashboard = ({ userRole }: AnalyticsDashboardProps) => {
   const { schoolId } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
-  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+  const [dateRange, setDateRange] = useState<DateRange>({
     from: subDays(new Date(), 30),
     to: new Date(),
   });
@@ -41,8 +41,8 @@ const AnalyticsDashboard = ({ userRole }: AnalyticsDashboardProps) => {
   const [selectedTeacherId, setSelectedTeacherId] = useState<string | undefined>(undefined);
   
   // Engagement metrics state
-  const [studyTimeData, setStudyTimeData] = useState<any[]>([]);
-  const [topicsData, setTopicsData] = useState<any[]>([]);
+  const [studyTimeData, setStudyTimeData] = useState<StudyTimeData[]>([]);
+  const [topicsData, setTopicsData] = useState<TopicData[]>([]);
   const [sessionsData, setSessionsData] = useState<SessionData[]>([]);
   const [stats, setStats] = useState<AnalyticsSummary>({
     activeStudents: 0,
@@ -203,11 +203,17 @@ const AnalyticsDashboard = ({ userRole }: AnalyticsDashboardProps) => {
           
           return {
             id: session.id,
+            userId: session.user_id,
+            userName: userNameMap[session.user_id] || "Unknown",
+            topicOrContent: session.topic_or_content_used || "General",
+            startTime: format(new Date(session.session_start), 'MMM dd, yyyy'),
+            endTime: session.session_end,
+            numQueries: session.num_queries,
+            duration: duration,
+            // Backward compatibility properties
             student: userNameMap[session.user_id] || "Unknown",
             topic: session.topic_or_content_used || "General",
-            queries: session.num_queries,
-            duration: duration,
-            startTime: format(new Date(session.session_start), 'MMM dd, yyyy')
+            queries: session.num_queries
           };
         }) || [];
         
@@ -273,11 +279,16 @@ const AnalyticsDashboard = ({ userRole }: AnalyticsDashboardProps) => {
     setActiveTab(value);
   };
 
+  // Custom handler for date range changes to maintain correct typing
+  const handleDateRangeChange = (newDateRange: DateRange | undefined) => {
+    setDateRange(newDateRange || { from: undefined, to: undefined });
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row gap-4">
         <div className="w-full md:w-1/2">
-          <DateRangePicker dateRange={dateRange} onDateRangeChange={setDateRange} />
+          <DateRangePicker dateRange={dateRange} onDateRangeChange={handleDateRangeChange} />
         </div>
         <div className="w-full md:w-1/2">
           <StudentSelector 

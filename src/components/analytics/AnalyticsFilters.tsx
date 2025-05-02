@@ -4,7 +4,7 @@ import { DateRangePicker } from "./DateRangePicker";
 import { StudentSelector } from "./StudentSelector";
 import { Card, CardContent } from "@/components/ui/card";
 import { Filter } from "lucide-react";
-import { AnalyticsFilters as FiltersType } from "./types";
+import { AnalyticsFilters as FiltersType, DateRange } from "./types";
 
 interface AnalyticsFiltersProps {
   filters: FiltersType;
@@ -17,13 +17,10 @@ export function AnalyticsFilters({
   onFiltersChange,
   showStudentSelector = false 
 }: AnalyticsFiltersProps) {
-  const handleDateRangeChange = (range: { from?: Date; to?: Date } | undefined) => {
+  const handleDateRangeChange = (range: DateRange | undefined) => {
     onFiltersChange({
       ...filters,
-      dateRange: {
-        from: range?.from,
-        to: range?.to
-      }
+      dateRange: range
     });
   };
 
