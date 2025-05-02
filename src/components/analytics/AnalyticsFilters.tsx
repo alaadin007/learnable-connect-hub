@@ -54,7 +54,7 @@ export function AnalyticsFilters({
             {showStudentSelector && (
               <div>
                 <StudentSelector 
-                  selectedStudent={filters.studentId} 
+                  selectedStudentId={filters.studentId} 
                   onStudentChange={handleStudentChange}
                 />
               </div>

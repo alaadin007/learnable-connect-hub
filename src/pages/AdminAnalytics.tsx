@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
@@ -22,38 +23,48 @@ import {
   AnalyticsExport,
   AnalyticsSummaryCards
 } from "@/components/analytics";
-import { AnalyticsFilters as FiltersType } from "@/components/analytics/types";
+import { AnalyticsFilters as FiltersType, SessionData, TopicData, StudyTimeData } from "@/components/analytics/types";
 import { useToast } from "@/components/ui/use-toast";
 
 const AdminAnalytics = () => {
   const { profile } = useAuth();
   const [summary, setSummary] = useState(null);
-  const [sessions, setSessions] = useState([]);
-  const [topics, setTopics] = useState([]);
-  const [studyTime, setStudyTime] = useState([]);
-  const [filters, setFilters] = useState<FiltersType>({});
+  const [sessions, setSessions] = useState<SessionData[]>([]);
+  const [topics, setTopics] = useState<TopicData[]>([]);
+  const [studyTime, setStudyTime] = useState<StudyTimeData[]>([]);
+  const [filters, setFilters] = useState<FiltersType>({
+    dateRange: {
+      from: undefined,
+      to: undefined
+    }
+  });
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
+  // Get the school_id from the profile, handling both profile structures
+  const schoolId = profile?.school_id || (profile as any)?.school?.id;
+
   useEffect(() => {
-    loadAnalyticsData();
-  }, [profile?.school_id, filters]);
+    if (schoolId) {
+      loadAnalyticsData();
+    }
+  }, [schoolId, filters]);
 
   const loadAnalyticsData = async () => {
-    if (!profile?.school_id) return;
+    if (!schoolId) return;
     setIsLoading(true);
     
     try {
-      const summaryData = await fetchAnalyticsSummary(profile.school_id, filters);
+      const summaryData = await fetchAnalyticsSummary(schoolId, filters);
       setSummary(summaryData);
       
-      const sessionData = await fetchSessionLogs(profile.school_id, filters);
+      const sessionData = await fetchSessionLogs(schoolId, filters);
       setSessions(sessionData);
       
-      const topicData = await fetchTopics(profile.school_id, filters);
+      const topicData = await fetchTopics(schoolId, filters);
       setTopics(topicData);
       
-      const studyTimeData = await fetchStudyTime(profile.school_id, filters);
+      const studyTimeData = await fetchStudyTime(schoolId, filters);
       setStudyTime(studyTimeData);
     } catch (error: any) {
       console.error("Error loading analytics data:", error);
@@ -70,6 +81,9 @@ const AdminAnalytics = () => {
   const handleFiltersChange = (newFilters: FiltersType) => {
     setFilters(newFilters);
   };
+
+  // Get the date range text for display
+  const dateRangeText = getDateRangeText(filters.dateRange);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -141,7 +155,13 @@ const AdminAnalytics = () => {
                       )}
                     </CardDescription>
                   </div>
-                  <AnalyticsExport data={sessions} filename="sessions.csv" />
+                  <AnalyticsExport 
+                    summary={summary} 
+                    sessions={sessions}
+                    topics={topics}
+                    studyTimes={studyTime}
+                    dateRangeText={dateRangeText}
+                  />
                 </CardHeader>
                 <CardContent>
                   <SessionsTable 
