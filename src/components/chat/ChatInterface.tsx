@@ -1,14 +1,29 @@
+
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Send, Loader2, Star, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Send, Loader2, Star, ThumbsUp, ThumbsDown, ExternalLink } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/components/ui/use-toast";
 import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { sessionLogger } from "@/utils/sessionLogger";
+import { Badge } from "@/components/ui/badge";
+import { 
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+
+interface SourceCitation {
+  filename: string;
+  document_id: string;
+  relevance_score?: number;
+  excerpt?: string;
+}
 
 interface ChatMessage {
   id: string;
@@ -17,6 +32,7 @@ interface ChatMessage {
   timestamp: string;
   is_important?: boolean;
   feedback_rating?: number;
+  document_citations?: SourceCitation[];
 }
 
 interface ChatInterfaceProps {
@@ -35,11 +51,13 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [useDocuments, setUseDocuments] = useState<boolean>(true);
   const { user } = useAuth();
   const { toast } = useToast();
   const bottomRef = useRef<HTMLDivElement>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [conversationTitle, setConversationTitle] = useState<string>("");
+  const [showSourceInfo, setShowSourceInfo] = useState<string | null>(null);
 
   // Function to scroll to the bottom of the chat
   const scrollToBottom = useCallback(() => {
@@ -178,7 +196,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
         content: msg.content,
         timestamp: msg.timestamp,
         is_important: msg.is_important,
-        feedback_rating: msg.feedback_rating
+        feedback_rating: msg.feedback_rating,
+        document_citations: msg.document_citations
       })) as ChatMessage[];
 
       setMessages(formattedMessages);
@@ -220,14 +239,17 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
         }
       }
 
-      // Optimistic UI update
-      const aiResponse = await getAIResponse(input);
+      // Call the AI function with document context option
+      const aiResponse = await getAIResponse(input, currentConvoId);
+      
       const aiMessage: ChatMessage = {
         id: uuidv4(),
         role: "assistant",
-        content: aiResponse,
+        content: aiResponse.response,
         timestamp: new Date().toISOString(),
+        document_citations: aiResponse.sourceCitations
       };
+      
       setMessages((prev) => [...prev, aiMessage]);
 
       // Log query count
@@ -235,9 +257,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
         await sessionLogger.incrementQueryCount(sessionId);
       }
 
-      // Save messages to Supabase
-      await saveMessagesToSupabase(currentConvoId, newMessage, aiMessage);
-      
       // Update conversation last message timestamp
       await updateConversationLastMessageTime(currentConvoId);
 
@@ -259,10 +278,26 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     }
   };
 
-  const getAIResponse = async (message: string): Promise<string> => {
-    // Simulate AI response delay
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    return `AI Response: ${message}`;
+  const getAIResponse = async (message: string, convoId: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('ask-ai', {
+        body: {
+          question: message,
+          conversationId: convoId,
+          sessionId: sessionId,
+          topic: topic,
+          useDocuments: useDocuments
+        }
+      });
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error("Error getting AI response:", error);
+      return {
+        response: "I'm sorry, I encountered an error while processing your request. Please try again."
+      };
+    }
   };
 
   const saveMessagesToSupabase = async (convoId: string, userMessage: ChatMessage, aiMessage: ChatMessage) => {
@@ -398,12 +433,48 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     }
   };
 
+  const toggleUseDocuments = () => {
+    setUseDocuments(prev => !prev);
+    toast({
+      title: useDocuments ? "Documents disabled" : "Documents enabled",
+      description: useDocuments 
+        ? "AI will not use your documents for context." 
+        : "AI will use your uploaded documents for context.",
+    });
+  };
+
+  const viewDocumentSource = (docId: string) => {
+    if (!docId) return;
+    
+    // Redirect to document viewer or preview (you'll need to implement this)
+    window.open(`/documents/view/${docId}`, '_blank');
+  };
+
   return (
     <Card className="h-[calc(100vh-200px)] flex flex-col">
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>
           {conversationId ? conversationTitle : "LearnAble AI Chat"}
         </CardTitle>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                variant={useDocuments ? "default" : "outline"}
+                size="sm"
+                onClick={toggleUseDocuments}
+              >
+                {useDocuments ? "Using Documents" : "Not Using Documents"}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {useDocuments 
+                ? "AI will use your uploaded documents as context" 
+                : "AI will rely only on its general knowledge"
+              }
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </CardHeader>
       <CardContent className="flex-grow overflow-hidden">
         <ScrollArea className="h-full">
@@ -422,6 +493,42 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                     } ${message.is_important ? "border-2 border-yellow-400" : ""}`}
                   >
                     {message.content}
+                    
+                    {/* Document citations badges */}
+                    {message.document_citations && message.document_citations.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        <p className="text-xs font-medium text-gray-500 w-full mb-1">Sources:</p>
+                        {message.document_citations.map((citation, index) => (
+                          <div key={index} className="flex items-center">
+                            <Badge 
+                              variant="outline" 
+                              className="hover:bg-secondary cursor-pointer flex items-center gap-1"
+                              onClick={() => setShowSourceInfo(showSourceInfo === `${message.id}-${index}` ? null : `${message.id}-${index}`)}
+                            >
+                              📄 {citation.filename.length > 20 ? citation.filename.substring(0, 20) + '...' : citation.filename}
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {/* Source details if expanded */}
+                    {message.document_citations && message.document_citations.map((citation, index) => (
+                      showSourceInfo === `${message.id}-${index}` && (
+                        <div key={`details-${index}`} className="mt-2 p-2 bg-gray-100 rounded text-sm">
+                          <div className="font-semibold">{citation.filename}</div>
+                          {citation.excerpt && <div className="italic mt-1 text-gray-600">{citation.excerpt}</div>}
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="mt-1 h-7 text-xs" 
+                            onClick={() => viewDocumentSource(citation.document_id)}
+                          >
+                            <ExternalLink className="h-3 w-3 mr-1" /> View Document
+                          </Button>
+                        </div>
+                      )
+                    ))}
                   </div>
                   
                   {conversationId && (

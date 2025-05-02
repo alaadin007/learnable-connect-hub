@@ -73,22 +73,50 @@ serve(async (req) => {
       try {
         console.log(`Searching for relevant documents for user ${userId}`);
         
-        // Extract keywords from the question for better search
-        // This is a simple approach - we could use embeddings for better results in the future
+        // Improved approach: Extract more meaningful keywords from the question
+        // Remove common words, articles, and prepositions to focus on important terms
+        const stopWords = new Set([
+          'the', 'a', 'an', 'and', 'or', 'but', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+          'have', 'has', 'had', 'do', 'does', 'did', 'i', 'you', 'he', 'she', 'it', 'we', 'they',
+          'what', 'when', 'where', 'which', 'who', 'whom', 'whose', 'why', 'how', 'this', 'that',
+          'these', 'those', 'with', 'from', 'about', 'for', 'to', 'in', 'on', 'at', 'by', 'of',
+          'me', 'my', 'mine', 'your', 'yours', 'his', 'her', 'hers', 'its', 'our', 'ours', 'their',
+          'theirs', 'am', 'can', 'will', 'should', 'would', 'could', 'may', 'might', 'must'
+        ]);
+        
+        // Extract the meaningful keywords
         const questionWords = question
           .toLowerCase()
-          .replace(/[^\w\s]/g, '')
-          .split(/\s+/)
+          .replace(/[^\w\s]/g, '')  // Remove punctuation
+          .split(/\s+/)              // Split by whitespace
           .filter(word => 
-            word.length > 3 && 
-            !['what', 'when', 'where', 'which', 'who', 'whom', 'whose', 'why', 'how', 'this', 'that', 'these', 'those', 'with', 'from'].includes(word)
+            word.length > 2 &&       // Words longer than 2 chars
+            !stopWords.has(word)     // Not in stop words list
           );
         
         // If we have meaningful keywords to search for
         if (questionWords.length > 0) {
           console.log(`Extracted keywords: ${questionWords.join(', ')}`);
           
-          // Search for completed documents from this user
+          // First get context from topic-related documents if a topic was provided
+          let topicRelatedDocuments = [];
+          
+          if (topic) {
+            // Try to find documents related to the specified topic
+            const { data: topicDocuments, error: topicError } = await supabaseClient
+              .from('documents')
+              .select('id, filename')
+              .eq('user_id', userId)
+              .eq('processing_status', 'completed')
+              .ilike('filename', `%${topic}%`);
+              
+            if (!topicError && topicDocuments && topicDocuments.length > 0) {
+              topicRelatedDocuments = topicDocuments.map(doc => doc.id);
+              console.log(`Found ${topicRelatedDocuments.length} documents related to topic "${topic}"`);
+            }
+          }
+          
+          // Get all user's processed documents
           const { data: userDocuments, error: docError } = await supabaseClient
             .from('documents')
             .select('id, filename')
@@ -100,34 +128,85 @@ serve(async (req) => {
           } else if (userDocuments && userDocuments.length > 0) {
             console.log(`Found ${userDocuments.length} processed documents`);
             
-            // Search document content using keywords
+            // Get all document IDs
             const documentIds = userDocuments.map(doc => doc.id);
             
-            // Construct a query to search for content containing any of the keywords
-            // This is a simple search approach that could be improved with full-text search or vector embeddings
-            let textSearchQuery = supabaseClient
-              .from('document_content')
-              .select('content, document_id')
-              .in('document_id', documentIds);
+            // Build a more sophisticated search query
+            // We'll use a scoring mechanism to rank content relevance
             
-            // Add conditions to search for each keyword
-            const searchConditions = questionWords.map(keyword => `content.ilike.%${keyword}%`);
+            // For each keyword, we'll search separately and then compile results
+            let allMatchingContent = [];
             
-            // Apply the conditions with OR logic
-            for (const condition of searchConditions) {
-              textSearchQuery = textSearchQuery.or(condition);
+            // First prioritize searching in topic-related documents if any
+            if (topicRelatedDocuments.length > 0) {
+              for (const keyword of questionWords) {
+                const { data: topicMatches, error: topicMatchError } = await supabaseClient
+                  .from('document_content')
+                  .select('content, document_id')
+                  .in('document_id', topicRelatedDocuments)
+                  .ilike('content', `%${keyword}%`)
+                  .limit(5);
+                  
+                if (!topicMatchError && topicMatches && topicMatches.length > 0) {
+                  allMatchingContent.push(...topicMatches);
+                }
+              }
             }
             
-            // Execute the search and limit results
-            const { data: matchingContent, error: contentError } = await textSearchQuery.limit(5);
+            // Then search all other documents if we need more matches
+            if (allMatchingContent.length < 5) {
+              for (const keyword of questionWords) {
+                const { data: otherMatches, error: otherMatchError } = await supabaseClient
+                  .from('document_content')
+                  .select('content, document_id')
+                  .in('document_id', documentIds)
+                  .ilike('content', `%${keyword}%`)
+                  .limit(5);
+                  
+                if (!otherMatchError && otherMatches && otherMatches.length > 0) {
+                  allMatchingContent.push(...otherMatches);
+                }
+              }
+            }
             
-            if (contentError) {
-              console.error('Error searching document content:', contentError);
-            } else if (matchingContent && matchingContent.length > 0) {
-              console.log(`Found ${matchingContent.length} relevant content sections`);
+            // Score and rank content based on keyword matches
+            const contentScores = new Map();
+            
+            allMatchingContent.forEach(content => {
+              // Generate a key combining document ID and content to avoid duplicates
+              const key = `${content.document_id}:${content.content.substring(0, 50)}`;
+              
+              if (!contentScores.has(key)) {
+                contentScores.set(key, { content, score: 0 });
+              }
+              
+              const entry = contentScores.get(key);
+              
+              // Score content based on how many keywords match
+              questionWords.forEach(keyword => {
+                if (content.content.toLowerCase().includes(keyword)) {
+                  // Increase score for each matching keyword
+                  entry.score += 1;
+                  
+                  // Bonus points for exact phrase matches
+                  if (content.content.toLowerCase().includes(question.toLowerCase())) {
+                    entry.score += 5;
+                  }
+                }
+              });
+            });
+            
+            // Convert map to array, sort by score (highest first)
+            const scoredContent = Array.from(contentScores.values())
+              .sort((a, b) => b.score - a.score)
+              .slice(0, 3); // Take top 3 most relevant chunks
+              
+            if (scoredContent.length > 0) {
+              console.log(`Found ${scoredContent.length} relevant content sections`);
               
               // Extract document details for citations
-              for (const content of matchingContent) {
+              for (const item of scoredContent) {
+                const content = item.content;
                 // Find the document info
                 const document = userDocuments.find(doc => doc.id === content.document_id);
                 
@@ -138,7 +217,9 @@ serve(async (req) => {
                   // Add citation information
                   sourceCitations.push({
                     filename: document.filename,
-                    document_id: document.id
+                    document_id: document.id,
+                    relevance_score: item.score,
+                    excerpt: content.content.substring(0, 150) + "..."
                   });
                 }
               }
@@ -166,7 +247,10 @@ serve(async (req) => {
     let systemPrompt = 'You are a helpful educational assistant for LearnAble. Provide clear and accurate information to help students learn.';
     
     if (relevantContent) {
-      systemPrompt += ' Answer the question based ONLY on the provided context from the user\'s documents. If the context doesn\'t contain the information needed to answer the question fully, acknowledge that and answer with what you can from the context.';
+      systemPrompt += ' Answer the question based primarily on the provided context from the user\'s documents. If the context doesn\'t contain the information needed to answer the question fully, acknowledge that and supplement with your general knowledge, but make it clear which parts of your answer come from their documents and which parts are general information.';
+      
+      // Add instruction to include citations
+      systemPrompt += ' When referring to information from the documents, mention the document name in your answer using phrases like "according to [document name]" or "as mentioned in [document name]".';
     }
 
     // Call OpenAI API
@@ -262,7 +346,8 @@ serve(async (req) => {
             .insert({
               conversation_id: newConversationId,
               sender: 'ai',
-              content: aiResponse
+              content: aiResponse,
+              document_citations: sourceCitations.length > 0 ? sourceCitations : null
             });
           
           console.log(`Saved messages to conversation ID: ${newConversationId}`);
@@ -279,13 +364,9 @@ serve(async (req) => {
       sessionId: sessionId,
       topic: topic,
       useDocuments: useDocuments,
-      hasRelevantDocuments: sourceCitations.length > 0
+      hasRelevantDocuments: sourceCitations.length > 0,
+      sourceCitations: sourceCitations.length > 0 ? sourceCitations : undefined
     };
-    
-    // Add source citations if we found relevant documents
-    if (sourceCitations.length > 0) {
-      responseData.sourceCitations = sourceCitations;
-    }
 
     return new Response(JSON.stringify(responseData), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
