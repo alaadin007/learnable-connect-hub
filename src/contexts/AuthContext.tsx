@@ -4,10 +4,13 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
+// Define the UserRole type
+export type UserRole = 'school' | 'teacher' | 'student';
+
 interface UserProfile {
   id: string;
   email?: string;
-  user_type: string;
+  user_type: UserRole;
   full_name?: string;
   school_code?: string;
   school_name?: string;
@@ -18,11 +21,15 @@ interface AuthContextType {
   session: Session | null;
   profile: UserProfile | null;
   isLoading: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<any>;
   signUp: (email: string, password: string, metadata: any) => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   schoolId: string | null;
+  userRole: UserRole | null;
+  isSuperviser: boolean;
+  loading: boolean;
+  setTestUser: (type: 'school' | 'teacher' | 'student', schoolIndex?: number) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -30,11 +37,15 @@ const AuthContext = createContext<AuthContextType>({
   session: null,
   profile: null,
   isLoading: true,
-  signIn: async () => {},
+  signIn: async () => ({}),
   signUp: async () => {},
   signOut: async () => {},
   refreshProfile: async () => {},
   schoolId: null,
+  userRole: null,
+  isSuperviser: false,
+  loading: true,
+  setTestUser: async () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -45,6 +56,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [schoolId, setSchoolId] = useState<string | null>(null);
+  const [isSuperviser, setIsSuperviser] = useState(false);
+
+  // Get user role from profile
+  const userRole = profile?.user_type as UserRole | null;
+  const loading = isLoading;
 
   // Fetch user profile data
   const fetchProfile = async (userId: string) => {
@@ -104,6 +120,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // Check if user is a supervisor
+  const fetchIsSupervisor = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('teachers')
+        .select('is_supervisor')
+        .eq('id', userId)
+        .single();
+
+      if (error) {
+        return false;
+      }
+
+      return !!data.is_supervisor;
+    } catch (error) {
+      return false;
+    }
+  };
+
   const refreshProfile = async () => {
     if (!user) return;
     
@@ -112,7 +147,47 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setProfile(profileData);
       const schoolIdData = await fetchSchoolId(user.id, profileData.user_type);
       setSchoolId(schoolIdData);
+      
+      if (profileData.user_type === 'teacher' || profileData.user_type === 'school') {
+        const isSupervisor = await fetchIsSupervisor(user.id);
+        setIsSuperviser(isSupervisor);
+      }
     }
+  };
+
+  // Set a test user for demo purposes
+  const setTestUser = async (type: 'school' | 'teacher' | 'student', schoolIndex: number = 0) => {
+    // Create mock profile and session data for test users
+    const mockUserId = `test-${type}-${schoolIndex}`;
+    const mockSchoolId = `school-${schoolIndex}`;
+    const mockSchoolName = schoolIndex === 0 ? 'Test School' : `Test School ${schoolIndex + 1}`;
+    
+    // Create test user profile
+    const testProfile: UserProfile = {
+      id: mockUserId,
+      user_type: type,
+      full_name: `Test ${type.charAt(0).toUpperCase() + type.slice(1)}`,
+      school_code: `TEST${schoolIndex}`,
+      school_name: mockSchoolName,
+    };
+    
+    // Create mock user
+    const testUser = {
+      id: mockUserId,
+      email: `${type}.test@example.com`,
+      user_metadata: {
+        full_name: testProfile.full_name
+      }
+    } as User;
+    
+    // Set state for test user session
+    setUser(testUser);
+    setProfile(testProfile);
+    setSchoolId(mockSchoolId);
+    setIsSuperviser(type === 'school');
+    
+    // Show success message
+    toast.success(`Logged in as Test ${type.charAt(0).toUpperCase() + type.slice(1)}`);
   };
 
   useEffect(() => {
@@ -130,6 +205,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               setProfile(profileData);
               const schoolIdData = await fetchSchoolId(currentSession.user.id, profileData.user_type);
               setSchoolId(schoolIdData);
+              
+              if (profileData.user_type === 'teacher' || profileData.user_type === 'school') {
+                const isSupervisor = await fetchIsSupervisor(currentSession.user.id);
+                setIsSuperviser(isSupervisor);
+              }
             }
           }, 0);
         } else {
@@ -152,6 +232,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             setProfile(profileData);
             const schoolIdData = await fetchSchoolId(currentSession.user.id, profileData.user_type);
             setSchoolId(schoolIdData);
+            
+            if (profileData.user_type === 'teacher' || profileData.user_type === 'school') {
+              const isSupervisor = await fetchIsSupervisor(currentSession.user.id);
+              setIsSuperviser(isSupervisor);
+            }
           }
         }
       } catch (error) {
@@ -170,15 +255,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const signIn = async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const response = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (error) {
-        throw error;
+      if (response.error) {
+        throw response.error;
       }
       
+      return response;
       // Auth state change listener will handle state updates
     } catch (error: any) {
       toast.error(error.message || 'Failed to sign in');
@@ -232,6 +318,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         signOut,
         refreshProfile,
         schoolId,
+        userRole,
+        isSuperviser,
+        loading,
+        setTestUser,
       }}
     >
       {children}

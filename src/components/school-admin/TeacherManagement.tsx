@@ -64,32 +64,41 @@ const TeacherManagement = () => {
   const fetchTeachers = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
+      // Fetch teachers and join with profiles table to get names
+      const { data: teacherData, error: teacherError } = await supabase
         .from('teachers')
         .select(`
           id,
           is_supervisor,
-          profiles:profiles(
-            full_name
-          )
+          school_id
         `)
         .eq('school_id', schoolId);
 
-      if (error) {
-        throw error;
+      if (teacherError) {
+        throw teacherError;
       }
 
-      // Transform teachers data to include email
-      const teachersData = (data || []).map(teacher => ({
-        id: teacher.id,
-        is_supervisor: teacher.is_supervisor,
-        profile: {
-          full_name: teacher.profiles?.full_name || "Unknown",
-          email: teacher.id || "Unknown email" // Using ID as email placeholder
-        }
-      }));
+      // Fetch profiles for each teacher
+      const teachersWithProfiles = await Promise.all(
+        (teacherData || []).map(async (teacher) => {
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', teacher.id)
+            .single();
+            
+          return {
+            id: teacher.id,
+            is_supervisor: teacher.is_supervisor,
+            profile: {
+              full_name: profileData?.full_name || "Unknown",
+              email: teacher.id || "Unknown email" // Using ID as email placeholder
+            }
+          };
+        })
+      );
 
-      setTeachers(teachersData);
+      setTeachers(teachersWithProfiles);
     } catch (error) {
       console.error('Error fetching teachers:', error);
       toast.error('Failed to load teachers');

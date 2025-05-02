@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -49,7 +48,6 @@ const TestAccounts = () => {
       toast.loading("Checking test accounts status...");
       
       // Use the verify_school_code RPC function which returns boolean
-      // This avoids the type instantiation error from previous approach
       const { data: exists, error: verifyError } = await supabase.rpc('verify_school_code', { 
         code: "TESTCODE"
       });
@@ -59,13 +57,13 @@ const TestAccounts = () => {
         // If not, invoke the edge function to create them
         toast.loading("Creating test accounts... (this may take a moment)");
         
-        const { error } = await supabase.functions.invoke("create-test-accounts", {
+        const response = await supabase.functions.invoke("create-test-accounts", {
           body: { createAccounts: true }
         });
         
-        if (error) {
+        if (response.error) {
           toast.error("Failed to create test accounts");
-          console.error("Error creating test accounts:", error);
+          console.error("Error creating test accounts:", response.error);
           return false;
         }
         
@@ -90,10 +88,10 @@ const TestAccounts = () => {
     
     try {
       // First try to sign in using real credentials
-      const { data, error } = await signIn(account.email, account.password);
+      const response = await signIn(account.email, account.password);
       
-      if (error) {
-        console.error(`Login error for ${accountType} account:`, error);
+      if (response.error) {
+        console.error(`Login error for ${accountType} account:`, response.error);
         
         // If real login fails, fall back to test user mode
         await setTestUser(accountType);

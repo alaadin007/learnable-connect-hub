@@ -1,7 +1,7 @@
 
 import { Route, Routes } from 'react-router-dom'
 import { Toaster } from "sonner";
-import Home from '@/pages/Home'
+import Home from './pages/Home'
 import Login from '@/pages/Login'
 import Register from '@/pages/Register'
 import Dashboard from '@/pages/Dashboard'
@@ -10,7 +10,7 @@ import AdminTeacherManagement from '@/pages/AdminTeacherManagement'
 import TeacherStudents from '@/pages/TeacherStudents'
 import About from '@/pages/About'
 import Contact from '@/pages/Contact'
-import PrivacyPolicy from '@/pages/PrivacyPolicy'
+import PrivacyPolicy from './pages/PrivacyPolicy'
 import TestAccounts from '@/pages/TestAccounts'
 import AcceptInvitation from '@/components/auth/AcceptInvitation'
 import { AuthProvider } from '@/contexts/AuthContext';
