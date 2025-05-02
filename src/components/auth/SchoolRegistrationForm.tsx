@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Loader2, Mail, AlertTriangle } from "lucide-react";
+import { Loader2, Mail, AlertTriangle, Info, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 import {
@@ -46,6 +46,7 @@ const SchoolRegistrationForm: React.FC = () => {
   const [emailSent, setEmailSent] = React.useState(false);
   const [schoolCode, setSchoolCode] = React.useState<string | null>(null);
   const [registeredEmail, setRegisteredEmail] = React.useState<string | null>(null);
+  const [existingEmailError, setExistingEmailError] = React.useState<string | null>(null);
 
   // Initialize form
   const form = useForm<SchoolRegistrationFormValues>({
@@ -82,6 +83,7 @@ const SchoolRegistrationForm: React.FC = () => {
 
   const onSubmit = async (data: SchoolRegistrationFormValues) => {
     setIsLoading(true);
+    setExistingEmailError(null);
     
     try {
       // Display toast notification that registration is in progress
@@ -102,7 +104,44 @@ const SchoolRegistrationForm: React.FC = () => {
 
       if (error) {
         console.error("School registration error:", error);
-        toast.error(`Registration failed: ${error.message || "Unknown error"}`);
+        
+        // Check if this is an "email already exists" error
+        const errorMessage = error.message || "";
+        if (errorMessage.includes("non-2xx status code")) {
+          // Set the existing email error to guide the user
+          setExistingEmailError(data.adminEmail);
+          toast.error(
+            "This email is already registered",
+            {
+              description: "Please use a different email address or try logging in with this email if it's yours.",
+              duration: 8000,
+              icon: <AlertCircle className="h-5 w-5" />,
+            }
+          );
+        } else {
+          toast.error(`Registration failed: ${error.message || "Unknown error"}`);
+        }
+        return;
+      }
+
+      if (responseData?.error) {
+        console.error("Server error:", responseData.error, responseData.details);
+        
+        // Handle specific error cases
+        if (responseData.error === "Email already registered" || 
+            (responseData.details && responseData.details.includes("already registered"))) {
+          setExistingEmailError(data.adminEmail);
+          toast.error(
+            "This email is already registered",
+            {
+              description: "Please use a different email address or try logging in with this email if it's yours.",
+              duration: 8000,
+              icon: <AlertCircle className="h-5 w-5" />,
+            }
+          );
+        } else {
+          toast.error(`Registration failed: ${responseData.error}`);
+        }
         return;
       }
 
@@ -222,6 +261,25 @@ const SchoolRegistrationForm: React.FC = () => {
       <div className="bg-white rounded-lg shadow-md p-6">
         <h2 className="text-2xl font-semibold mb-6 text-center gradient-text">Register Your School</h2>
         
+        {existingEmailError && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Email Already Registered</AlertTitle>
+            <AlertDescription>
+              The email address "{existingEmailError}" is already registered. 
+              Please use a different email or <a href="/login" className="font-medium underline">login</a> if this is your account.
+            </AlertDescription>
+          </Alert>
+        )}
+        
+        <Alert className="mb-6 bg-blue-50 border-blue-200">
+          <Info className="h-4 w-4 text-blue-800" />
+          <AlertTitle className="text-blue-800">Email Verification Required</AlertTitle>
+          <AlertDescription className="text-blue-700">
+            After registration, you'll need to verify your email before accessing your school dashboard.
+          </AlertDescription>
+        </Alert>
+        
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
@@ -293,14 +351,6 @@ const SchoolRegistrationForm: React.FC = () => {
                 </FormItem>
               )}
             />
-            
-            <Alert variant="default" className="bg-blue-50 border-blue-200 text-blue-800">
-              <Mail className="h-4 w-4" />
-              <AlertTitle>Email Verification Required</AlertTitle>
-              <AlertDescription>
-                You'll need to verify your email address after registration. Please use an email you can access.
-              </AlertDescription>
-            </Alert>
             
             <Button type="submit" disabled={isLoading} className="w-full gradient-bg">
               {isLoading ? (

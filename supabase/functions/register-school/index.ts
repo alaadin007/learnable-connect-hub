@@ -96,6 +96,43 @@ serve(async (req) => {
     // Create the Supabase admin client
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
     
+    // Check if email already exists FIRST before creating any resources
+    const { data: existingUsers, error: emailCheckError } = await supabaseAdmin.auth.admin.listUsers({
+      filter: {
+        email: adminEmail
+      }
+    });
+
+    // If there was an error checking for existing users, return early with an error
+    if (emailCheckError) {
+      console.error("Error checking for existing users:", emailCheckError);
+      return new Response(
+        JSON.stringify({ 
+          error: "Failed to check for existing users", 
+          details: emailCheckError.message 
+        }),
+        { 
+          status: 500, 
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        }
+      );
+    }
+
+    // If there are users with this email, return an error indicating the email is already registered
+    if (existingUsers && existingUsers.users.length > 0) {
+      console.log("Email already exists:", adminEmail);
+      return new Response(
+        JSON.stringify({ 
+          error: "Email already registered", 
+          message: "This email address is already registered. Please use a different email address or try logging in."
+        }),
+        { 
+          status: 409, 
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        }
+      );
+    }
+    
     // Generate a school code
     const { data: schoolCodeData, error: schoolCodeError } = await supabaseAdmin.rpc(
       "generate_school_code"
@@ -147,6 +184,18 @@ serve(async (req) => {
     
     if (schoolError || !schoolData) {
       console.error("Error creating school:", schoolError);
+      
+      // Clean up the school_code entry
+      try {
+        await supabaseAdmin
+          .from("school_codes")
+          .delete()
+          .eq("code", schoolCode);
+        console.log("Cleaned up school_codes after failed school creation");
+      } catch (cleanupError) {
+        console.error("Error during cleanup of school_codes:", cleanupError);
+      }
+      
       return new Response(
         JSON.stringify({ error: "Failed to create school record", details: schoolError?.message }),
         { 
@@ -171,6 +220,24 @@ serve(async (req) => {
       console.error("Error checking for existing user:", checkUserError);
     } else if (existingUserData?.id) {
       console.log("User already exists for this school code");
+      
+      // Clean up the school and school_code entries
+      try {
+        await supabaseAdmin
+          .from("schools")
+          .delete()
+          .eq("id", schoolId);
+        
+        await supabaseAdmin
+          .from("school_codes")
+          .delete()
+          .eq("code", schoolCode);
+        
+        console.log("Cleaned up school and school_code entries for duplicate user");
+      } catch (cleanupError) {
+        console.error("Error during cleanup for duplicate user:", cleanupError);
+      }
+      
       return new Response(
         JSON.stringify({ error: "A school admin already exists with this email" }),
         { 
@@ -202,20 +269,6 @@ serve(async (req) => {
     if (userError) {
       console.error("Error creating admin user:", userError);
       
-      // If the error is because the email is already registered, return a specific error
-      if (userError.message.includes("already registered")) {
-        return new Response(
-          JSON.stringify({ 
-            error: "Email already registered", 
-            message: "This email address is already registered. Please use a different email address or try logging in." 
-          }),
-          { 
-            status: 409, 
-            headers: { ...corsHeaders, "Content-Type": "application/json" }
-          }
-        );
-      }
-      
       // Clean up: remove school if user creation fails
       try {
         await supabaseAdmin
@@ -232,6 +285,20 @@ serve(async (req) => {
       } catch (cleanupError) {
         console.error("Error cleaning up after failed user creation:", cleanupError);
       }
+      
+      // Special handling for "already registered" errors
+      if (userError.message.includes("already registered")) {
+        return new Response(
+          JSON.stringify({ 
+            error: "Email already registered", 
+            message: "This email address is already registered. Please use a different email address or try logging in." 
+          }),
+          { 
+            status: 409, 
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          }
+        );
+      }
         
       return new Response(
         JSON.stringify({ error: "Failed to create admin user account", details: userError.message }),
@@ -244,6 +311,16 @@ serve(async (req) => {
     
     if (!userData || !userData.user) {
       console.error("No user data returned when creating admin");
+      
+      // Clean up
+      try {
+        await supabaseAdmin.from("schools").delete().eq("id", schoolId);
+        await supabaseAdmin.from("school_codes").delete().eq("code", schoolCode);
+        console.log("Cleaned up after failed user creation (no user data returned)");
+      } catch (cleanupError) {
+        console.error("Error during cleanup:", cleanupError);
+      }
+      
       return new Response(
         JSON.stringify({ error: "Failed to create admin user - no user data returned" }),
         { 
