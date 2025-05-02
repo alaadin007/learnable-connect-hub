@@ -194,12 +194,13 @@ serve(async (req) => {
 
     // Force send a confirmation email to ensure it's delivered
     try {
-      const { error: resendError } = await supabaseAdmin.auth.admin.resendUserConfirmationEmail(adminEmail);
+      console.log(`Attempting to send confirmation email to ${adminEmail}...`);
+      const { data: emailData, error: resendError } = await supabaseAdmin.auth.admin.resendUserConfirmationEmail(adminEmail);
       
       if (resendError) {
         console.error("Error sending confirmation email:", resendError);
       } else {
-        console.log(`Confirmation email sent to ${adminEmail}`);
+        console.log(`Confirmation email sent to ${adminEmail}. Response:`, emailData);
       }
     } catch (emailError) {
       console.error("Failed to send confirmation email:", emailError);

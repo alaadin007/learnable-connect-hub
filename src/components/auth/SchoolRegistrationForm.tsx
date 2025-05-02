@@ -1,4 +1,3 @@
-
 import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -99,8 +98,8 @@ const SchoolRegistrationForm: React.FC = () => {
         toast.info(
           "Email verification required",
           {
-            description: "Please check your inbox and verify your email before logging in.",
-            duration: 8000,
+            description: "Please check your inbox and spam folders for the verification email. If you don't receive it within a few minutes, you can try logging in and requesting another verification email.",
+            duration: 15000,
             icon: <Mail className="h-4 w-4" />,
           }
         );
@@ -125,7 +124,7 @@ const SchoolRegistrationForm: React.FC = () => {
           </div>
           <h2 className="text-2xl font-semibold mb-3 gradient-text">Check Your Email</h2>
           <p className="text-gray-600 mb-6">
-            We've sent a verification link to your email address. Please check your inbox and verify your account to continue.
+            We've sent a verification link to your email address. Please check your inbox and spam folder and verify your account to continue.
           </p>
           <div className="space-y-4">
             <Button 
