@@ -1,3 +1,4 @@
+
 import React, {
   createContext,
   useState,
@@ -130,17 +131,18 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       }
 
       if (profileData) {
-        // Handle case where organization might be missing or an error
+        // Handle case where organization might be missing or null
         let safeProfileData: UserProfile = {
           ...profileData,
           organization: null // Default to null
         };
 
         // Check if we have organization data and it's not an error
+        // Make sure to check if the organization exists and is a valid object
         if (profileData.organization && 
             typeof profileData.organization === 'object' && 
             !('error' in profileData.organization) && 
-            profileData.organization !== null) {  // Added explicit null check
+            profileData.organization !== null) {
           safeProfileData.organization = profileData.organization;
         }
 
