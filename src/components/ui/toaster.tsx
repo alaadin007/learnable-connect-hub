@@ -1,4 +1,5 @@
-import { useToast } from "@/hooks/use-toast"
+
+import { useToast } from "@/components/ui/toast"
 import {
   Toast,
   ToastClose,
@@ -31,3 +32,6 @@ export function Toaster() {
     </ToastProvider>
   )
 }
+
+// Export the useToast hook for use by other components
+export { useToast } from "@/components/ui/toast"

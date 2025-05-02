@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -37,6 +36,7 @@ const TeacherManagement = () => {
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   
+  // Safely access school info with optional chaining
   const schoolId = profile?.organization?.id || null;
   const schoolName = profile?.organization?.name || "Your school";
   
@@ -60,10 +60,13 @@ const TeacherManagement = () => {
         throw error;
       }
 
-      // Convert string status to our enum type by filtering and type assertion
-      const typedInvitations = data.filter(inv => 
-        inv.status === "pending" || inv.status === "accepted" || inv.status === "rejected"
-      ) as TeacherInvitation[];
+      // Convert data to typed invitations, ensuring status is one of the allowed values
+      const typedInvitations = data.map(inv => ({
+        ...inv,
+        status: (inv.status === "pending" || inv.status === "accepted" || inv.status === "rejected") 
+          ? inv.status as "pending" | "accepted" | "rejected"
+          : "pending" // Default to pending if status is not valid
+      })) as TeacherInvitation[];
       
       setInvitations(typedInvitations);
     } catch (error: any) {

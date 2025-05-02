@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { toast as sonnerToast, Toast as SonnerToast } from 'sonner';
+import { toast as sonnerToast } from 'sonner';
 
 // Define types for our toast system
 type ToastProps = {
@@ -87,7 +87,14 @@ export function useToast() {
 
 // Re-export from sonner for direct usage
 export { toast } from 'sonner';
-export type { SonnerToast as Toast };
+
+// Define a Toast type for consistency with shadcn/ui
+export type Toast = {
+  id: string;
+  title?: string;
+  description?: string;
+  action?: React.ReactNode;
+};
 
 // Export action element type for compatibility
 export type ToastActionElement = React.ReactElement;
