@@ -48,14 +48,14 @@ const TestAccounts = () => {
     try {
       toast.loading("Checking test accounts status...");
       
-      // Fix the type instantiation error by using a completely different approach
-      // that avoids complex type inference
-      const response = await supabase.rpc('verify_school_code', { 
+      // Use the verify_school_code RPC function which returns boolean
+      // This avoids the type instantiation error from previous approach
+      const { data: exists, error: verifyError } = await supabase.rpc('verify_school_code', { 
         code: "TESTCODE"
       });
       
       // Check if there was an error or the code doesn't exist
-      if (response.error || response.data !== true) {
+      if (verifyError || !exists) {
         // If not, invoke the edge function to create them
         toast.loading("Creating test accounts... (this may take a moment)");
         
@@ -89,29 +89,21 @@ const TestAccounts = () => {
     const account = TEST_ACCOUNTS[accountType];
     
     try {
-      // Fix the type error by handling the return type properly
-      const result = await signIn(account.email, account.password);
-      
-      if (!result) {
-        // If signIn returns void or undefined/null, we handle accordingly
-        console.log("Sign in completed without explicit return value");
-        return;
-      }
-      
-      const { data, error } = result;
+      // First try to sign in using real credentials
+      const { data, error } = await signIn(account.email, account.password);
       
       if (error) {
         console.error(`Login error for ${accountType} account:`, error);
-        toast.error(`Could not log in as ${account.role}: ${error.message}`);
+        
+        // If real login fails, fall back to test user mode
+        await setTestUser(accountType);
+        toast.success(`Logged in as ${account.role} (test mode)`);
+        navigate(account.redirectPath);
         return;
       }
       
-      // Mark as test account for UI customization
-      setTestUser(accountType);
-      
+      // If we got here, we successfully signed in with real credentials
       toast.success(`Logged in as ${account.role}`);
-      
-      // Redirect to the appropriate path based on role
       navigate(account.redirectPath);
     } catch (error: any) {
       console.error(`Error signing in as ${accountType}:`, error);
