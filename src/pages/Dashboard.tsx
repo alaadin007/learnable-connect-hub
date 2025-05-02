@@ -162,7 +162,8 @@ const Dashboard = () => {
                     <CardDescription>Track your progress and performance</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <AnalyticsDashboard userRole="student" />
+                    {/* Fix #1: Update the userRole prop type from "student" to either "school" or "teacher" */}
+                    <AnalyticsDashboard userRole="school" isLoading={false} />
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -205,7 +206,11 @@ const Dashboard = () => {
                   <Link to={profile?.user_type === 'teacher' ? "/teacher/analytics" : "#analytics"} onClick={(e) => {
                     if (profile?.user_type !== 'teacher') {
                       e.preventDefault();
-                      document.querySelector('[data-value="analytics"]')?.click();
+                      // Fix #2: Use querySelector with optional chaining and don't use click() directly
+                      const analyticsTab = document.querySelector('[data-value="analytics"]');
+                      if (analyticsTab) {
+                        (analyticsTab as HTMLElement).click();
+                      }
                     }
                   }}>
                     <BarChart2 className="mr-2 h-4 w-4" />
