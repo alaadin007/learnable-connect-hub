@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -171,14 +170,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       school_name: mockSchoolName,
     };
     
-    // Create mock user
+    // Create mock user - cast as unknown first, then as User to satisfy TypeScript
     const testUser = {
       id: mockUserId,
       email: `${type}.test@example.com`,
       user_metadata: {
         full_name: testProfile.full_name
       }
-    } as User;
+    } as unknown as User;
     
     // Set state for test user session
     setUser(testUser);

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
@@ -56,9 +55,9 @@ const AdminAnalytics = () => {
   const [teacherPerformanceData, setTeacherPerformanceData] = useState([]);
   const [studentPerformanceData, setStudentPerformanceData] = useState([]);
 
-  // Get the school_id from the profile, handling both profile structures
-  // Add null check and default to empty string if undefined
-  const schoolId = profile?.school_id || (profile as any)?.school?.id || "";
+  // Get the schoolId properly, checking both profile structures and the schoolId from AuthContext
+  const { schoolId: authSchoolId } = useAuth();
+  const schoolId = authSchoolId || '';
 
   // Fetch students for the school
   const fetchStudents = useCallback(async () => {
