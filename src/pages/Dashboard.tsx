@@ -1,25 +1,39 @@
 
-import React from "react";
+import React, { useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Navbar from "@/components/layout/Navbar";
 import { BookOpen, FileText, MessageSquare, Users, BarChart2 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import FileUpload from "@/components/documents/FileUpload";
 import FileList from "@/components/documents/FileList";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription, SheetHeader } from "@/components/ui/sheet";
+import AnalyticsDashboard from "@/components/analytics/AnalyticsDashboard";
+import Footer from "@/components/landing/Footer";
 
 const Dashboard = () => {
   const { user, profile } = useAuth();
+  const navigate = useNavigate();
   
+  // Redirect users based on their role to their specialized dashboards
+  useEffect(() => {
+    if (profile) {
+      if (profile.user_type === 'school') {
+        navigate('/admin');
+      } else if (profile.user_type === 'teacher') {
+        navigate('/teacher/analytics');
+      }
+    }
+  }, [profile, navigate]);
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen flex flex-col bg-gray-50">
       <Navbar />
       
-      <main className="container mx-auto py-6 px-4 sm:px-6 lg:px-8">
-        <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
+      <main className="container mx-auto py-6 px-4 sm:px-6 lg:px-8 flex-grow">
+        <h1 className="text-2xl font-bold mb-6">Student Dashboard</h1>
         
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Content */}
@@ -28,10 +42,10 @@ const Dashboard = () => {
               <TabsList>
                 <TabsTrigger value="overview">Overview</TabsTrigger>
                 <TabsTrigger value="documents">My Documents</TabsTrigger>
+                <TabsTrigger value="analytics">My Analytics</TabsTrigger>
               </TabsList>
               
               <TabsContent value="overview">
-                
                 <div className="grid gap-4 md:grid-cols-2 mb-4">
                   <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -140,12 +154,23 @@ const Dashboard = () => {
                   </CardContent>
                 </Card>
               </TabsContent>
+
+              <TabsContent value="analytics">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>My Learning Analytics</CardTitle>
+                    <CardDescription>Track your progress and performance</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <AnalyticsDashboard userRole="student" />
+                  </CardContent>
+                </Card>
+              </TabsContent>
             </Tabs>
           </div>
           
           {/* Sidebar */}
           <div className="space-y-6">
-            
             <Card>
               <CardHeader>
                 <CardTitle>Quick Actions</CardTitle>
@@ -176,39 +201,44 @@ const Dashboard = () => {
                   </Link>
                 </Button>
 
-                {profile?.user_type === 'teacher' && (
-                  <Button variant="outline" className="w-full justify-start" asChild>
-                    <Link to="/teacher/students">
-                      <Users className="mr-2 h-4 w-4" />
-                      View Students
-                    </Link>
-                  </Button>
-                )}
-                
-                {profile?.user_type === 'teacher' && (
-                  <Button variant="outline" className="w-full justify-start" asChild>
-                    <Link to="/teacher/analytics">
-                      <BarChart2 className="mr-2 h-4 w-4" />
-                      View Analytics
-                    </Link>
-                  </Button>
-                )}
-                
-                {profile?.user_type === 'school' && (
-                  <Button variant="outline" className="w-full justify-start" asChild>
-                    <Link to="/admin/analytics">
-                      <BarChart2 className="mr-2 h-4 w-4" />
-                      School Analytics
-                    </Link>
-                  </Button>
-                )}
+                <Button variant="outline" className="w-full justify-start" asChild>
+                  <Link to={profile?.user_type === 'teacher' ? "/teacher/analytics" : "#analytics"} onClick={(e) => {
+                    if (profile?.user_type !== 'teacher') {
+                      e.preventDefault();
+                      document.querySelector('[data-value="analytics"]')?.click();
+                    }
+                  }}>
+                    <BarChart2 className="mr-2 h-4 w-4" />
+                    View Analytics
+                  </Link>
+                </Button>
               </CardContent>
             </Card>
-            
-            {/* Additional sidebar components can go here */}
+
+            <Card>
+              <CardHeader>
+                <CardTitle>User Information</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium text-gray-500">Name</span>
+                  <span>{profile?.full_name || user?.email}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium text-gray-500">School</span>
+                  <span>{profile?.school_name || "Not assigned"}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium text-gray-500">Role</span>
+                  <span className="capitalize">{profile?.user_type || "Student"}</span>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </main>
+      
+      <Footer />
     </div>
   );
 };
