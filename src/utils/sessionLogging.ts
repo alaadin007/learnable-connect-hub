@@ -1,10 +1,14 @@
 // Add this at the top of the file if needed
 import { supabase } from "@/integrations/supabase/client";
-import { format } from 'date-fns';
-import { getWeek } from 'date-fns';
+import { format, getWeek } from 'date-fns';
 
 // Helper function for getting week number if not using date-fns getWeek
-// This can be removed if you use date-fns getWeek
+// This extends the Date prototype to add the getWeek method
+interface Date {
+  getWeek(): number;
+}
+
+// Implement getWeek on Date prototype
 Date.prototype.getWeek = function() {
   var date = new Date(this.getTime());
   date.setHours(0, 0, 0, 0);
@@ -18,10 +22,10 @@ Date.prototype.getWeek = function() {
 };
 
 // Add these functions that are being imported by sessionLogger.ts
-export const logSessionStart = async (topic?: string) => {
+export const logSessionStart = async (topic?: string, userId?: string) => {
   try {
     const { data, error } = await supabase.functions.invoke('create-session-log', {
-      body: { topic }
+      body: { topic, userId }
     });
     
     if (error) {
@@ -157,7 +161,7 @@ interface MockAnalyticsData {
 export const getMockAnalyticsData = (schoolId: string, filters: any): MockAnalyticsData => {
   const today = new Date();
   const currentYear = today.getFullYear();
-  const currentWeek = getWeek(today);
+  const currentWeek = getWeek(today); // Using date-fns getWeek here
 
   const sessions: MockSession[] = [
     {

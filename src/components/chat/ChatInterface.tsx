@@ -8,7 +8,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { sessionLogger } from "@/utils/sessionLogger";
+import sessionLogger from "@/utils/sessionLogger"; // Fixed import statement
 import { Badge } from "@/components/ui/badge";
 import VoiceRecorder from "./VoiceRecorder";
 import TextToSpeech from "./TextToSpeech";

@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { ConversationList } from "@/components/chat/ConversationList";
-import { sessionLogger } from "@/utils/sessionLogger";
+import sessionLogger from "@/utils/sessionLogger";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -51,7 +51,7 @@ const ChatWithAI = () => {
     
     // Update session topic if we have an active session
     if (sessionId && sessionLogger.hasActiveSession()) {
-      sessionLogger.updateTopic(sessionId).catch(err => {
+      sessionLogger.updateSessionTopic(sessionId, topic).catch(err => {
         console.error("Failed to update session topic:", err);
       });
     }

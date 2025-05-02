@@ -7,7 +7,8 @@ const sessionLogger = {
   startSession: logSessionStart,
   endSession: logSessionEnd,
   updateSessionTopic: updateSessionTopic,
-  incrementQueryCount: incrementQueryCount
+  incrementQueryCount: incrementQueryCount,
+  hasActiveSession: () => true // Added this function since it's called in ChatWithAI.tsx but wasn't defined
 };
 
 export default sessionLogger;
