@@ -29,7 +29,11 @@ serve(async (req) => {
     const requestUrl = new URL(req.url);
     const origin = requestUrl.origin;
     console.log(`Request origin: ${origin}`);
-    console.log(`Frontend URL: ${Deno.env.get("FRONTEND_URL") || origin}`);
+    
+    // Retrieve frontend URL - use environment variable if set, otherwise use the request origin
+    const frontendURL = Deno.env.get("FRONTEND_URL") || origin;
+    console.log(`Frontend URL being used: ${frontendURL}`);
+    console.log(`Redirect URL will be: ${frontendURL}/login?email_confirmed=true`);
     
     // Validate required fields
     if (!schoolName || !adminEmail || !adminPassword || !adminFullName) {
@@ -68,6 +72,7 @@ serve(async (req) => {
     }
     
     const schoolCode = schoolCodeData;
+    console.log(`Generated school code: ${schoolCode}`);
     
     // First create the entry in school_codes table
     const { error: schoolCodeInsertError } = await supabaseAdmin
@@ -113,8 +118,7 @@ serve(async (req) => {
     const schoolId = schoolData.id;
     console.log(`School created with ID: ${schoolId}`);
     
-    // Get the frontend URL for redirects - either from env or fallback to request origin
-    const frontendURL = Deno.env.get("FRONTEND_URL") || origin;
+    // Set up redirect URL for email confirmation
     const redirectURL = `${frontendURL}/login?email_confirmed=true`;
     console.log(`Email confirmation redirect URL: ${redirectURL}`);
     
@@ -192,18 +196,37 @@ serve(async (req) => {
       );
     }
 
-    // Force send a confirmation email to ensure it's delivered
-    try {
-      console.log(`Attempting to send confirmation email to ${adminEmail}...`);
-      const { data: emailData, error: resendError } = await supabaseAdmin.auth.admin.resendUserConfirmationEmail(adminEmail);
-      
-      if (resendError) {
-        console.error("Error sending confirmation email:", resendError);
-      } else {
-        console.log(`Confirmation email sent to ${adminEmail}. Response:`, emailData);
+    // Make multiple attempts to send confirmation email to improve delivery reliability
+    let emailSent = false;
+    const maxAttempts = 3;
+    
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        console.log(`Attempt ${attempt} of ${maxAttempts} to send confirmation email to ${adminEmail}...`);
+        
+        const { data: emailData, error: resendError } = await supabaseAdmin.auth.admin.resendUserConfirmationEmail(adminEmail);
+        
+        if (resendError) {
+          console.error(`Attempt ${attempt}: Error sending confirmation email:`, resendError);
+          
+          if (attempt === maxAttempts) {
+            console.error(`All ${maxAttempts} attempts to send email failed.`);
+          } else {
+            // Wait a short time before trying again (500ms)
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+        } else {
+          console.log(`Confirmation email sent to ${adminEmail} on attempt ${attempt}. Response:`, emailData);
+          emailSent = true;
+          break; // Email sent successfully, exit the loop
+        }
+      } catch (emailError) {
+        console.error(`Attempt ${attempt}: Failed to send confirmation email:`, emailError);
+        
+        if (attempt === maxAttempts) {
+          console.error(`All ${maxAttempts} attempts to send email failed.`);
+        }
       }
-    } catch (emailError) {
-      console.error("Failed to send confirmation email:", emailError);
     }
     
     // Return success with school and admin info
@@ -213,7 +236,10 @@ serve(async (req) => {
         schoolId, 
         schoolCode,
         adminUserId,
-        message: "School and admin account successfully created. Please check your email to verify your account."
+        emailSent,
+        message: emailSent 
+          ? "School and admin account successfully created. Please check your email (including spam folder) to verify your account." 
+          : "School and admin account created, but there was a problem sending the verification email. Please use the 'Forgot Password' option on the login page to request another verification email."
       }),
       { 
         status: 200, 
@@ -221,7 +247,7 @@ serve(async (req) => {
       }
     );
     
-  } catch (error) {
+  } catch (error: any) {
     console.error("Unexpected error:", error);
     return new Response(
       JSON.stringify({ error: "An unexpected error occurred" }),

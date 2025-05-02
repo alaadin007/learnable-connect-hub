@@ -1,10 +1,11 @@
+
 import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Loader2, Mail } from "lucide-react";
+import { Loader2, Mail, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 import {
@@ -17,6 +18,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 // Define form schema with validations
 const schoolRegistrationSchema = z.object({
@@ -42,6 +44,8 @@ const SchoolRegistrationForm: React.FC = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = React.useState(false);
   const [emailSent, setEmailSent] = React.useState(false);
+  const [schoolCode, setSchoolCode] = React.useState<string | null>(null);
+  const [registeredEmail, setRegisteredEmail] = React.useState<string | null>(null);
 
   // Initialize form
   const form = useForm<SchoolRegistrationFormValues>({
@@ -54,6 +58,27 @@ const SchoolRegistrationForm: React.FC = () => {
       confirmPassword: "",
     },
   });
+
+  const handleResetPassword = async () => {
+    if (!registeredEmail) return;
+    
+    try {
+      setIsLoading(true);
+      const { error } = await supabase.auth.resetPasswordForEmail(registeredEmail, {
+        redirectTo: window.location.origin + "/login?email_confirmed=true",
+      });
+      
+      if (error) {
+        toast.error("Failed to send password reset email: " + error.message);
+      } else {
+        toast.success("Password reset email sent. Please check your inbox and spam folder.");
+      }
+    } catch (error: any) {
+      toast.error("An error occurred: " + error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const onSubmit = async (data: SchoolRegistrationFormValues) => {
     setIsLoading(true);
@@ -82,14 +107,20 @@ const SchoolRegistrationForm: React.FC = () => {
       }
 
       if (responseData.success) {
-        // Set email sent state to true
+        // Store the email and school code for potential later use
+        setRegisteredEmail(data.adminEmail);
+        setSchoolCode(responseData.schoolCode);
+        
+        // Set email sent state
         setEmailSent(true);
         
         // Show success message with school details and clear confirmation about email
         toast.success(
           `School "${data.schoolName}" successfully registered!`,
           {
-            description: `Your school code is: ${responseData.schoolCode}. Please check your email (${data.adminEmail}) to complete the verification process.`,
+            description: `Your school code is: ${responseData.schoolCode}. ${responseData.emailSent ? 
+              "Please check your email to complete verification." : 
+              "There was an issue sending the verification email. You can request another one below."}`,
             duration: 10000, // Show for 10 seconds
           }
         );
@@ -98,11 +129,23 @@ const SchoolRegistrationForm: React.FC = () => {
         toast.info(
           "Email verification required",
           {
-            description: "Please check your inbox and spam folders for the verification email. If you don't receive it within a few minutes, you can try logging in and requesting another verification email.",
+            description: "Please check your inbox and spam folders for the verification email. If you don't receive it within a few minutes, you can request another verification email using the button below.",
             duration: 15000,
             icon: <Mail className="h-4 w-4" />,
           }
         );
+        
+        // If email wasn't sent successfully, show a warning
+        if (!responseData.emailSent) {
+          toast.warning(
+            "Email delivery issue",
+            {
+              description: "We couldn't confirm if the verification email was sent successfully. If you don't receive it, please use the 'Request Verification Email' button on the next screen.",
+              duration: 10000,
+              icon: <AlertTriangle className="h-4 w-4" />,
+            }
+          );
+        }
       } else {
         toast.error(`Registration failed: ${responseData.error || "Unknown error"}`);
       }
@@ -123,9 +166,21 @@ const SchoolRegistrationForm: React.FC = () => {
             <Mail className="h-8 w-8" />
           </div>
           <h2 className="text-2xl font-semibold mb-3 gradient-text">Check Your Email</h2>
-          <p className="text-gray-600 mb-6">
+          <p className="text-gray-600 mb-4">
             We've sent a verification link to your email address. Please check your inbox and spam folder and verify your account to continue.
           </p>
+          
+          {schoolCode && (
+            <Alert className="mb-4 bg-amber-50 border-amber-200">
+              <AlertTitle className="text-amber-800">Important: Save Your School Code</AlertTitle>
+              <AlertDescription className="text-amber-700">
+                Your school code is: <span className="font-bold">{schoolCode}</span>
+                <br />
+                Please save this code - you'll need it to add teachers and students to your school.
+              </AlertDescription>
+            </Alert>
+          )}
+          
           <div className="space-y-4">
             <Button 
               variant="outline" 
@@ -134,8 +189,27 @@ const SchoolRegistrationForm: React.FC = () => {
             >
               Go to Login
             </Button>
+            
+            {registeredEmail && (
+              <Button
+                variant="secondary"
+                className="w-full"
+                onClick={handleResetPassword}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  "Request Verification Email Again"
+                )}
+              </Button>
+            )}
+            
             <p className="text-sm text-gray-500">
-              Didn't receive an email? Check your spam folder or contact support.
+              If you don't receive an email, check your spam folder or request another verification email using the button above.
             </p>
           </div>
         </div>
@@ -219,6 +293,14 @@ const SchoolRegistrationForm: React.FC = () => {
                 </FormItem>
               )}
             />
+            
+            <Alert variant="default" className="bg-blue-50 border-blue-200 text-blue-800">
+              <Mail className="h-4 w-4" />
+              <AlertTitle>Email Verification Required</AlertTitle>
+              <AlertDescription>
+                You'll need to verify your email address after registration. Please use an email you can access.
+              </AlertDescription>
+            </Alert>
             
             <Button type="submit" disabled={isLoading} className="w-full gradient-bg">
               {isLoading ? (
