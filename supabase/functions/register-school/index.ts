@@ -29,6 +29,7 @@ serve(async (req) => {
     const requestUrl = new URL(req.url);
     const origin = requestUrl.origin;
     console.log(`Request origin: ${origin}`);
+    console.log(`Frontend URL: ${Deno.env.get("FRONTEND_URL") || origin}`);
     
     // Validate required fields
     if (!schoolName || !adminEmail || !adminPassword || !adminFullName) {
@@ -112,11 +113,16 @@ serve(async (req) => {
     const schoolId = schoolData.id;
     console.log(`School created with ID: ${schoolId}`);
     
+    // Get the frontend URL for redirects - either from env or fallback to request origin
+    const frontendURL = Deno.env.get("FRONTEND_URL") || origin;
+    const redirectURL = `${frontendURL}/login?email_confirmed=true`;
+    console.log(`Email confirmation redirect URL: ${redirectURL}`);
+    
     // Create the admin user with auth.admin
     const { data: userData, error: userError } = await supabaseAdmin.auth.admin.createUser({
       email: adminEmail,
       password: adminPassword,
-      email_confirm: false, // Changed to false to require email confirmation
+      email_confirm: false, // Require email confirmation
       user_metadata: {
         full_name: adminFullName,
         user_type: "school", // Designate as school admin
@@ -124,7 +130,7 @@ serve(async (req) => {
         school_name: schoolName
       },
       // Add redirect URLs to ensure confirmation redirects to the right place
-      email_confirm_redirect_url: `${origin}/login?email_confirmed=true`
+      email_confirm_redirect_url: redirectURL
     });
     
     if (userError || !userData.user) {
@@ -185,6 +191,19 @@ serve(async (req) => {
         }
       );
     }
+
+    // Force send a confirmation email to ensure it's delivered
+    try {
+      const { error: resendError } = await supabaseAdmin.auth.admin.resendUserConfirmationEmail(adminEmail);
+      
+      if (resendError) {
+        console.error("Error sending confirmation email:", resendError);
+      } else {
+        console.log(`Confirmation email sent to ${adminEmail}`);
+      }
+    } catch (emailError) {
+      console.error("Failed to send confirmation email:", emailError);
+    }
     
     // Return success with school and admin info
     return new Response(
@@ -193,7 +212,7 @@ serve(async (req) => {
         schoolId, 
         schoolCode,
         adminUserId,
-        message: "School and admin account successfully created"
+        message: "School and admin account successfully created. Please check your email to verify your account."
       }),
       { 
         status: 200, 

@@ -53,14 +53,14 @@ enable_signup = true
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
 # If enabled, users need to confirm their email address before signing in.
-enable_confirmations = false
+enable_confirmations = true
 
-# Configure one of the supported auth providers.
-# [auth.email]
+# Configure email settings to ensure emails are sent
+[auth.email]
 # Set the secure host in your production environment for the auth callback URL.
-# auth_redirects_host = "ldlgckwkdsvrfuymidrr.functions.supabase.co"
+auth_redirects_host = "ldlgckwkdsvrfuymidrr.functions.supabase.co"
 # Configure the Secure Email Change flow.
-# enable_secure_email_changes = true
+enable_secure_email_changes = true
 
 # Configure one of the supported auth providers.
 [auth.external.google]
@@ -77,3 +77,7 @@ verify_jwt = true
 
 [functions.populate-test-performance]
 verify_jwt = true
+
+[functions.register-school]
+verify_jwt = false
+
