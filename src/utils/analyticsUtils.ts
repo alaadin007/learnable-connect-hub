@@ -7,6 +7,23 @@ import {
 } from '@/components/analytics/types';
 import { supabase } from '@/integrations/supabase/client';
 import { getMockAnalyticsData } from '@/utils/sessionLogging';
+import { format } from 'date-fns';
+
+/**
+ * Formats a date range into a readable string.
+ * @param dateRange - The date range object.
+ * @returns A string representing the date range.
+ */
+export const getDateRangeText = (dateRange: { from?: Date; to?: Date }): string => {
+  if (!dateRange.from && !dateRange.to) {
+    return 'All Time';
+  }
+  
+  const fromText = dateRange.from ? format(dateRange.from, 'MMM dd, yyyy') : 'Start';
+  const toText = dateRange.to ? format(dateRange.to, 'MMM dd, yyyy') : 'Present';
+  
+  return `${fromText} to ${toText}`;
+};
 
 /**
  * Retrieves analytics summary data based on the provided filters.
@@ -291,3 +308,9 @@ const calculateDuration = (start: string, end: string): string => {
   const seconds = Math.floor((duration % (60 * 1000)) / 1000);
   return `${minutes} min ${seconds} sec`;
 };
+
+// Add aliases for the functions used in AdminAnalytics.tsx
+export const fetchAnalyticsSummary = getAnalyticsSummary;
+export const fetchSessionLogs = getSessionLogs;
+export const fetchTopics = getTopicData;
+export const fetchStudyTime = getStudyTimeData;
