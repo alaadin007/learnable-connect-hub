@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -47,16 +48,18 @@ const TestAccounts = () => {
     try {
       toast.loading("Checking test accounts status...");
       
-      // Fix type instantiation error by using a simpler query approach with explicit typing
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('email', TEST_ACCOUNTS.school.email);
+      // Fix type instantiation error by using a completely different approach
+      // Bypass the problematic typing by using Promise-based API with a simpler query
+      let { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("email", TEST_ACCOUNTS.school.email)
+        .limit(1);
         
       // Check if we have any results
-      const schoolData = data && data.length > 0 ? data[0] : null;
+      const schoolDataExists = data && data.length > 0;
         
-      if (!schoolData) {
+      if (!schoolDataExists) {
         // If not, invoke the edge function to create them
         toast.loading("Creating test accounts... (this may take a moment)");
         
