@@ -103,27 +103,22 @@ const TestAccounts = () => {
       const account = TEST_ACCOUNTS[accountType];
 
       try {
-        console.log(`TestAccounts: Attempting to login as ${accountType} test account...`);
+        console.log(`TestAccounts: Login as ${accountType} test account...`);
 
-        // Set up the test user in AuthContext - no session needed
+        // Set up the test user directly
         await setTestUser(accountType);
-        console.log(`TestAccounts: Successfully set up ${accountType} test user`);
+        console.log(`TestAccounts: Set up ${accountType} test user successfully`);
 
-        toast.success(`Logged in as ${account.role} (test mode)`, {
+        toast.success(`Logged in as ${account.role}`, {
           id: `login-success-${accountType}`,
         });
 
         // Determine redirect path based on account type
-        let redirectPath = "/dashboard";
-        
-        if (accountType === "school") {
-          redirectPath = "/admin";
-        } else if (accountType === "teacher") {
-          redirectPath = "/teacher/analytics";
-          console.log(`TestAccounts: Teacher account - redirecting to ${redirectPath}`);
-        }
+        const redirectPath = accountType === "school" ? "/admin" : 
+                            accountType === "teacher" ? "/teacher/analytics" : 
+                            "/dashboard";
 
-        console.log(`TestAccounts: Navigating to ${redirectPath} with account type ${accountType}`);
+        console.log(`TestAccounts: Navigating to ${redirectPath}`);
         
         // Use navigate with replace: true to avoid history issues
         navigate(redirectPath, {
@@ -134,9 +129,9 @@ const TestAccounts = () => {
           },
         });
       } catch (error: any) {
-        console.error(`Error signing in as ${accountType}:`, error);
-        setErrorMessage(`Login failed: ${error.message || "Unknown error"}`);
-        toast.error(`Login failed: ${error.message || "Unknown error"}`);
+        console.error(`Error setting up ${accountType} test account:`, error);
+        setErrorMessage(`Setup failed: ${error.message || "Unknown error"}`);
+        toast.error(`Account setup failed: ${error.message || "Unknown error"}`);
       } finally {
         setLoadingAccount(null);
       }
@@ -198,7 +193,7 @@ const TestAccounts = () => {
           <Alert className="mb-6 bg-amber-50">
             <Info className="h-4 w-4" />
             <AlertDescription>
-              All test accounts are automatically authenticated and populated with sample data. No password or email verification required - just click login!
+              All test accounts are automatically authenticated - just click login to access the platform with the selected role!
             </AlertDescription>
           </Alert>
 
@@ -255,9 +250,9 @@ const TestAccounts = () => {
                       </li>
                     ))}
                   </ul>
-                  <div className="bg-amber-50 p-2 rounded-md">
-                    <p className="text-amber-700 text-xs font-semibold">
-                      Instant login without password
+                  <div className="bg-green-50 p-2 rounded-md">
+                    <p className="text-green-700 text-xs font-semibold">
+                      Direct access - no authentication required
                     </p>
                   </div>
                 </div>
@@ -269,7 +264,7 @@ const TestAccounts = () => {
                   {loadingAccount === type ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Logging in...
+                      Accessing...
                     </>
                   ) : (
                     `Login as ${account.role}`

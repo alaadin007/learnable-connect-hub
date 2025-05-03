@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,7 +58,7 @@ const LoginForm = () => {
     setIsLoading(true);
 
     try {
-      // Handle test accounts
+      // Handle test accounts - direct login without authentication
       if (email.includes(".test@learnable.edu")) {
         let type: "school" | "teacher" | "student" = "student";
         if (email.startsWith("school")) type = "school";
@@ -342,6 +343,3 @@ const LoginForm = () => {
       </Card>
     </div>
   );
-};
-
-export default LoginForm;
