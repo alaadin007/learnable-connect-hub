@@ -1,6 +1,7 @@
 
-import { SupabaseClient } from "@supabase/supabase-js";
-import { Database } from "@/types/db"; // (optional) import your DB types if you have
+import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+// Remove the problematic import since we can define the minimal types we need directly
+// import { Database } from "@/types/db"; // This was causing the error
 
 export async function createAdminUser(
   supabaseAdmin: SupabaseClient<any>, 
