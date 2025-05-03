@@ -237,19 +237,25 @@ serve(async (req) => {
     
     // Create the admin user with auth.admin
     console.log("Creating admin user with email:", adminEmail);
+    // CRITICAL: Make sure user_type is explicitly set and won't be null
+    const userMetadata = {
+      full_name: adminFullName,
+      user_type: "school", // Explicitly set user_type to school
+      school_code: schoolCode,
+      school_name: schoolName
+    };
+    
+    console.log("Creating user with metadata:", JSON.stringify(userMetadata));
+    
     const createUserOptions = {
       email: adminEmail,
       password: adminPassword,
       email_confirm: false, // Require email confirmation
-      user_metadata: {
-        full_name: adminFullName,
-        user_type: "school", // Designate as school admin - CRITICAL! This must be set explicitly
-        school_code: schoolCode,
-        school_name: schoolName
-      },
+      user_metadata: userMetadata,
       // Add redirect URLs to ensure confirmation redirects to the right place
       email_confirm_redirect_url: redirectURL
     };
+    
     console.log("Creating user with options:", JSON.stringify({
       ...createUserOptions,
       password: "[REDACTED]" // Don't log the password
@@ -339,7 +345,6 @@ serve(async (req) => {
     
     if (profileError) {
       console.error("Error creating profile:", profileError);
-      // Continue despite profile error, as the handle_new_user trigger should handle this
       console.log("Continuing despite profile error - handle_new_user trigger should handle this");
     }
     
