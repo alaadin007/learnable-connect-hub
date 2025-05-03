@@ -1,3 +1,4 @@
+
 import { SupabaseClient } from "@supabase/supabase-js";
 import { Database } from "@/types/db"; // (optional) import your DB types if you have
 
@@ -10,6 +11,8 @@ export async function createAdminUser(
   schoolName: string,
   redirectURL: string
 ): Promise<string> {
+  console.log(`Creating admin user for email: ${adminEmail}, school: ${schoolName}, redirecting to: ${redirectURL}`);
+  
   const { data: userData, error: userError } = await supabaseAdmin.auth.admin.createUser({
     email: adminEmail,
     password: adminPassword,
@@ -49,6 +52,8 @@ export async function createProfileRecord(
   schoolCode: string,
   schoolName: string
 ): Promise<void> {
+  console.log(`Creating profile record for user ID: ${adminUserId}`);
+  
   const { error: profileError } = await supabaseAdmin
     .from("profiles")
     .insert({
@@ -70,6 +75,8 @@ export async function createTeacherRecord(
   adminUserId: string,
   schoolId: string
 ): Promise<void> {
+  console.log(`Creating teacher record for user ID: ${adminUserId}, school ID: ${schoolId}`);
+  
   const { error: teacherError } = await supabaseAdmin
     .from("teachers")
     .insert({

@@ -3,6 +3,7 @@ import { corsHeaders } from "./cors.ts";
 import { createSupabaseAdmin } from "./supabase-admin.ts";
 
 export async function checkEmailExists(adminEmail: string) {
+  console.log(`Checking if email exists: ${adminEmail}`);
   const supabaseAdmin = createSupabaseAdmin();
   
   try {
@@ -43,7 +44,7 @@ export async function checkEmailExists(adminEmail: string) {
     }
 
     // If there are users with this email, return an error
-    if (existingUsers && existingUsers.users.length > 0) {
+    if (existingUsers && existingUsers.users && existingUsers.users.length > 0) {
       console.log("Email already exists:", adminEmail);
       return {
         exists: true,
@@ -60,6 +61,7 @@ export async function checkEmailExists(adminEmail: string) {
       };
     }
 
+    console.log(`Email check complete for ${adminEmail}: Email does not exist`);
     return { exists: false };
   } catch (checkError) {
     console.error("Error during email existence check:", checkError);

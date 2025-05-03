@@ -1,3 +1,4 @@
+
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // Create a Supabase client with the service role key (for admin operations)
@@ -11,5 +12,11 @@ export function createSupabaseAdmin(): SupabaseClient {
     );
   }
   
-  return createClient(supabaseUrl, supabaseServiceRoleKey);
+  try {
+    const supabaseClient = createClient(supabaseUrl, supabaseServiceRoleKey);
+    return supabaseClient;
+  } catch (error) {
+    console.error("Failed to create Supabase admin client:", error);
+    throw new Error(`Failed to initialize Supabase client: ${error.message}`);
+  }
 }

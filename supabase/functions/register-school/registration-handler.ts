@@ -1,3 +1,4 @@
+
 import { SchoolRegistrationData, RegistrationResult } from "./types.ts";
 import { corsHeaders } from "./cors.ts";
 import { checkEmailExists } from "./email-verification.ts";
@@ -8,6 +9,7 @@ import { createAdminUser, createProfileRecord, createTeacherRecord } from "./use
 import { cleanupSchoolCodeOnFailure, cleanupOnFailure } from "./cleanup.ts";
 
 export async function handleSchoolRegistration(req: Request): Promise<Response> {
+  console.log("School registration request received");
   let requestData: SchoolRegistrationData;
 
   try {
@@ -46,7 +48,21 @@ export async function handleSchoolRegistration(req: Request): Promise<Response> 
   const frontendURL = Deno.env.get("FRONTEND_URL") || origin;
   const emailConfirmationRedirectUrl = `${frontendURL}/login?email_confirmed=true`;
 
-  const supabaseAdmin = createSupabaseAdmin();
+  console.log("Using email confirmation redirect URL:", emailConfirmationRedirectUrl);
+
+  let supabaseAdmin;
+  try {
+    supabaseAdmin = createSupabaseAdmin();
+  } catch (adminError) {
+    console.error("Failed to initialize Supabase admin client:", adminError);
+    return new Response(
+      JSON.stringify({
+        error: "Server configuration error",
+        details: adminError.message || "Failed to initialize admin connection",
+      }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
 
   // Check if admin email already exists
   const emailCheck = await checkEmailExists(adminEmail);
@@ -57,12 +73,17 @@ export async function handleSchoolRegistration(req: Request): Promise<Response> 
   try {
     // Generate school code and create relevant entries
     const schoolCode = await generateSchoolCode(supabaseAdmin);
+    console.log(`Generated school code: ${schoolCode}`);
+    
     await createSchoolCodeEntry(supabaseAdmin, schoolCode, schoolName);
+    console.log(`Created school code entry for ${schoolName} with code ${schoolCode}`);
 
     let schoolId;
     try {
       schoolId = await createSchoolRecord(supabaseAdmin, schoolName, schoolCode);
+      console.log(`Created school record with ID: ${schoolId}`);
     } catch (err) {
+      console.error("Failed to create school record:", err);
       await cleanupSchoolCodeOnFailure(supabaseAdmin, schoolCode);
       throw err;
     }
@@ -79,10 +100,12 @@ export async function handleSchoolRegistration(req: Request): Promise<Response> 
         schoolName,
         emailConfirmationRedirectUrl,
       );
+      console.log(`Admin user created with ID: ${adminUserId}`);
     } catch (err: any) {
+      console.error("Failed to create admin user:", err);
       await cleanupOnFailure(supabaseAdmin, undefined, schoolId, schoolCode);
 
-      if (err.message.includes("already registered")) {
+      if (err.message && err.message.includes("already registered")) {
         return new Response(
           JSON.stringify({
             error: "Email already registered",
@@ -99,8 +122,12 @@ export async function handleSchoolRegistration(req: Request): Promise<Response> 
     // Create related records: profile and teacher with supervisor role
     try {
       await createProfileRecord(supabaseAdmin, adminUserId, adminFullName, schoolCode, schoolName);
+      console.log(`Profile record created for user ID: ${adminUserId}`);
+      
       await createTeacherRecord(supabaseAdmin, adminUserId, schoolId);
+      console.log(`Teacher record created for user ID: ${adminUserId} as school supervisor`);
     } catch (err) {
+      console.error("Failed to create related records:", err);
       await cleanupOnFailure(supabaseAdmin, adminUserId, schoolId, schoolCode);
       throw err;
     }
@@ -116,6 +143,7 @@ export async function handleSchoolRegistration(req: Request): Promise<Response> 
         "School and admin account successfully created. Please check your email to verify your account before logging in.",
     };
 
+    console.log("School registration completed successfully");
     return new Response(JSON.stringify(result), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
