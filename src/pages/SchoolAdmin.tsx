@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
@@ -112,10 +113,11 @@ const SchoolAdmin = () => {
         navigate("/admin/analytics");
         break;
       case "school-settings":
-        setActiveTab("settings");
+        navigate("/admin/settings");
         break;
       case "student-management":
-        setActiveTab("students");
+        console.log("Navigating to student management page...");
+        navigate("/admin/students");
         break;
       default:
         break;
@@ -212,9 +214,18 @@ const SchoolAdmin = () => {
                   <CardDescription>Manage students at your school</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-muted-foreground">
-                    Student management feature will be available in a future update.
-                  </p>
+                  <div className="flex flex-col gap-4">
+                    <p className="text-muted-foreground mb-4">
+                      Manage your school's students, including enrollment and class assignments.
+                    </p>
+                    <Button 
+                      onClick={() => navigate('/admin/students')} 
+                      className="w-full sm:w-auto"
+                    >
+                      <User className="mr-2 h-4 w-4" />
+                      Go to Student Management
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -226,9 +237,18 @@ const SchoolAdmin = () => {
                   <CardDescription>Configure school-wide settings</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-muted-foreground">
-                    School settings feature will be available in a future update.
-                  </p>
+                  <div className="flex flex-col gap-4">
+                    <p className="text-muted-foreground mb-4">
+                      Configure your school settings, including notification preferences and school details.
+                    </p>
+                    <Button 
+                      onClick={() => navigate('/admin/settings')} 
+                      className="w-full sm:w-auto"
+                    >
+                      <Settings className="mr-2 h-4 w-4" />
+                      Go to School Settings
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>

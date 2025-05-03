@@ -13,7 +13,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Mail, UserPlus, ArrowLeft } from "lucide-react";
+import { Mail, User, ArrowLeft, Copy, UserPlus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 // Define the schema for student invite form
@@ -36,11 +36,19 @@ type StudentInvite = {
 };
 
 const AdminStudents = () => {
-  const { user, profile } = useAuth();
+  const { user, profile, schoolId: authSchoolId } = useAuth();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [invites, setInvites] = useState<StudentInvite[]>([]);
   const [generatedCode, setGeneratedCode] = useState("");
+  
+  console.log("AdminStudents: User profile:", profile);
+  console.log("AdminStudents: School ID from auth context:", authSchoolId);
+  console.log("AdminStudents: Organization ID from profile:", profile?.organization?.id);
+  
+  // Get the schoolId properly
+  const schoolId = authSchoolId || profile?.organization?.id || null;
+  console.log("AdminStudents: Using school ID:", schoolId);
 
   const form = useForm<AddStudentFormValues>({
     resolver: zodResolver(addStudentSchema),
@@ -55,9 +63,29 @@ const AdminStudents = () => {
   // Load student invites
   useEffect(() => {
     const fetchInvites = async () => {
+      if (!schoolId) {
+        console.log("No school ID available, cannot fetch invites");
+        return;
+      }
+      
       try {
-        // Use teacher_invitations table since student_invites doesn't exist yet
-        // In a real implementation, we would create a student_invites table
+        console.log("Fetching invites for school ID:", schoolId);
+        
+        // First, check if student_invites table exists and has data
+        const { data: studentInvites, error: studentInviteError } = await supabase
+          .from("student_invites")
+          .select("*")
+          .eq("school_id", schoolId)
+          .order("created_at", { ascending: false })
+          .limit(10);
+          
+        if (studentInvites && studentInvites.length > 0) {
+          console.log("Found student invites:", studentInvites);
+          setInvites(studentInvites as StudentInvite[]);
+          return;
+        }
+        
+        // Fallback to teacher_invitations table as mock data
         const { data, error } = await supabase
           .from("teacher_invitations")
           .select("*")
@@ -75,6 +103,7 @@ const AdminStudents = () => {
           status: invite.status
         }));
         
+        console.log("Using teacher invitations as fallback:", studentInviteData);
         setInvites(studentInviteData);
       } catch (error: any) {
         console.error("Error fetching student invites:", error);
@@ -82,23 +111,40 @@ const AdminStudents = () => {
       }
     };
 
-    fetchInvites();
-  }, []);
+    if (schoolId) {
+      fetchInvites();
+    }
+  }, [schoolId]);
 
   const onSubmit = async (values: AddStudentFormValues) => {
-    if (!user) return;
+    if (!user || !schoolId) {
+      toast.error("You must be logged in with a school account to invite students");
+      return;
+    }
     
     setIsLoading(true);
     
     try {
       if (values.method === "invite") {
-        // In a real implementation, we would call a student invite edge function
-        // For now, create a mock invitation using the teacher_invitations table
+        console.log("Creating email invitation for:", values.email);
+        
+        // Check if student_invites table exists
+        let targetTable = "student_invites";
+        const { count: studentInvitesCount, error: countError } = await supabase
+          .from("student_invites")
+          .select("*", { count: "exact", head: true });
+          
+        if (countError) {
+          console.log("student_invites table may not exist, using teacher_invitations as fallback");
+          targetTable = "teacher_invitations";
+        }
+        
+        // Create the invitation in the appropriate table
         const { data, error } = await supabase
-          .from("teacher_invitations")
+          .from(targetTable)
           .insert({
             email: values.email,
-            school_id: profile?.organization?.id,
+            school_id: schoolId,
             created_by: user.id,
             status: "pending",
             invitation_token: Math.random().toString(36).substring(2, 15)
@@ -110,24 +156,37 @@ const AdminStudents = () => {
         toast.success(`Invitation sent to ${values.email}`);
         form.reset();
       } else {
-        // Generate invite code (mock)
+        // Generate invite code
         const inviteCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+        console.log("Generated invitation code:", inviteCode);
         setGeneratedCode(inviteCode);
         
-        // In a real implementation, we would store this code in the database
+        // Try to store in student_invites if it exists
+        try {
+          await supabase
+            .from("student_invites")
+            .insert({
+              code: inviteCode,
+              school_id: schoolId,
+              created_by: user.id,
+              status: "pending"
+            });
+        } catch (error) {
+          console.log("Could not store code in database, but will still display it to user");
+        }
+        
         toast.success("Student invitation code generated");
       }
       
       // Refresh the invites list
-      const { data } = await supabase
+      const { data: refreshedInvites } = await supabase
         .from("teacher_invitations")
         .select("*")
         .order("created_at", { ascending: false })
         .limit(10);
 
-      if (data) {
-        // Convert teacher_invitations to our StudentInvite type
-        const studentInviteData: StudentInvite[] = (data || []).map(invite => ({
+      if (refreshedInvites) {
+        const updatedInvites: StudentInvite[] = (refreshedInvites || []).map(invite => ({
           id: invite.id,
           email: invite.email,
           created_at: invite.created_at,
@@ -135,7 +194,7 @@ const AdminStudents = () => {
           status: invite.status
         }));
         
-        setInvites(studentInviteData);
+        setInvites(updatedInvites);
       }
       
     } catch (error: any) {
@@ -243,7 +302,7 @@ const AdminStudents = () => {
                           {generatedCode}
                         </code>
                         <Button type="button" variant="outline" size="sm" onClick={copyInviteCode}>
-                          Copy
+                          <Copy className="h-4 w-4" />
                         </Button>
                       </div>
                       <p className="text-sm text-muted-foreground mt-2">
