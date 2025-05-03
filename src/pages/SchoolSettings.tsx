@@ -14,6 +14,19 @@ import { ArrowLeft } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 
+// Let's create an interface to extend school data with our new fields
+interface SchoolData {
+  id: string;
+  name: string;
+  code: string;
+  created_at: string;
+  updated_at: string;
+  // These are the new fields we want to add but don't exist in the DB yet
+  contact_email?: string;
+  description?: string;
+  notifications_enabled?: boolean;
+}
+
 const SchoolSettings = () => {
   const { profile } = useAuth();
   const navigate = useNavigate();
@@ -44,10 +57,10 @@ const SchoolSettings = () => {
         if (data) {
           setSchoolName(data.name || "");
           setSchoolCode(data.code || "");
-          // These fields don't exist yet but would be added in a real implementation
-          setContactEmail(data.contact_email || profile.email || "");
-          setDescription(data.description || "");
-          setNotificationsEnabled(data.notifications_enabled !== false);
+          // For these fields, we'll use default values since they don't exist in the DB yet
+          setContactEmail(profile.email || "");
+          setDescription("");
+          setNotificationsEnabled(true);
         }
       } catch (error) {
         console.error("Error fetching school data:", error);

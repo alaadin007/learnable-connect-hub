@@ -456,6 +456,45 @@ export type Database = {
           },
         ]
       }
+      student_profiles: {
+        Row: {
+          board: string | null
+          created_at: string | null
+          date_of_birth: string | null
+          email: string | null
+          full_name: string | null
+          id: string
+          level: string | null
+          subjects: string[] | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          board?: string | null
+          created_at?: string | null
+          date_of_birth?: string | null
+          email?: string | null
+          full_name?: string | null
+          id: string
+          level?: string | null
+          subjects?: string[] | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          board?: string | null
+          created_at?: string | null
+          date_of_birth?: string | null
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          level?: string | null
+          subjects?: string[] | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       student_progress_history: {
         Row: {
           assessments_taken: number
