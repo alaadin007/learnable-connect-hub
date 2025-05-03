@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -130,15 +131,14 @@ const Navbar = () => {
     if (href === "/dashboard") {
       // Dashboard is active only when exactly on dashboard
       return currentPath === "/dashboard" && 
-             currentPath !== "/admin" && 
-             !currentPath.startsWith("/admin/");
+            !currentPath.startsWith("/admin");
     }
     
     // Special handling for School Admin link - make it mutually exclusive with Dashboard
     if (href === "/admin") {
       // Admin is active when on any admin page
       return (currentPath === "/admin" || currentPath.startsWith("/admin/")) && 
-             currentPath !== "/dashboard";
+            currentPath !== "/dashboard";
     }
     
     // For Teachers menu item
