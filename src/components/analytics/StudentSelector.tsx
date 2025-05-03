@@ -1,5 +1,4 @@
-
-import React from "react";
+import React, { useCallback } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Student } from "./types";
 
@@ -13,38 +12,30 @@ interface StudentSelectorProps {
 
 export function StudentSelector({ 
   students = [], 
-  selectedStudent, 
   selectedStudentId,
   onStudentSelect,
   onStudentChange
 }: StudentSelectorProps) {
-  // Handle both the new and old API
-  const handleSelect = (value: string) => {
-    if (value === "all") {
-      if (onStudentSelect) {
-        onStudentSelect(null);
+  const handleSelect = useCallback(
+    (value: string) => {
+      if (value === "all") {
+        onStudentSelect?.(null);
+        onStudentChange?.(undefined);
+        return;
       }
-      if (onStudentChange) {
-        onStudentChange(undefined);
+
+      const student = students.find(s => s.id === value);
+      if (student) {
+        onStudentSelect?.(student);
       }
-      return;
-    }
-    
-    // Find the student in the array
-    const student = students.find(s => s.id === value);
-    
-    if (onStudentSelect && student) {
-      onStudentSelect(student);
-    }
-    
-    if (onStudentChange) {
-      onStudentChange(value);
-    }
-  };
+      onStudentChange?.(value);
+    },
+    [students, onStudentSelect, onStudentChange]
+  );
 
   return (
     <Select 
-      value={selectedStudentId || "all"} 
+      value={selectedStudentId ?? "all"} 
       onValueChange={handleSelect}
     >
       <SelectTrigger className="w-full">
@@ -52,7 +43,7 @@ export function StudentSelector({
       </SelectTrigger>
       <SelectContent>
         <SelectItem value="all">All Students</SelectItem>
-        {Array.isArray(students) && students.map((student) => (
+        {students.map(student => (
           <SelectItem key={student.id} value={student.id}>
             {student.name}
           </SelectItem>
