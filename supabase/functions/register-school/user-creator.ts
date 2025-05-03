@@ -1,57 +1,54 @@
-
-import { createSupabaseAdmin } from "./supabase-admin.ts";
+import { SupabaseClient } from "@supabase/supabase-js";
+import { Database } from "@/types/db"; // (optional) import your DB types if you have
 
 export async function createAdminUser(
-  supabaseAdmin: any, 
+  supabaseAdmin: SupabaseClient<any>, 
   adminEmail: string, 
   adminPassword: string, 
   adminFullName: string,
   schoolCode: string,
   schoolName: string,
   redirectURL: string
-) {
+): Promise<string> {
   const { data: userData, error: userError } = await supabaseAdmin.auth.admin.createUser({
     email: adminEmail,
     password: adminPassword,
     email_confirm: false, // Require email confirmation
     user_metadata: {
       full_name: adminFullName,
-      user_type: "school", // Designate as school admin
+      user_type: "school",
       school_code: schoolCode,
-      school_name: schoolName
+      school_name: schoolName,
     },
-    // Add redirect URLs to ensure confirmation redirects to the right place
-    email_confirm_redirect_url: redirectURL
+    email_confirm_redirect_url: redirectURL,
   });
-  
+
   if (userError) {
     console.error("Error creating admin user:", userError);
-    
-    // Special handling for "already registered" errors
-    if (userError.message && userError.message.includes("already registered")) {
+
+    if (userError.message?.includes("already registered")) {
       throw new Error("Email already registered");
     }
-      
+
     throw new Error(`Failed to create admin user account: ${userError.message}`);
   }
-  
-  if (!userData || !userData.user) {
+
+  if (!userData?.user?.id) {
     console.error("No user data returned when creating admin");
     throw new Error("Failed to create admin user - no user data returned");
   }
-  
-  const adminUserId = userData.user.id;
-  console.log(`Admin user created with ID: ${adminUserId}`);
-  return adminUserId;
+
+  console.log(`Admin user created with ID: ${userData.user.id}`);
+  return userData.user.id;
 }
 
 export async function createProfileRecord(
-  supabaseAdmin: any,
+  supabaseAdmin: SupabaseClient<any>,
   adminUserId: string,
   adminFullName: string,
   schoolCode: string,
   schoolName: string
-) {
+): Promise<void> {
   const { error: profileError } = await supabaseAdmin
     .from("profiles")
     .insert({
@@ -59,24 +56,28 @@ export async function createProfileRecord(
       user_type: "school",
       full_name: adminFullName,
       school_code: schoolCode,
-      school_name: schoolName
+      school_name: schoolName,
     });
-  
+
   if (profileError) {
     console.error("Error creating profile:", profileError);
-    // Continue despite profile error, as the handle_new_user trigger should handle this
+    // As documented, can continue because DB trigger handles it
   }
 }
 
-export async function createTeacherRecord(supabaseAdmin: any, adminUserId: string, schoolId: string) {
+export async function createTeacherRecord(
+  supabaseAdmin: SupabaseClient<any>,
+  adminUserId: string,
+  schoolId: string
+): Promise<void> {
   const { error: teacherError } = await supabaseAdmin
     .from("teachers")
     .insert({
       id: adminUserId,
       school_id: schoolId,
-      is_supervisor: true
+      is_supervisor: true,
     });
-  
+
   if (teacherError) {
     console.error("Error creating teacher record:", teacherError);
     throw new Error(`Failed to create teacher admin record: ${teacherError.message}`);
