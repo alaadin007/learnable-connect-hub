@@ -102,29 +102,27 @@ const TestAccounts = () => {
       const account = TEST_ACCOUNTS[accountType];
 
       try {
-        console.log(`TestAccounts: Login as ${accountType} test account...`);
+        console.log(`TestAccounts: Logging in as ${accountType} test account...`);
 
-        // Set up the test user directly - simpler approach without authentication
         await setTestUser(accountType);
-        console.log(`TestAccounts: Set up ${accountType} test user successfully`);
-
         toast.success(`Logged in as ${account.role}`, {
           id: `login-success-${accountType}`,
         });
 
-        // Determine redirect path based on account type
-        const redirectPath = accountType === "school" ? "/admin" : 
-                            accountType === "teacher" ? "/teacher/analytics" : 
-                            "/dashboard";
+        const redirectPath =
+          accountType === "school"
+            ? "/admin"
+            : accountType === "teacher"
+            ? "/teacher/analytics"
+            : "/dashboard";
 
         console.log(`TestAccounts: Navigating to ${redirectPath}`);
-        
-        // Use navigate with replace: true to avoid history issues
+
         navigate(redirectPath, {
           replace: true,
-          state: { 
+          state: {
             fromTestAccounts: true,
-            accountType
+            accountType,
           },
         });
       } catch (error: any) {
@@ -141,11 +139,11 @@ const TestAccounts = () => {
   const getAccountIcon = (accountType: AccountType) => {
     switch (accountType) {
       case "school":
-        return <School className="h-8 w-8 text-blue-600" />;
+        return <School className="h-8 w-8 text-blue-600" aria-hidden="true" />;
       case "teacher":
-        return <Users className="h-8 w-8 text-green-600" />;
+        return <Users className="h-8 w-8 text-green-600" aria-hidden="true" />;
       case "student":
-        return <GraduationCap className="h-8 w-8 text-purple-600" />;
+        return <GraduationCap className="h-8 w-8 text-purple-600" aria-hidden="true" />;
     }
   };
 
@@ -189,8 +187,8 @@ const TestAccounts = () => {
             account provides access to a specific part of the platform with fully functional features.
           </p>
 
-          <Alert className="mb-6 bg-amber-50">
-            <Info className="h-4 w-4" />
+          <Alert className="mb-6 bg-amber-50" role="region" aria-label="Test accounts information">
+            <Info className="h-4 w-4" aria-hidden="true" />
             <AlertDescription>
               All test accounts are automatically authenticated - just click login to access the platform with the selected role!
             </AlertDescription>
