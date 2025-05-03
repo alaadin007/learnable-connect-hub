@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/landing/Footer';
 import { useAuth } from '@/contexts/AuthContext';
@@ -15,17 +14,23 @@ const Documents: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('upload');
+  const [redirecting, setRedirecting] = useState(false);
 
   // Redirect if not logged in
-  React.useEffect(() => {
-    if (!user) {
+  useEffect(() => {
+    if (!user && !redirecting) {
+      setRedirecting(true);
       navigate('/login', { state: { from: '/documents' } });
     }
-  }, [user, navigate]);
+  }, [user, navigate, redirecting]);
 
-  // If user is not logged in, show a loading message
   if (!user) {
-    return <div className="flex justify-center items-center h-screen">Loading...</div>;
+    return (
+      <div className="flex justify-center items-center h-screen" role="status" aria-live="polite">
+        {/* Consider replacing with spinner or skeleton */}
+        Loading your documents page...
+      </div>
+    );
   }
 
   return (
@@ -40,8 +45,8 @@ const Documents: React.FC = () => {
               Files you upload will be processed and can be referenced in your chat sessions.
             </p>
           </div>
-          
-          <Alert className="mb-6 bg-blue-50 border-blue-200">
+
+          <Alert className="mb-6 bg-blue-50 border-blue-200" role="region" aria-label="Enhanced AI Assistance information">
             <AlertCircle className="h-4 w-4 text-blue-500" />
             <AlertTitle className="text-blue-700">Enhanced AI Assistance</AlertTitle>
             <AlertDescription className="text-blue-600">
@@ -49,67 +54,48 @@ const Documents: React.FC = () => {
               Switch between using and not using documents in your chat sessions anytime.
             </AlertDescription>
           </Alert>
-          
+
           <Card className="mb-8">
             <CardHeader className="pb-0">
               <CardTitle>Learning Materials</CardTitle>
             </CardHeader>
             <CardContent className="pt-6">
-              <Tabs defaultValue="upload" value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="mb-6">
-                  <TabsTrigger value="upload">Upload New</TabsTrigger>
-                  <TabsTrigger value="list">My Files</TabsTrigger>
+              <Tabs value={activeTab} onValueChange={setActiveTab}>
+                <TabsList className="mb-6" role="tablist">
+                  <TabsTrigger value="upload" role="tab" aria-selected={activeTab === 'upload'}>Upload New</TabsTrigger>
+                  <TabsTrigger value="list" role="tab" aria-selected={activeTab === 'list'}>My Files</TabsTrigger>
                 </TabsList>
-                <TabsContent value="upload">
+                <TabsContent value="upload" role="tabpanel" tabIndex={0}>
                   <FileUpload />
                 </TabsContent>
-                <TabsContent value="list">
+                <TabsContent value="list" role="tabpanel" tabIndex={0}>
                   <FileList />
                 </TabsContent>
               </Tabs>
             </CardContent>
           </Card>
-          
-          <div className="mb-8">
-            <h2 className="text-xl font-semibold mb-2">How it works</h2>
+
+          <section aria-labelledby="how-it-works-title" className="mb-8">
+            <h2 id="how-it-works-title" className="text-xl font-semibold mb-2">How it works</h2>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <Card>
-                <CardContent className="p-6">
-                  <h3 className="font-medium text-lg mb-2">1. Upload</h3>
-                  <p className="text-sm text-gray-600">
-                    Upload your learning materials, including PDFs and images of notes or textbooks.
-                  </p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-6">
-                  <h3 className="font-medium text-lg mb-2">2. Processing</h3>
-                  <p className="text-sm text-gray-600">
-                    Our system automatically extracts text content from your files.
-                  </p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-6">
-                  <h3 className="font-medium text-lg mb-2">3. Chat</h3>
-                  <p className="text-sm text-gray-600">
-                    Ask questions in the chat about your documents and receive contextual responses.
-                  </p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-6">
-                  <h3 className="font-medium text-lg mb-2">4. Voice Input</h3>
-                  <p className="text-sm text-gray-600">
-                    Use the microphone button in chat to ask questions by speaking instead of typing.
-                  </p>
-                </CardContent>
-              </Card>
+              {[
+                { title: '1. Upload', description: 'Upload your learning materials, including PDFs and images of notes or textbooks.' },
+                { title: '2. Processing', description: 'Our system automatically extracts text content from your files.' },
+                { title: '3. Chat', description: 'Ask questions in the chat about your documents and receive contextual responses.' },
+                { title: '4. Voice Input', description: 'Use the microphone button in chat to ask questions by speaking instead of typing.' },
+              ].map((item, idx) => (
+                <Card key={idx}>
+                  <CardContent className="p-6">
+                    <h3 className="font-medium text-lg mb-2">{item.title}</h3>
+                    <p className="text-sm text-gray-600">{item.description}</p>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
-          </div>
-          
-          <div className="bg-white p-6 rounded-lg shadow-sm mb-8 border border-gray-100">
-            <h2 className="text-xl font-semibold mb-4">Tips for Better Document Usage</h2>
+          </section>
+
+          <section aria-labelledby="tips-title" className="bg-white p-6 rounded-lg shadow-sm mb-8 border border-gray-100">
+            <h2 id="tips-title" className="text-xl font-semibold mb-4">Tips for Better Document Usage</h2>
             <ul className="list-disc pl-5 space-y-2 text-gray-700">
               <li>Upload clear, well-scanned documents for better text extraction</li>
               <li>Use the "Using Documents" toggle in chat to control when the AI uses your materials</li>
@@ -117,7 +103,7 @@ const Documents: React.FC = () => {
               <li>Click on source citations in AI responses to see which parts of your documents were referenced</li>
               <li>Upload a variety of materials on the same topic for more comprehensive answers</li>
             </ul>
-          </div>
+          </section>
         </div>
       </main>
       <Footer />
