@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -122,30 +123,39 @@ const Navbar = () => {
   // Check if we're on the test accounts page to hide the entire navbar
   const isTestAccountsPage = location.pathname === "/test-accounts";
 
-  // Fixed isActiveLink function to resolve TypeScript error and ensure mutually exclusive highlighting
+  // Fixed isActiveLink function to resolve mutual exclusivity issues and performance problems
   const isActiveLink = (href: string): boolean => {
     const currentPath = location.pathname;
     
-    // Special handling for Dashboard link
+    // For Dashboard link - only exact match
     if (href === "/dashboard") {
-      // Dashboard is active only when exactly on dashboard path
       return currentPath === "/dashboard";
     }
     
-    // Special handling for School Admin link and its subpages
+    // For School Admin link - both exact and subpages
     if (href === "/admin") {
-      // Admin is active when on any admin page (including teacher management)
+      // Don't highlight Admin when on specific admin subpages that have their own menu items
+      if (currentPath === "/admin/teacher-management" || 
+          currentPath === "/admin/analytics" ||
+          currentPath === "/admin/students") {
+        return false;
+      }
       return currentPath === "/admin" || currentPath.startsWith("/admin/");
     }
     
     // For Teachers menu item
     if (href === "/admin/teacher-management") {
-      return currentPath === "/admin/teacher-management" || currentPath === "/admin/teachers";
+      return currentPath === "/admin/teacher-management";
     }
     
     // For Analytics menu item
     if (href === "/admin/analytics") {
       return currentPath === "/admin/analytics";
+    }
+
+    // For Students menu item
+    if (href === "/admin/students") {
+      return currentPath === "/admin/students";
     }
 
     // For other links, exact matching
