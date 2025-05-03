@@ -28,7 +28,7 @@ export async function createAdminUser(
     console.error("Error creating admin user:", userError);
     
     // Special handling for "already registered" errors
-    if (userError.message.includes("already registered")) {
+    if (userError.message && userError.message.includes("already registered")) {
       throw new Error("Email already registered");
     }
       

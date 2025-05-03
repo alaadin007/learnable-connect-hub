@@ -109,7 +109,7 @@ export async function handleSchoolRegistration(req: Request): Promise<Response> 
       await cleanupOnFailure(supabaseAdmin, undefined, schoolId, schoolCode);
       
       // Special handling for "already registered" errors
-      if (error.message.includes("already registered")) {
+      if (error.message && error.message.includes("already registered")) {
         return new Response(
           JSON.stringify({ 
             error: "Email already registered", 
