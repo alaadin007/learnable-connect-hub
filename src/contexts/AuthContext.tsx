@@ -230,6 +230,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
   };
 
   const signIn = async (email: string, password?: string) => {
+    // If this is a test account email, handle it directly through setTestUser
     if (email.includes(".test@learnable.edu")) {
       let type: "school" | "teacher" | "student" = "student";
       if (email.startsWith("school")) type = "school";
@@ -430,14 +431,14 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
         },
       };
 
-      // Set state variables synchronously - removed session object
+      // Set state variables synchronously for test accounts
       setUser(mockUser);
       setProfile(mockProfile);
       setUserRole(type);
       setIsSuperviser(false);
       setSchoolId(mockProfile.organization?.id || null);
       
-      // Keep session null for test users
+      // Keep session null for test users - no authentication needed
       setSession(null);
 
       console.log(`AuthContext: Test user set up successfully. User role: ${type}`);

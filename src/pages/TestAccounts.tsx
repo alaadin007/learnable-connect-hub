@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -105,7 +104,7 @@ const TestAccounts = () => {
       try {
         console.log(`TestAccounts: Login as ${accountType} test account...`);
 
-        // Set up the test user directly
+        // Set up the test user directly - simpler approach without authentication
         await setTestUser(accountType);
         console.log(`TestAccounts: Set up ${accountType} test user successfully`);
 
