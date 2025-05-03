@@ -108,6 +108,7 @@ const SchoolAdmin = () => {
         navigate("/admin/teacher-management");
         break;
       case "view-analytics":
+        console.log("Navigating to analytics page...");
         navigate("/admin/analytics");
         break;
       case "school-settings":

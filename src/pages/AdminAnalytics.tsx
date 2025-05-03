@@ -58,12 +58,20 @@ const AdminAnalytics = () => {
 
   // Get the schoolId properly
   const schoolId = authSchoolId || profile?.organization?.id || '';
+  
+  console.log("AdminAnalytics: School ID from auth context:", authSchoolId);
+  console.log("AdminAnalytics: Organization ID from profile:", profile?.organization?.id);
+  console.log("AdminAnalytics: Using school ID:", schoolId);
 
   // Fetch students for the school
   const fetchStudents = useCallback(async () => {
-    if (!schoolId) return;
+    if (!schoolId) {
+      console.log("No school ID available, cannot fetch students");
+      return;
+    }
     
     try {
+      console.log("Fetching students for school ID:", schoolId);
       // Mock data for students - in a real app, this would be an API call
       const mockStudents = [
         { id: '1', name: 'Student 1' },
@@ -141,6 +149,7 @@ const AdminAnalytics = () => {
   }, [schoolId, filters, activeTab, toast]);
 
   useEffect(() => {
+    console.log("AdminAnalytics component mounted");
     if (schoolId) {
       console.log("School ID set or updated:", schoolId);
       // Update the filters with the schoolId
@@ -151,11 +160,14 @@ const AdminAnalytics = () => {
       
       // Fetch students when component mounts or schoolId changes
       fetchStudents();
+    } else {
+      console.log("No school ID available in AdminAnalytics");
     }
   }, [schoolId, fetchStudents]);
 
   // Separate effect for loading data to prevent infinite loops
   useEffect(() => {
+    console.log("Loading analytics data effect triggered");
     loadAnalyticsData();
   }, [loadAnalyticsData]);
 
