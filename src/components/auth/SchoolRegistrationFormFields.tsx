@@ -1,4 +1,3 @@
-
 import React from "react";
 import { UseFormReturn } from "react-hook-form";
 import { Loader2 } from "lucide-react";
@@ -30,81 +29,99 @@ interface SchoolRegistrationFormFieldsProps {
 const SchoolRegistrationFormFields: React.FC<SchoolRegistrationFormFieldsProps> = ({
   form,
   isLoading,
-  onSubmit
+  onSubmit,
 }) => {
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
         <FormField
           control={form.control}
           name="schoolName"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>School Name</FormLabel>
+              <FormLabel htmlFor="schoolName">School Name</FormLabel>
               <FormControl>
-                <Input placeholder="Enter school name" {...field} />
+                <Input id="schoolName" placeholder="Enter school name" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-        
+
         <FormField
           control={form.control}
           name="adminFullName"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Admin Full Name</FormLabel>
+              <FormLabel htmlFor="adminFullName">Admin Full Name</FormLabel>
               <FormControl>
-                <Input placeholder="Enter admin's full name" {...field} />
+                <Input id="adminFullName" placeholder="Enter admin's full name" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-        
+
         <FormField
           control={form.control}
           name="adminEmail"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Admin Email</FormLabel>
+              <FormLabel htmlFor="adminEmail">Admin Email</FormLabel>
               <FormControl>
-                <Input type="email" placeholder="admin@school.edu" {...field} />
+                <Input
+                  type="email"
+                  id="adminEmail"
+                  placeholder="admin@school.edu"
+                  {...field}
+                  autoComplete="email"
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-        
+
         <FormField
           control={form.control}
           name="adminPassword"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Admin Password</FormLabel>
+              <FormLabel htmlFor="adminPassword">Admin Password</FormLabel>
               <FormControl>
-                <Input type="password" placeholder="••••••••" {...field} />
+                <Input
+                  type="password"
+                  id="adminPassword"
+                  placeholder="••••••••"
+                  {...field}
+                  autoComplete="new-password"
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-        
+
         <FormField
           control={form.control}
           name="confirmPassword"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Confirm Password</FormLabel>
+              <FormLabel htmlFor="confirmPassword">Confirm Password</FormLabel>
               <FormControl>
-                <Input type="password" placeholder="••••••••" {...field} />
+                <Input
+                  type="password"
+                  id="confirmPassword"
+                  placeholder="••••••••"
+                  {...field}
+                  autoComplete="new-password"
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-        
+
         <Button type="submit" disabled={isLoading} className="w-full gradient-bg">
           {isLoading ? (
             <>
