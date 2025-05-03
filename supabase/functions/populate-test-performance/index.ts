@@ -64,6 +64,30 @@ serve(async (req) => {
     const topics = ["Algebra equations", "World War II", "Chemical reactions", "Shakespeare's Macbeth", "Programming basics"];
     const now = new Date();
     
+    // Handle UUID validation - make sure we have proper UUID format
+    let validUserId = userId;
+    let validSchoolId = schoolId;
+    
+    // Validate UUID format - either use as is if valid, or handle test- prefixed values
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    
+    if (!uuidPattern.test(validUserId)) {
+      // If using test IDs, map to valid UUIDs for database compatibility
+      if (validUserId.startsWith('test-')) {
+        validUserId = "00000000-0000-0000-0000-000000000001";
+      } else {
+        throw new Error(`Invalid user ID format: ${validUserId}`);
+      }
+    }
+    
+    if (!uuidPattern.test(validSchoolId)) {
+      if (validSchoolId.startsWith('test-')) {
+        validSchoolId = "00000000-0000-0000-0000-000000000001";
+      } else {
+        throw new Error(`Invalid school ID format: ${validSchoolId}`);
+      }
+    }
+    
     for (let i = 1; i <= numSessions; i++) {
       const pastDate = new Date(now);
       pastDate.setDate(now.getDate() - i);
@@ -72,8 +96,8 @@ serve(async (req) => {
       const { data: sessionLog, error: sessionError } = await supabase
         .from("session_logs")
         .insert({
-          user_id: userId,
-          school_id: schoolId,
+          user_id: validUserId,
+          school_id: validSchoolId,
           topic_or_content_used: topics[i % topics.length],
           session_start: pastDate.toISOString(),
           session_end: new Date(pastDate.getTime() + 45 * 60000).toISOString(),

@@ -1,4 +1,5 @@
-import React, { useState, useCallback } from "react";
+
+import React, { useState, useCallback, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Menu, X, LogOut } from "lucide-react";
@@ -11,7 +12,13 @@ const Navbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
   const isMobile = useIsMobile();
+
+  // Set loaded status after initial render to prevent flickering
+  useEffect(() => {
+    setIsLoaded(true);
+  }, []);
 
   const toggleMenu = () => setIsOpen((open) => !open);
 
@@ -89,21 +96,12 @@ const Navbar = () => {
         return currentPath === "/dashboard";
       case "/admin":
         // Active for /admin exactly but not for known subpaths handled separately
-        if (currentPath === "/admin") return true;
-        if (
-          currentPath.startsWith("/admin/") &&
-          ![
-            "/admin/teacher-management",
-            "/admin/analytics",
-            "/admin/students"
-          ].includes(currentPath)
-        ) {
-          return false;
-        }
-        return false;
+        return currentPath === "/admin";
       case "/admin/teacher-management":
       case "/admin/analytics":
       case "/admin/students":
+      case "/teacher/students":
+      case "/teacher/analytics":
         return currentPath === href;
       case "/chat":
         return currentPath === "/chat" || currentPath.startsWith("/chat/");
@@ -119,13 +117,37 @@ const Navbar = () => {
       setIsOpen(false);
       return;
     }
-    navigate(path, { state: { fromNavigation: true } });
+    
+    // Add state to prevent redirection loops and preserve navigation context
+    navigate(path, { 
+      state: { 
+        fromNavigation: true,
+        preserveContext: true,
+        timestamp: Date.now() // Add timestamp to ensure state is unique
+      } 
+    });
     setIsOpen(false);
   }, [location.pathname, navigate]);
 
   if (isTestAccountsPage) {
     // optionally hide navbar entirely on test accounts page:
     return null;
+  }
+
+  // Don't render until we've determined loading state to prevent flickering
+  if (!isLoaded) {
+    return (
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
+        <div className="container mx-auto px-4 sm:px-6">
+          <div className="flex justify-between items-center h-16">
+            {/* Minimal placeholder during initial load */}
+            <div className="flex-shrink-0">
+              <span className="ml-2 text-xl font-bold gradient-text">LearnAble</span>
+            </div>
+          </div>
+        </div>
+      </header>
+    );
   }
 
   return (
@@ -158,7 +180,7 @@ const Navbar = () => {
                 key={link.name}
                 onClick={() => handleNavigation(link.href)}
                 className={cn(
-                  "text-learnable-gray hover:text-learnable-blue font-medium",
+                  "text-learnable-gray hover:text-learnable-blue font-medium transition-colors duration-200",
                   isActiveLink(link.href) && "text-learnable-blue font-bold"
                 )}
               >

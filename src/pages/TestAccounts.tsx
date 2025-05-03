@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import Navbar from "@/components/layout/Navbar";
@@ -61,6 +61,20 @@ const TestAccounts = () => {
   const [dataCreationLoading, setDataCreationLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Clear any existing sessions when arriving at the test accounts page
+  useEffect(() => {
+    const clearPreviousSessions = async () => {
+      try {
+        await supabase.auth.signOut();
+        console.log("TestAccounts: Cleared previous sessions on page load");
+      } catch (error) {
+        console.error("Error clearing sessions:", error);
+      }
+    };
+    
+    clearPreviousSessions();
+  }, []);
+
   const createTestAccounts = useCallback(async () => {
     try {
       setDataCreationLoading(true);
@@ -110,8 +124,16 @@ const TestAccounts = () => {
           id: `login-success-${accountType}`,
         });
 
-        // Define redirect paths based on account type
+        // Define redirect paths based on account type 
+        // with consistent state parameters for smooth navigation
         let redirectPath = "/dashboard";
+        let redirectState = { 
+          fromTestAccounts: true, 
+          accountType,
+          preserveContext: true,
+          timestamp: Date.now()
+        };
+        
         if (accountType === "school") {
           redirectPath = "/admin";
         } else if (accountType === "teacher") {
@@ -120,12 +142,10 @@ const TestAccounts = () => {
 
         console.log(`TestAccounts: Navigating to ${redirectPath} for ${accountType}`);
 
+        // Use replace: true to prevent going back to login page from the dashboard
         navigate(redirectPath, {
           replace: true,
-          state: {
-            fromTestAccounts: true,
-            accountType,
-          },
+          state: redirectState
         });
       } catch (error: any) {
         console.error(`Error setting up ${accountType} test account:`, error);

@@ -20,55 +20,31 @@ const Dashboard = () => {
     }
   }, [user, navigate]);
 
-  // Redirect for school and teacher users on direct dashboard access
+  // More targeted approach to role-based redirection
   useEffect(() => {
-    // Check if this is a direct access to dashboard (not via test accounts or navigation)
-    const isDirectDashboardAccess = location.pathname === "/dashboard";
-    const hasDefinedUserRole = Boolean(userRole);
+    // Only redirect on specific conditions
+    const isDirectDashboardAccess = !location.state?.fromNavigation && 
+                                   !location.state?.fromTestAccounts &&
+                                   !location.state?.preserveContext &&
+                                   !location.state?.fromDashboard;
     
-    // Check various sources that could indicate we should NOT redirect
-    const isFromTestAccounts = Boolean(location.state?.fromTestAccounts);
-    const isFromNavigation = Boolean(location.state?.fromNavigation);
-    const isFromDashboard = Boolean(location.state?.fromDashboard);
-    const hasSpecificAccountType = Boolean(location.state?.accountType);
-    
-    // Debug logging
-    console.log("Dashboard: Checking redirect conditions:", {
-      isDirectDashboardAccess,
-      hasDefinedUserRole,
-      isFromTestAccounts,
-      isFromNavigation,
-      isFromDashboard,
-      hasSpecificAccountType,
-      userRole,
-      locationState: location.state
-    });
-    
-    // Only redirect if: 
-    // 1. User is directly accessing dashboard
-    // 2. We know their role
-    // 3. They didn't come from test accounts or explicit navigation
-    if (
-      isDirectDashboardAccess &&
-      hasDefinedUserRole &&
-      !isFromTestAccounts &&
-      !isFromNavigation &&
-      !isFromDashboard &&
-      !hasSpecificAccountType
-    ) {
+    // Only redirect if we know the role and it's a direct access
+    if (userRole && isDirectDashboardAccess) {
+      // Only log if we're actually going to redirect
+      console.log("Dashboard: Redirecting based on role", {
+        userRole,
+        isDirectDashboardAccess,
+        locationState: location.state
+      });
+      
       if (userRole === "school" && profile?.organization?.id) {
-        console.log("Dashboard: Redirecting school admin to /admin");
         navigate("/admin", { replace: true, state: { fromDashboard: true } });
       } else if (userRole === "teacher") {
-        console.log("Dashboard: Redirecting teacher to /teacher/analytics");
         navigate("/teacher/analytics", { replace: true, state: { fromDashboard: true } });
-      } else {
-        console.log("Dashboard: Keeping student at dashboard (no redirect needed)");
       }
-    } else {
-      console.log("Dashboard: Skipping redirect - coming from test accounts or navigation");
+      // Student stays on dashboard
     }
-  }, [userRole, navigate, location.pathname, profile, location.state]);
+  }, [userRole, navigate, location.state, profile]);
 
   // Show loading state if user or profile data is not ready
   if (!user || !profile) {
@@ -92,25 +68,25 @@ const Dashboard = () => {
             title="School Admin"
             description="Manage your school settings and configurations"
             icon={<School className="h-10 w-10" />}
-            onClick={() => navigate("/admin", { state: { fromNavigation: true } })}
+            onClick={() => navigate("/admin", { state: { fromNavigation: true, preserveContext: true } })}
           />
           <DashboardCard
             title="Teacher Management"
             description="Add, remove, and manage teacher accounts"
             icon={<Users className="h-10 w-10" />}
-            onClick={() => navigate("/admin/teacher-management")}
+            onClick={() => navigate("/admin/teacher-management", { state: { fromNavigation: true, preserveContext: true } })}
           />
           <DashboardCard
             title="Analytics"
             description="View school-wide performance analytics"
             icon={<BarChart3 className="h-10 w-10" />}
-            onClick={() => navigate("/admin/analytics")}
+            onClick={() => navigate("/admin/analytics", { state: { fromNavigation: true, preserveContext: true } })}
           />
           <DashboardCard
             title="Chat with AI"
             description="Get help from our AI learning assistant"
             icon={<MessageSquare className="h-10 w-10" />}
-            onClick={() => navigate("/chat")}
+            onClick={() => navigate("/chat", { state: { fromNavigation: true, preserveContext: true } })}
           />
         </div>
       );
@@ -123,19 +99,19 @@ const Dashboard = () => {
             title="Student Management"
             description="Manage your students and classes"
             icon={<Users className="h-10 w-10" />}
-            onClick={() => navigate("/teacher/students")}
+            onClick={() => navigate("/teacher/students", { state: { fromNavigation: true, preserveContext: true } })}
           />
           <DashboardCard
             title="Analytics"
             description="View student performance analytics"
             icon={<BarChart3 className="h-10 w-10" />}
-            onClick={() => navigate("/teacher/analytics", { state: { fromNavigation: true } })}
+            onClick={() => navigate("/teacher/analytics", { state: { fromNavigation: true, preserveContext: true } })}
           />
           <DashboardCard
             title="Chat with AI"
             description="Get help from our AI learning assistant"
             icon={<MessageSquare className="h-10 w-10" />}
-            onClick={() => navigate("/chat")}
+            onClick={() => navigate("/chat", { state: { fromNavigation: true, preserveContext: true } })}
           />
         </div>
       );
@@ -148,25 +124,25 @@ const Dashboard = () => {
           title="Chat with AI"
           description="Get help with your studies from our AI learning assistant"
           icon={<MessageSquare className="h-10 w-10" />}
-          onClick={() => navigate("/chat")}
+          onClick={() => navigate("/chat", { state: { fromNavigation: true, preserveContext: true } })}
         />
         <DashboardCard
           title="Assessments"
           description="View and complete your assigned assessments"
           icon={<FileText className="h-10 w-10" />}
-          onClick={() => navigate("/student/assessments")}
+          onClick={() => navigate("/student/assessments", { state: { fromNavigation: true, preserveContext: true } })}
         />
         <DashboardCard
           title="My Progress"
           description="Track your performance and learning progress"
           icon={<BarChart3 className="h-10 w-10" />}
-          onClick={() => navigate("/student/progress")}
+          onClick={() => navigate("/student/progress", { state: { fromNavigation: true, preserveContext: true } })}
         />
         <DashboardCard
           title="Settings"
           description="Manage your profile and preferences"
           icon={<Settings className="h-10 w-10" />}
-          onClick={() => navigate("/student/settings")}
+          onClick={() => navigate("/student/settings", { state: { fromNavigation: true, preserveContext: true } })}
         />
       </div>
     );
