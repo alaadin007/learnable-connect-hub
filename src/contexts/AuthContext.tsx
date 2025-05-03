@@ -17,7 +17,6 @@ import { isTestAccount, TEST_SCHOOL_CODE } from "@/integrations/supabase/client"
 import sessionLogger from "@/utils/sessionLogger";
 import { populateTestAccountWithSessions } from "@/utils/sessionLogging";
 
-// Helper function to check if a value is a non-null object
 function isNonNullObject(value: any): value is object {
   return value !== null && typeof value === "object";
 }
@@ -31,9 +30,8 @@ export type UserProfile = {
   organization?: {
     id: string;
     name: string;
-    code: string;
+    code?: string;
   } | null;
-  // Additional properties that might be used elsewhere
   school_name?: string;
   school_code?: string;
 };
@@ -44,16 +42,16 @@ interface AuthContextType {
   profile: UserProfile | null;
   userRole: UserRole | null;
   isLoading: boolean;
-  loading: boolean; // Alias for isLoading for compatibility
+  loading: boolean;
   isSuperviser: boolean;
   schoolId: string | null;
   signIn: (email: string, password?: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
-  updateProfile: (updates: any) => Promise<void>;
+  updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
   refreshProfile: () => Promise<void>;
   setTestUser: (
-    type: 'school' | 'teacher' | 'student',
+    type: "school" | "teacher" | "student",
     schoolIndex?: number
   ) => Promise<void>;
 }
@@ -114,9 +112,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       }
     );
 
-    return () => {
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, []);
 
   const fetchProfile = async (userId: string) => {
@@ -138,88 +134,65 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
         .eq("id", userId)
         .single();
 
-      if (profileError) {
-        throw profileError;
+      if (profileError) throw profileError;
+
+      let safeProfileData: UserProfile = {
+        ...profileData,
+        organization: null,
+      };
+
+      const org = profileData.organization;
+
+      if (isNonNullObject(org) && !("error" in org)) {
+        safeProfileData.organization = org;
       }
 
-      if (profileData) {
-        let safeProfileData: UserProfile = {
-          ...profileData,
-          organization: null,
-        };
+      setProfile(safeProfileData);
+      setUserRole(profileData.user_type || null);
+      setIsSuperviser(profileData.user_type === "superviser");
+      setSchoolId(safeProfileData.organization?.id || null);
 
-        const org = profileData.organization;
-
-        if (isNonNullObject(org)) {
-          if (!('error' in org)) {
-            safeProfileData.organization = org;
-          } else {
-            safeProfileData.organization = null;
-          }
-        } else {
-          safeProfileData.organization = null;
+      if (user && isTestAccount(user.email || '')) {
+        if (safeProfileData.organization && !safeProfileData.organization.code) {
+          await updateProfile({ organization: { code: TEST_SCHOOL_CODE } });
         }
 
-        setProfile(safeProfileData);
-        setUserRole(profileData.user_type || null);
-        setIsSuperviser(profileData.user_type === "superviser");
+        if (profileData.user_type === "student") {
+          // Check for existing sessions or create test sessions
+          const { data: existingSessions } = await supabase
+            .from("session_logs")
+            .select("id")
+            .eq("user_id", userId)
+            .limit(1);
 
-        setSchoolId(safeProfileData.organization?.id || null);
+          if (!existingSessions || existingSessions.length === 0) {
+            await sessionLogger.startSession("Test Session", userId);
+            const topics = ["Math", "Science", "History", "Literature", "Programming"];
+            const now = new Date();
 
-        if (isTestAccount(user?.email || '')) {
-          if (safeProfileData.organization && safeProfileData.organization.code === undefined) {
-            await updateProfile({
-              organization: { code: TEST_SCHOOL_CODE },
-            });
-          }
-
-          // For student test accounts, ensure we have proper session tracking
-          if (profileData.user_type === 'student') {
-            // Check if there are existing sessions
-            const { data: existingSessions } = await supabase
-              .from('session_logs')
-              .select('id')
-              .eq('user_id', userId)
-              .limit(1);
-
-            // If no sessions exist, create test sessions
-            if (!existingSessions || existingSessions.length === 0) {
-              // First create a current active session
-              await sessionLogger.startSession('Test Session', userId);
-              
-              // Create some past sessions for history
-              const topics = ['Math', 'Science', 'History', 'Literature', 'Programming'];
-              const now = new Date();
-              
-              for (let i = 1; i <= 5; i++) {
-                const pastDate = new Date(now);
-                pastDate.setDate(now.getDate() - i);
-                
-                await supabase
-                  .from('session_logs')
-                  .insert({
-                    user_id: userId,
-                    school_id: safeProfileData.organization?.id,
-                    topic_or_content_used: topics[i % topics.length],
-                    session_start: pastDate.toISOString(),
-                    session_end: new Date(pastDate.getTime() + 45 * 60000).toISOString(), // 45 min session
-                    num_queries: Math.floor(Math.random() * 15) + 5 // 5-20 queries
-                  });
-              }
-            } else {
-              // Just ensure we have a current active session
-              await sessionLogger.startSession('Continued Test Session', userId);
+            for (let i = 1; i <= 5; i++) {
+              const pastDate = new Date(now);
+              pastDate.setDate(now.getDate() - i);
+              await supabase.from("session_logs").insert({
+                user_id: userId,
+                school_id: safeProfileData.organization?.id,
+                topic_or_content_used: topics[i % topics.length],
+                session_start: pastDate.toISOString(),
+                session_end: new Date(pastDate.getTime() + 45 * 60000).toISOString(),
+                num_queries: Math.floor(Math.random() * 15) + 5,
+              });
             }
-          } else if (profileData.user_type === 'teacher') {
-            const orgId = safeProfileData.organization?.id || '';
-            if (orgId) {
-              // Make sure to populate test data for teacher accounts
-              try {
-                await populateTestAccountWithSessions(userId, orgId);
-                console.log(`Successfully populated test data for teacher ${userId}`);
-              } catch (error) {
-                console.error("Error populating test data for teacher:", error);
-              }
+          } else {
+            await sessionLogger.startSession("Continued Test Session", userId);
+          }
+        } else if (profileData.user_type === "teacher") {
+          const orgId = safeProfileData.organization?.id || "";
+          if (orgId) {
+            try {
+              await populateTestAccountWithSessions(userId, orgId);
+              console.log(`Populated test data for teacher ${userId}`);
+            } catch (error) {
+              console.error("Error populating test data for teacher:", error);
             }
           }
         }
@@ -237,34 +210,26 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
   };
 
   const signIn = async (email: string, password?: string) => {
-    // For test accounts, use setTestUser directly for instant authentication
-    if (email.includes('.test@learnable.edu')) {
-      let type: 'school' | 'teacher' | 'student' = 'student';
-      
-      if (email.startsWith('school')) {
-        type = 'school';
-      } else if (email.startsWith('teacher')) {
-        type = 'teacher';
-      }
-      
+    if (email.includes(".test@learnable.edu")) {
+      let type: "school" | "teacher" | "student" = "student";
+      if (email.startsWith("school")) type = "school";
+      else if (email.startsWith("teacher")) type = "teacher";
       await setTestUser(type);
       return;
     }
-    
+
     setIsLoading(true);
     try {
-      // Handle password-based authentication if provided
       if (password) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       } else {
-        // Fallback to OTP if no password
         const { error } = await supabase.auth.signInWithOtp({ email });
         if (error) throw error;
-        toast.success("Check your email for the magic link.");
+        toast.success("Check your email to verify your login");
       }
     } catch (error: any) {
-      toast.error(error.error_description || error.message);
+      toast.error(error.error_description ?? error.message);
       throw error;
     } finally {
       setIsLoading(false);
@@ -278,7 +243,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       if (error) throw error;
       toast.success("Registration successful! Please check your email.");
     } catch (error: any) {
-      toast.error(error.error_description || error.message);
+      toast.error(error.error_description ?? error.message);
       throw error;
     } finally {
       setIsLoading(false);
@@ -288,93 +253,72 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
   const signOut = async () => {
     setIsLoading(true);
     try {
-      // If it's a student, end any active sessions
-      if (userRole === 'student') {
+      if (userRole === "student") {
         try {
-          await sessionLogger.endSession('User logged out');
-        } catch (error) {
-          console.error("Error ending session:", error);
-          // Continue with sign out even if ending session fails
+          await sessionLogger.endSession("User logged out");
+        } catch (e) {
+          console.error("Failed to end session", e);
         }
       }
-      
-      // Check if this is a test account
-      const isTestUser = user?.email?.includes('.test@learnable.edu') || user?.id?.startsWith('test-');
-      
-      if (!isTestUser) {
-        // For real accounts, use Supabase signOut
-        await supabase.auth.signOut();
-      }
-      
-      // Clear local state regardless of account type
+
+      const isTestUser =
+        user?.email?.includes(".test@learnable.edu") || user?.id?.startsWith("test-");
+
+      if (!isTestUser) await supabase.auth.signOut();
+
       setSession(null);
       setUser(null);
       setProfile(null);
       setUserRole(null);
       setIsSuperviser(false);
       setSchoolId(null);
-      
-      // Always redirect to home page after logout
+
       navigate("/");
-      
-      // Provide feedback to the user
       toast.success(isTestUser ? "Test session ended" : "Logged out successfully");
-      
     } catch (error: any) {
-      console.error("Error during sign out:", error);
-      toast.error(error.error_description || error.message || "Failed to log out");
+      toast.error(error.error_description ?? error.message ?? "Failed to log out");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const updateProfile = async (updates: any) => {
+  const updateProfile = async (updates: Partial<UserProfile>) => {
     setIsLoading(true);
     try {
       const { error } = await supabase.from("profiles").upsert({
         id: user?.id,
         ...updates,
       });
-
       if (error) throw error;
 
-      // Optimistically update the profile in the context
-      setProfile((prevProfile) => ({
-        ...prevProfile,
-        ...updates,
-      }));
+      setProfile((prev) => ({ ...prev, ...updates }));
       toast.success("Profile updated successfully!");
     } catch (error: any) {
-      toast.error(error.error_description || error.message);
+      toast.error(error.error_description ?? error.message);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Enhanced setTestUser method that creates a mock session without authentication
   const setTestUser = async (
-    type: 'school' | 'teacher' | 'student',
-    schoolIndex: number = 0
+    type: "school" | "teacher" | "student",
+    schoolIndex = 0
   ): Promise<void> => {
     setIsLoading(true);
     try {
-      console.log(`Setting up test user: ${type}`);
-      
-      // Prepare mock user data with a consistent ID pattern
       const mockId = `test-${type}-${schoolIndex}`;
-      const mockUser = {
+      const mockUser: User = {
         id: mockId,
         email: `${type}.test@learnable.edu`,
         user_metadata: {
           full_name: `Test ${type.charAt(0).toUpperCase() + type.slice(1)}`,
-          user_type: type
+          user_type: type,
         },
         app_metadata: {},
         aud: "authenticated",
-        created_at: new Date().toISOString()
-      } as User; // Type assertion to User
+        created_at: new Date().toISOString(),
+      };
 
-      // Create mock profile based on user type
       const mockProfile: UserProfile = {
         id: mockId,
         user_type: type,
@@ -382,53 +326,40 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
         organization: {
           id: `test-school-${schoolIndex}`,
           name: schoolIndex === 0 ? "Test School" : `Test School ${schoolIndex + 1}`,
-          code: `TEST${schoolIndex}`
-        }
+          code: `TEST${schoolIndex}`,
+        },
       };
 
-      // Create a mock session
-      const mockSession = {
+      const mockSession: Session = {
         user: mockUser,
         access_token: `test-token-${type}-${Date.now()}`,
         refresh_token: `test-refresh-${type}-${Date.now()}`,
-        expires_at: Date.now() + 3600000 // 1 hour from now
-      } as Session;
+        expires_at: Date.now() + 3600000,
+      };
 
-      // Set context values immediately for instant UI response
       setUser(mockUser);
       setProfile(mockProfile);
       setUserRole(type);
       setIsSuperviser(false);
       setSchoolId(mockProfile.organization?.id || null);
       setSession(mockSession);
-      
-      console.log(`Set test user role to: ${type}`);
-      
-      // For student test accounts, ensure we have proper session tracking
-      if (type === 'student') {
+
+      if (type === "student") {
         try {
-          // Start a session for the student
-          await sessionLogger.startSession('Test Login Session', mockId);
-          console.log(`Started test session for student ${mockId}`);
-        } catch (error) {
-          console.error("Error starting test session:", error);
-          // Continue with login even if session tracking fails
+          await sessionLogger.startSession("Test Login Session", mockId);
+        } catch (e) {
+          console.error("Error starting test session:", e);
         }
-      } else if (type === 'teacher') {
+      } else if (type === "teacher") {
         try {
-          const orgId = mockProfile.organization?.id || '';
+          const orgId = mockProfile.organization?.id || "";
           if (orgId) {
-            // Make sure to populate test sessions for teacher accounts on login
             await populateTestAccountWithSessions(mockId, orgId);
-            console.log(`Created test sessions for teacher account ${mockId}`);
           }
-        } catch (error) {
-          console.error("Error creating test sessions for teacher:", error);
-          // Continue with login even if session creation fails
+        } catch (e) {
+          console.error("Error creating test sessions:", e);
         }
       }
-
-      console.log(`Test user ${type} set up successfully`);
     } catch (error) {
       console.error("Error setting test user:", error);
       throw new Error("Failed to set up test account");
@@ -459,7 +390,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
 
 export function useAuth(): AuthContextType {
   const context = useContext(AuthContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
