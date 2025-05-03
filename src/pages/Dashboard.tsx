@@ -1,3 +1,4 @@
+
 import React, { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -36,7 +37,6 @@ const Dashboard = () => {
     
     // Only redirect if we know the role and it's a direct access
     if (userRole && isDirectDashboardAccess) {
-      // Only log if we're actually going to redirect
       console.log("Dashboard: Redirecting based on role", {
         userRole,
         isDirectDashboardAccess,
@@ -53,7 +53,7 @@ const Dashboard = () => {
   }, [userRole, navigate, location.state, profile]);
 
   // Show loading state if user or profile data is not ready
-  if (!user || !profile) {
+  if (!user && !location.state?.fromTestAccounts) {
     return (
       <>
         <Navbar />

@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -81,6 +82,7 @@ const TestAccounts = () => {
         id: "test-accounts-status",
       });
 
+      // Check if create-test-accounts function is available in Supabase config
       const response = await supabase.functions.invoke("create-test-accounts", {
         body: { createAccounts: true },
       });
@@ -117,14 +119,16 @@ const TestAccounts = () => {
 
       try {
         console.log(`TestAccounts: Logging in as ${accountType} test account...`);
-
+        
+        // First set test user in auth context
         await setTestUser(accountType);
+        
+        // Immediately show success toast so user gets feedback
         toast.success(`Logged in as ${account.role}`, {
           id: `login-success-${accountType}`,
         });
 
-        // Define redirect paths based on account type 
-        // with consistent state parameters for smooth navigation
+        // Define redirect paths based on account type
         let redirectPath = "/dashboard";
         
         if (accountType === "school") {
@@ -134,8 +138,8 @@ const TestAccounts = () => {
         }
 
         console.log(`TestAccounts: Navigating to ${redirectPath} for ${accountType}`);
-
-        // Use replace: true to prevent going back to login page from the dashboard
+        
+        // Don't add a delay here - navigate right away with proper state parameters
         navigate(redirectPath, {
           replace: true,
           state: { 
@@ -149,7 +153,8 @@ const TestAccounts = () => {
         console.error(`Error setting up ${accountType} test account:`, error);
         setErrorMessage(`Setup failed: ${error.message || "Unknown error"}`);
         toast.error(`Account setup failed: ${error.message || "Unknown error"}`);
-      } finally {
+        
+        // Make sure to reset loading state on error
         setLoadingAccount(null);
       }
     },

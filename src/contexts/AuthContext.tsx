@@ -402,7 +402,10 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
     try {
       console.log(`AuthContext: Setting up test user of type: ${type}`);
       
+      // Generate a stable ID for the test user
       const mockId = `test-${type}-${schoolIndex}`;
+      
+      // Create mock user object
       const mockUser: User = {
         id: mockId,
         email: `${type}.test@learnable.edu`,
@@ -420,6 +423,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       const testOrgName = schoolIndex === 0 ? "Test School" : `Test School ${schoolIndex + 1}`;
       const testOrgCode = `TEST${schoolIndex}`;
       
+      // Create mock profile with organization data
       const mockProfile: UserProfile = {
         id: mockId,
         user_type: type,
@@ -445,22 +449,26 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       console.log(`AuthContext: Test user profile:`, mockProfile);
 
       // Create mock sessions and data for different user types
+      // We'll handle this async, but not block the function completion on it
       if (type === "student") {
-        try {
-          console.log(`AuthContext: Creating student test session for ${mockId}`);
-          await sessionLogger.startSession("Test Login Session", mockId);
-        } catch (e) {
-          console.error("Error starting test session:", e);
-        }
+        setTimeout(async () => {
+          try {
+            console.log(`AuthContext: Creating student test session for ${mockId}`);
+            await sessionLogger.startSession("Test Login Session", mockId);
+          } catch (e) {
+            console.error("Error starting test session:", e);
+          }
+        }, 0);
       } else if (type === "teacher") {
-        try {
-          console.log(`AuthContext: Creating teacher test sessions for ${mockId} with organization ID ${testOrgId}`);
-          // Make sure the test school ID is properly passed to the function
-          await populateTestAccountWithSessions(mockId, testOrgId, 5);
-          console.log(`AuthContext: Successfully populated test data for teacher ${mockId}`);
-        } catch (e) {
-          console.error("Error creating teacher test sessions:", e);
-        }
+        setTimeout(async () => {
+          try {
+            console.log(`AuthContext: Creating teacher test sessions for ${mockId} with organization ID ${testOrgId}`);
+            await populateTestAccountWithSessions(mockId, testOrgId, 5);
+            console.log(`AuthContext: Successfully populated test data for teacher ${mockId}`);
+          } catch (e) {
+            console.error("Error creating teacher test sessions:", e);
+          }
+        }, 0);
       }
     } catch (error) {
       console.error("Error setting test user:", error);
