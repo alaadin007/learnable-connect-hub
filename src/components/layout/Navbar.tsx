@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -123,22 +122,20 @@ const Navbar = () => {
   // Check if we're on the test accounts page to hide the entire navbar
   const isTestAccountsPage = location.pathname === "/test-accounts";
 
-  // Fixed isActiveLink function to resolve TypeScript error
+  // Fixed isActiveLink function to resolve TypeScript error and ensure mutually exclusive highlighting
   const isActiveLink = (href: string): boolean => {
     const currentPath = location.pathname;
     
-    // Special handling for Dashboard link - make it mutually exclusive with School Admin
+    // Special handling for Dashboard link
     if (href === "/dashboard") {
-      // Dashboard is active only when exactly on dashboard
-      return currentPath === "/dashboard" && 
-            !currentPath.startsWith("/admin");
+      // Dashboard is active only when exactly on dashboard path
+      return currentPath === "/dashboard";
     }
     
-    // Special handling for School Admin link - make it mutually exclusive with Dashboard
+    // Special handling for School Admin link and its subpages
     if (href === "/admin") {
-      // Admin is active when on any admin page
-      return (currentPath === "/admin" || currentPath.startsWith("/admin/")) && 
-            currentPath !== "/dashboard";
+      // Admin is active when on any admin page (including teacher management)
+      return currentPath === "/admin" || currentPath.startsWith("/admin/");
     }
     
     // For Teachers menu item
