@@ -1,4 +1,3 @@
-
 import React, {
   createContext,
   useState,
@@ -431,23 +430,15 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
         },
       };
 
-      // Create a complete Session object with all required properties
-      const mockSession: Session = {
-        user: mockUser,
-        access_token: `test-token-${type}-${Date.now()}`,
-        refresh_token: `test-refresh-${type}-${Date.now()}`,
-        expires_at: Date.now() + 3600000,
-        expires_in: 3600,
-        token_type: "bearer"
-      };
-
-      // Set all state variables synchronously to ensure consistent state
+      // Set state variables synchronously - removed session object
       setUser(mockUser);
       setProfile(mockProfile);
       setUserRole(type);
       setIsSuperviser(false);
       setSchoolId(mockProfile.organization?.id || null);
-      setSession(mockSession);
+      
+      // Keep session null for test users
+      setSession(null);
 
       console.log(`AuthContext: Test user set up successfully. User role: ${type}`);
       console.log(`AuthContext: Test user profile:`, mockProfile);

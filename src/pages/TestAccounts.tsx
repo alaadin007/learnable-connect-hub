@@ -105,7 +105,7 @@ const TestAccounts = () => {
       try {
         console.log(`TestAccounts: Attempting to login as ${accountType} test account...`);
 
-        // Set up the test user in AuthContext
+        // Set up the test user in AuthContext - no session needed
         await setTestUser(accountType);
         console.log(`TestAccounts: Successfully set up ${accountType} test user`);
 

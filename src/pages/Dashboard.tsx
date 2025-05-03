@@ -177,15 +177,15 @@ const Dashboard = () => {
       <Navbar />
       <main className="container mx-auto px-4 py-8 min-h-screen">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Welcome, {profile.full_name || "User"}</h1>
+          <h1 className="text-3xl font-bold mb-2">Welcome, {profile?.full_name || "User"}</h1>
           <p className="text-gray-600">
-            {profile.user_type === "school"
+            {profile?.user_type === "school"
               ? "Manage your school, teachers, and view analytics"
-              : profile.user_type === "teacher"
+              : profile?.user_type === "teacher"
               ? "Manage your students and view their progress"
               : "Access your learning resources and complete your assessments"}
           </p>
-          {profile.user_type === "student" && profile.organization && (
+          {profile?.user_type === "student" && profile?.organization && (
             <p className="text-sm text-gray-500 mt-2">School: {profile.organization.name}</p>
           )}
         </div>
