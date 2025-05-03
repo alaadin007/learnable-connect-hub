@@ -1,3 +1,4 @@
+
 import React, {
   createContext,
   useState,
@@ -213,7 +214,13 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
           } else if (profileData.user_type === 'teacher') {
             const orgId = safeProfileData.organization?.id || '';
             if (orgId) {
-              await populateTestAccountWithSessions(userId, orgId);
+              // Make sure to populate test data for teacher accounts
+              try {
+                await populateTestAccountWithSessions(userId, orgId);
+                console.log(`Successfully populated test data for teacher ${userId}`);
+              } catch (error) {
+                console.error("Error populating test data for teacher:", error);
+              }
             }
           }
         }
@@ -404,6 +411,18 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
         } catch (error) {
           console.error("Error starting test session:", error);
           // Continue with login even if session tracking fails
+        }
+      } else if (type === 'teacher') {
+        try {
+          const orgId = mockProfile.organization?.id || '';
+          if (orgId) {
+            // Make sure to populate test sessions for teacher accounts on login
+            await populateTestAccountWithSessions(mockId, orgId);
+            console.log(`Created test sessions for teacher account ${mockId}`);
+          }
+        } catch (error) {
+          console.error("Error creating test sessions for teacher:", error);
+          // Continue with login even if session creation fails
         }
       }
 

@@ -169,14 +169,12 @@ const LoginForm = () => {
       // Use direct test account setup without authentication checks
       await setTestUser(type, schoolIndex);
       
-      // Navigate based on user type
-      if (type === 'school') {
-        navigate('/admin');
-      } else if (type === 'teacher') {
-        navigate('/teacher/analytics');
-      } else {
-        navigate('/dashboard');
-      }
+      // Navigate based on user type - ensure teacher routes to teacher/analytics
+      const redirectPath = type === 'school' ? '/admin' : 
+                           type === 'teacher' ? '/teacher/analytics' : 
+                           '/dashboard';
+      
+      navigate(redirectPath);
       
       toast.success(`Logged in as ${type === 'school' ? 'School Admin' : type === 'teacher' ? 'Teacher' : 'Student'}`);
     } catch (error: any) {
