@@ -1,3 +1,4 @@
+
 import React, { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -39,7 +40,8 @@ const Dashboard = () => {
       isFromNavigation,
       isFromDashboard,
       hasSpecificAccountType,
-      userRole
+      userRole,
+      locationState: location.state
     });
     
     // Only redirect if: 

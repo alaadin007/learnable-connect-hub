@@ -65,6 +65,7 @@ const LoginForm = () => {
 
         console.log(`LoginForm: Setting up test user of type ${type}`);
         await setTestUser(type);
+        console.log(`LoginForm: Successfully set up test user of type ${type}`);
 
         const redirectPath = type === "school"
           ? "/admin"
@@ -82,7 +83,14 @@ const LoginForm = () => {
           }!`,
         });
 
-        navigate(redirectPath, { state: { fromTestAccounts: true, accountType: type } });
+        console.log(`LoginForm: Redirecting test user to ${redirectPath}`);
+        navigate(redirectPath, { 
+          replace: true, 
+          state: { 
+            fromTestAccounts: true, 
+            accountType: type 
+          } 
+        });
         return;
       }
 
@@ -150,6 +158,7 @@ const LoginForm = () => {
     try {
       console.log(`LoginForm: Quick login as ${type}`);
       await setTestUser(type, schoolIndex);
+      console.log(`LoginForm: Successfully set up quick login for ${type}`);
 
       const redirectPath =
         type === "school"
@@ -158,6 +167,7 @@ const LoginForm = () => {
           ? "/teacher/analytics"
           : "/dashboard";
 
+      console.log(`LoginForm: Redirecting quick login user to ${redirectPath}`);
       toast.success(
         `Logged in as ${
           type === "school"
@@ -175,9 +185,9 @@ const LoginForm = () => {
         }
       });
     } catch (error: any) {
+      console.error("Quick login error:", error);
       setLoginError(`Failed to log in with test account: ${error.message}`);
       toast.error("Failed to log in with test account");
-      console.error("Quick login error:", error);
     } finally {
       setIsLoading(false);
     }

@@ -1,3 +1,4 @@
+
 import React, {
   createContext,
   useState,
@@ -153,15 +154,27 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       setSchoolId(safeProfileData.organization?.id || null);
 
       if (user && isTestAccount(user.email || '')) {
-        if (safeProfileData.organization && !safeProfileData.organization.code) {
-          // Fix error 1: Ensure organization object has all required properties
+        console.log("AuthContext: Test account detected, ensuring organization data is complete");
+        
+        // Ensure organization object has all required properties for test accounts
+        if (!safeProfileData.organization || !safeProfileData.organization.code) {
+          console.log("AuthContext: Organization data missing or incomplete, updating profile");
+          
+          // Create a complete organization object with all required properties
+          const updatedOrg = {
+            id: safeProfileData.organization?.id || `test-org-${Date.now()}`,
+            name: safeProfileData.organization?.name || "Test Organization",
+            code: TEST_SCHOOL_CODE
+          };
+          
           await updateProfile({ 
-            organization: { 
-              id: safeProfileData.organization.id || `test-org-${Date.now()}`,
-              name: safeProfileData.organization.name || "Test Organization",
-              code: TEST_SCHOOL_CODE 
-            } 
+            organization: updatedOrg
           });
+          
+          // Update local state immediately
+          safeProfileData.organization = updatedOrg;
+          setProfile(safeProfileData);
+          setSchoolId(updatedOrg.id);
         }
 
         if (profileData.user_type === "student") {
@@ -196,8 +209,9 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
           const orgId = safeProfileData.organization?.id || "";
           if (orgId) {
             try {
+              console.log(`AuthContext: Populating test data for teacher ${userId} with orgId ${orgId}`);
               await populateTestAccountWithSessions(userId, orgId);
-              console.log(`Populated test data for teacher ${userId}`);
+              console.log(`AuthContext: Successfully populated test data for teacher ${userId}`);
             } catch (error) {
               console.error("Error populating test data for teacher:", error);
             }
@@ -292,8 +306,16 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
   const updateProfile = async (updates: Partial<UserProfile>) => {
     setIsLoading(true);
     try {
-      // Ensure user_type is always provided when updating profiles
+      console.log("AuthContext: Updating profile with:", updates);
+      
+      // Prepare updates for the database
       const updatesForDb: any = { ...updates };
+      
+      // Handle organization updates separately if provided
+      const orgUpdates = updates.organization ? { ...updates.organization } : null;
+      
+      // Remove organization from direct updates as it's a relation
+      if (updatesForDb.organization) delete updatesForDb.organization;
       
       // Ensure user_type is present and not undefined
       if (!updatesForDb.user_type && profile?.user_type) {
@@ -306,16 +328,66 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
         updatesForDb.user_type = "student";
       }
       
+      console.log("AuthContext: Prepared DB updates:", updatesForDb);
+      
+      // Update the profile
       const { error } = await supabase.from("profiles").upsert({
         id: user?.id,
         ...updatesForDb,
       });
       
       if (error) throw error;
+      
+      // If we have organization updates and this is a test user, update the related organization
+      if (orgUpdates && user && isTestAccount(user.email || '')) {
+        console.log("AuthContext: Updating organization for test account:", orgUpdates);
+        
+        // Check if the organization exists
+        const { data: existingOrg } = await supabase
+          .from("schools")
+          .select("id")
+          .eq("id", orgUpdates.id)
+          .single();
+        
+        if (existingOrg) {
+          // Update existing organization
+          const { error: orgError } = await supabase
+            .from("schools")
+            .update({
+              name: orgUpdates.name,
+              code: orgUpdates.code
+            })
+            .eq("id", orgUpdates.id);
+            
+          if (orgError) {
+            console.error("Error updating organization:", orgError);
+          }
+        } else {
+          // Create new organization
+          const { error: orgError } = await supabase
+            .from("schools")
+            .insert({
+              id: orgUpdates.id,
+              name: orgUpdates.name,
+              code: orgUpdates.code
+            });
+            
+          if (orgError) {
+            console.error("Error creating organization:", orgError);
+          }
+        }
+      }
 
-      setProfile((prev) => ({ ...prev, ...updates }));
+      // Update local state with the new profile data
+      setProfile((prev) => {
+        const newProfile = { ...prev, ...updates };
+        console.log("AuthContext: Updated local profile state:", newProfile);
+        return newProfile;
+      });
+      
       toast.success("Profile updated successfully!");
     } catch (error: any) {
+      console.error("Error updating profile:", error);
       toast.error(error.error_description ?? error.message);
     } finally {
       setIsLoading(false);
@@ -378,6 +450,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       setSession(mockSession);
 
       console.log(`AuthContext: Test user set up successfully. User role: ${type}`);
+      console.log(`AuthContext: Test user profile:`, mockProfile);
 
       // Create mock sessions and data for different user types
       if (type === "student") {
@@ -392,6 +465,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
           console.log(`AuthContext: Creating teacher test sessions for ${mockId}`);
           const orgId = testOrgId; // Use the test organization ID directly
           if (orgId) {
+            console.log(`AuthContext: Calling populateTestAccountWithSessions for teacher ${mockId} with orgId ${orgId}`);
             await populateTestAccountWithSessions(mockId, orgId);
             console.log(`AuthContext: Populated test data for teacher ${mockId}`);
           }

@@ -26,7 +26,8 @@ export const supabase = createClient<Database>(
 // Helper function to detect test accounts
 export const isTestAccount = (email: string): boolean => {
   // Used to identify development test accounts which get special handling
-  return email.endsWith('@testschool.edu');
+  if (!email) return false;
+  return email.endsWith('@testschool.edu') || email.endsWith('.test@learnable.edu');
 };
 
 // Default test school code - used when creating test accounts

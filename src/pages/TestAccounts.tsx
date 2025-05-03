@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -106,6 +107,7 @@ const TestAccounts = () => {
 
         // Set up the test user in AuthContext
         await setTestUser(accountType);
+        console.log(`TestAccounts: Successfully set up ${accountType} test user`);
 
         toast.success(`Logged in as ${account.role} (test mode)`, {
           id: `login-success-${accountType}`,
@@ -118,9 +120,11 @@ const TestAccounts = () => {
           redirectPath = "/admin";
         } else if (accountType === "teacher") {
           redirectPath = "/teacher/analytics";
-          console.log("TestAccounts: Teacher account - redirecting to", redirectPath);
+          console.log(`TestAccounts: Teacher account - redirecting to ${redirectPath}`);
         }
 
+        console.log(`TestAccounts: Navigating to ${redirectPath} with account type ${accountType}`);
+        
         // Use navigate with replace: true to avoid history issues
         navigate(redirectPath, {
           replace: true,
