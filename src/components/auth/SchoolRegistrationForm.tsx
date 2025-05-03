@@ -120,7 +120,6 @@ const SchoolRegistrationForm: React.FC = () => {
 
   const checkIfEmailExists = async (email: string): Promise<boolean> => {
     try {
-      // Instead of using admin.listUsers with filter property which causes TypeScript errors,
       // Try a sign-in attempt to check if the email exists
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: email,
@@ -138,26 +137,14 @@ const SchoolRegistrationForm: React.FC = () => {
           setExistingUserRole(userRole);
         }
         
-        // Additional check to see if the email is in use by getting profiles
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select('id')
-          .limit(1);
-        
-        // If we can't check profiles, assume the email exists for safety
-        if (profileError) {
-          console.error("Error checking profiles:", profileError);
-          return true;
-        }
-        
-        return !!profileData && profileData.length > 0;
+        return true;
       }
 
-      return emailExists;
+      return false;
     } catch (error) {
       console.error("Error checking email existence:", error);
       // In case of error, safer to assume it might exist
-      return true;
+      return false;
     }
   };
 
@@ -194,7 +181,17 @@ const SchoolRegistrationForm: React.FC = () => {
       }
       
       // Call our edge function to register the school
-      const { data: responseData, error } = await supabase.functions.invoke("register-school", {
+      const response = await supabase.functions.invoke<{
+        success?: boolean;
+        error?: string;
+        details?: string;
+        schoolId?: string;
+        schoolCode?: string;
+        adminUserId?: string;
+        emailSent?: boolean;
+        emailError?: string | null;
+        message?: string;
+      }>("register-school", {
         body: {
           schoolName: data.schoolName,
           adminEmail: data.adminEmail,
@@ -202,9 +199,11 @@ const SchoolRegistrationForm: React.FC = () => {
           adminFullName: data.adminFullName,
         },
       });
-
+      
       // Dismiss the loading toast
       toast.dismiss(loadingToast);
+      
+      const { data: responseData, error } = response;
 
       if (error) {
         console.error("School registration error:", error);
@@ -234,6 +233,7 @@ const SchoolRegistrationForm: React.FC = () => {
         } else {
           toast.error(`Registration failed: ${error.message || "Unknown error"}`);
         }
+        setIsLoading(false);
         return;
       }
 
@@ -265,51 +265,33 @@ const SchoolRegistrationForm: React.FC = () => {
         } else {
           toast.error(`Registration failed: ${responseData.error}`);
         }
+        setIsLoading(false);
         return;
       }
 
-      if (responseData.success) {
+      if (responseData?.success) {
         // Store the email and school code for potential later use
         setRegisteredEmail(data.adminEmail);
         setSchoolCode(responseData.schoolCode);
         
-        // Set email sent state
+        // Set email sent state - with auto-confirmation we can go straight to login
         setEmailSent(true);
         
-        // Show success message with school details and clear confirmation about email
+        // Show success message with school details
         toast.success(
           `School "${data.schoolName}" successfully registered!`,
           {
-            description: `Your school code is: ${responseData.schoolCode}. ${responseData.emailSent ? 
-              "Please check your email to complete verification." : 
-              "There was an issue sending the verification email. You can request another one below."}`,
+            description: `Your school code is: ${responseData.schoolCode}. You can now log in with your email and password.`,
             duration: 10000, // Show for 10 seconds
           }
         );
         
-        // We don't auto-login since email needs to be verified first
-        toast.info(
-          "Email verification required",
-          {
-            description: "Please check your inbox and spam folders for the verification email. If you don't receive it within a few minutes, you can request another verification email using the button below.",
-            duration: 15000,
-            icon: <Mail className="h-4 w-4" />,
-          }
-        );
-        
-        // If email wasn't sent successfully, show a warning
-        if (!responseData.emailSent) {
-          toast.warning(
-            "Email delivery issue",
-            {
-              description: "We couldn't confirm if the verification email was sent successfully. If you don't receive it, please use the 'Request Verification Email' button on the next screen.",
-              duration: 10000,
-              icon: <AlertTriangle className="h-4 w-4" />,
-            }
-          );
-        }
+        // Auto navigate to login after 3 seconds
+        setTimeout(() => {
+          navigate('/login');
+        }, 3000);
       } else {
-        toast.error(`Registration failed: ${responseData.error || "Unknown error"}`);
+        toast.error(`Registration failed: ${responseData?.error || "Unknown error"}`);
       }
     } catch (error: any) {
       console.error("Unexpected error:", error);
@@ -327,9 +309,9 @@ const SchoolRegistrationForm: React.FC = () => {
           <div className="bg-green-100 text-green-800 rounded-full p-4 w-16 h-16 flex items-center justify-center mx-auto mb-4">
             <Mail className="h-8 w-8" />
           </div>
-          <h2 className="text-2xl font-semibold mb-3 gradient-text">Check Your Email</h2>
+          <h2 className="text-2xl font-semibold mb-3 gradient-text">Registration Successful!</h2>
           <p className="text-gray-600 mb-4">
-            We've sent a verification link to your email address. Please check your inbox and spam folder and verify your account to continue.
+            Your school has been successfully registered. You can now log in with your email and password.
           </p>
           
           {schoolCode && (
@@ -345,34 +327,12 @@ const SchoolRegistrationForm: React.FC = () => {
           
           <div className="space-y-4">
             <Button 
-              variant="outline" 
-              className="w-full" 
+              variant="default" 
+              className="w-full gradient-bg" 
               onClick={() => navigate("/login")}
             >
               Go to Login
             </Button>
-            
-            {registeredEmail && (
-              <Button
-                variant="secondary"
-                className="w-full"
-                onClick={handleResetPassword}
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Sending...
-                  </>
-                ) : (
-                  "Request Verification Email Again"
-                )}
-              </Button>
-            )}
-            
-            <p className="text-sm text-gray-500">
-              If you don't receive an email, check your spam folder or request another verification email using the button above.
-            </p>
           </div>
         </div>
       </div>
@@ -396,14 +356,6 @@ const SchoolRegistrationForm: React.FC = () => {
             </AlertDescription>
           </Alert>
         )}
-        
-        <Alert className="mb-6 bg-blue-50 border-blue-200">
-          <Info className="h-4 w-4 text-blue-800" />
-          <AlertTitle className="text-blue-800">Email Verification Required</AlertTitle>
-          <AlertDescription className="text-blue-700">
-            After registration, you'll need to verify your email before accessing your school dashboard.
-          </AlertDescription>
-        </Alert>
         
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
