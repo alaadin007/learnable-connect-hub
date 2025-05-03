@@ -1,4 +1,3 @@
-
 import { SchoolRegistrationData, RegistrationResult } from "./types.ts";
 import { corsHeaders } from "./cors.ts";
 import { checkEmailExists } from "./email-verification.ts";
@@ -9,163 +8,129 @@ import { createAdminUser, createProfileRecord, createTeacherRecord } from "./use
 import { cleanupSchoolCodeOnFailure, cleanupOnFailure } from "./cleanup.ts";
 
 export async function handleSchoolRegistration(req: Request): Promise<Response> {
-  // Get request data
-  let requestData;
+  let requestData: SchoolRegistrationData;
+
   try {
     requestData = await req.json();
-    console.log("Request data received:", JSON.stringify({
-      schoolName: requestData.schoolName,
-      adminEmail: requestData.adminEmail,
-      adminFullName: requestData.adminFullName,
-      // Not logging password for security
-    }));
+    // Only log safe info (avoid password)
+    console.log(
+      "Received registration data:",
+      JSON.stringify({
+        schoolName: requestData.schoolName,
+        adminEmail: requestData.adminEmail,
+        adminFullName: requestData.adminFullName,
+      }),
+    );
   } catch (parseError) {
-    console.error("Failed to parse request JSON:", parseError);
+    console.error("Failed to parse JSON body:", parseError);
     return new Response(
-      JSON.stringify({ error: "Invalid request format" }),
-      { 
-        status: 400, 
-        headers: { ...corsHeaders, "Content-Type": "application/json" }
-      }
+      JSON.stringify({ error: "Invalid JSON body." }),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
-  
-  const { schoolName, adminEmail, adminPassword, adminFullName } = requestData as SchoolRegistrationData;
-  
-  // Get request URL to determine origin for redirects
+
+  const { schoolName, adminEmail, adminPassword, adminFullName } = requestData;
+
+  if (!schoolName || !adminEmail || !adminPassword || !adminFullName) {
+    console.error("Missing required fields in registration data");
+    return new Response(
+      JSON.stringify({
+        error: "Missing required fields: schoolName, adminEmail, adminPassword, adminFullName",
+      }),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+
   const requestUrl = new URL(req.url);
   const origin = requestUrl.origin;
-  console.log(`Request origin: ${origin}`);
-  
-  // Retrieve frontend URL - use environment variable if set, otherwise use the request origin
   const frontendURL = Deno.env.get("FRONTEND_URL") || origin;
-  console.log(`Frontend URL being used: ${frontendURL}`);
-  console.log(`Redirect URL will be: ${frontendURL}/login?email_confirmed=true`);
-  
-  // Validate required fields
-  if (!schoolName || !adminEmail || !adminPassword || !adminFullName) {
-    console.error("Missing required fields:", {
-      hasSchoolName: !!schoolName,
-      hasAdminEmail: !!adminEmail,
-      hasAdminPassword: !!adminPassword,
-      hasAdminFullName: !!adminFullName
-    });
-    
-    return new Response(
-      JSON.stringify({ 
-        error: "Missing required fields. School name, admin email, admin password, and admin full name are required." 
-      }),
-      { 
-        status: 400, 
-        headers: { ...corsHeaders, "Content-Type": "application/json" }
-      }
-    );
-  }
-  
-  // Create a Supabase client with the service role key
+  const emailConfirmationRedirectUrl = `${frontendURL}/login?email_confirmed=true`;
+
   const supabaseAdmin = createSupabaseAdmin();
-  
-  // Check if email already exists FIRST before creating any resources
+
+  // Check if admin email already exists
   const emailCheck = await checkEmailExists(adminEmail);
   if (emailCheck.exists && emailCheck.response) {
     return emailCheck.response;
   }
-  
+
   try {
-    // Generate a school code
+    // Generate school code and create relevant entries
     const schoolCode = await generateSchoolCode(supabaseAdmin);
-    
-    // First create the entry in school_codes table
     await createSchoolCodeEntry(supabaseAdmin, schoolCode, schoolName);
-    
+
     let schoolId;
     try {
-      // Create the school record
       schoolId = await createSchoolRecord(supabaseAdmin, schoolName, schoolCode);
-    } catch (error) {
-      // Clean up the school_code entry
+    } catch (err) {
       await cleanupSchoolCodeOnFailure(supabaseAdmin, schoolCode);
-      throw error;
-    }
-    
-    // Set up redirect URL for email confirmation
-    const redirectURL = `${frontendURL}/login?email_confirmed=true`;
-    console.log(`Email confirmation redirect URL: ${redirectURL}`);
-    
-    let adminUserId;
-    try {
-      // Create the admin user
-      adminUserId = await createAdminUser(
-        supabaseAdmin, 
-        adminEmail, 
-        adminPassword, 
-        adminFullName, 
-        schoolCode, 
-        schoolName, 
-        redirectURL
-      );
-    } catch (error: any) {
-      // Clean up: remove school if user creation fails
-      await cleanupOnFailure(supabaseAdmin, undefined, schoolId, schoolCode);
-      
-      // Special handling for "already registered" errors
-      if (error.message && error.message.includes("already registered")) {
-        return new Response(
-          JSON.stringify({ 
-            error: "Email already registered", 
-            message: "This email address is already registered. Please use a different email address or try logging in." 
-          }),
-          { 
-            status: 409, 
-            headers: { ...corsHeaders, "Content-Type": "application/json" }
-          }
-        );
-      }
-      
-      throw error;
-    }
-    
-    try {
-      // Create profile record
-      await createProfileRecord(supabaseAdmin, adminUserId, adminFullName, schoolCode, schoolName);
-      
-      // Create teacher record with supervisor privileges
-      await createTeacherRecord(supabaseAdmin, adminUserId, schoolId);
-    } catch (error) {
-      // Clean up: remove user if teacher record creation fails
-      await cleanupOnFailure(supabaseAdmin, adminUserId, schoolId, schoolCode);
-      throw error;
+      throw err;
     }
 
-    // Return success with school and admin info
+    // Create admin user with email confirmation link
+    let adminUserId;
+    try {
+      adminUserId = await createAdminUser(
+        supabaseAdmin,
+        adminEmail,
+        adminPassword,
+        adminFullName,
+        schoolCode,
+        schoolName,
+        emailConfirmationRedirectUrl,
+      );
+    } catch (err: any) {
+      await cleanupOnFailure(supabaseAdmin, undefined, schoolId, schoolCode);
+
+      if (err.message.includes("already registered")) {
+        return new Response(
+          JSON.stringify({
+            error: "Email already registered",
+            message:
+              "This email address is already registered. Please use a different email or log in.",
+          }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      throw err;
+    }
+
+    // Create related records: profile and teacher with supervisor role
+    try {
+      await createProfileRecord(supabaseAdmin, adminUserId, adminFullName, schoolCode, schoolName);
+      await createTeacherRecord(supabaseAdmin, adminUserId, schoolId);
+    } catch (err) {
+      await cleanupOnFailure(supabaseAdmin, adminUserId, schoolId, schoolCode);
+      throw err;
+    }
+
     const result: RegistrationResult = {
       success: true,
       schoolId,
       schoolCode,
       adminUserId,
-      emailSent: true, // We're sending confirmation emails
+      emailSent: true,
       emailError: null,
-      message: "School and admin account successfully created. Please check your email to verify your account before logging in."
+      message:
+        "School and admin account successfully created. Please check your email to verify your account before logging in.",
     };
 
-    return new Response(
-      JSON.stringify(result),
-      { 
-        status: 200, 
-        headers: { ...corsHeaders, "Content-Type": "application/json" }
-      }
-    );
+    return new Response(JSON.stringify(result), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   } catch (error: any) {
-    console.error("Error during registration:", error);
+    console.error("Registration error:", error);
     return new Response(
-      JSON.stringify({ 
-        error: error.message || "An unexpected error occurred", 
-        details: error.stack || "No stack trace available"
+      JSON.stringify({
+        error: error.message || "An unexpected error occurred.",
+        details: error.stack || "No stack trace available.",
       }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, "Content-Type": "application/json" }
-      }
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
     );
   }
 }
