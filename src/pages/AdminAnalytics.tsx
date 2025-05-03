@@ -27,7 +27,7 @@ import {
   AnalyticsSummaryCards
 } from "@/components/analytics";
 import { AnalyticsFilters as FiltersType, SessionData, TopicData, StudyTimeData, Student } from "@/components/analytics/types";
-import { useToast } from "@/hooks/use-toast"; // Updated import path
+import { useToast } from "@/hooks/use-toast";
 import { SchoolPerformancePanel } from "@/components/analytics/SchoolPerformancePanel";
 import { TeacherPerformanceTable } from "@/components/analytics/TeacherPerformanceTable";
 import { StudentPerformanceTable } from "@/components/analytics/StudentPerformanceTable";
@@ -184,12 +184,18 @@ const AdminAnalytics = () => {
       
       // Create mock sessions data if none exists
       if (sessions.length === 0) {
-        const mockSessions = Array(5).fill(null).map((_, i) => ({
+        const mockSessions: SessionData[] = Array(5).fill(null).map((_, i) => ({
           id: `mock-session-${i}`,
-          studentId: `student-${i % 3 + 1}`,
-          studentName: `Student ${i % 3 + 1}`,
-          date: new Date(Date.now() - i * 86400000).toISOString(),
-          duration: Math.floor(Math.random() * 45) + 10,
+          student_id: `student-${i % 3 + 1}`,
+          student_name: `Student ${i % 3 + 1}`,
+          session_date: new Date(Date.now() - i * 86400000).toISOString(),
+          duration_minutes: Math.floor(Math.random() * 45) + 10,
+          topics: ['Math', 'Science', 'History', 'English', 'Geography'][i % 5].split(','),
+          questions_asked: Math.floor(Math.random() * 10) + 3,
+          questions_answered: Math.floor(Math.random() * 8) + 2,
+          // Compatibility fields
+          userId: `student-${i % 3 + 1}`,
+          userName: `Student ${i % 3 + 1}`,
           topic: ['Math', 'Science', 'History', 'English', 'Geography'][i % 5],
           queries: Math.floor(Math.random() * 10) + 3
         }));
@@ -198,22 +204,22 @@ const AdminAnalytics = () => {
       
       // Create mock topics data if none exists
       if (topics.length === 0) {
-        const mockTopics = [
-          { topic: 'Math', count: 15 },
-          { topic: 'Science', count: 12 },
-          { topic: 'History', count: 8 },
-          { topic: 'English', count: 7 },
-          { topic: 'Geography', count: 5 }
+        const mockTopics: TopicData[] = [
+          { topic: 'Math', count: 15, name: 'Math', value: 15 },
+          { topic: 'Science', count: 12, name: 'Science', value: 12 },
+          { topic: 'History', count: 8, name: 'History', value: 8 },
+          { topic: 'English', count: 7, name: 'English', value: 7 },
+          { topic: 'Geography', count: 5, name: 'Geography', value: 5 }
         ];
         setTopics(mockTopics);
       }
       
       // Create mock study time data if none exists
       if (studyTime.length === 0) {
-        const mockStudyTime = [
-          { student_id: 'student-1', student_name: 'Student 1', total_minutes: 240 },
-          { student_id: 'student-2', student_name: 'Student 2', total_minutes: 180 },
-          { student_id: 'student-3', student_name: 'Student 3', total_minutes: 150 },
+        const mockStudyTime: StudyTimeData[] = [
+          { student_id: 'student-1', student_name: 'Student 1', total_minutes: 240, name: 'Student 1', studentName: 'Student 1', hours: 4, week: 1, year: 2023 },
+          { student_id: 'student-2', student_name: 'Student 2', total_minutes: 180, name: 'Student 2', studentName: 'Student 2', hours: 3, week: 1, year: 2023 },
+          { student_id: 'student-3', student_name: 'Student 3', total_minutes: 150, name: 'Student 3', studentName: 'Student 3', hours: 2.5, week: 1, year: 2023 },
         ];
         setStudyTime(mockStudyTime);
       }
