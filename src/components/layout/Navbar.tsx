@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Menu, X } from "lucide-react";
+import { Menu, X, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -13,6 +13,10 @@ const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const isMobile = useIsMobile();
   const location = useLocation();
+  
+  // Check if this is a test account by email or ID pattern
+  const isTestAccount = user?.email?.includes('.test@learnable.edu') || 
+                     user?.id?.startsWith('test-');
   
   const isPublicPage = 
     location.pathname === "/" || 
@@ -35,6 +39,12 @@ const Navbar = () => {
   const handleLogout = async () => {
     await signOut();
     navigate("/");
+    setIsOpen(false);
+  };
+
+  const handleBackToTestAccounts = async () => {
+    await signOut();
+    navigate("/test-accounts");
     setIsOpen(false);
   };
 
@@ -192,9 +202,34 @@ const Navbar = () => {
           {!isTestAccountsPage && (
             <div className="hidden md:flex items-center space-x-4">
               {isLoggedIn ? (
-                <Button onClick={handleLogout} variant="outline">
-                  Log Out
-                </Button>
+                <>
+                  {isTestAccount && (
+                    <div className="flex items-center mr-2 px-3 py-1 bg-amber-100 rounded-full">
+                      <span className="text-amber-700 text-xs font-medium">Test Account</span>
+                    </div>
+                  )}
+                  <div className="flex space-x-2">
+                    {isTestAccount && (
+                      <Button 
+                        onClick={handleBackToTestAccounts} 
+                        variant="outline"
+                        size="sm"
+                        className="flex items-center text-amber-700 border-amber-300 hover:bg-amber-50"
+                      >
+                        Test Accounts
+                      </Button>
+                    )}
+                    <Button 
+                      onClick={handleLogout} 
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center"
+                    >
+                      <LogOut className="h-4 w-4 mr-1" />
+                      Log Out
+                    </Button>
+                  </div>
+                </>
               ) : (
                 <>
                   {!isAuthPage && (
@@ -247,9 +282,26 @@ const Navbar = () => {
           </div>
           <div className="pt-4 space-y-4">
             {isLoggedIn ? (
-              <Button onClick={handleLogout} variant="outline" className="w-full">
-                Log Out
-              </Button>
+              <>
+                {isTestAccount && (
+                  <div className="mb-2 px-3 py-2 bg-amber-100 rounded-md">
+                    <span className="text-amber-700 text-sm font-medium">You're using a test account</span>
+                  </div>
+                )}
+                {isTestAccount && (
+                  <Button 
+                    onClick={handleBackToTestAccounts} 
+                    variant="outline" 
+                    className="w-full border-amber-300 text-amber-700 hover:bg-amber-50"
+                  >
+                    Back to Test Accounts
+                  </Button>
+                )}
+                <Button onClick={handleLogout} variant="outline" className="w-full">
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Log Out
+                </Button>
+              </>
             ) : (
               <>
                 {!isAuthPage && (
