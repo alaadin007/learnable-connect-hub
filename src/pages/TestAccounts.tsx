@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -109,14 +110,15 @@ const TestAccounts = () => {
           id: `login-success-${accountType}`,
         });
 
-        const redirectPath =
-          accountType === "school"
-            ? "/admin"
-            : accountType === "teacher"
-            ? "/teacher/analytics"
-            : "/dashboard";
+        // Define redirect paths
+        let redirectPath = "/dashboard";
+        if (accountType === "school") {
+          redirectPath = "/admin";
+        } else if (accountType === "teacher") {
+          redirectPath = "/teacher/analytics";
+        }
 
-        console.log(`TestAccounts: Navigating to ${redirectPath}`);
+        console.log(`TestAccounts: Navigating to ${redirectPath} for ${accountType}`);
 
         navigate(redirectPath, {
           replace: true,

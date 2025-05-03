@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -159,7 +158,7 @@ const LoginForm = () => {
     try {
       console.log(`LoginForm: Quick login as ${type}`);
       
-      // Direct login for test accounts, simplified logic
+      // Direct login for test accounts
       await setTestUser(type, schoolIndex);
       console.log(`LoginForm: Successfully set up quick login for ${type}`);
 
