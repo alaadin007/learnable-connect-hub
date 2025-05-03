@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -118,6 +119,9 @@ const LoginForm = () => {
 
       console.log("LoginForm: Sign in successful, fetching user data");
       
+      // Small delay to ensure auth state has been processed
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       const {
         data: { user },
         error: getUserError
@@ -148,6 +152,8 @@ const LoginForm = () => {
           // Try to extract relevant data from user metadata
           const defaultUserType = user.user_metadata?.user_type || "student";
           const defaultName = user.user_metadata?.full_name || user.email?.split('@')[0] || "User";
+          const schoolCode = user.user_metadata?.school_code;
+          const schoolName = user.user_metadata?.school_name || "Default School";
           
           // Create a basic profile
           const { error: createProfileError } = await supabase
@@ -155,7 +161,9 @@ const LoginForm = () => {
             .insert({
               id: user.id,
               user_type: defaultUserType,
-              full_name: defaultName
+              full_name: defaultName,
+              school_code: schoolCode,
+              school_name: schoolName
             });
             
           if (createProfileError) {
@@ -163,7 +171,34 @@ const LoginForm = () => {
             throw new Error("Failed to create user profile");
           }
           
-          // Set basic profile info
+          // For school admin, ensure school entry exists
+          if (defaultUserType === "school") {
+            // Check if school already exists
+            const { data: existingSchool } = await supabase
+              .from("schools")
+              .select("id")
+              .eq("code", schoolCode || `SCHOOL_${user.id.substring(0, 8)}`)
+              .single();
+              
+            if (!existingSchool) {
+              // Create school entry
+              const schoolCode = user.user_metadata?.school_code || `SCHOOL_${user.id.substring(0, 8)}`;
+              await supabase
+                .from("schools")
+                .insert({
+                  name: schoolName,
+                  code: schoolCode
+                });
+                
+              // Update profile with school code
+              await supabase
+                .from("profiles")
+                .update({ school_code: schoolCode })
+                .eq("id", user.id);
+            }
+          }
+          
+          // Redirect based on user type
           const userType = defaultUserType as "school" | "teacher" | "student";
           const redirectPath = userType === "school" ? "/admin" : 
                               userType === "teacher" ? "/teacher/analytics" :
@@ -189,20 +224,55 @@ const LoginForm = () => {
       let orgData = null;
       if (profileData?.user_type === "school") {
         try {
-          const { data: schoolData, error: schoolError } = await supabase
-            .from("schools")
-            .select("id, name, code")
-            .eq("code", profileData.school_code)
-            .single();
+          // Get or create school data
+          let schoolData;
+          
+          if (profileData.school_code) {
+            const { data, error: schoolError } = await supabase
+              .from("schools")
+              .select("id, name, code")
+              .eq("code", profileData.school_code)
+              .single();
+              
+            if (!schoolError && data) {
+              schoolData = data;
+            }
+          }
+          
+          // Create school if it doesn't exist
+          if (!schoolData) {
+            console.log("LoginForm: School data not found, creating school entry");
+            const schoolCode = profileData.school_code || `SCHOOL_${user.id.substring(0, 8)}`;
+            const schoolName = profileData.school_name || user.user_metadata?.school_name || "Default School";
             
-          if (!schoolError && schoolData) {
+            const { data: newSchool, error: createSchoolError } = await supabase
+              .from("schools")
+              .insert({
+                name: schoolName,
+                code: schoolCode
+              })
+              .select()
+              .single();
+              
+            if (createSchoolError) {
+              console.error("LoginForm: Error creating school:", createSchoolError);
+            } else {
+              schoolData = newSchool;
+              
+              // Update profile with school code
+              await supabase
+                .from("profiles")
+                .update({ school_code: schoolCode })
+                .eq("id", user.id);
+            }
+          }
+          
+          if (schoolData) {
             console.log("LoginForm: Found school data:", schoolData);
             orgData = schoolData;
-          } else {
-            console.warn("LoginForm: No school data found for code:", profileData.school_code);
           }
         } catch (err) {
-          console.error("LoginForm: Error fetching school data:", err);
+          console.error("LoginForm: Error handling school data:", err);
         }
       }
 
