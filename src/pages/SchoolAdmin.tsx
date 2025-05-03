@@ -27,7 +27,6 @@ export type TeacherInvitation = {
   created_by: string;
   created_at: string;
   expires_at: string;
-  expires_at: string;
 };
 
 const SchoolAdmin = () => {
