@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -303,7 +302,7 @@ const LoginForm = () => {
                   onClick={handleResetPassword}
                   className="text-sm text-learnable-blue hover:underline"
                 >
-                  Forgot password?
+                  Forgot password?\
                 </button>
               </div>
               <Input
@@ -343,3 +342,6 @@ const LoginForm = () => {
       </Card>
     </div>
   );
+};
+
+export default LoginForm;
