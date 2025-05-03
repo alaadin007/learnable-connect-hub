@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import {
   Select,
@@ -31,37 +30,45 @@ export function TeacherSelector({
 
   useEffect(() => {
     const fetchTeachers = async () => {
-      if (!schoolId) return;
+      if (!schoolId) {
+        setTeachers([]);
+        return;
+      }
       
       setIsLoading(true);
       try {
-        // First get all teachers for this school
+        // Fetch teacher IDs associated with school
         const { data: teachersData, error } = await supabase
           .from('teachers')
           .select('id')
           .eq('school_id', schoolId);
-          
+
         if (error) throw error;
         
-        if (teachersData && teachersData.length > 0) {
-          // Get their profiles
-          const teacherIds = teachersData.map(t => t.id);
-          const { data: profilesData, error: profilesError } = await supabase
-            .from('profiles')
-            .select('id, full_name')
-            .in('id', teacherIds);
-            
-          if (profilesError) throw profilesError;
-          
-          const formattedTeachers: Teacher[] = profilesData?.map(profile => ({
-            id: profile.id,
-            name: profile.full_name || 'Unknown Teacher'
-          })) || [];
-          
-          setTeachers(formattedTeachers);
+        if (!teachersData || teachersData.length === 0) {
+          setTeachers([]);
+          setIsLoading(false);
+          return;
         }
+        
+        const teacherIds = teachersData.map(t => t.id);
+        // Fetch profiles of those teachers
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, full_name')
+          .in('id', teacherIds);
+
+        if (profilesError) throw profilesError;
+
+        const formattedTeachers: Teacher[] = (profilesData ?? []).map(profile => ({
+          id: profile.id,
+          name: profile.full_name || 'Unknown Teacher'
+        }));
+          
+        setTeachers(formattedTeachers);
       } catch (error) {
         console.error("Error fetching teachers:", error);
+        setTeachers([]);
       } finally {
         setIsLoading(false);
       }
@@ -70,24 +77,37 @@ export function TeacherSelector({
     fetchTeachers();
   }, [schoolId]);
 
+  const selectId = "teacher-select";
+
   return (
     <div className="space-y-2">
-      <label className="text-sm font-medium">Filter by Teacher:</label>
+      <label htmlFor={selectId} className="text-sm font-medium">
+        Filter by Teacher:
+      </label>
       <Select
-        value={selectedTeacherId || "all"}
+        id={selectId}
+        value={selectedTeacherId ?? "all"}
         onValueChange={(value) => onTeacherChange(value === "all" ? undefined : value)}
-        disabled={isLoading || teachers.length === 0}
+        disabled={isLoading}
+        aria-label="Select teacher"
       >
         <SelectTrigger className="w-full">
           <SelectValue placeholder="Select teacher..." />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">All Teachers</SelectItem>
+
           {isLoading ? (
-            <div className="flex items-center justify-center py-2">
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground mr-2" />
-              <span className="text-sm text-muted-foreground">Loading...</span>
-            </div>
+            <SelectItem disabled value="loading" className="cursor-default">
+              <div className="flex items-center justify-center space-x-2 py-1">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">Loading...</span>
+              </div>
+            </SelectItem>
+          ) : teachers.length === 0 ? (
+            <SelectItem disabled value="none" className="cursor-default">
+              No teachers found
+            </SelectItem>
           ) : (
             teachers.map((teacher) => (
               <SelectItem key={teacher.id} value={teacher.id}>
