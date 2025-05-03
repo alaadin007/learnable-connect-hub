@@ -10,7 +10,6 @@ import {
   User,
   AuthChangeEvent,
   AuthError,
-  SignInWithPasswordCredentials,
 } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
@@ -80,6 +79,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
     const getInitialSession = async () => {
       setIsLoading(true);
       try {
+        // First get the initial session
         const {
           data: { session: initialSession },
         } = await supabase.auth.getSession();
@@ -102,7 +102,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       }
     };
 
-    // First set up the auth state change listener
+    // Set up the auth state change listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event: AuthChangeEvent, currentSession: Session | null) => {
         console.log(`AuthContext: Auth state changed: ${event}`);
@@ -121,7 +121,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       }
     );
 
-    // Then get the initial session
+    // Get the initial session
     getInitialSession();
 
     return () => subscription.unsubscribe();
@@ -131,50 +131,111 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
     try {
       console.log(`AuthContext: Fetching profile for user ${userId}`);
       
+      // First fetch the basic profile data
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
-        .select(
-          `
-          id,
-          user_type,
-          full_name,
-          organization (
-            id,
-            name,
-            code
-          )
-        `
-        )
+        .select("id, user_type, full_name, school_code, school_name")
         .eq("id", userId)
         .single();
 
       if (profileError) {
         console.error("AuthContext: Error fetching profile:", profileError);
+        
+        // If profile doesn't exist, try to create one based on user metadata
+        if (profileError.code === "PGRST116" && user) {
+          console.log("AuthContext: Profile not found, attempting to create one");
+          
+          const userMeta = user.user_metadata || {};
+          const userType = userMeta.user_type || "student";
+          const fullName = userMeta.full_name || user.email?.split('@')[0] || "User";
+          const schoolCode = userMeta.school_code;
+          const schoolName = userMeta.school_name;
+          
+          try {
+            await supabase.from("profiles").insert({
+              id: userId,
+              user_type: userType,
+              full_name: fullName,
+              school_code: schoolCode,
+              school_name: schoolName
+            });
+            
+            // Try fetching again
+            const { data: newProfile, error: newProfileError } = await supabase
+              .from("profiles")
+              .select("id, user_type, full_name, school_code, school_name")
+              .eq("id", userId)
+              .single();
+              
+            if (newProfileError) throw newProfileError;
+            
+            // Continue with the new profile data
+            await processProfileData(newProfile, userId);
+            return;
+          } catch (createError) {
+            console.error("AuthContext: Failed to create profile:", createError);
+            throw createError;
+          }
+        }
+        
         throw profileError;
       }
 
-      console.log("AuthContext: Profile data retrieved:", profileData);
+      await processProfileData(profileData, userId);
+    } catch (error) {
+      console.error("AuthContext: Error in fetchProfile:", error);
+      toast.error("Failed to retrieve profile. Please try again.");
+    }
+  };
 
-      let safeProfileData: UserProfile = {
-        ...profileData,
-        organization: null,
-      };
+  const processProfileData = async (profileData: any, userId: string) => {
+    console.log("AuthContext: Processing profile data:", profileData);
+    
+    // Set up basic profile data
+    let safeProfileData: UserProfile = {
+      ...profileData,
+      id: profileData.id,
+      organization: null,
+    };
 
-      const org = profileData.organization;
-
-      if (isNonNullObject(org) && !("error" in org)) {
-        safeProfileData.organization = org;
+    setUserRole(profileData.user_type || null);
+    setIsSuperviser(profileData.user_type === "superviser");
+    
+    // If user is a school admin or teacher, fetch organization data
+    if (profileData.user_type === "school" || profileData.user_type === "teacher") {
+      try {
+        const { data: schoolData, error: schoolError } = await supabase
+          .from("schools")
+          .select("id, name, code")
+          .eq("code", profileData.school_code)
+          .single();
+          
+        if (schoolError) {
+          console.warn("AuthContext: Error fetching school:", schoolError);
+        } else if (schoolData) {
+          console.log("AuthContext: Found school data:", schoolData);
+          
+          safeProfileData.organization = {
+            id: schoolData.id,
+            name: schoolData.name,
+            code: schoolData.code
+          };
+          
+          setSchoolId(schoolData.id);
+        }
+      } catch (err) {
+        console.error("AuthContext: Error processing school data:", err);
       }
+    }
+    
+    // Set the profile with complete data
+    setProfile(safeProfileData);
 
-      setProfile(safeProfileData);
-      setUserRole(profileData.user_type || null);
-      setIsSuperviser(profileData.user_type === "superviser");
-      setSchoolId(safeProfileData.organization?.id || null);
+    console.log(`AuthContext: Profile updated, user_type: ${profileData.user_type}, organization:`, safeProfileData.organization);
 
-      console.log(`AuthContext: Profile updated, user_type: ${profileData.user_type}, organization: ${safeProfileData.organization?.name || 'none'}`);
-
-      if (user && isTestAccount(user.email || '')) {
-        console.log("AuthContext: Test account detected, ensuring organization data is complete");
+    // Handle test account specific logic
+    if (user && isTestAccount(user.email || '')) {
+      console.log("AuthContext: Test account detected, ensuring organization data is complete");
         
         // Ensure organization object has all required properties for test accounts
         if (!safeProfileData.organization || !safeProfileData.organization.code) {
@@ -238,10 +299,6 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
           }
         }
       }
-    } catch (error) {
-      console.error("Error fetching profile:", error);
-      toast.error("Failed to retrieve profile. Please try again.");
-    }
   };
 
   const refreshProfile = async () => {

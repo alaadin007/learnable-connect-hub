@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,14 +39,24 @@ const LoginForm = () => {
       console.log("LoginForm: User already logged in with role:", userRole);
       console.log("LoginForm: User profile:", profile);
       
-      const redirectPath = userRole === "school"
-        ? "/admin"
-        : userRole === "teacher"
-        ? "/teacher/analytics"
-        : "/dashboard";
+      // Define redirect path based on user role
+      let redirectPath;
+      if (userRole === "school") {
+        redirectPath = "/admin";
+      } else if (userRole === "teacher") {
+        redirectPath = "/teacher/analytics";
+      } else {
+        redirectPath = "/dashboard";
+      }
 
       console.log(`LoginForm: Redirecting to ${redirectPath}`);
-      navigate(redirectPath, { replace: true });
+      navigate(redirectPath, { 
+        replace: true,
+        state: { 
+          fromLogin: true,
+          preserveContext: true
+        } 
+      });
     }
   }, [userRole, navigate, profile]);
 
@@ -122,31 +131,91 @@ const LoginForm = () => {
 
       console.log(`LoginForm: User authenticated, ID: ${user.id}`);
 
-      const { data: profile, error: profileError } = await supabase
+      // Fetch the user profile directly from Supabase
+      const { data: profileData, error: profileError } = await supabase
         .from("profiles")
-        .select("user_type, full_name, organization(id, name)")
+        .select("user_type, full_name, school_code, school_name")
         .eq("id", user.id)
         .single();
 
       if (profileError) {
         console.error("LoginForm: Error fetching profile:", profileError);
-        toast.error("Login successful, but failed to load profile");
-        navigate("/dashboard");
-        return;
+        
+        // Check if profile doesn't exist - create a basic one if needed
+        if (profileError.code === "PGRST116") {
+          console.log("LoginForm: Profile not found, creating basic profile");
+          
+          // Try to extract relevant data from user metadata
+          const defaultUserType = user.user_metadata?.user_type || "student";
+          const defaultName = user.user_metadata?.full_name || user.email?.split('@')[0] || "User";
+          
+          // Create a basic profile
+          const { error: createProfileError } = await supabase
+            .from("profiles")
+            .insert({
+              id: user.id,
+              user_type: defaultUserType,
+              full_name: defaultName
+            });
+            
+          if (createProfileError) {
+            console.error("LoginForm: Failed to create profile:", createProfileError);
+            throw new Error("Failed to create user profile");
+          }
+          
+          // Set basic profile info
+          const userType = defaultUserType as "school" | "teacher" | "student";
+          const redirectPath = userType === "school" ? "/admin" : 
+                              userType === "teacher" ? "/teacher/analytics" :
+                              "/dashboard";
+                              
+          toast.success("Login successful", {
+            description: `Welcome, ${defaultName}!`,
+          });
+          
+          navigate(redirectPath, { 
+            replace: true,
+            state: { preserveContext: true }
+          });
+          return;
+        }
+        
+        throw profileError;
       }
 
-      console.log(`LoginForm: Profile retrieved, user_type: ${profile?.user_type}`);
+      console.log(`LoginForm: Profile retrieved, user_type: ${profileData?.user_type}`);
+
+      // If user is a school admin, fetch the organization data
+      let orgData = null;
+      if (profileData?.user_type === "school") {
+        try {
+          const { data: schoolData, error: schoolError } = await supabase
+            .from("schools")
+            .select("id, name, code")
+            .eq("code", profileData.school_code)
+            .single();
+            
+          if (!schoolError && schoolData) {
+            console.log("LoginForm: Found school data:", schoolData);
+            orgData = schoolData;
+          } else {
+            console.warn("LoginForm: No school data found for code:", profileData.school_code);
+          }
+        } catch (err) {
+          console.error("LoginForm: Error fetching school data:", err);
+        }
+      }
 
       const redirectPath =
-        profile?.user_type === "school"
+        profileData?.user_type === "school"
           ? "/admin"
-          : profile?.user_type === "teacher"
+          : profileData?.user_type === "teacher"
           ? "/teacher/analytics"
           : "/dashboard";
 
       toast.success("Login successful", {
         description: `Welcome back, ${
-          user.user_metadata?.full_name || email
+          profileData?.full_name || user.user_metadata?.full_name || email
         }!`,
       });
 
@@ -155,7 +224,8 @@ const LoginForm = () => {
         replace: true,
         state: { 
           fromNavigation: true,
-          preserveContext: true
+          preserveContext: true,
+          orgData: orgData
         } 
       });
     } catch (error: any) {
