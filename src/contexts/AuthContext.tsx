@@ -1,3 +1,4 @@
+
 import React, {
   createContext,
   useState,
@@ -154,7 +155,14 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
 
       if (user && isTestAccount(user.email || '')) {
         if (safeProfileData.organization && !safeProfileData.organization.code) {
-          await updateProfile({ organization: { code: TEST_SCHOOL_CODE } });
+          // Fix error 1: Ensure organization object has all required properties
+          await updateProfile({ 
+            organization: { 
+              id: safeProfileData.organization.id || `test-org-${Date.now()}`,
+              name: safeProfileData.organization.name || "Test Organization",
+              code: TEST_SCHOOL_CODE 
+            } 
+          });
         }
 
         if (profileData.user_type === "student") {
@@ -285,10 +293,19 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
   const updateProfile = async (updates: Partial<UserProfile>) => {
     setIsLoading(true);
     try {
+      // Fix error 2: Ensure user_type is always provided when updating profiles
+      const updatesForDb: any = { ...updates };
+      
+      // Ensure user_type is present and not undefined
+      if (!updatesForDb.user_type && profile?.user_type) {
+        updatesForDb.user_type = profile.user_type;
+      }
+      
       const { error } = await supabase.from("profiles").upsert({
         id: user?.id,
-        ...updates,
+        ...updatesForDb,
       });
+      
       if (error) throw error;
 
       setProfile((prev) => ({ ...prev, ...updates }));
@@ -332,11 +349,14 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
         },
       };
 
+      // Fix error 3: Create a complete Session object with all required properties
       const mockSession: Session = {
         user: mockUser,
         access_token: `test-token-${type}-${Date.now()}`,
         refresh_token: `test-refresh-${type}-${Date.now()}`,
         expires_at: Date.now() + 3600000,
+        expires_in: 3600,  // Adding missing property
+        token_type: "bearer"  // Adding missing property
       };
 
       // Set all state variables synchronously to ensure consistent state
