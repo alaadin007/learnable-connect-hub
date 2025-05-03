@@ -1,31 +1,32 @@
-
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
-// Remove the problematic import since we can define the minimal types we need directly
-// import { Database } from "@/types/db"; // This was causing the error
 
 export async function createAdminUser(
-  supabaseAdmin: SupabaseClient<any>, 
-  adminEmail: string, 
-  adminPassword: string, 
+  supabaseAdmin: SupabaseClient<any>,
+  adminEmail: string,
+  adminPassword: string,
   adminFullName: string,
   schoolCode: string,
   schoolName: string,
   redirectURL: string
 ): Promise<string> {
-  console.log(`Creating admin user for email: ${adminEmail}, school: ${schoolName}, redirecting to: ${redirectURL}`);
-  
-  const { data: userData, error: userError } = await supabaseAdmin.auth.admin.createUser({
-    email: adminEmail,
-    password: adminPassword,
-    email_confirm: false, // Require email confirmation
-    user_metadata: {
-      full_name: adminFullName,
-      user_type: "school",
-      school_code: schoolCode,
-      school_name: schoolName,
-    },
-    email_confirm_redirect_url: redirectURL,
-  });
+  console.log(
+    `Creating admin user for email: ${adminEmail}, school: ${schoolName}, redirecting to: ${redirectURL}`
+  );
+
+  const { data: userData, error: userError } = await supabaseAdmin.auth.admin.createUser(
+    {
+      email: adminEmail,
+      password: adminPassword,
+      email_confirm: false, // Require email confirmation
+      user_metadata: {
+        full_name: adminFullName,
+        user_type: "school",
+        school_code: schoolCode,
+        school_name: schoolName,
+      },
+      email_confirm_redirect_url: redirectURL,
+    }
+  );
 
   if (userError) {
     console.error("Error creating admin user:", userError);
@@ -54,7 +55,7 @@ export async function createProfileRecord(
   schoolName: string
 ): Promise<void> {
   console.log(`Creating profile record for user ID: ${adminUserId}`);
-  
+
   const { error: profileError } = await supabaseAdmin
     .from("profiles")
     .insert({
@@ -67,7 +68,7 @@ export async function createProfileRecord(
 
   if (profileError) {
     console.error("Error creating profile:", profileError);
-    // As documented, can continue because DB trigger handles it
+    // Continue since DB trigger should handle profile if needed
   }
 }
 
@@ -76,8 +77,10 @@ export async function createTeacherRecord(
   adminUserId: string,
   schoolId: string
 ): Promise<void> {
-  console.log(`Creating teacher record for user ID: ${adminUserId}, school ID: ${schoolId}`);
-  
+  console.log(
+    `Creating teacher record for user ID: ${adminUserId}, school ID: ${schoolId}`
+  );
+
   const { error: teacherError } = await supabaseAdmin
     .from("teachers")
     .insert({
@@ -88,6 +91,8 @@ export async function createTeacherRecord(
 
   if (teacherError) {
     console.error("Error creating teacher record:", teacherError);
-    throw new Error(`Failed to create teacher admin record: ${teacherError.message}`);
+    throw new Error(
+      `Failed to create teacher admin record: ${teacherError.message}`
+    );
   }
 }
