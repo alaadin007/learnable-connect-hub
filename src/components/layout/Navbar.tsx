@@ -123,43 +123,49 @@ const Navbar = () => {
   // Check if we're on the test accounts page to hide the entire navbar
   const isTestAccountsPage = location.pathname === "/test-accounts";
 
-  // Fixed isActiveLink function to resolve mutual exclusivity issues and performance problems
+  // Completely rewritten isActiveLink function to fix navigation highlighting
   const isActiveLink = (href: string): boolean => {
     const currentPath = location.pathname;
     
-    // For Dashboard link - only exact match
-    if (href === "/dashboard") {
-      return currentPath === "/dashboard";
+    switch (href) {
+      // Dashboard is active only on exact dashboard path
+      case "/dashboard":
+        return currentPath === "/dashboard";
+        
+      // School Admin link
+      case "/admin":
+        // Don't highlight Admin when on teacher management or analytics pages
+        // since those have their own dedicated nav items
+        return currentPath === "/admin" || 
+               (currentPath.startsWith("/admin/") && 
+                currentPath !== "/admin/teacher-management" && 
+                currentPath !== "/admin/analytics" && 
+                currentPath !== "/admin/students");
+        
+      // Teachers link - active only on teacher management page
+      case "/admin/teacher-management":
+        return currentPath === "/admin/teacher-management";
+        
+      // Analytics link - active only on analytics page  
+      case "/admin/analytics":
+        return currentPath === "/admin/analytics";
+        
+      // Students link - active only on students page
+      case "/admin/students":
+        return currentPath === "/admin/students";
+      
+      // Chat link - active only on chat page
+      case "/chat":
+        return currentPath === "/chat";
+        
+      // Documents link - active only on documents page  
+      case "/documents":
+        return currentPath === "/documents";
+        
+      // For all other links, use exact matching
+      default:
+        return currentPath === href;
     }
-    
-    // For School Admin link - both exact and subpages
-    if (href === "/admin") {
-      // Don't highlight Admin when on specific admin subpages that have their own menu items
-      if (currentPath === "/admin/teacher-management" || 
-          currentPath === "/admin/analytics" ||
-          currentPath === "/admin/students") {
-        return false;
-      }
-      return currentPath === "/admin" || currentPath.startsWith("/admin/");
-    }
-    
-    // For Teachers menu item
-    if (href === "/admin/teacher-management") {
-      return currentPath === "/admin/teacher-management";
-    }
-    
-    // For Analytics menu item
-    if (href === "/admin/analytics") {
-      return currentPath === "/admin/analytics";
-    }
-
-    // For Students menu item
-    if (href === "/admin/students") {
-      return currentPath === "/admin/students";
-    }
-
-    // For other links, exact matching
-    return currentPath === href;
   };
 
   return (
