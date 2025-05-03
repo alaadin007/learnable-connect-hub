@@ -34,7 +34,7 @@ serve(async (req) => {
     } catch (parseError) {
       console.error("Failed to parse request JSON:", parseError);
       return new Response(
-        JSON.stringify({ error: "Invalid request format" }),
+        JSON.stringify({ success: false, error: "Invalid request format" }),
         { 
           status: 400, 
           headers: { ...corsHeaders, "Content-Type": "application/json" }
@@ -65,6 +65,7 @@ serve(async (req) => {
       
       return new Response(
         JSON.stringify({ 
+          success: false, 
           error: "Missing required fields. School name, admin email, admin password, and admin full name are required." 
         }),
         { 
@@ -85,7 +86,7 @@ serve(async (req) => {
       });
       
       return new Response(
-        JSON.stringify({ error: "Server configuration error - missing Supabase credentials" }),
+        JSON.stringify({ success: false, error: "Server configuration error - missing Supabase credentials" }),
         { 
           status: 500, 
           headers: { ...corsHeaders, "Content-Type": "application/json" }
@@ -123,6 +124,7 @@ serve(async (req) => {
           console.log("Email appears to exist based on signIn check:", adminEmail);
           return new Response(
             JSON.stringify({ 
+              success: false,
               error: "Email already registered", 
               message: "This email address is already registered. Please use a different email address. Each user can only have one role in the system."
             }),
@@ -139,6 +141,7 @@ serve(async (req) => {
         console.log("Email already exists:", adminEmail);
         return new Response(
           JSON.stringify({ 
+            success: false,
             error: "Email already registered", 
             message: "This email address is already registered. Please use a different email address. Each user can only have one role in the system."
           }),
@@ -162,7 +165,7 @@ serve(async (req) => {
     if (schoolCodeError) {
       console.error("Error generating school code:", schoolCodeError);
       return new Response(
-        JSON.stringify({ error: "Failed to generate school code", details: schoolCodeError.message }),
+        JSON.stringify({ success: false, error: "Failed to generate school code", details: schoolCodeError.message }),
         { 
           status: 500, 
           headers: { ...corsHeaders, "Content-Type": "application/json" }
@@ -186,7 +189,7 @@ serve(async (req) => {
     if (schoolCodeInsertError) {
       console.error("Error inserting school code:", schoolCodeInsertError);
       return new Response(
-        JSON.stringify({ error: "Failed to register school code", details: schoolCodeInsertError.message }),
+        JSON.stringify({ success: false, error: "Failed to register school code", details: schoolCodeInsertError.message }),
         { 
           status: 500, 
           headers: { ...corsHeaders, "Content-Type": "application/json" }
@@ -220,7 +223,7 @@ serve(async (req) => {
       }
       
       return new Response(
-        JSON.stringify({ error: "Failed to create school record", details: schoolError?.message }),
+        JSON.stringify({ success: false, error: "Failed to create school record", details: schoolError?.message }),
         { 
           status: 500, 
           headers: { ...corsHeaders, "Content-Type": "application/json" }
@@ -287,6 +290,7 @@ serve(async (req) => {
       if (userError.message.includes("already registered")) {
         return new Response(
           JSON.stringify({ 
+            success: false,
             error: "Email already registered", 
             message: "This email address is already registered. Please use a different email address or try logging in." 
           }),
@@ -298,7 +302,7 @@ serve(async (req) => {
       }
         
       return new Response(
-        JSON.stringify({ error: "Failed to create admin user account", details: userError.message }),
+        JSON.stringify({ success: false, error: "Failed to create admin user account", details: userError.message }),
         { 
           status: 500, 
           headers: { ...corsHeaders, "Content-Type": "application/json" }
@@ -320,7 +324,7 @@ serve(async (req) => {
       }
       
       return new Response(
-        JSON.stringify({ error: "Failed to create admin user - no user data returned" }),
+        JSON.stringify({ success: false, error: "Failed to create admin user - no user data returned" }),
         { 
           status: 500, 
           headers: { ...corsHeaders, "Content-Type": "application/json" }
@@ -373,7 +377,7 @@ serve(async (req) => {
       }
       
       return new Response(
-        JSON.stringify({ error: "Failed to create teacher admin record", details: teacherError.message }),
+        JSON.stringify({ success: false, error: "Failed to create teacher admin record", details: teacherError.message }),
         { 
           status: 500, 
           headers: { ...corsHeaders, "Content-Type": "application/json" }
@@ -443,6 +447,7 @@ serve(async (req) => {
     console.error("Unexpected error:", error);
     return new Response(
       JSON.stringify({ 
+        success: false, 
         error: "An unexpected error occurred", 
         details: error.message || "Unknown error",
         stack: error.stack || "No stack trace available" 
