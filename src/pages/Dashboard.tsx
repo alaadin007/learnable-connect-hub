@@ -1,3 +1,4 @@
+
 import React, { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -6,6 +7,7 @@ import { MessageSquare, BookOpen, BarChart3, Users, School, FileText, Settings }
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import Footer from "@/components/layout/Footer";
+import { toast } from "sonner";
 
 const Dashboard = () => {
   const { user, profile, userRole } = useAuth();
@@ -64,93 +66,135 @@ const Dashboard = () => {
     );
   }
 
+  // Display welcome toast with role information for non-test accounts on first render
+  useEffect(() => {
+    // Only show toast for real users, not test accounts
+    if (user && !user.email?.includes(".test@learnable.edu") && !location.state?.fromDashboard && !location.state?.fromNavigation) {
+      const roleText = userRole === "school" ? "School Admin" : 
+                       userRole === "teacher" ? "Teacher" : 
+                       userRole === "student" ? "Student" : "User";
+      
+      toast.success(`Welcome ${profile?.full_name || ""}! You're logged in as: ${roleText}`, {
+        duration: 5000,
+        id: "role-notification", // Prevent duplicates
+      });
+    }
+  }, [user, userRole, profile, location.state]);
+
   const renderUserDashboard = () => {
     const userType = profile?.user_type;
 
     if (userType === "school") {
       return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <DashboardCard
-            title="School Admin"
-            description="Manage your school settings and configurations"
-            icon={<School className="h-10 w-10" />}
-            onClick={() => navigate("/admin", { state: { fromNavigation: true, preserveContext: true } })}
-          />
-          <DashboardCard
-            title="Teacher Management"
-            description="Add, remove, and manage teacher accounts"
-            icon={<Users className="h-10 w-10" />}
-            onClick={() => navigate("/admin/teacher-management", { state: { fromNavigation: true, preserveContext: true } })}
-          />
-          <DashboardCard
-            title="Analytics"
-            description="View school-wide performance analytics"
-            icon={<BarChart3 className="h-10 w-10" />}
-            onClick={() => navigate("/admin/analytics", { state: { fromNavigation: true, preserveContext: true } })}
-          />
-          <DashboardCard
-            title="Chat with AI"
-            description="Get help from our AI learning assistant"
-            icon={<MessageSquare className="h-10 w-10" />}
-            onClick={() => navigate("/chat", { state: { fromNavigation: true, preserveContext: true } })}
-          />
-        </div>
+        <>
+          <div className="mb-6 bg-blue-50 border-l-4 border-blue-500 p-4 rounded shadow-sm">
+            <h2 className="text-lg font-semibold text-blue-700">School Administrator Dashboard</h2>
+            <p className="text-blue-600">
+              You have full access to school management features, teacher management, and analytics.
+            </p>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <DashboardCard
+              title="School Admin"
+              description="Manage your school settings and configurations"
+              icon={<School className="h-10 w-10" />}
+              onClick={() => navigate("/admin", { state: { fromNavigation: true, preserveContext: true } })}
+            />
+            <DashboardCard
+              title="Teacher Management"
+              description="Add, remove, and manage teacher accounts"
+              icon={<Users className="h-10 w-10" />}
+              onClick={() => navigate("/admin/teacher-management", { state: { fromNavigation: true, preserveContext: true } })}
+            />
+            <DashboardCard
+              title="Analytics"
+              description="View school-wide performance analytics"
+              icon={<BarChart3 className="h-10 w-10" />}
+              onClick={() => navigate("/admin/analytics", { state: { fromNavigation: true, preserveContext: true } })}
+            />
+            <DashboardCard
+              title="Chat with AI"
+              description="Get help from our AI learning assistant"
+              icon={<MessageSquare className="h-10 w-10" />}
+              onClick={() => navigate("/chat", { state: { fromNavigation: true, preserveContext: true } })}
+            />
+          </div>
+        </>
       );
     }
 
     if (userType === "teacher") {
       return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <DashboardCard
-            title="Student Management"
-            description="Manage your students and classes"
-            icon={<Users className="h-10 w-10" />}
-            onClick={() => navigate("/teacher/students", { state: { fromNavigation: true, preserveContext: true } })}
-          />
-          <DashboardCard
-            title="Analytics"
-            description="View student performance analytics"
-            icon={<BarChart3 className="h-10 w-10" />}
-            onClick={() => navigate("/teacher/analytics", { state: { fromNavigation: true, preserveContext: true } })}
-          />
-          <DashboardCard
-            title="Chat with AI"
-            description="Get help from our AI learning assistant"
-            icon={<MessageSquare className="h-10 w-10" />}
-            onClick={() => navigate("/chat", { state: { fromNavigation: true, preserveContext: true } })}
-          />
-        </div>
+        <>
+          <div className="mb-6 bg-green-50 border-l-4 border-green-500 p-4 rounded shadow-sm">
+            <h2 className="text-lg font-semibold text-green-700">Teacher Dashboard</h2>
+            <p className="text-green-600">
+              You can manage your students, view analytics, and access learning resources.
+            </p>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <DashboardCard
+              title="Student Management"
+              description="Manage your students and classes"
+              icon={<Users className="h-10 w-10" />}
+              onClick={() => navigate("/teacher/students", { state: { fromNavigation: true, preserveContext: true } })}
+            />
+            <DashboardCard
+              title="Analytics"
+              description="View student performance analytics"
+              icon={<BarChart3 className="h-10 w-10" />}
+              onClick={() => navigate("/teacher/analytics", { state: { fromNavigation: true, preserveContext: true } })}
+            />
+            <DashboardCard
+              title="Chat with AI"
+              description="Get help from our AI learning assistant"
+              icon={<MessageSquare className="h-10 w-10" />}
+              onClick={() => navigate("/chat", { state: { fromNavigation: true, preserveContext: true } })}
+            />
+          </div>
+        </>
       );
     }
 
     // Default to student dashboard
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <DashboardCard
-          title="Chat with AI"
-          description="Get help with your studies from our AI learning assistant"
-          icon={<MessageSquare className="h-10 w-10" />}
-          onClick={() => navigate("/chat", { state: { fromNavigation: true, preserveContext: true } })}
-        />
-        <DashboardCard
-          title="Assessments"
-          description="View and complete your assigned assessments"
-          icon={<FileText className="h-10 w-10" />}
-          onClick={() => navigate("/student/assessments", { state: { fromNavigation: true, preserveContext: true } })}
-        />
-        <DashboardCard
-          title="My Progress"
-          description="Track your performance and learning progress"
-          icon={<BarChart3 className="h-10 w-10" />}
-          onClick={() => navigate("/student/progress", { state: { fromNavigation: true, preserveContext: true } })}
-        />
-        <DashboardCard
-          title="Settings"
-          description="Manage your profile and preferences"
-          icon={<Settings className="h-10 w-10" />}
-          onClick={() => navigate("/student/settings", { state: { fromNavigation: true, preserveContext: true } })}
-        />
-      </div>
+      <>
+        <div className="mb-6 bg-purple-50 border-l-4 border-purple-500 p-4 rounded shadow-sm">
+          <h2 className="text-lg font-semibold text-purple-700">Student Dashboard</h2>
+          <p className="text-purple-600">
+            Access your learning resources, track your progress, and complete assessments.
+          </p>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <DashboardCard
+            title="Chat with AI"
+            description="Get help with your studies from our AI learning assistant"
+            icon={<MessageSquare className="h-10 w-10" />}
+            onClick={() => navigate("/chat", { state: { fromNavigation: true, preserveContext: true } })}
+          />
+          <DashboardCard
+            title="Assessments"
+            description="View and complete your assigned assessments"
+            icon={<FileText className="h-10 w-10" />}
+            onClick={() => navigate("/student/assessments", { state: { fromNavigation: true, preserveContext: true } })}
+          />
+          <DashboardCard
+            title="My Progress"
+            description="Track your performance and learning progress"
+            icon={<BarChart3 className="h-10 w-10" />}
+            onClick={() => navigate("/student/progress", { state: { fromNavigation: true, preserveContext: true } })}
+          />
+          <DashboardCard
+            title="Settings"
+            description="Manage your profile and preferences"
+            icon={<Settings className="h-10 w-10" />}
+            onClick={() => navigate("/student/settings", { state: { fromNavigation: true, preserveContext: true } })}
+          />
+        </div>
+      </>
     );
   };
 
@@ -169,6 +213,13 @@ const Dashboard = () => {
           </p>
           {profile?.user_type === "student" && profile?.organization && (
             <p className="text-sm text-gray-500 mt-2">School: {profile.organization.name}</p>
+          )}
+          {!profile?.user_type && (
+            <div className="mt-4 p-3 bg-yellow-100 border border-yellow-300 rounded-md">
+              <p className="text-yellow-700">
+                Your user type is not set. Please contact an administrator to update your profile.
+              </p>
+            </div>
           )}
         </div>
 
