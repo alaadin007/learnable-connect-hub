@@ -1,4 +1,3 @@
-
 // Import necessary functions
 import { format } from 'date-fns';
 import { getMockAnalyticsData } from './sessionLogging';
@@ -71,9 +70,29 @@ export const fetchSessionLogs = async (schoolId: string, filters: AnalyticsFilte
   try {
     // Check if this is a test ID
     if (schoolId.startsWith('test-')) {
-      // Return mock data for test accounts
+      // Return mock data for test accounts with proper type mapping
       const mock = getMockAnalyticsData(schoolId);
-      return mock.sessions;
+      // Transform the mock sessions to match SessionData type
+      return mock.sessions.map(session => ({
+        id: session.id,
+        student_id: session.userId,
+        student_name: session.userName,
+        session_date: session.startTime,
+        duration_minutes: typeof session.duration === 'number' ? session.duration : parseInt(session.duration as string) || 0,
+        topics: [session.topicOrContent],
+        questions_asked: session.numQueries,
+        questions_answered: session.queries,
+        // Keep compatibility fields
+        userId: session.userId,
+        userName: session.userName,
+        topic: session.topicOrContent,
+        queries: session.queries,
+        topicOrContent: session.topicOrContent,
+        startTime: session.startTime,
+        endTime: session.endTime,
+        duration: session.duration,
+        numQueries: session.numQueries
+      }));
     }
     
     // For real accounts, fetch from supabase
@@ -179,9 +198,20 @@ export const fetchStudyTime = async (schoolId: string, filters: AnalyticsFilters
   try {
     // Check if this is a test ID
     if (schoolId.startsWith('test-')) {
-      // Return mock data for test accounts
+      // Return mock data for test accounts with proper type mapping
       const mock = getMockAnalyticsData(schoolId);
-      return mock.studyTime;
+      // Transform the mock study time to match StudyTimeData type
+      return mock.studyTime.map(item => ({
+        student_id: `student-${item.studentName.split(' ')[1]}`,
+        student_name: item.studentName,
+        total_minutes: item.hours * 60,
+        // Keep compatibility fields
+        studentName: item.studentName,
+        name: item.name,
+        hours: item.hours,
+        week: item.week,
+        year: item.year
+      }));
     }
     
     // For real accounts, fetch from supabase
