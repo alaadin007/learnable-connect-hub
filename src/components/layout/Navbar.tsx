@@ -122,24 +122,24 @@ const Navbar = () => {
   // Check if we're on the test accounts page to hide the entire navbar
   const isTestAccountsPage = location.pathname === "/test-accounts";
 
-  // Enhanced isActiveLink function to fix the simultaneous highlighting issue
-  const isActiveLink = (href) => {
+  // Fixed isActiveLink function to correctly handle string comparison for TypeScript
+  const isActiveLink = (href: string) => {
     const currentPath = location.pathname;
     
     // Special handling for Dashboard link - make it mutually exclusive with School Admin
     if (href === "/dashboard") {
-      // Dashboard is active only when exactly on dashboard or when explicitly coming from dashboard
+      // Dashboard is active only when exactly on dashboard
       return currentPath === "/dashboard" &&
              // Make sure it's not active when on admin pages
-             !(currentPath === "/admin" || currentPath.startsWith("/admin/"));
+             currentPath !== "/admin" && !currentPath.startsWith("/admin/");
     }
     
     // Special handling for School Admin link - make it mutually exclusive with Dashboard
     if (href === "/admin") {
-      // Admin is active when on any admin page and not coming directly from dashboard
+      // Admin is active when on any admin page
       return (currentPath === "/admin" || currentPath.startsWith("/admin/")) &&
              // Ensure it's the only active item when on admin pages
-             !(currentPath === "/dashboard");
+             currentPath !== "/dashboard";
     }
     
     // For Teachers menu item
