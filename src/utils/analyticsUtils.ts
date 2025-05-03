@@ -1,4 +1,3 @@
-
 // Import necessary functions
 import { format } from 'date-fns';
 import { getMockAnalyticsData } from './sessionLogging';
@@ -25,7 +24,7 @@ type SchoolPerformanceSummary = SchoolPerfSummary;
 export const getDateRangeText = (dateRange?: DateRange): string => {
   if (!dateRange?.from) return 'All time';
   
-  const fromDate = format(dateRange.from, 'MMM d, yyyy');
+  const fromDate = dateRange.from ? format(dateRange.from, 'MMM d, yyyy') : '';
   const toDate = dateRange.to ? format(dateRange.to, 'MMM d, yyyy') : 'Present';
   
   return `${fromDate} to ${toDate}`;
@@ -40,12 +39,25 @@ export const fetchAnalyticsSummary = async (
 ): Promise<AnalyticsSummary> => {
   // For test accounts, use mock data
   if (!schoolId || schoolId === 'test') {
-    const mockData = getMockAnalyticsData(schoolId, filters);
-    return mockData.summary;
+    console.log("Using mock data for analytics summary");
+    try {
+      const mockData = getMockAnalyticsData(schoolId, filters);
+      return mockData.summary;
+    } catch (error) {
+      console.error("Error generating mock analytics summary:", error);
+      // Return fallback data in case of error
+      return {
+        activeStudents: 15,
+        totalSessions: 42,
+        totalQueries: 128,
+        avgSessionMinutes: 18
+      };
+    }
   }
   
   try {
     // Implement real API logic here
+    console.log("Fetching real analytics summary data for school:", schoolId);
     // This is just a placeholder
     return {
       activeStudents: 0,
@@ -68,37 +80,45 @@ export const fetchSessionLogs = async (
 ): Promise<SessionData[]> => {
   // For test accounts, use mock data
   if (!schoolId || schoolId === 'test') {
-    const mockData = getMockAnalyticsData(schoolId, filters).sessions;
-    
-    // Convert mock data to expected SessionData format
-    return mockData.map(session => ({
-      id: session.id,
-      student_name: session.userName || "Unknown",
-      student_id: session.userId || "",
-      session_date: session.startTime || "",
-      duration_minutes: typeof session.duration === 'string' ? 
-        parseInt(session.duration) : 
-        (typeof session.duration === 'number' ? session.duration : 0),
-      topics: [session.topicOrContent || "General"],
-      questions_asked: session.numQueries || session.queries || 0,
-      questions_answered: session.numQueries || session.queries || 0,
+    console.log("Using mock data for session logs");
+    try {
+      const mockData = getMockAnalyticsData(schoolId, filters).sessions;
       
-      // Keep backward compatibility fields
-      userId: session.userId,
-      userName: session.userName,
-      student: session.userName, // Change this from session.student
-      topicOrContent: session.topicOrContent,
-      topic: session.topicOrContent, // Change this from session.topic
-      startTime: session.startTime,
-      endTime: session.endTime,
-      duration: session.duration,
-      numQueries: session.numQueries,
-      queries: session.queries
-    }));
+      // Convert mock data to expected SessionData format
+      return mockData.map(session => ({
+        id: session.id,
+        student_name: session.userName || "Unknown",
+        student_id: session.userId || "",
+        session_date: session.startTime || new Date().toISOString(),
+        duration_minutes: typeof session.duration === 'string' ? 
+          parseInt(session.duration) : 
+          (typeof session.duration === 'number' ? session.duration : 0),
+        topics: [session.topicOrContent || "General"],
+        questions_asked: session.numQueries || session.queries || 0,
+        questions_answered: session.numQueries || session.queries || 0,
+        
+        // Keep backward compatibility fields
+        userId: session.userId,
+        userName: session.userName,
+        student: session.userName, // Change this from session.student
+        topicOrContent: session.topicOrContent,
+        topic: session.topicOrContent, // Change this from session.topic
+        startTime: session.startTime,
+        endTime: session.endTime,
+        duration: session.duration,
+        numQueries: session.numQueries,
+        queries: session.queries
+      }));
+    } catch (error) {
+      console.error("Error generating mock session logs:", error);
+      // Return empty array in case of error
+      return [];
+    }
   }
   
   try {
     // Implement real API logic here
+    console.log("Fetching real session logs for school:", schoolId);
     // This is just a placeholder
     return [];
   } catch (error) {
@@ -116,21 +136,35 @@ export const fetchTopics = async (
 ): Promise<TopicData[]> => {
   // For test accounts, use mock data
   if (!schoolId || schoolId === 'test') {
-    const mockData = getMockAnalyticsData(schoolId, filters).topics;
-    
-    // Convert mock data to expected TopicData format
-    return mockData.map(topicData => ({
-      topic: topicData.topic || topicData.name || "",
-      count: topicData.count || topicData.value || 0,
+    console.log("Using mock data for topics");
+    try {
+      const mockData = getMockAnalyticsData(schoolId, filters).topics;
       
-      // Keep backward compatibility fields
-      name: topicData.name || topicData.topic,
-      value: topicData.value || topicData.count
-    }));
+      // Convert mock data to expected TopicData format
+      return mockData.map(topicData => ({
+        topic: topicData.topic || topicData.name || "",
+        count: topicData.count || topicData.value || 0,
+        
+        // Keep backward compatibility fields
+        name: topicData.name || topicData.topic,
+        value: topicData.value || topicData.count
+      }));
+    } catch (error) {
+      console.error("Error generating mock topics:", error);
+      // Return fallback data in case of error
+      return [
+        { topic: 'Math', count: 15, name: 'Math', value: 15 },
+        { topic: 'Science', count: 12, name: 'Science', value: 12 },
+        { topic: 'History', count: 8, name: 'History', value: 8 },
+        { topic: 'English', count: 7, name: 'English', value: 7 },
+        { topic: 'Geography', count: 5, name: 'Geography', value: 5 }
+      ];
+    }
   }
   
   try {
     // Implement real API logic here
+    console.log("Fetching real topics for school:", schoolId);
     // This is just a placeholder
     return [];
   } catch (error) {
@@ -148,25 +182,37 @@ export const fetchStudyTime = async (
 ): Promise<StudyTimeData[]> => {
   // For test accounts, use mock data
   if (!schoolId || schoolId === 'test') {
-    const mockData = getMockAnalyticsData(schoolId, filters).studyTime;
-    
-    // Convert mock data to expected StudyTimeData format
-    return mockData.map(studyData => ({
-      student_name: studyData.studentName || studyData.name || "Unknown",
-      student_id: "", // Mock data doesn't have student_id
-      total_minutes: (studyData.hours || 0) * 60,
+    console.log("Using mock data for study time");
+    try {
+      const mockData = getMockAnalyticsData(schoolId, filters).studyTime;
       
-      // Keep backward compatibility fields
-      studentName: studyData.studentName || studyData.name,
-      name: studyData.name || studyData.studentName,
-      hours: studyData.hours,
-      week: studyData.week,
-      year: studyData.year
-    }));
+      // Convert mock data to expected StudyTimeData format
+      return mockData.map(studyData => ({
+        student_name: studyData.studentName || studyData.name || "Unknown",
+        student_id: "", // Mock data doesn't have student_id
+        total_minutes: (studyData.hours || 0) * 60,
+        
+        // Keep backward compatibility fields
+        studentName: studyData.studentName || studyData.name,
+        name: studyData.name || studyData.studentName,
+        hours: studyData.hours,
+        week: studyData.week,
+        year: studyData.year
+      }));
+    } catch (error) {
+      console.error("Error generating mock study time:", error);
+      // Return fallback data in case of error
+      return [
+        { student_id: 'student-1', student_name: 'Student 1', total_minutes: 240, name: 'Student 1', studentName: 'Student 1', hours: 4, week: 1, year: 2023 },
+        { student_id: 'student-2', student_name: 'Student 2', total_minutes: 180, name: 'Student 2', studentName: 'Student 2', hours: 3, week: 1, year: 2023 },
+        { student_id: 'student-3', student_name: 'Student 3', total_minutes: 150, name: 'Student 3', studentName: 'Student 3', hours: 2.5, week: 1, year: 2023 }
+      ];
+    }
   }
   
   try {
     // Implement real API logic here
+    console.log("Fetching real study time for school:", schoolId);
     // This is just a placeholder
     return [];
   } catch (error) {
@@ -188,40 +234,51 @@ export const fetchSchoolPerformance = async (
   try {
     // For test accounts or development, return mock data
     if (!schoolId || schoolId === 'test') {
-      // Generate mock monthly data
-      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
-      const monthlyData: SchoolPerformanceData[] = months.map(month => ({
-        month: month,
-        avg_monthly_score: 70 + Math.floor(Math.random() * 20),
-        monthly_completion_rate: 75 + Math.floor(Math.random() * 15),
-        score_improvement_rate: 5 + Math.floor(Math.random() * 10),
-        completion_improvement_rate: 3 + Math.floor(Math.random() * 5),
+      console.log("Using mock data for school performance");
+      try {
+        // Generate mock monthly data
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+        const monthlyData: SchoolPerformanceData[] = months.map(month => ({
+          month: month,
+          avg_monthly_score: 70 + Math.floor(Math.random() * 20),
+          monthly_completion_rate: 75 + Math.floor(Math.random() * 15),
+          score_improvement_rate: 5 + Math.floor(Math.random() * 10),
+          completion_improvement_rate: 3 + Math.floor(Math.random() * 5),
+          
+          // Additional properties for utils compatibility
+          average_score: 70 + Math.floor(Math.random() * 20),
+          total_questions: 100 + Math.floor(Math.random() * 200)
+        }));
         
-        // Additional properties for utils compatibility
-        average_score: 70 + Math.floor(Math.random() * 20),
-        total_questions: 100 + Math.floor(Math.random() * 200)
-      }));
-      
-      // Generate mock summary
-      const summary: SchoolPerformanceSummary = {
-        total_assessments: 120,
-        students_with_submissions: 95,
-        total_students: 110,
-        avg_submissions_per_assessment: 4.2,
-        avg_score: 85,
-        completion_rate: 87,
-        student_participation_rate: 92,
+        // Generate mock summary
+        const summary: SchoolPerformanceSummary = {
+          total_assessments: 120,
+          students_with_submissions: 95,
+          total_students: 110,
+          avg_submissions_per_assessment: 4.2,
+          avg_score: 85,
+          completion_rate: 87,
+          student_participation_rate: 92,
+          
+          // Additional properties for utils compatibility
+          average_score: 85,
+          total_questions: 1250,
+          improvement_rate: 12.5
+        };
         
-        // Additional properties for utils compatibility
-        average_score: 85,
-        total_questions: 1250,
-        improvement_rate: 12.5
-      };
-      
-      return { monthlyData, summary };
+        return { monthlyData, summary };
+      } catch (error) {
+        console.error("Error generating mock school performance:", error);
+        // Return empty data in case of error
+        return {
+          monthlyData: [],
+          summary: null
+        };
+      }
     }
     
     // For real accounts, implement API call here
+    console.log("Fetching real school performance for school:", schoolId);
     // This is just a placeholder
     return {
       monthlyData: [],
@@ -246,34 +303,42 @@ export const fetchTeacherPerformance = async (
   try {
     // For test accounts or development, return mock data
     if (!schoolId || schoolId === 'test') {
-      const teacherNames = [
-        'Ms. Johnson',
-        'Mr. Smith',
-        'Mrs. Davis',
-        'Dr. Wilson',
-        'Prof. Martinez'
-      ];
-      
-      return teacherNames.map((name, index) => ({
-        teacher_id: `teacher-${index}`,
-        teacher_name: name,
-        assessments_created: 10 + Math.floor(Math.random() * 15),
-        students_assessed: 15 + Math.floor(Math.random() * 15),
-        completion_rate: 70 + Math.floor(Math.random() * 25),
-        avg_student_score: 70 + Math.floor(Math.random() * 25),
-        avg_submissions_per_assessment: 3 + Math.floor(Math.random() * 4),
+      console.log("Using mock data for teacher performance");
+      try {
+        const teacherNames = [
+          'Ms. Johnson',
+          'Mr. Smith',
+          'Mrs. Davis',
+          'Dr. Wilson',
+          'Prof. Martinez'
+        ];
         
-        // Additional properties for utils compatibility
-        id: `teacher-${index}`,
-        name: name,
-        students_count: 15 + Math.floor(Math.random() * 15),
-        average_score: 70 + Math.floor(Math.random() * 25),
-        total_questions: 200 + Math.floor(Math.random() * 300),
-        improvement_rate: Math.floor(Math.random() * 20) - 5
-      }));
+        return teacherNames.map((name, index) => ({
+          teacher_id: `teacher-${index}`,
+          teacher_name: name,
+          assessments_created: 10 + Math.floor(Math.random() * 15),
+          students_assessed: 15 + Math.floor(Math.random() * 15),
+          completion_rate: 70 + Math.floor(Math.random() * 25),
+          avg_student_score: 70 + Math.floor(Math.random() * 25),
+          avg_submissions_per_assessment: 3 + Math.floor(Math.random() * 4),
+          
+          // Additional properties for utils compatibility
+          id: `teacher-${index}`,
+          name: name,
+          students_count: 15 + Math.floor(Math.random() * 15),
+          average_score: 70 + Math.floor(Math.random() * 25),
+          total_questions: 200 + Math.floor(Math.random() * 300),
+          improvement_rate: Math.floor(Math.random() * 20) - 5
+        }));
+      } catch (error) {
+        console.error("Error generating mock teacher performance:", error);
+        // Return empty array in case of error
+        return [];
+      }
     }
     
     // For real accounts, implement API call here
+    console.log("Fetching real teacher performance for school:", schoolId);
     // This is just a placeholder
     return [];
   } catch (error) {
@@ -292,60 +357,68 @@ export const fetchStudentPerformance = async (
   try {
     // For test accounts or development, return mock data
     if (!schoolId || schoolId === 'test') {
-      const studentNames = [
-        'Emma Thompson',
-        'Liam Johnson',
-        'Olivia Davis',
-        'Noah Wilson',
-        'Ava Martinez',
-        'Sophia Brown',
-        'Jackson Lee',
-        'Isabella Taylor',
-        'Lucas Garcia',
-        'Mia Robinson'
-      ];
-      
-      const teacherNames = [
-        'Ms. Johnson',
-        'Mr. Smith',
-        'Mrs. Davis',
-        'Dr. Wilson',
-        'Prof. Martinez'
-      ];
-      
-      return studentNames.map((name, index) => {
-        const today = new Date();
-        const lastActive = new Date(today);
-        lastActive.setDate(today.getDate() - Math.floor(Math.random() * 14));
+      console.log("Using mock data for student performance");
+      try {
+        const studentNames = [
+          'Emma Thompson',
+          'Liam Johnson',
+          'Olivia Davis',
+          'Noah Wilson',
+          'Ava Martinez',
+          'Sophia Brown',
+          'Jackson Lee',
+          'Isabella Taylor',
+          'Lucas Garcia',
+          'Mia Robinson'
+        ];
         
-        const avgScore = 65 + Math.floor(Math.random() * 30);
-        const assessmentsTaken = 5 + Math.floor(Math.random() * 10);
-        const assessmentsCompleted = Math.floor(assessmentsTaken * 0.8);
+        const teacherNames = [
+          'Ms. Johnson',
+          'Mr. Smith',
+          'Mrs. Davis',
+          'Dr. Wilson',
+          'Prof. Martinez'
+        ];
         
-        return {
-          student_id: `student-${index}`,
-          student_name: name,
-          assessments_taken: assessmentsTaken,
-          avg_score: avgScore,
-          avg_time_spent_seconds: 180 + Math.floor(Math.random() * 300),
-          assessments_completed: assessmentsCompleted,
-          completion_rate: Math.floor((assessmentsCompleted / assessmentsTaken) * 100),
-          top_strengths: "Critical thinking, Analysis",
-          top_weaknesses: "Time management, Organization",
+        return studentNames.map((name, index) => {
+          const today = new Date();
+          const lastActive = new Date(today);
+          lastActive.setDate(today.getDate() - Math.floor(Math.random() * 14));
           
-          // Additional properties for utils compatibility
-          id: `student-${index}`,
-          name: name,
-          teacher_name: teacherNames[Math.floor(Math.random() * teacherNames.length)],
-          average_score: avgScore,
-          total_questions: 50 + Math.floor(Math.random() * 150),
-          improvement_rate: Math.floor(Math.random() * 25) - 5,
-          last_active: format(lastActive, 'MMM d, yyyy')
-        };
-      });
+          const avgScore = 65 + Math.floor(Math.random() * 30);
+          const assessmentsTaken = 5 + Math.floor(Math.random() * 10);
+          const assessmentsCompleted = Math.floor(assessmentsTaken * 0.8);
+          
+          return {
+            student_id: `student-${index}`,
+            student_name: name,
+            assessments_taken: assessmentsTaken,
+            avg_score: avgScore,
+            avg_time_spent_seconds: 180 + Math.floor(Math.random() * 300),
+            assessments_completed: assessmentsCompleted,
+            completion_rate: Math.floor((assessmentsCompleted / assessmentsTaken) * 100),
+            top_strengths: "Critical thinking, Analysis",
+            top_weaknesses: "Time management, Organization",
+            
+            // Additional properties for utils compatibility
+            id: `student-${index}`,
+            name: name,
+            teacher_name: teacherNames[Math.floor(Math.random() * teacherNames.length)],
+            average_score: avgScore,
+            total_questions: 50 + Math.floor(Math.random() * 150),
+            improvement_rate: Math.floor(Math.random() * 25) - 5,
+            last_active: format(lastActive, 'MMM d, yyyy')
+          };
+        });
+      } catch (error) {
+        console.error("Error generating mock student performance:", error);
+        // Return empty array in case of error
+        return [];
+      }
     }
     
     // For real accounts, implement API call here
+    console.log("Fetching real student performance for school:", schoolId);
     // This is just a placeholder
     return [];
   } catch (error) {

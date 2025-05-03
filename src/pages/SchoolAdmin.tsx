@@ -75,26 +75,35 @@ const SchoolAdmin = () => {
             }
           ];
             
-          // Insert mock invitations
-          await supabase.from("teacher_invitations").insert(mockInvites);
-            
-          console.log("Created mock teacher invitations");
-        }
-        
-        // For the API error simulation, we'll now use the proper Response type
-        const response = await fetch("/api/check-teacher-invitations-status");
-        
-        if (!response.ok) {
-          const errorData = await response.json();
-          if (errorData.error) {
-            toast.error("Failed to load teacher invitations", {
-              id: "teacher-invitations-error" // Add ID to prevent duplicates
-            });
+          // Insert mock invitations if we have a valid schoolId
+          if (schoolId) {
+            try {
+              await supabase.from("teacher_invitations").insert(mockInvites);
+              console.log("Created mock teacher invitations");
+            } catch (err) {
+              console.error("Error creating mock invitations:", err);
+            }
           }
         }
+        
+        // For the API error simulation, handle with try/catch to prevent crashes
+        try {
+          const response = await fetch("/api/check-teacher-invitations-status");
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            if (errorData.error) {
+              toast.error("Failed to load teacher invitations", {
+                id: "teacher-invitations-error" // Add ID to prevent duplicates
+              });
+            }
+          }
+        } catch (e) {
+          // Silent catch - don't show errors for this test endpoint
+          console.log("Error checking teacher invitations status:", e);
+        }
       } catch (e) {
-        // Silent catch - we don't want to show error toasts about our error checker
-        console.log("Error checking teacher invitations status:", e);
+        console.log("Error in displayErrorIfNeeded:", e);
       }
     };
     
@@ -109,14 +118,15 @@ const SchoolAdmin = () => {
         navigate("/admin/teacher-management");
         break;
       case "view-analytics":
-        console.log("Navigating to analytics page...");
-        navigate("/admin/analytics");
+        // Defer analytics navigation to prevent UI freeze
+        setTimeout(() => {
+          navigate("/admin/analytics");
+        }, 10);
         break;
       case "school-settings":
         navigate("/admin/settings");
         break;
       case "student-management":
-        console.log("Navigating to student management page...");
         navigate("/admin/students");
         break;
       default:
@@ -127,11 +137,15 @@ const SchoolAdmin = () => {
   const handleTabClick = (value: string) => {
     setActiveTab(value);
     
-    // Navigate to specific pages for certain tabs
+    // Navigate to specific pages for certain tabs with a small delay to prevent UI freeze
     if (value === "students") {
-      navigate("/admin/students");
+      setTimeout(() => {
+        navigate("/admin/students");
+      }, 10);
     } else if (value === "settings") {
-      navigate("/admin/settings");
+      setTimeout(() => {
+        navigate("/admin/settings");
+      }, 10);
     }
   };
 

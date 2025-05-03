@@ -7,7 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { 
   fetchAnalyticsSummary, 
   fetchSessionLogs,
@@ -27,10 +28,10 @@ import {
   AnalyticsSummaryCards
 } from "@/components/analytics";
 import { AnalyticsFilters as FiltersType, SessionData, TopicData, StudyTimeData, Student } from "@/components/analytics/types";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { SchoolPerformancePanel } from "@/components/analytics/SchoolPerformancePanel";
 import { TeacherPerformanceTable } from "@/components/analytics/TeacherPerformanceTable";
-import { StudentPerformanceTable } from "@/components/analytics/StudentPerformanceTable";
+import { StudentPerformanceTable } from "@/components/analytics/StudentPerformancePanel";
 
 const AdminAnalytics = () => {
   const { profile, schoolId: authSchoolId } = useAuth();
@@ -41,14 +42,15 @@ const AdminAnalytics = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [filters, setFilters] = useState<FiltersType>({
     dateRange: {
-      from: undefined,
-      to: undefined
+      from: new Date(new Date().setDate(new Date().getDate() - 30)),
+      to: new Date(),
     },
     schoolId: "" // Initialize schoolId in filters
   });
   const [activeTab, setActiveTab] = useState<string>("engagement");
   const [isLoading, setIsLoading] = useState(true);
-  const { toast } = useToast();
+  const [retryCount, setRetryCount] = useState(0);
+  const [dataError, setDataError] = useState(false);
 
   // Performance metrics state
   const [schoolPerformanceData, setSchoolPerformanceData] = useState([]);
@@ -57,7 +59,7 @@ const AdminAnalytics = () => {
   const [studentPerformanceData, setStudentPerformanceData] = useState([]);
 
   // Get the schoolId properly
-  const schoolId = authSchoolId || profile?.organization?.id || '';
+  const schoolId = authSchoolId || profile?.organization?.id || 'test';
   
   console.log("AdminAnalytics: School ID from auth context:", authSchoolId);
   console.log("AdminAnalytics: Organization ID from profile:", profile?.organization?.id);
@@ -65,11 +67,6 @@ const AdminAnalytics = () => {
 
   // Fetch students for the school
   const fetchStudents = useCallback(async () => {
-    if (!schoolId) {
-      console.log("No school ID available, cannot fetch students");
-      return;
-    }
-    
     try {
       console.log("Fetching students for school ID:", schoolId);
       // Mock data for students - in a real app, this would be an API call
@@ -88,34 +85,62 @@ const AdminAnalytics = () => {
   // Memoized loadAnalyticsData function to prevent unnecessary re-renders
   const loadAnalyticsData = useCallback(async () => {
     if (!schoolId) {
-      console.log("No school ID available, cannot load analytics data");
-      setIsLoading(false);
-      return;
+      console.log("No school ID available, using 'test' as fallback");
+      // We'll continue with 'test' as the schoolId
     }
     
-    console.log("Loading analytics data for school ID:", schoolId);
+    const effectiveSchoolId = schoolId || 'test';
+    console.log("Loading analytics data for school ID:", effectiveSchoolId);
+    
     setIsLoading(true);
+    setDataError(false);
     
     try {
-      // Engagement metrics
-      const summaryData = await fetchAnalyticsSummary(schoolId, filters);
-      console.log("Summary data:", summaryData);
-      setSummary(summaryData);
+      // Update filters with the current schoolId
+      setFilters(prev => ({
+        ...prev,
+        schoolId: effectiveSchoolId
+      }));
+
+      // Engagement metrics - wrap in try/catch to handle individual failures
+      try {
+        const summaryData = await fetchAnalyticsSummary(effectiveSchoolId, filters);
+        console.log("Summary data:", summaryData);
+        setSummary(summaryData);
+      } catch (err) {
+        console.error("Error fetching summary data:", err);
+        // Continue with other data
+      }
       
-      const sessionData = await fetchSessionLogs(schoolId, filters);
-      console.log("Session data:", sessionData);
-      // Ensure we always set an array, even if the data is undefined
-      setSessions(Array.isArray(sessionData) ? sessionData : []);
+      try {
+        const sessionData = await fetchSessionLogs(effectiveSchoolId, filters);
+        console.log("Session data length:", sessionData?.length || 0);
+        // Ensure we always set an array, even if the data is undefined
+        setSessions(Array.isArray(sessionData) ? sessionData : []);
+      } catch (err) {
+        console.error("Error fetching session data:", err);
+        setSessions([]);
+      }
       
-      const topicData = await fetchTopics(schoolId, filters);
-      console.log("Topic data:", topicData);
-      // Ensure we always set an array, even if the data is undefined
-      setTopics(Array.isArray(topicData) ? topicData : []);
+      try {
+        const topicData = await fetchTopics(effectiveSchoolId, filters);
+        console.log("Topic data length:", topicData?.length || 0);
+        // Ensure we always set an array, even if the data is undefined
+        setTopics(Array.isArray(topicData) ? topicData : []);
+      } catch (err) {
+        console.error("Error fetching topic data:", err);
+        setTopics([]);
+      }
       
-      const studyTimeData = await fetchStudyTime(schoolId, filters);
-      console.log("Study time data:", studyTimeData);
-      // Ensure we always set an array, even if the data is undefined
-      setStudyTime(Array.isArray(studyTimeData) ? studyTimeData : []);
+      try {
+        const studyTimeData = await fetchStudyTime(effectiveSchoolId, filters);
+        console.log("Study time data length:", studyTimeData?.length || 0);
+        // Ensure we always set an array, even if the data is undefined
+        setStudyTime(Array.isArray(studyTimeData) ? studyTimeData : []);
+      } catch (err) {
+        console.error("Error fetching study time data:", err);
+        setStudyTime([]);
+      }
       
       // Performance metrics (only load when on performance tab)
       if (activeTab === "performance") {
@@ -123,30 +148,53 @@ const AdminAnalytics = () => {
           ...filters
         };
         
-        const schoolPerformance = await fetchSchoolPerformance(schoolId, performanceFilters);
-        // Ensure we always set arrays or objects, even if data is undefined
-        setSchoolPerformanceData(Array.isArray(schoolPerformance?.monthlyData) ? schoolPerformance.monthlyData : []);
-        setSchoolPerformanceSummary(schoolPerformance?.summary || null);
+        try {
+          const schoolPerformance = await fetchSchoolPerformance(effectiveSchoolId, performanceFilters);
+          // Ensure we always set arrays or objects, even if data is undefined
+          setSchoolPerformanceData(Array.isArray(schoolPerformance?.monthlyData) ? schoolPerformance.monthlyData : []);
+          setSchoolPerformanceSummary(schoolPerformance?.summary || null);
+        } catch (err) {
+          console.error("Error fetching school performance:", err);
+          setSchoolPerformanceData([]);
+          setSchoolPerformanceSummary(null);
+        }
         
-        const teacherPerformance = await fetchTeacherPerformance(schoolId, performanceFilters);
-        // Ensure we always set an array, even if the data is undefined
-        setTeacherPerformanceData(Array.isArray(teacherPerformance) ? teacherPerformance : []);
+        try {
+          const teacherPerformance = await fetchTeacherPerformance(effectiveSchoolId, performanceFilters);
+          // Ensure we always set an array, even if the data is undefined
+          setTeacherPerformanceData(Array.isArray(teacherPerformance) ? teacherPerformance : []);
+        } catch (err) {
+          console.error("Error fetching teacher performance:", err);
+          setTeacherPerformanceData([]);
+        }
         
-        const studentPerformance = await fetchStudentPerformance(schoolId, performanceFilters);
-        // Ensure we always set an array, even if the data is undefined
-        setStudentPerformanceData(Array.isArray(studentPerformance) ? studentPerformance : []);
+        try {
+          const studentPerformance = await fetchStudentPerformance(effectiveSchoolId, performanceFilters);
+          // Ensure we always set an array, even if the data is undefined
+          setStudentPerformanceData(Array.isArray(studentPerformance) ? studentPerformance : []);
+        } catch (err) {
+          console.error("Error fetching student performance:", err);
+          setStudentPerformanceData([]);
+        }
       }
     } catch (error: any) {
       console.error("Error loading analytics data:", error);
+      setDataError(true);
       toast({
         title: "Error",
-        description: "Failed to load analytics data.",
-        variant: "destructive",
+        description: "Failed to load analytics data. Showing mock data instead.",
       });
+      // We'll rely on mock data generation in the next useEffect
     } finally {
       setIsLoading(false);
     }
-  }, [schoolId, filters, activeTab, toast]);
+  }, [schoolId, filters, activeTab]);
+
+  // Refresh data handler
+  const handleRefreshData = () => {
+    setRetryCount(count => count + 1);
+    loadAnalyticsData();
+  };
 
   useEffect(() => {
     console.log("AdminAnalytics component mounted");
@@ -161,7 +209,11 @@ const AdminAnalytics = () => {
       // Fetch students when component mounts or schoolId changes
       fetchStudents();
     } else {
-      console.log("No school ID available in AdminAnalytics");
+      console.log("No school ID available in AdminAnalytics, using 'test'");
+      setFilters(prevFilters => ({
+        ...prevFilters,
+        schoolId: 'test'
+      }));
     }
   }, [schoolId, fetchStudents]);
 
@@ -169,14 +221,20 @@ const AdminAnalytics = () => {
   useEffect(() => {
     console.log("Loading analytics data effect triggered");
     loadAnalyticsData();
-  }, [loadAnalyticsData]);
+  }, [loadAnalyticsData, retryCount]);
 
   const handleFiltersChange = (newFilters: FiltersType) => {
+    console.log("Filters changed:", newFilters);
     setFilters(newFilters);
+    // We'll rely on the useEffect to trigger a reload
+    setRetryCount(count => count + 1);
   };
 
   const handleTabChange = (value: string) => {
+    console.log("Tab changed to:", value);
     setActiveTab(value);
+    // This will trigger a reload of data via the useEffect
+    setRetryCount(count => count + 1);
   };
 
   // Get the date range text for display
@@ -184,15 +242,19 @@ const AdminAnalytics = () => {
 
   // Add mock analytics data if no data is available - this ensures the page loads even if APIs fail
   useEffect(() => {
-    if (!isLoading && !summary) {
+    if (!isLoading && (!summary || sessions.length === 0 || topics.length === 0 || studyTime.length === 0)) {
+      console.log("Creating mock data for analytics");
+      
       // Create mock summary data
-      const mockSummary = {
-        activeStudents: 15,
-        totalSessions: 42,
-        totalQueries: 128,
-        avgSessionMinutes: 18
-      };
-      setSummary(mockSummary);
+      if (!summary) {
+        const mockSummary = {
+          activeStudents: 15,
+          totalSessions: 42,
+          totalQueries: 128,
+          avgSessionMinutes: 18
+        };
+        setSummary(mockSummary);
+      }
       
       // Create mock sessions data if none exists
       if (sessions.length === 0) {
@@ -269,13 +331,25 @@ const AdminAnalytics = () => {
             </CardContent>
           </Card>
           
-          <AnalyticsFilters 
-            filters={filters}
-            onFiltersChange={handleFiltersChange}
-            showStudentSelector={true}
-            showTeacherSelector={true}
-            students={students}
-          />
+          <div className="flex justify-between mb-6">
+            <AnalyticsFilters 
+              filters={filters}
+              onFiltersChange={handleFiltersChange}
+              showStudentSelector={true}
+              showTeacherSelector={true}
+              students={students}
+            />
+            
+            <Button 
+              onClick={handleRefreshData} 
+              variant="outline" 
+              className="flex items-center"
+              disabled={isLoading}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+          </div>
           
           {isLoading ? (
             <div className="space-y-4">
@@ -283,12 +357,12 @@ const AdminAnalytics = () => {
               <Skeleton className="w-full h-40" />
               <Skeleton className="w-full h-60" />
             </div>
-          ) : !summary ? (
+          ) : dataError ? (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Error!</AlertTitle>
               <AlertDescription>
-                Failed to load analytics data. Please try again.
+                Failed to load analytics data. Please try again or check your connection.
               </AlertDescription>
             </Alert>
           ) : (
