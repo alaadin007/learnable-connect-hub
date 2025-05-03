@@ -114,9 +114,14 @@ const TestAccounts = () => {
         id: `login-success-${accountType}`
       });
       
-      // Navigate to the appropriate path based on account type
-      console.log(`Redirecting to: ${account.redirectPath}`);
-      navigate(account.redirectPath);
+      // Navigate to the appropriate path based on account type - define the exact path again here
+      // to ensure we're not relying on potentially outdated redirectPath property
+      const redirectPath = accountType === "school" ? "/admin" : 
+                         accountType === "teacher" ? "/teacher/analytics" : 
+                         "/dashboard";
+      
+      console.log(`Redirecting ${accountType} test account to: ${redirectPath}`);
+      navigate(redirectPath);
     } catch (error: any) {
       console.error(`Error signing in as ${accountType}:`, error);
       setErrorMessage(`Login failed: ${error.message || "Unknown error"}`);

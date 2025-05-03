@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -76,7 +75,7 @@ const LoginForm = () => {
         // Use direct test account setup
         await setTestUser(type);
         
-        // Get the appropriate redirect path
+        // Define exact redirect paths to ensure consistency
         const redirectPath = type === 'school' ? '/admin' : 
                            type === 'teacher' ? '/teacher/analytics' : 
                            '/dashboard';
@@ -156,7 +155,7 @@ const LoginForm = () => {
       // Use direct test account setup without authentication checks
       await setTestUser(type, schoolIndex);
       
-      // Navigate based on user type - ensure teacher routes to teacher/analytics
+      // Define exact redirect paths to ensure consistency
       const redirectPath = type === 'school' ? '/admin' : 
                           type === 'teacher' ? '/teacher/analytics' : 
                           '/dashboard';

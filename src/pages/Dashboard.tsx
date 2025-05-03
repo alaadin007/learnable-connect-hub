@@ -19,14 +19,17 @@ const Dashboard = () => {
     }
   }, [user, navigate]);
   
-  // Improved redirect logic to prevent flickering and navigation loops
+  // Only redirect school and teacher users if they're directly accessing dashboard
+  // with no fromNavigation state, to avoid navigation loops from test accounts
   useEffect(() => {
     // Only redirect on the initial /dashboard load, not when explicitly navigating to /dashboard
-    if (location.pathname === "/dashboard" && userRole && !location.state?.fromNavigation) {
-      // Use replace: true to prevent adding to history stack and enable back button functionality
+    if (location.pathname === "/dashboard" && userRole && !location.state?.fromNavigation && !location.state?.fromDashboard) {
+      // Only redirect school and teacher accounts, leave students at dashboard
       if (userRole === "school" && profile?.organization?.id) {
+        console.log("Dashboard: Redirecting school admin to /admin");
         navigate("/admin", { replace: true, state: { fromDashboard: true } });
       } else if (userRole === "teacher") {
+        console.log("Dashboard: Redirecting teacher to /teacher/analytics");
         navigate("/teacher/analytics", { replace: true, state: { fromDashboard: true } });
       }
     }
