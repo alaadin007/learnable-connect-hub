@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -80,6 +81,8 @@ const LoginForm = () => {
                            type === 'teacher' ? '/teacher/analytics' : 
                            '/dashboard';
         
+        console.log(`Redirecting test account to: ${redirectPath}`);
+        
         // Toast notification and redirect
         toast.success("Login successful", {
           description: `Welcome, ${type === 'school' ? 'School Admin' : type === 'teacher' ? 'Teacher' : 'Student'}!`
@@ -109,6 +112,7 @@ const LoginForm = () => {
                              profile.user_type === 'teacher' ? '/teacher/analytics' : 
                              '/dashboard';
           
+          console.log(`Redirecting regular user to: ${redirectPath}`);
           navigate(redirectPath);
           toast.success("Login successful", {
             description: `Welcome back, ${user.user_metadata.full_name || email}!`
@@ -154,9 +158,10 @@ const LoginForm = () => {
       
       // Navigate based on user type - ensure teacher routes to teacher/analytics
       const redirectPath = type === 'school' ? '/admin' : 
-                           type === 'teacher' ? '/teacher/analytics' : 
-                           '/dashboard';
+                          type === 'teacher' ? '/teacher/analytics' : 
+                          '/dashboard';
       
+      console.log(`Quick login redirecting to: ${redirectPath}`);
       navigate(redirectPath);
       
       toast.success(`Logged in as ${type === 'school' ? 'School Admin' : type === 'teacher' ? 'Teacher' : 'Student'}`);

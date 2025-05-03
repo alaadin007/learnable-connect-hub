@@ -114,8 +114,8 @@ const TestAccounts = () => {
         id: `login-success-${accountType}`
       });
       
-      // Navigate to the appropriate page based on account type
-      // Ensure we're using the correct path for each role
+      // Navigate to the appropriate path based on account type
+      console.log(`Redirecting to: ${account.redirectPath}`);
       navigate(account.redirectPath);
     } catch (error: any) {
       console.error(`Error signing in as ${accountType}:`, error);

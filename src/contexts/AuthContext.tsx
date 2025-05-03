@@ -1,4 +1,3 @@
-
 import React, {
   createContext,
   useState,
@@ -403,11 +402,14 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       setSchoolId(mockProfile.organization?.id || null);
       setSession(mockSession);
       
+      console.log(`Set test user role to: ${type}`);
+      
       // For student test accounts, ensure we have proper session tracking
       if (type === 'student') {
         try {
           // Start a session for the student
           await sessionLogger.startSession('Test Login Session', mockId);
+          console.log(`Started test session for student ${mockId}`);
         } catch (error) {
           console.error("Error starting test session:", error);
           // Continue with login even if session tracking fails
