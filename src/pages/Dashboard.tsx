@@ -18,20 +18,21 @@ const Dashboard = () => {
       navigate("/login");
     }
   }, [user, navigate]);
-  
-  // Only redirect users under specific conditions:
-  // 1. They must be on the /dashboard route directly
-  // 2. They must have a userRole determined
-  // 3. They must NOT be coming from a test account login or navigation
+
+  // Redirect for school and teacher users on direct dashboard access
   useEffect(() => {
     const isDirectDashboardAccess = location.pathname === "/dashboard";
     const hasDefinedUserRole = Boolean(userRole);
     const isFromTestAccounts = Boolean(location.state?.fromTestAccounts);
-    const isExplicitNavigation = Boolean(location.state?.fromNavigation || location.state?.fromDashboard);
-    
-    // Only redirect if accessing dashboard directly, with role, and not from test accounts or navigation
-    if (isDirectDashboardAccess && hasDefinedUserRole && !isFromTestAccounts && !isExplicitNavigation) {
-      // Only redirect school and teacher accounts, leave students at dashboard
+    const isExplicitNavigation =
+      Boolean(location.state?.fromNavigation || location.state?.fromDashboard);
+
+    if (
+      isDirectDashboardAccess &&
+      hasDefinedUserRole &&
+      !isFromTestAccounts &&
+      !isExplicitNavigation
+    ) {
       if (userRole === "school" && profile?.organization?.id) {
         console.log("Dashboard: Redirecting school admin to /admin");
         navigate("/admin", { replace: true, state: { fromDashboard: true } });
@@ -44,23 +45,21 @@ const Dashboard = () => {
     }
   }, [userRole, navigate, location.pathname, profile, location.state]);
 
-  // Return a loading state if profile isn't loaded yet
+  // Show loading state if user or profile data is not ready
   if (!user || !profile) {
     return (
-      <div>
+      <>
         <Navbar />
-        <div className="container mx-auto px-4 py-8">
-          <h1 className="text-3xl font-bold mb-6">Loading...</h1>
-        </div>
-      </div>
+        <main className="container mx-auto px-4 py-8 min-h-screen flex items-center justify-center">
+          <p className="text-xl">Loading your dashboard...</p>
+        </main>
+      </>
     );
   }
 
   const renderUserDashboard = () => {
-    // Check user type and render appropriate dashboard
     const userType = profile.user_type;
 
-    // School Admin Dashboard
     if (userType === "school") {
       return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -92,7 +91,6 @@ const Dashboard = () => {
       );
     }
 
-    // Teacher Dashboard
     if (userType === "teacher") {
       return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -118,7 +116,7 @@ const Dashboard = () => {
       );
     }
 
-    // Student Dashboard (default)
+    // Default to student dashboard
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <DashboardCard
@@ -154,7 +152,7 @@ const Dashboard = () => {
       <Navbar />
       <main className="container mx-auto px-4 py-8 min-h-screen">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Welcome, {profile.full_name}</h1>
+          <h1 className="text-3xl font-bold mb-2">Welcome, {profile.full_name || "User"}</h1>
           <p className="text-gray-600">
             {profile.user_type === "school"
               ? "Manage your school, teachers, and view analytics"
@@ -163,9 +161,7 @@ const Dashboard = () => {
               : "Access your learning resources and complete your assessments"}
           </p>
           {profile.user_type === "student" && profile.organization && (
-            <p className="text-sm text-gray-500 mt-2">
-              School: {profile.organization.name}
-            </p>
+            <p className="text-sm text-gray-500 mt-2">School: {profile.organization.name}</p>
           )}
         </div>
 
@@ -183,14 +179,9 @@ interface DashboardCardProps {
   onClick: () => void;
 }
 
-const DashboardCard: React.FC<DashboardCardProps> = ({
-  title,
-  description,
-  icon,
-  onClick,
-}) => {
+const DashboardCard: React.FC<DashboardCardProps> = ({ title, description, icon, onClick }) => {
   return (
-    <Card className="hover:shadow-md transition-shadow">
+    <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={onClick} tabIndex={0} onKeyPress={(e) => { if (e.key === 'Enter') onClick(); }}>
       <CardHeader>
         <CardTitle className="flex items-center">
           <div className="text-learnable-blue mr-4">{icon}</div>
