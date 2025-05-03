@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -98,12 +99,15 @@ serve(async (req) => {
     // Check if email already exists FIRST before creating any resources
     try {
       // First check using auth.admin.listUsers
+      console.log("Checking if email exists:", adminEmail);
       const { data: existingUsers, error: emailCheckError } = await supabaseAdmin.auth.admin.listUsers({
         filter: {
           email: adminEmail
         }
       });
 
+      console.log("Existing users check result:", existingUsers ? `Found ${existingUsers.users.length} users` : "No users found");
+      
       // If there was an error checking for existing users, try a different approach
       if (emailCheckError) {
         console.error("Error checking for existing users with listUsers:", emailCheckError);
@@ -150,6 +154,7 @@ serve(async (req) => {
     }
     
     // Generate a school code
+    console.log("Generating school code");
     const { data: schoolCodeData, error: schoolCodeError } = await supabaseAdmin.rpc(
       "generate_school_code"
     );
@@ -169,6 +174,7 @@ serve(async (req) => {
     console.log(`Generated school code: ${schoolCode}`);
     
     // First create the entry in school_codes table
+    console.log("Creating school code record");
     const { error: schoolCodeInsertError } = await supabaseAdmin
       .from("school_codes")
       .insert({
@@ -189,6 +195,7 @@ serve(async (req) => {
     }
     
     // Create the school record
+    console.log("Creating school record");
     const { data: schoolData, error: schoolError } = await supabaseAdmin
       .from("schools")
       .insert({
@@ -229,7 +236,8 @@ serve(async (req) => {
     console.log(`Email confirmation redirect URL: ${redirectURL}`);
     
     // Create the admin user with auth.admin
-    const { data: userData, error: userError } = await supabaseAdmin.auth.admin.createUser({
+    console.log("Creating admin user with email:", adminEmail);
+    const createUserOptions = {
       email: adminEmail,
       password: adminPassword,
       email_confirm: false, // Require email confirmation
@@ -241,7 +249,13 @@ serve(async (req) => {
       },
       // Add redirect URLs to ensure confirmation redirects to the right place
       email_confirm_redirect_url: redirectURL
-    });
+    };
+    console.log("Creating user with options:", JSON.stringify({
+      ...createUserOptions,
+      password: "[REDACTED]" // Don't log the password
+    }));
+    
+    const { data: userData, error: userError } = await supabaseAdmin.auth.admin.createUser(createUserOptions);
     
     if (userError) {
       console.error("Error creating admin user:", userError);
@@ -288,6 +302,7 @@ serve(async (req) => {
     
     if (!userData || !userData.user) {
       console.error("No user data returned when creating admin");
+      console.error("userData:", userData);
       
       // Clean up
       try {
@@ -311,6 +326,7 @@ serve(async (req) => {
     console.log(`Admin user created with ID: ${adminUserId}`);
     
     // Create profile record
+    console.log("Creating profile record for user:", adminUserId);
     const { error: profileError } = await supabaseAdmin
       .from("profiles")
       .insert({
@@ -324,9 +340,11 @@ serve(async (req) => {
     if (profileError) {
       console.error("Error creating profile:", profileError);
       // Continue despite profile error, as the handle_new_user trigger should handle this
+      console.log("Continuing despite profile error - handle_new_user trigger should handle this");
     }
     
     // Create teacher record with supervisor privileges
+    console.log("Creating teacher record with supervisor privileges for user:", adminUserId);
     const { error: teacherError } = await supabaseAdmin
       .from("teachers")
       .insert({
