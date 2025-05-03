@@ -55,12 +55,18 @@ const Navbar = () => {
 
   const userType = getProfileType();
 
-  // Updated navigation function to prevent unwanted redirects
+  // Updated navigation function to better handle dashboard navigation
   const handleNavigation = (path) => {
     // Don't navigate if already on the same path
     if (location.pathname === path) return;
     
-    navigate(path);
+    // Add state when navigating to dashboard to prevent redirection loops
+    if (path === "/dashboard") {
+      navigate(path, { state: { fromNavigation: true } });
+    } else {
+      navigate(path);
+    }
+    
     setIsOpen(false);
   };
 
@@ -115,22 +121,30 @@ const Navbar = () => {
   // Check if we're on the test accounts page to hide the entire navbar
   const isTestAccountsPage = location.pathname === "/test-accounts";
 
-  // Fixed helper function to determine if a link is active
+  // Updated helper function to determine if a link is active
   const isActiveLink = (href) => {
     const currentPath = location.pathname;
     
-    // Special handling for Dashboard to match any dashboard type page
+    // Special handling for Dashboard link
     if (href === "/dashboard") {
+      // Consider dashboard active when on the dashboard or default role pages
       return currentPath === "/dashboard" || 
             (userType === "school" && currentPath === "/admin") ||
             (userType === "teacher" && currentPath === "/teacher/analytics");
     }
     
-    // Handle other routes
+    // Special handling for School Admin link
     if (href === "/admin") {
-      return currentPath === "/admin";
+      // Consider admin active for all admin routes
+      return currentPath === "/admin" || currentPath.startsWith("/admin/");
     }
     
+    // For Teachers menu item
+    if (href === "/admin/teacher-management") {
+      return currentPath === "/admin/teacher-management" || currentPath === "/admin/teachers";
+    }
+
+    // For other links, exact matching
     return currentPath === href;
   };
 

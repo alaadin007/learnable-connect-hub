@@ -111,7 +111,7 @@ const SchoolAdmin = () => {
     // displayErrorIfNeeded();
   }, [profile, schoolId]);
 
-  // Quick actions dropdown handler with fixed routes and improved navigation
+  // Updated Quick actions dropdown handler with state for Dashboard navigation
   const handleQuickActionSelect = (action: string) => {
     switch (action) {
       case "manage-teachers":
@@ -127,7 +127,8 @@ const SchoolAdmin = () => {
         navigate("/admin/students");
         break;
       case "dashboard":
-        navigate("/dashboard");
+        // Add state to prevent navigation loop
+        navigate("/dashboard", { state: { fromNavigation: true }});
         break;
       default:
         break;

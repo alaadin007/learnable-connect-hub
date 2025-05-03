@@ -19,19 +19,17 @@ const Dashboard = () => {
     }
   }, [user, navigate]);
   
-  // Prevent unwanted redirects if already on intended page
+  // Modified redirect logic to fix navigation issues
   useEffect(() => {
-    // Only redirect if we're on the exact /dashboard path
-    if (location.pathname === "/dashboard" && userRole) {
+    // Only redirect on the initial /dashboard load, not when explicitly navigating to /dashboard
+    if (location.pathname === "/dashboard" && userRole && !location.state?.fromNavigation) {
       if (userRole === "school" && profile?.organization?.id) {
-        // For school admins, redirect to the admin page only if not there already
         navigate("/admin", { replace: true });
       } else if (userRole === "teacher") {
         navigate("/teacher/analytics", { replace: true });
       }
     }
-    
-  }, [userRole, navigate, location.pathname, profile]);
+  }, [userRole, navigate, location.pathname, profile, location.state]);
 
   // Return a loading state if profile isn't loaded yet
   if (!user || !profile) {
