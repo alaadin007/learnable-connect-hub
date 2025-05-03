@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
@@ -45,73 +46,7 @@ const SchoolAdmin = () => {
     }
   }, [userRole, navigate]);
 
-  // Show error toast for failed teacher invitations API
-  React.useEffect(() => {
-    // Check if we're getting the API error shown in the image
-    const displayErrorIfNeeded = async () => {
-      try {
-        // Try to get the user's role from the profiles table
-        const { data: existingInvites } = await supabase
-          .from("teacher_invitations")
-          .select("id")
-          .limit(1);
-            
-        // If no invitations exist, create mock data
-        if (!existingInvites || existingInvites.length === 0) {
-          const mockInvites = [
-            {
-              email: "teacher1@example.com",
-              status: "pending",
-              school_id: schoolId,
-              invitation_token: "mock-token-1",
-              created_by: profile?.id,
-            },
-            {
-              email: "teacher2@example.com",
-              status: "accepted",
-              school_id: schoolId,
-              invitation_token: "mock-token-2",
-              created_by: profile?.id,
-            }
-          ];
-            
-          // Insert mock invitations if we have a valid schoolId
-          if (schoolId) {
-            try {
-              await supabase.from("teacher_invitations").insert(mockInvites);
-              console.log("Created mock teacher invitations");
-            } catch (err) {
-              console.error("Error creating mock invitations:", err);
-            }
-          }
-        }
-        
-        // For the API error simulation, handle with try/catch to prevent crashes
-        try {
-          const response = await fetch("/api/check-teacher-invitations-status");
-          
-          if (!response.ok) {
-            const errorData = await response.json();
-            if (errorData.error) {
-              toast.error("Failed to load teacher invitations", {
-                id: "teacher-invitations-error" // Add ID to prevent duplicates
-              });
-            }
-          }
-        } catch (e) {
-          // Silent catch - don't show errors for this test endpoint
-          console.log("Error checking teacher invitations status:", e);
-        }
-      } catch (e) {
-        console.log("Error in displayErrorIfNeeded:", e);
-      }
-    };
-    
-    // Comment this out for now as we're using mock data instead
-    // displayErrorIfNeeded();
-  }, [profile, schoolId]);
-
-  // Updated Quick actions dropdown handler with state for Dashboard navigation
+  // Updated Quick actions dropdown handler with improved state handling for navigation
   const handleQuickActionSelect = (action: string) => {
     switch (action) {
       case "manage-teachers":
@@ -127,7 +62,7 @@ const SchoolAdmin = () => {
         navigate("/admin/students");
         break;
       case "dashboard":
-        // Add state to prevent navigation loop
+        // Add state to prevent navigation loop and clearly mark the source
         navigate("/dashboard", { state: { fromNavigation: true }});
         break;
       default:
@@ -135,6 +70,7 @@ const SchoolAdmin = () => {
     }
   };
 
+  // Handle tab selections with consistency
   const handleTabClick = (value: string) => {
     setActiveTab(value);
     

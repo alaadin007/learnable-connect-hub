@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { DatePickerWithRange } from "@/components/ui/date-range-picker";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { BarChart, LineChart, PieChart } from "@/components/ui/charts";
 import { Loader2, Download, Users, Clock, BookOpen, Search, RefreshCw, AlertCircle } from "lucide-react";
@@ -50,19 +49,73 @@ const TeacherAnalytics = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [retryCount, setRetryCount] = useState(0);
   const [dataError, setDataError] = useState(false);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   
-  // Get teacher's school ID
-  const schoolId = profile?.organization?.id || "test";
-  const userRole = profile?.user_type || "teacher";
-  const teacherId = user?.id || "test-teacher";
+  // Get teacher's school ID with memoization
+  const schoolId = useMemo(() => profile?.organization?.id || "test", [profile?.organization?.id]);
+  const userRole = useMemo(() => profile?.user_type || "teacher", [profile?.user_type]);
+  const teacherId = useMemo(() => user?.id || "test-teacher", [user?.id]);
 
-  useEffect(() => {
-    if (user) {
-      loadAnalyticsData();
+  // Generate mock data function to prevent UI flickering
+  const generateMockData = useCallback(() => {
+    // Create mock summary if none exists
+    if (!summary || (summary.activeStudents === 0 && summary.totalSessions === 0)) {
+      setSummary({
+        activeStudents: 12,
+        totalSessions: 35,
+        totalQueries: 105,
+        avgSessionMinutes: 22
+      });
     }
-  }, [user, dateRange, retryCount]);
+    
+    // Create mock sessions if none exist
+    if (sessions.length === 0) {
+      const mockSessions: SessionData[] = Array(5).fill(null).map((_, i) => ({
+        id: `mock-session-${i}`,
+        student_id: `student-${i % 3 + 1}`,
+        student_name: `Student ${i % 3 + 1}`,
+        session_date: new Date(Date.now() - i * 86400000).toISOString(),
+        duration_minutes: Math.floor(Math.random() * 45) + 10,
+        topics: ['Math', 'Science', 'History', 'English', 'Geography'][i % 5].split(','),
+        questions_asked: Math.floor(Math.random() * 10) + 3,
+        questions_answered: Math.floor(Math.random() * 8) + 2,
+        userId: `student-${i % 3 + 1}`,
+        userName: `Student ${i % 3 + 1}`,
+        topic: ['Math', 'Science', 'History', 'English', 'Geography'][i % 5],
+        queries: Math.floor(Math.random() * 10) + 3
+      }));
+      setSessions(mockSessions);
+    }
+    
+    // Create mock topics if none exist
+    if (topics.length === 0) {
+      const mockTopics: TopicData[] = [
+        { topic: 'Math', count: 15, name: 'Math', value: 15 },
+        { topic: 'Science', count: 12, name: 'Science', value: 12 },
+        { topic: 'History', count: 8, name: 'History', value: 8 },
+        { topic: 'English', count: 7, name: 'English', value: 7 },
+        { topic: 'Geography', count: 5, name: 'Geography', value: 5 }
+      ];
+      setTopics(mockTopics);
+    }
+    
+    // Create mock study time if none exists
+    if (studyTime.length === 0) {
+      const mockStudyTime: StudyTimeData[] = [
+        { student_id: 'student-1', student_name: 'Student 1', total_minutes: 240, name: 'Student 1', studentName: 'Student 1', hours: 4, week: 1, year: 2023 },
+        { student_id: 'student-2', student_name: 'Student 2', total_minutes: 180, name: 'Student 2', studentName: 'Student 2', hours: 3, week: 1, year: 2023 },
+        { student_id: 'student-3', student_name: 'Student 3', total_minutes: 150, name: 'Student 3', studentName: 'Student 3', hours: 2.5, week: 1, year: 2023 },
+      ];
+      setStudyTime(mockStudyTime);
+    }
+  }, [summary, sessions, topics, studyTime]);
 
-  const loadAnalyticsData = async () => {
+  // Improved data loading function
+  const loadAnalyticsData = useCallback(async () => {
+    if (isLoading && initialLoadComplete) {
+      return; // Don't trigger multiple loads simultaneously
+    }
+    
     setIsLoading(true);
     setDataError(false);
     try {
@@ -109,14 +162,19 @@ const TeacherAnalytics = () => {
       toast.error("Failed to load analytics data. Using demo data instead.");
     } finally {
       setIsLoading(false);
+      setInitialLoadComplete(true);
+      
+      // Generate mock data after fetching real data if needed
+      generateMockData();
     }
-  };
+  }, [schoolId, dateRange, teacherId, isLoading, initialLoadComplete, generateMockData]);
 
-  const handleRefreshData = () => {
+  // Handler functions
+  const handleRefreshData = useCallback(() => {
     setRetryCount(prev => prev + 1);
-  };
+  }, []);
 
-  const handleExport = () => {
+  const handleExport = useCallback(() => {
     try {
       const dateRangeText = getDateRangeText(dateRange);
       exportAnalyticsToCSV(summary, sessions, topics, studyTime, dateRangeText);
@@ -125,84 +183,42 @@ const TeacherAnalytics = () => {
       console.error("Error exporting data:", error);
       toast.error("Failed to export analytics data");
     }
-  };
+  }, [summary, sessions, topics, studyTime, dateRange]);
+  
+  const handleDateRangeChange = useCallback((newDateRange: DateRange | undefined) => {
+    setDateRange(newDateRange);
+    // Will trigger loadAnalyticsData via useEffect
+  }, []);
 
-  // Add mock data if necessary
+  const handleTabChange = useCallback((value: string) => {
+    setActiveTab(value);
+    // Will trigger UI update
+  }, []);
+
+  // Effect for initial data loading and refresh
   useEffect(() => {
-    if (!isLoading && (sessions.length === 0 || topics.length === 0 || studyTime.length === 0)) {
-      console.log("Creating mock data for teacher analytics");
-      
-      // Create mock summary if none exists
-      if (!summary || (summary.activeStudents === 0 && summary.totalSessions === 0)) {
-        setSummary({
-          activeStudents: 12,
-          totalSessions: 35,
-          totalQueries: 105,
-          avgSessionMinutes: 22
-        });
-      }
-      
-      // Create mock sessions if none exist
-      if (sessions.length === 0) {
-        const mockSessions: SessionData[] = Array(5).fill(null).map((_, i) => ({
-          id: `mock-session-${i}`,
-          student_id: `student-${i % 3 + 1}`,
-          student_name: `Student ${i % 3 + 1}`,
-          session_date: new Date(Date.now() - i * 86400000).toISOString(),
-          duration_minutes: Math.floor(Math.random() * 45) + 10,
-          topics: ['Math', 'Science', 'History', 'English', 'Geography'][i % 5].split(','),
-          questions_asked: Math.floor(Math.random() * 10) + 3,
-          questions_answered: Math.floor(Math.random() * 8) + 2,
-          // Compatibility fields
-          userId: `student-${i % 3 + 1}`,
-          userName: `Student ${i % 3 + 1}`,
-          topic: ['Math', 'Science', 'History', 'English', 'Geography'][i % 5],
-          queries: Math.floor(Math.random() * 10) + 3
-        }));
-        setSessions(mockSessions);
-      }
-      
-      // Create mock topics if none exist
-      if (topics.length === 0) {
-        const mockTopics: TopicData[] = [
-          { topic: 'Math', count: 15, name: 'Math', value: 15 },
-          { topic: 'Science', count: 12, name: 'Science', value: 12 },
-          { topic: 'History', count: 8, name: 'History', value: 8 },
-          { topic: 'English', count: 7, name: 'English', value: 7 },
-          { topic: 'Geography', count: 5, name: 'Geography', value: 5 }
-        ];
-        setTopics(mockTopics);
-      }
-      
-      // Create mock study time if none exists
-      if (studyTime.length === 0) {
-        const mockStudyTime: StudyTimeData[] = [
-          { student_id: 'student-1', student_name: 'Student 1', total_minutes: 240, name: 'Student 1', studentName: 'Student 1', hours: 4, week: 1, year: 2023 },
-          { student_id: 'student-2', student_name: 'Student 2', total_minutes: 180, name: 'Student 2', studentName: 'Student 2', hours: 3, week: 1, year: 2023 },
-          { student_id: 'student-3', student_name: 'Student 3', total_minutes: 150, name: 'Student 3', studentName: 'Student 3', hours: 2.5, week: 1, year: 2023 },
-        ];
-        setStudyTime(mockStudyTime);
-      }
+    if (user) {
+      loadAnalyticsData();
     }
-  }, [isLoading, summary, sessions, topics, studyTime]);
+  }, [user, dateRange, retryCount, loadAnalyticsData]);
 
   // Custom components that adapt to the expected props for the analytics components
   const TopicsChart = ({ data }: { data: TopicData[] }) => {
     // Transform the data to match what the chart expects
-    const chartData = data.map(t => ({
+    const chartData = useMemo(() => data.map(t => ({
       name: t.topic,
       value: t.count
-    }));
+    })), [data]);
 
     return <PieChart data={chartData} />;
   };
 
   const StudyTimeChart = ({ data }: { data: StudyTimeData[] }) => {
     // Transform the data to match what the chart expects
-    const chartData = data.map(s => ({
+    const chartData = useMemo(() => data.map(s => ({
       name: s.student_name,
       value: s.total_minutes
-    }));
+    })), [data]);
 
     return <BarChart data={chartData} />;
   };
@@ -222,7 +238,7 @@ const TeacherAnalytics = () => {
             <div className="flex flex-col sm:flex-row gap-3">
               <DatePickerWithRange
                 date={dateRange}
-                onDateChange={setDateRange}
+                onDateChange={handleDateRangeChange}
               />
               <div className="flex gap-2">
                 <Button 
@@ -241,7 +257,7 @@ const TeacherAnalytics = () => {
             </div>
           </div>
 
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
             <TabsList>
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="sessions">Sessions</TabsTrigger>
@@ -250,11 +266,11 @@ const TeacherAnalytics = () => {
             </TabsList>
 
             <TabsContent value="overview" className="space-y-4">
-              {isLoading ? (
+              {isLoading && !initialLoadComplete ? (
                 <div className="flex justify-center items-center py-12">
                   <Loader2 className="h-8 w-8 animate-spin text-learnable-purple" />
                 </div>
-              ) : dataError ? (
+              ) : dataError && !initialLoadComplete ? (
                 <Card>
                   <CardContent className="pt-6">
                     <div className="flex flex-col items-center justify-center p-6 text-center">
@@ -333,7 +349,7 @@ const TeacherAnalytics = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {isLoading ? (
+                  {isLoading && !initialLoadComplete ? (
                     <div className="flex justify-center items-center py-12">
                       <Loader2 className="h-8 w-8 animate-spin text-learnable-purple" />
                     </div>
@@ -358,7 +374,7 @@ const TeacherAnalytics = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {isLoading ? (
+                  {isLoading && !initialLoadComplete ? (
                     <div className="flex justify-center items-center py-12">
                       <Loader2 className="h-8 w-8 animate-spin text-learnable-purple" />
                     </div>
@@ -410,7 +426,7 @@ const TeacherAnalytics = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {isLoading ? (
+                  {isLoading && !initialLoadComplete ? (
                     <div className="flex justify-center items-center py-12">
                       <Loader2 className="h-8 w-8 animate-spin text-learnable-purple" />
                     </div>

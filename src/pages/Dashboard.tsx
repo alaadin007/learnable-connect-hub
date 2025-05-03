@@ -1,3 +1,4 @@
+
 import React, { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -19,14 +20,15 @@ const Dashboard = () => {
     }
   }, [user, navigate]);
   
-  // Modified redirect logic to fix navigation issues
+  // Fixed redirect logic to prevent flickering and navigation loops
   useEffect(() => {
     // Only redirect on the initial /dashboard load, not when explicitly navigating to /dashboard
     if (location.pathname === "/dashboard" && userRole && !location.state?.fromNavigation) {
+      // Use replace: true to prevent adding to history stack and enable back button functionality
       if (userRole === "school" && profile?.organization?.id) {
-        navigate("/admin", { replace: true });
+        navigate("/admin", { replace: true, state: { fromDashboard: true } });
       } else if (userRole === "teacher") {
-        navigate("/teacher/analytics", { replace: true });
+        navigate("/teacher/analytics", { replace: true, state: { fromDashboard: true } });
       }
     }
   }, [userRole, navigate, location.pathname, profile, location.state]);
@@ -55,7 +57,7 @@ const Dashboard = () => {
             title="School Admin"
             description="Manage your school settings and configurations"
             icon={<School className="h-10 w-10" />}
-            onClick={() => navigate("/admin")}
+            onClick={() => navigate("/admin", { state: { fromNavigation: true } })}
           />
           <DashboardCard
             title="Teacher Management"

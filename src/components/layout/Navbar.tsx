@@ -55,13 +55,15 @@ const Navbar = () => {
 
   const userType = getProfileType();
 
-  // Updated navigation function to better handle dashboard navigation
+  // Improved navigation function to prevent flickering and redirection loops
   const handleNavigation = (path) => {
     // Don't navigate if already on the same path
     if (location.pathname === path) return;
     
-    // Add state when navigating to dashboard to prevent redirection loops
+    // Only for dashboard navigation, add special state to prevent redirect loops
     if (path === "/dashboard") {
+      navigate(path, { state: { fromNavigation: true } });
+    } else if (path === "/admin") {
       navigate(path, { state: { fromNavigation: true } });
     } else {
       navigate(path);
@@ -121,7 +123,7 @@ const Navbar = () => {
   // Check if we're on the test accounts page to hide the entire navbar
   const isTestAccountsPage = location.pathname === "/test-accounts";
 
-  // Updated helper function to determine if a link is active
+  // Enhanced helper function to fix active link highlighting
   const isActiveLink = (href) => {
     const currentPath = location.pathname;
     
@@ -129,19 +131,25 @@ const Navbar = () => {
     if (href === "/dashboard") {
       // Consider dashboard active when on the dashboard or default role pages
       return currentPath === "/dashboard" || 
-            (userType === "school" && currentPath === "/admin") ||
-            (userType === "teacher" && currentPath === "/teacher/analytics");
+            (userType === "school" && currentPath === "/admin" && location.state?.fromDashboard) ||
+            (userType === "teacher" && currentPath === "/teacher/analytics" && location.state?.fromDashboard);
     }
     
     // Special handling for School Admin link
     if (href === "/admin") {
-      // Consider admin active for all admin routes
-      return currentPath === "/admin" || currentPath.startsWith("/admin/");
+      // Consider admin active for all admin routes, except when coming from dashboard
+      return (currentPath === "/admin" && !location.state?.fromDashboard) || 
+             (currentPath.startsWith("/admin/") && currentPath !== "/admin/analytics");
     }
     
     // For Teachers menu item
     if (href === "/admin/teacher-management") {
       return currentPath === "/admin/teacher-management" || currentPath === "/admin/teachers";
+    }
+    
+    // For Analytics menu item
+    if (href === "/admin/analytics") {
+      return currentPath === "/admin/analytics";
     }
 
     // For other links, exact matching
