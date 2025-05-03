@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,13 +8,14 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { Clock, Loader2, AlertCircle } from "lucide-react";
+import { Clock, Loader2, AlertCircle, Mail } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const LoginForm = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
   const { signIn, setTestUser, userRole } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -130,19 +132,44 @@ const LoginForm = () => {
       }
     } catch (error: any) {
       console.error("Login error:", error);
-      setLoginError(error.message);
+      
+      let errorMessage = error.message || "Login failed. Please try again.";
+      setLoginError(errorMessage);
 
       if (error.message.includes("Email not confirmed")) {
         toast.error("Email not verified", {
-          description:
-            "Please check your inbox and spam folder for the verification email.",
+          description: 
+            "Please check your inbox and spam folder for the verification email. ",
+          action: {
+            label: "Resend email",
+            onClick: async () => {
+              try {
+                const { error } = await supabase.auth.resend({
+                  type: "signup",
+                  email,
+                });
+                
+                if (error) throw error;
+                
+                toast.success("Verification email sent", {
+                  description: "Please check your inbox and spam folder."
+                });
+              } catch (err: any) {
+                toast.error("Failed to resend verification email", {
+                  description: err.message
+                });
+              }
+            }
+          }
         });
       } else if (error.message.includes("Invalid login credentials")) {
         toast.error("Login failed", {
-          description: "Invalid email or password. Please try again.",
+          description: "Invalid email or password. Please check your credentials and try again.",
         });
       } else {
-        toast.error(`Login failed: ${error.message}`);
+        toast.error(`Login failed`, {
+          description: errorMessage
+        });
       }
     } finally {
       setIsLoading(false);
@@ -205,7 +232,7 @@ const LoginForm = () => {
       toast.error("Please enter your email address");
       return;
     }
-    setIsLoading(true);
+    setIsResettingPassword(true);
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -213,7 +240,9 @@ const LoginForm = () => {
       });
 
       if (error) {
-        toast.error("Failed to send password reset email: " + error.message);
+        toast.error("Failed to send password reset email", {
+          description: error.message
+        });
       } else {
         toast.success("Password reset email sent", {
           description:
@@ -221,9 +250,11 @@ const LoginForm = () => {
         });
       }
     } catch (error: any) {
-      toast.error("An error occurred: " + error.message);
+      toast.error("An error occurred", {
+        description: error.message
+      });
     } finally {
-      setIsLoading(false);
+      setIsResettingPassword(false);
     }
   };
 
@@ -240,9 +271,41 @@ const LoginForm = () => {
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Login Error</AlertTitle>
               <AlertDescription>
-                {loginError.includes("Email not confirmed")
-                  ? "Your email address has not been verified. Please check your inbox for the verification email."
-                  : loginError}
+                {loginError.includes("Email not confirmed") ? (
+                  <div>
+                    <p>Your email address has not been verified. Please check your inbox for the verification email.</p>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="mt-2"
+                      onClick={async () => {
+                        try {
+                          const { error } = await supabase.auth.resend({
+                            type: "signup",
+                            email,
+                          });
+                          
+                          if (error) throw error;
+                          
+                          toast.success("Verification email sent", {
+                            description: "Please check your inbox and spam folder."
+                          });
+                        } catch (err: any) {
+                          toast.error("Failed to resend verification email", {
+                            description: err.message
+                          });
+                        }
+                      }}
+                    >
+                      <Mail className="mr-2 h-4 w-4" />
+                      Resend verification email
+                    </Button>
+                  </div>
+                ) : loginError.includes("Invalid login credentials") ? (
+                  "Invalid email or password. Please check your credentials and try again."
+                ) : (
+                  loginError
+                )}
               </AlertDescription>
             </Alert>
           )}
@@ -307,9 +370,17 @@ const LoginForm = () => {
                 <button
                   type="button"
                   onClick={handleResetPassword}
-                  className="text-sm text-learnable-blue hover:underline"
+                  disabled={isResettingPassword}
+                  className="text-sm text-learnable-blue hover:underline flex items-center"
                 >
-                  Forgot password?
+                  {isResettingPassword ? (
+                    <>
+                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    "Forgot password?"
+                  )}
                 </button>
               </div>
               <Input
