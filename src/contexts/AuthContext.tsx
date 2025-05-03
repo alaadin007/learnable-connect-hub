@@ -99,19 +99,25 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
 
     getInitialSession();
 
-    supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, currentSession: Session | null) => {
-      setSession(currentSession);
-      setUser(currentSession?.user || null);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event: AuthChangeEvent, currentSession: Session | null) => {
+        setSession(currentSession);
+        setUser(currentSession?.user || null);
 
-      if (currentSession?.user) {
-        await fetchProfile(currentSession.user.id);
-      } else {
-        setProfile(null);
-        setUserRole(null);
-        setIsSuperviser(false);
-        setSchoolId(null);
+        if (currentSession?.user) {
+          await fetchProfile(currentSession.user.id);
+        } else {
+          setProfile(null);
+          setUserRole(null);
+          setIsSuperviser(false);
+          setSchoolId(null);
+        }
       }
-    });
+    );
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const fetchProfile = async (userId: string) => {
@@ -190,7 +196,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
                 const pastDate = new Date(now);
                 pastDate.setDate(now.getDate() - i);
                 
-                const { data: pastSession } = await supabase
+                await supabase
                   .from('session_logs')
                   .insert({
                     user_id: userId,
@@ -199,10 +205,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
                     session_start: pastDate.toISOString(),
                     session_end: new Date(pastDate.getTime() + 45 * 60000).toISOString(), // 45 min session
                     num_queries: Math.floor(Math.random() * 15) + 5 // 5-20 queries
-                  })
-                  .select();
-                
-                console.log('Created past session:', pastSession);
+                  });
               }
             } else {
               // Just ensure we have a current active session
@@ -268,16 +271,24 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
     try {
       // If it's a student, end any active sessions
       if (userRole === 'student') {
-        await sessionLogger.endSession('User logged out');
+        try {
+          await sessionLogger.endSession('User logged out');
+        } catch (error) {
+          console.error("Error ending session:", error);
+          // Continue with sign out even if ending session fails
+        }
       }
       
       await supabase.auth.signOut();
+      
+      // Clear local state
       setSession(null);
       setUser(null);
       setProfile(null);
       setUserRole(null);
       setIsSuperviser(false);
       setSchoolId(null);
+      
       navigate("/");
     } catch (error: any) {
       toast.error(error.error_description || error.message);
@@ -309,110 +320,159 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
     }
   };
 
-  // Enhanced setTestUser method to provide more comprehensive test data for students
+  // Enhanced setTestUser method to properly handle test account authentication
   const setTestUser = async (
     type: 'school' | 'teacher' | 'student',
     schoolIndex: number = 0
   ): Promise<void> => {
     setIsLoading(true);
     try {
-      // Mock user and profile data for test accounts
-      const mockId = `test-${type}-${schoolIndex}`;
-      const mockUser = {
-        id: mockId,
-        email: `${type}.test@learnable.edu`,
-        user_metadata: {
-          full_name: `Test ${type.charAt(0).toUpperCase() + type.slice(1)}`
-        },
-        app_metadata: {},
-        aud: "authenticated",
-        created_at: new Date().toISOString()
-      } as unknown as User; // Type assertion to User
-
-      // Create mock profile based on user type
-      const mockProfile: UserProfile = {
-        id: mockId,
-        user_type: type,
-        full_name: `Test ${type.charAt(0).toUpperCase() + type.slice(1)}`,
-        organization: {
-          id: `test-school-${schoolIndex}`,
-          name: schoolIndex === 0 ? "Test School" : `Test School ${schoolIndex + 1}`,
-          code: `TEST${schoolIndex}`
-        }
-      };
-
-      // Set context values
-      setUser(mockUser);
-      setProfile(mockProfile);
-      setUserRole(type);
-      setIsSuperviser(false);
-      setSchoolId(mockProfile.organization?.id || null);
-
-      // Create a fake session
-      const mockSession = {
-        user: mockUser,
-        access_token: "test-token",
-        refresh_token: "test-refresh-token",
-        expires_at: Date.now() + 3600000
-      } as Session;
-
-      setSession(mockSession);
-
-      // For test accounts, pre-populate with appropriate data based on role
-      if (type === 'student') {
-        // Start a session for the student
-        await sessionLogger.startSession('Test Login Session', mockId);
+      // First check if we need to create test accounts
+      const { data: exists, error: checkError } = await supabase.rpc('verify_school_code', { 
+        code: "TESTCODE"
+      });
+      
+      if (checkError || !exists) {
+        console.log("Test accounts don't exist, creating them...");
+        toast.loading("Setting up test accounts...", { id: "test-accounts-setup" });
         
-        // Generate sample performance data for student
-        await supabase.functions.invoke("populate-test-performance", {
-          body: { 
-            userId: mockId, 
-            schoolId: mockProfile.organization?.id,
-            numAssessments: 10
-          }
-        });
-        
-        // Generate sample sessions for historical data
-        const topics = ['Algebra', 'Chemistry', 'History', 'Literature', 'Computer Science'];
-        const now = new Date();
-        
-        for (let i = 1; i <= 5; i++) {
-          const pastDate = new Date(now);
-          pastDate.setDate(now.getDate() - i);
-          
-          await supabase.from('session_logs').insert({
-            user_id: mockId,
-            school_id: mockProfile.organization?.id,
-            topic_or_content_used: topics[i % topics.length],
-            session_start: pastDate.toISOString(),
-            session_end: new Date(pastDate.getTime() + 45 * 60000).toISOString(), // 45 min session
-            num_queries: Math.floor(Math.random() * 15) + 5 // 5-20 queries
+        try {
+          const response = await supabase.functions.invoke("create-test-accounts", {
+            body: { createAccounts: true }
           });
+          
+          if (response.error) {
+            console.error("Error creating test accounts:", response.error);
+            toast.error("Failed to create test accounts", { id: "test-accounts-setup" });
+            throw new Error("Failed to create test accounts");
+          }
+          
+          toast.success("Test accounts created", { id: "test-accounts-setup" });
+        } catch (createError) {
+          console.error("Error invoking create-test-accounts function:", createError);
+          toast.error("Failed to create test accounts", { id: "test-accounts-setup" });
+          throw createError;
         }
-      } else if (type === 'teacher') {
-        // Generate students and their assessment data for this teacher
-        await populateTestAccountWithSessions(mockId, mockProfile.organization?.id || '', 15);
-      } else if (type === 'school') {
-        // For school admin, populate test data for the entire school
-        // This will create teacher and student data
-        await supabase.functions.invoke("create-test-accounts", {
-          body: { createAccounts: true }
+      }
+      
+      // Now perform the actual sign-in
+      let email = '';
+      let password = '';
+      
+      switch(type) {
+        case 'school':
+          email = "school.test@learnable.edu";
+          password = "school123";
+          break;
+        case 'teacher':
+          email = "teacher.test@learnable.edu";
+          password = "teacher123";
+          break;
+        case 'student':
+          email = "student.test@learnable.edu";
+          password = "student123";
+          break;
+      }
+      
+      console.log(`Signing in as ${type} with email: ${email}`);
+      
+      // Try to sign in normally first
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
         });
+        
+        if (error) {
+          console.error("Auth error:", error);
+          throw error;
+        }
+        
+        if (data.user) {
+          console.log("Signed in successfully:", data.user);
+          return;
+        }
+      } catch (signInError) {
+        console.error("Sign in error:", signInError);
+        
+        // If sign in fails, fall back to the mock approach
+        console.log("Falling back to mock user approach...");
+        
+        // Mock user and profile data for test accounts
+        const mockId = `test-${type}-${schoolIndex}`;
+        const mockUser = {
+          id: mockId,
+          email: `${type}.test@learnable.edu`,
+          user_metadata: {
+            full_name: `Test ${type.charAt(0).toUpperCase() + type.slice(1)}`
+          },
+          app_metadata: {},
+          aud: "authenticated",
+          created_at: new Date().toISOString()
+        } as unknown as User; // Type assertion to User
+
+        // Create mock profile based on user type
+        const mockProfile: UserProfile = {
+          id: mockId,
+          user_type: type,
+          full_name: `Test ${type.charAt(0).toUpperCase() + type.slice(1)}`,
+          organization: {
+            id: `test-school-${schoolIndex}`,
+            name: schoolIndex === 0 ? "Test School" : `Test School ${schoolIndex + 1}`,
+            code: `TEST${schoolIndex}`
+          }
+        };
+
+        // Set context values
+        setUser(mockUser);
+        setProfile(mockProfile);
+        setUserRole(type);
+        setIsSuperviser(false);
+        setSchoolId(mockProfile.organization?.id || null);
+
+        // Create a fake session
+        const mockSession = {
+          user: mockUser,
+          access_token: "test-token",
+          refresh_token: "test-refresh-token",
+          expires_at: Date.now() + 3600000
+        } as Session;
+
+        setSession(mockSession);
+
+        // For test accounts, pre-populate with appropriate data based on role
+        if (type === 'student') {
+          // Start a session for the student
+          await sessionLogger.startSession('Test Login Session', mockId);
+          
+          // Generate sample sessions for historical data
+          const topics = ['Algebra', 'Chemistry', 'History', 'Literature', 'Computer Science'];
+          const now = new Date();
+          
+          for (let i = 1; i <= 5; i++) {
+            const pastDate = new Date(now);
+            pastDate.setDate(now.getDate() - i);
+            
+            await supabase.from('session_logs').insert({
+              user_id: mockId,
+              school_id: mockProfile.organization?.id,
+              topic_or_content_used: topics[i % topics.length],
+              session_start: pastDate.toISOString(),
+              session_end: new Date(pastDate.getTime() + 45 * 60000).toISOString(), // 45 min session
+              num_queries: Math.floor(Math.random() * 15) + 5 // 5-20 queries
+            });
+          }
+        } else if (type === 'teacher') {
+          // Generate students and their assessment data for this teacher
+          await populateTestAccountWithSessions(mockId, mockProfile.organization?.id || '', 15);
+        }
       }
 
       toast.success(`Logged in as test ${type}`);
-      
-      // Redirect to the appropriate dashboard
-      if (type === 'student') {
-        navigate('/dashboard');
-      } else if (type === 'teacher') {
-        navigate('/teacher/analytics');
-      } else {
-        navigate('/admin');
-      }
     } catch (error) {
       console.error("Error setting test user:", error);
       toast.error("Failed to set test user");
+      throw error;
     } finally {
       setIsLoading(false);
     }

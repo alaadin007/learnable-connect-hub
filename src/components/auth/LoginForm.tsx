@@ -61,23 +61,20 @@ const LoginForm = () => {
     
     try {
       // Handle test accounts first to ensure they are routed correctly
-      if (email.endsWith('@testschool.edu') || email.endsWith('@secondschool.edu')) {
-        // Extract user type from email and determine school index
-        const type = email.startsWith('admin') ? 'school' : email.split('@')[0] as 'teacher' | 'student';
-        const schoolIndex = email.includes('secondschool.edu') ? 1 : 0;
+      if (email.includes('.test@learnable.edu')) {
+        // Extract user type from email
+        let type: 'school' | 'teacher' | 'student' = 'student';
         
-        // Use the setTestUser function which handles all the test account setup
-        await setTestUser(type, schoolIndex);
-        
-        // Navigate based on user type
-        if (type === 'school') {
-          navigate('/admin');
-        } else if (type === 'teacher') {
-          navigate('/teacher/analytics');
-        } else {
-          navigate('/dashboard');
+        if (email.startsWith('school')) {
+          type = 'school';
+        } else if (email.startsWith('teacher')) {
+          type = 'teacher';
         }
         
+        // Use the setTestUser function which handles all the test account setup
+        await setTestUser(type);
+        
+        // Toast notification
         toast.success("Login successful", {
           description: `Welcome back, ${type === 'school' ? 'School Admin' : type === 'teacher' ? 'Teacher' : 'Student'}!`
         });
@@ -159,6 +156,36 @@ const LoginForm = () => {
   const handleQuickLogin = async (type: 'school' | 'teacher' | 'student', schoolIndex: number = 0) => {
     try {
       setIsLoading(true);
+      setLoginError(null);
+      
+      // First, ensure test accounts exist
+      const { data: exists, error: checkError } = await supabase.rpc('verify_school_code', { 
+        code: "TESTCODE"
+      });
+      
+      if (checkError || !exists) {
+        toast.loading("Setting up test accounts...", {
+          id: "create-test-accounts"
+        });
+        
+        const response = await supabase.functions.invoke("create-test-accounts", {
+          body: { createAccounts: true }
+        });
+        
+        if (response.error) {
+          toast.error("Failed to create test accounts", {
+            id: "create-test-accounts"
+          });
+          setLoginError("Failed to create test accounts");
+          return;
+        }
+        
+        toast.success("Test accounts created", {
+          id: "create-test-accounts"
+        });
+      }
+      
+      // Now login with the test user
       await setTestUser(type, schoolIndex);
       
       // Navigate based on user type for test accounts
@@ -171,8 +198,9 @@ const LoginForm = () => {
       }
       
       toast.success(`Logged in as ${type === 'school' ? 'School Admin' : type === 'teacher' ? 'Teacher' : 'Student'}`);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Quick login error:", error);
+      setLoginError(`Failed to log in with test account: ${error.message}`);
       toast.error("Failed to log in with test account");
     } finally {
       setIsLoading(false);

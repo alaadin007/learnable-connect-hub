@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import Navbar from "@/components/layout/Navbar";
@@ -64,6 +64,28 @@ const TestAccounts = () => {
   const [dataCreationLoading, setDataCreationLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Check if we need to initialize test accounts on first load
+  useEffect(() => {
+    const checkTestAccounts = async () => {
+      try {
+        // Check if test accounts exists
+        const { data: exists, error: checkError } = await supabase.rpc('verify_school_code', { 
+          code: "TESTCODE"
+        });
+        
+        if (checkError || !exists) {
+          console.log("Test accounts may need to be created on first load");
+          // We don't auto-create here to avoid unexpected loading
+          // User can click the refresh button if needed
+        }
+      } catch (error) {
+        console.error("Error checking test accounts:", error);
+      }
+    };
+    
+    checkTestAccounts();
+  }, []);
+
   const createTestAccounts = async () => {
     try {
       setDataCreationLoading(true);
@@ -124,15 +146,21 @@ const TestAccounts = () => {
     const account = TEST_ACCOUNTS[accountType];
     
     try {
-      // Use the enhanced setTestUser that populates data automatically
+      // Force create the test accounts if they don't exist
+      await createTestAccounts();
+      
+      // Use enhanced setTestUser that handles authentication
       await setTestUser(accountType);
+      
       toast.success(`Logged in as ${account.role} (test mode)`, {
         id: `login-success-${accountType}`
       });
+      
       navigate(account.redirectPath);
     } catch (error: any) {
       console.error(`Error signing in as ${accountType}:`, error);
       setErrorMessage(`Login failed: ${error.message || "Unknown error"}`);
+      toast.error(`Login failed: ${error.message || "Unknown error"}`);
     } finally {
       setLoadingAccount(null);
     }
