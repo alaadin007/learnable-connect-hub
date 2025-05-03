@@ -115,6 +115,7 @@ const TestAccounts = () => {
       });
       
       // Navigate to the appropriate page based on account type
+      // Ensure we're using the correct path for each role
       navigate(account.redirectPath);
     } catch (error: any) {
       console.error(`Error signing in as ${accountType}:`, error);

@@ -105,31 +105,14 @@ const LoginForm = () => {
         
         if (profile) {
           // Redirect based on user role
-          switch (profile.user_type) {
-            case 'school':
-              navigate('/admin');
-              toast.success("Login successful", {
-                description: `Welcome back, ${user.user_metadata.full_name || email}!`
-              });
-              break;
-            case 'teacher':
-              navigate('/teacher/analytics');
-              toast.success("Login successful", {
-                description: `Welcome back, ${user.user_metadata.full_name || email}!`
-              });
-              break;
-            case 'student':
-              navigate('/dashboard');
-              toast.success("Login successful", {
-                description: `Welcome back, ${user.user_metadata.full_name || email}!`
-              });
-              break;
-            default:
-              navigate('/dashboard');
-              toast.success("Login successful", {
-                description: `Welcome back, ${user.user_metadata.full_name || email}!`
-              });
-          }
+          const redirectPath = profile.user_type === 'school' ? '/admin' : 
+                             profile.user_type === 'teacher' ? '/teacher/analytics' : 
+                             '/dashboard';
+          
+          navigate(redirectPath);
+          toast.success("Login successful", {
+            description: `Welcome back, ${user.user_metadata.full_name || email}!`
+          });
         } else {
           // If no profile found, redirect to dashboard as fallback
           navigate('/dashboard');
