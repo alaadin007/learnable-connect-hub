@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Menu, X, LogOut } from "lucide-react";
@@ -54,6 +54,15 @@ const Navbar = () => {
   };
 
   const userType = getProfileType();
+
+  // Updated navigation function to prevent unwanted redirects
+  const handleNavigation = (path) => {
+    // Don't navigate if already on the same path
+    if (location.pathname === path) return;
+    
+    navigate(path);
+    setIsOpen(false);
+  };
 
   // Navigation links based on user type
   const getNavLinks = () => {
@@ -110,51 +119,18 @@ const Navbar = () => {
   const isActiveLink = (href) => {
     const currentPath = location.pathname;
     
-    // Handle dashboard link
+    // Special handling for Dashboard to match any dashboard type page
     if (href === "/dashboard") {
-      return currentPath === "/dashboard";
+      return currentPath === "/dashboard" || 
+            (userType === "school" && currentPath === "/admin") ||
+            (userType === "teacher" && currentPath === "/teacher/analytics");
     }
     
-    // Special case for the admin section
+    // Handle other routes
     if (href === "/admin") {
-      // Only highlight when exactly on /admin page
       return currentPath === "/admin";
     }
     
-    // Special case for teacher management
-    if (href === "/admin/teacher-management") {
-      return currentPath === "/admin/teacher-management";
-    }
-    
-    // Special case for teachers
-    if (href === "/admin/teachers") {
-      return currentPath === "/admin/teachers";
-    }
-    
-    // Special case for analytics
-    if (href === "/admin/analytics") {
-      return currentPath === "/admin/analytics";
-    }
-    
-    // Special case for teacher sections
-    if (href === "/teacher/students") {
-      return currentPath === "/teacher/students";
-    }
-    
-    if (href === "/teacher/analytics") {
-      return currentPath === "/teacher/analytics";
-    }
-    
-    // Special case for chat and documents
-    if (href === "/chat") {
-      return currentPath === "/chat";
-    }
-    
-    if (href === "/documents") {
-      return currentPath === "/documents";
-    }
-    
-    // Direct match for other pages
     return currentPath === href;
   };
 
@@ -184,16 +160,16 @@ const Navbar = () => {
           {!isTestAccountsPage && (
             <nav className="hidden md:flex space-x-8">
               {navLinks.map((link) => (
-                <Link
+                <button
                   key={link.name}
-                  to={link.href}
+                  onClick={() => handleNavigation(link.href)}
                   className={cn(
                     "text-learnable-gray hover:text-learnable-blue font-medium",
                     isActiveLink(link.href) && "text-learnable-blue font-bold"
                   )}
                 >
                   {link.name}
-                </Link>
+                </button>
               ))}
             </nav>
           )}
@@ -265,19 +241,18 @@ const Navbar = () => {
         <div className="pt-5 pb-6 px-4 space-y-4 divide-y divide-gray-100">
           <div className="space-y-1">
             {navLinks.map((link) => (
-              <Link
+              <button
                 key={link.name}
-                to={link.href}
+                onClick={() => handleNavigation(link.href)}
                 className={cn(
-                  "block px-3 py-2 text-base font-medium rounded-md",
+                  "block w-full text-left px-3 py-2 text-base font-medium rounded-md",
                   isActiveLink(link.href)
                     ? "bg-learnable-super-light text-learnable-blue"
                     : "text-learnable-dark hover:bg-learnable-super-light"
                 )}
-                onClick={() => setIsOpen(false)}
               >
                 {link.name}
-              </Link>
+              </button>
             ))}
           </div>
           <div className="pt-4 space-y-4">

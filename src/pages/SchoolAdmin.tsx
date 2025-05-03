@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
@@ -7,7 +6,7 @@ import TeacherManagement from "@/components/school-admin/TeacherManagement";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Users, BarChart2, ChevronDown, Settings, User } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -33,6 +32,7 @@ export type TeacherInvitation = {
 const SchoolAdmin = () => {
   const { profile, userRole } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState("teachers");
   
   // Use optional chaining for organization properties
@@ -111,23 +111,23 @@ const SchoolAdmin = () => {
     // displayErrorIfNeeded();
   }, [profile, schoolId]);
 
-  // Quick actions dropdown handler with fixed routes
+  // Quick actions dropdown handler with fixed routes and improved navigation
   const handleQuickActionSelect = (action: string) => {
     switch (action) {
       case "manage-teachers":
         navigate("/admin/teacher-management");
         break;
       case "view-analytics":
-        // Defer analytics navigation to prevent UI freeze
-        setTimeout(() => {
-          navigate("/admin/analytics");
-        }, 10);
+        navigate("/admin/analytics");
         break;
       case "school-settings":
         navigate("/admin/settings");
         break;
       case "student-management":
         navigate("/admin/students");
+        break;
+      case "dashboard":
+        navigate("/dashboard");
         break;
       default:
         break;
@@ -137,15 +137,10 @@ const SchoolAdmin = () => {
   const handleTabClick = (value: string) => {
     setActiveTab(value);
     
-    // Navigate to specific pages for certain tabs with a small delay to prevent UI freeze
     if (value === "students") {
-      setTimeout(() => {
-        navigate("/admin/students");
-      }, 10);
+      navigate("/admin/students");
     } else if (value === "settings") {
-      setTimeout(() => {
-        navigate("/admin/settings");
-      }, 10);
+      navigate("/admin/settings");
     }
   };
 
@@ -194,6 +189,10 @@ const SchoolAdmin = () => {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-56 bg-white">
+                  <DropdownMenuItem onClick={() => handleQuickActionSelect("dashboard")}>
+                    <User className="mr-2 h-4 w-4" />
+                    <span>Dashboard</span>
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleQuickActionSelect("manage-teachers")}>
                     <Users className="mr-2 h-4 w-4" />
                     <span>Manage Teachers</span>

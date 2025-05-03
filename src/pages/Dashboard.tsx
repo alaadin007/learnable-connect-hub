@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import { Button } from "@/components/ui/button";
 import { MessageSquare, BookOpen, BarChart3, Users, School, FileText, Settings } from "lucide-react";
@@ -10,6 +10,7 @@ import Footer from "@/components/layout/Footer";
 const Dashboard = () => {
   const { user, profile, userRole } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Redirect if not logged in
   useEffect(() => {
@@ -18,26 +19,19 @@ const Dashboard = () => {
     }
   }, [user, navigate]);
   
-  // Redirect specific roles to their specialized dashboards
+  // Prevent unwanted redirects if already on intended page
   useEffect(() => {
-    // We're keeping track of mounting to prevent unwanted redirects
-    const isMounted = { current: true };
-    
-    if (isMounted.current && userRole) {
-      if (userRole === "school") {
-        // Don't redirect if already on admin page
-        if (window.location.pathname !== "/admin") {
-          navigate("/admin");
-        }
+    // Only redirect if we're on the exact /dashboard path
+    if (location.pathname === "/dashboard" && userRole) {
+      if (userRole === "school" && profile?.organization?.id) {
+        // For school admins, redirect to the admin page only if not there already
+        navigate("/admin", { replace: true });
       } else if (userRole === "teacher") {
-        navigate("/teacher/analytics");
+        navigate("/teacher/analytics", { replace: true });
       }
     }
     
-    return () => {
-      isMounted.current = false;
-    };
-  }, [userRole, navigate]);
+  }, [userRole, navigate, location.pathname, profile]);
 
   // Return a loading state if profile isn't loaded yet
   if (!user || !profile) {
