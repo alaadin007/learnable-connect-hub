@@ -9,6 +9,8 @@ import {
   Session,
   User,
   AuthChangeEvent,
+  AuthError,
+  SignInWithPasswordCredentials,
 } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
@@ -45,7 +47,7 @@ interface AuthContextType {
   loading: boolean;
   isSuperviser: boolean;
   schoolId: string | null;
-  signIn: (email: string, password?: string) => Promise<void>;
+  signIn: (email: string, password?: string) => Promise<{ data: any, error: AuthError | null }>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
@@ -73,6 +75,8 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    console.log("AuthContext: Initializing");
+    
     const getInitialSession = async () => {
       setIsLoading(true);
       try {
@@ -80,11 +84,15 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
           data: { session: initialSession },
         } = await supabase.auth.getSession();
 
+        console.log("AuthContext: Initial session retrieved", initialSession ? "Session exists" : "No session");
+        
         setSession(initialSession);
         setUser(initialSession?.user || null);
 
         if (initialSession?.user) {
           await fetchProfile(initialSession.user.id);
+        } else {
+          console.log("AuthContext: No user in initial session");
         }
       } catch (error) {
         console.error("Error getting initial session:", error);
@@ -94,10 +102,11 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       }
     };
 
-    getInitialSession();
-
+    // First set up the auth state change listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event: AuthChangeEvent, currentSession: Session | null) => {
+        console.log(`AuthContext: Auth state changed: ${event}`);
+        
         setSession(currentSession);
         setUser(currentSession?.user || null);
 
@@ -112,11 +121,16 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       }
     );
 
+    // Then get the initial session
+    getInitialSession();
+
     return () => subscription.unsubscribe();
   }, []);
 
   const fetchProfile = async (userId: string) => {
     try {
+      console.log(`AuthContext: Fetching profile for user ${userId}`);
+      
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
         .select(
@@ -134,7 +148,12 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
         .eq("id", userId)
         .single();
 
-      if (profileError) throw profileError;
+      if (profileError) {
+        console.error("AuthContext: Error fetching profile:", profileError);
+        throw profileError;
+      }
+
+      console.log("AuthContext: Profile data retrieved:", profileData);
 
       let safeProfileData: UserProfile = {
         ...profileData,
@@ -151,6 +170,8 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       setUserRole(profileData.user_type || null);
       setIsSuperviser(profileData.user_type === "superviser");
       setSchoolId(safeProfileData.organization?.id || null);
+
+      console.log(`AuthContext: Profile updated, user_type: ${profileData.user_type}, organization: ${safeProfileData.organization?.name || 'none'}`);
 
       if (user && isTestAccount(user.email || '')) {
         console.log("AuthContext: Test account detected, ensuring organization data is complete");
@@ -225,6 +246,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
 
   const refreshProfile = async () => {
     if (user) {
+      console.log(`AuthContext: Refreshing profile for user ${user.id}`);
       await fetchProfile(user.id);
     }
   };
@@ -236,20 +258,29 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       if (email.startsWith("school")) type = "school";
       else if (email.startsWith("teacher")) type = "teacher";
       await setTestUser(type);
-      return;
+      return { data: { user: { email } }, error: null };
     }
 
     setIsLoading(true);
     try {
+      console.log(`AuthContext: Signing in user ${email}`);
+      
       if (password) {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        const result = await supabase.auth.signInWithPassword({ email, password });
+        if (result.error) {
+          console.error("AuthContext: Sign in error:", result.error);
+          throw result.error;
+        }
+        console.log("AuthContext: Sign in successful");
+        return result;
       } else {
-        const { error } = await supabase.auth.signInWithOtp({ email });
-        if (error) throw error;
+        const result = await supabase.auth.signInWithOtp({ email });
+        if (result.error) throw result.error;
         toast.success("Check your email to verify your login");
+        return result;
       }
     } catch (error: any) {
+      console.error("AuthContext: Error during sign in:", error);
       toast.error(error.error_description ?? error.message);
       throw error;
     } finally {

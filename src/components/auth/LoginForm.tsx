@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +15,7 @@ const LoginForm = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const { signIn, setTestUser, userRole } = useAuth();
+  const { signIn, setTestUser, userRole, profile } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [loginError, setLoginError] = useState<string | null>(null);
@@ -36,15 +37,19 @@ const LoginForm = () => {
   // Redirect if user role already set
   useEffect(() => {
     if (userRole) {
+      console.log("LoginForm: User already logged in with role:", userRole);
+      console.log("LoginForm: User profile:", profile);
+      
       const redirectPath = userRole === "school"
         ? "/admin"
         : userRole === "teacher"
         ? "/teacher/analytics"
         : "/dashboard";
 
-      navigate(redirectPath);
+      console.log(`LoginForm: Redirecting to ${redirectPath}`);
+      navigate(redirectPath, { replace: true });
     }
-  }, [userRole, navigate]);
+  }, [userRole, navigate, profile]);
 
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -57,6 +62,8 @@ const LoginForm = () => {
     setIsLoading(true);
 
     try {
+      console.log(`LoginForm: Attempting login for ${email}`);
+      
       // Handle test accounts - direct login without authentication
       if (email.includes(".test@learnable.edu")) {
         let type: "school" | "teacher" | "student" = "student";
@@ -96,38 +103,61 @@ const LoginForm = () => {
       }
 
       // Regular user login flow
-      await signIn(email, password);
+      const { data: authData, error: signInError } = await signIn(email, password);
 
+      if (signInError) throw signInError;
+
+      console.log("LoginForm: Sign in successful, fetching user data");
+      
       const {
         data: { user },
+        error: getUserError
       } = await supabase.auth.getUser();
 
-      if (user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("user_type")
-          .eq("id", user.id)
-          .single();
-
-        const redirectPath =
-          profile?.user_type === "school"
-            ? "/admin"
-            : profile?.user_type === "teacher"
-            ? "/teacher/analytics"
-            : "/dashboard";
-
-        toast.success("Login successful", {
-          description: `Welcome back, ${
-            user.user_metadata?.full_name || email
-          }!`,
-        });
-
-        navigate(redirectPath);
-      } else {
-        // fallback
-        toast.success("Login successful");
-        navigate("/dashboard");
+      if (getUserError) throw getUserError;
+      
+      if (!user) {
+        throw new Error("Failed to retrieve user data after login");
       }
+
+      console.log(`LoginForm: User authenticated, ID: ${user.id}`);
+
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("user_type, full_name, organization(id, name)")
+        .eq("id", user.id)
+        .single();
+
+      if (profileError) {
+        console.error("LoginForm: Error fetching profile:", profileError);
+        toast.error("Login successful, but failed to load profile");
+        navigate("/dashboard");
+        return;
+      }
+
+      console.log(`LoginForm: Profile retrieved, user_type: ${profile?.user_type}`);
+
+      const redirectPath =
+        profile?.user_type === "school"
+          ? "/admin"
+          : profile?.user_type === "teacher"
+          ? "/teacher/analytics"
+          : "/dashboard";
+
+      toast.success("Login successful", {
+        description: `Welcome back, ${
+          user.user_metadata?.full_name || email
+        }!`,
+      });
+
+      console.log(`LoginForm: Redirecting to ${redirectPath}`);
+      navigate(redirectPath, { 
+        replace: true,
+        state: { 
+          fromNavigation: true,
+          preserveContext: true
+        } 
+      });
     } catch (error: any) {
       console.error("Login error:", error);
       setLoginError(error.message);
