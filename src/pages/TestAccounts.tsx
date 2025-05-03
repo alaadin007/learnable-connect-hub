@@ -16,7 +16,6 @@ const TEST_ACCOUNTS = {
     password: "school123",
     role: "School Admin",
     description: "Access the school administrator dashboard and manage teachers",
-    redirectPath: "/admin",
     features: [
       "School analytics dashboard",
       "Teacher management",
@@ -30,7 +29,6 @@ const TEST_ACCOUNTS = {
     password: "teacher123",
     role: "Teacher",
     description: "Access teacher analytics and student management",
-    redirectPath: "/teacher/analytics",
     features: [
       "Student management",
       "Class analytics",
@@ -44,7 +42,6 @@ const TEST_ACCOUNTS = {
     password: "student123",
     role: "Student",
     description: "Access student dashboard with learning tools",
-    redirectPath: "/dashboard",
     features: [
       "AI learning assistant",
       "Document management",
@@ -114,14 +111,23 @@ const TestAccounts = () => {
         id: `login-success-${accountType}`
       });
       
-      // Navigate to the appropriate path based on account type - define the exact path again here
-      // to ensure we're not relying on potentially outdated redirectPath property
-      const redirectPath = accountType === "school" ? "/admin" : 
-                         accountType === "teacher" ? "/teacher/analytics" : 
-                         "/dashboard";
+      // Define the exact redirect paths here to ensure consistency throughout the app
+      let redirectPath;
       
-      console.log(`Redirecting ${accountType} test account to: ${redirectPath}`);
-      navigate(redirectPath);
+      if (accountType === "school") {
+        redirectPath = "/admin";
+      } else if (accountType === "teacher") {
+        redirectPath = "/teacher/analytics";
+      } else {
+        redirectPath = "/dashboard";
+      }
+      
+      console.log(`TestAccounts: Redirecting ${accountType} test account to: ${redirectPath}`);
+      
+      // Use state to mark this as a navigation from the test accounts page
+      navigate(redirectPath, { 
+        state: { fromTestAccounts: true } 
+      });
     } catch (error: any) {
       console.error(`Error signing in as ${accountType}:`, error);
       setErrorMessage(`Login failed: ${error.message || "Unknown error"}`);

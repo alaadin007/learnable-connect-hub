@@ -40,9 +40,17 @@ const LoginForm = () => {
   // Redirect if already logged in
   useEffect(() => {
     if (userRole) {
-      const redirectPath = userRole === 'school' ? '/admin' : 
-                          userRole === 'teacher' ? '/teacher/analytics' : 
-                          '/dashboard';
+      let redirectPath;
+      
+      if (userRole === 'school') {
+        redirectPath = '/admin';
+      } else if (userRole === 'teacher') {
+        redirectPath = '/teacher/analytics';
+      } else {
+        redirectPath = '/dashboard';
+      }
+      
+      console.log(`LoginForm: Already logged in as ${userRole}, redirecting to ${redirectPath}`);
       navigate(redirectPath);
     }
   }, [userRole, navigate]);
@@ -70,24 +78,30 @@ const LoginForm = () => {
           type = 'teacher';
         }
         
-        console.log(`Quick login for test account type: ${type}`);
+        console.log(`LoginForm: Quick login for test account type: ${type}`);
         
         // Use direct test account setup
         await setTestUser(type);
         
-        // Define exact redirect paths to ensure consistency
-        const redirectPath = type === 'school' ? '/admin' : 
-                           type === 'teacher' ? '/teacher/analytics' : 
-                           '/dashboard';
+        // Define exact redirect paths based on account type
+        let redirectPath;
         
-        console.log(`Redirecting test account to: ${redirectPath}`);
+        if (type === 'school') {
+          redirectPath = '/admin';
+        } else if (type === 'teacher') {
+          redirectPath = '/teacher/analytics';
+        } else {
+          redirectPath = '/dashboard';
+        }
+        
+        console.log(`LoginForm: Redirecting test account to: ${redirectPath}`);
         
         // Toast notification and redirect
         toast.success("Login successful", {
           description: `Welcome, ${type === 'school' ? 'School Admin' : type === 'teacher' ? 'Teacher' : 'Student'}!`
         });
         
-        navigate(redirectPath);
+        navigate(redirectPath, { state: { fromTestAccounts: true } });
         setIsLoading(false);
         return;
       }
@@ -150,18 +164,24 @@ const LoginForm = () => {
     try {
       setIsLoading(true);
       setLoginError(null);
-      console.log(`Quick login for test account type: ${type}`);
+      console.log(`LoginForm: Quick login for test account type: ${type}`);
       
       // Use direct test account setup without authentication checks
       await setTestUser(type, schoolIndex);
       
-      // Define exact redirect paths to ensure consistency
-      const redirectPath = type === 'school' ? '/admin' : 
-                          type === 'teacher' ? '/teacher/analytics' : 
-                          '/dashboard';
+      // Define exact redirect paths based on account type
+      let redirectPath;
       
-      console.log(`Quick login redirecting to: ${redirectPath}`);
-      navigate(redirectPath);
+      if (type === 'school') {
+        redirectPath = '/admin';
+      } else if (type === 'teacher') {
+        redirectPath = '/teacher/analytics';
+      } else {
+        redirectPath = '/dashboard';
+      }
+      
+      console.log(`LoginForm: Quick login redirecting to: ${redirectPath}`);
+      navigate(redirectPath, { state: { fromTestAccounts: true } });
       
       toast.success(`Logged in as ${type === 'school' ? 'School Admin' : type === 'teacher' ? 'Teacher' : 'Student'}`);
     } catch (error: any) {

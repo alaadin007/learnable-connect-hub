@@ -19,11 +19,18 @@ const Dashboard = () => {
     }
   }, [user, navigate]);
   
-  // Only redirect school and teacher users if they're directly accessing dashboard
-  // with no fromNavigation state, to avoid navigation loops from test accounts
+  // Only redirect users under specific conditions:
+  // 1. They must be on the /dashboard route directly
+  // 2. They must have a userRole determined
+  // 3. They must NOT be coming from a test account login or navigation
   useEffect(() => {
-    // Only redirect on the initial /dashboard load, not when explicitly navigating to /dashboard
-    if (location.pathname === "/dashboard" && userRole && !location.state?.fromNavigation && !location.state?.fromDashboard) {
+    const isDirectDashboardAccess = location.pathname === "/dashboard";
+    const hasDefinedUserRole = Boolean(userRole);
+    const isFromTestAccounts = Boolean(location.state?.fromTestAccounts);
+    const isExplicitNavigation = Boolean(location.state?.fromNavigation || location.state?.fromDashboard);
+    
+    // Only redirect if accessing dashboard directly, with role, and not from test accounts or navigation
+    if (isDirectDashboardAccess && hasDefinedUserRole && !isFromTestAccounts && !isExplicitNavigation) {
       // Only redirect school and teacher accounts, leave students at dashboard
       if (userRole === "school" && profile?.organization?.id) {
         console.log("Dashboard: Redirecting school admin to /admin");
@@ -31,6 +38,8 @@ const Dashboard = () => {
       } else if (userRole === "teacher") {
         console.log("Dashboard: Redirecting teacher to /teacher/analytics");
         navigate("/teacher/analytics", { replace: true, state: { fromDashboard: true } });
+      } else {
+        console.log("Dashboard: Keeping student at dashboard");
       }
     }
   }, [userRole, navigate, location.pathname, profile, location.state]);
