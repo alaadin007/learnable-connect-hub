@@ -234,6 +234,7 @@ const SchoolRegistrationForm: React.FC = () => {
         } else {
           toast.error(`Registration failed: ${error.message || "Unknown error"}`);
         }
+        setIsLoading(false);
         return;
       }
 
@@ -265,6 +266,7 @@ const SchoolRegistrationForm: React.FC = () => {
         } else {
           toast.error(`Registration failed: ${responseData.error}`);
         }
+        setIsLoading(false);
         return;
       }
 
@@ -477,7 +479,11 @@ const SchoolRegistrationForm: React.FC = () => {
               )}
             />
             
-            <Button type="submit" disabled={isLoading} className="w-full gradient-bg">
+            <Button 
+              type="submit" 
+              disabled={isLoading} 
+              className="w-full gradient-bg"
+            >
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
