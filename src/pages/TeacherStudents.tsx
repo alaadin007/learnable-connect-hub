@@ -1,5 +1,5 @@
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,16 +12,25 @@ const TeacherStudents = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, profile, userRole } = useAuth();
+  const [pageInitialized, setPageInitialized] = useState(false);
+  
+  // Process location state once on first render
+  useEffect(() => {
+    if (pageInitialized) return;
+    
+    console.log("TeacherStudents: Initial render with state:", location.state);
+    setPageInitialized(true);
+  }, [location.state, pageInitialized]);
   
   // Protection against direct access without authentication
   useEffect(() => {
+    // Skip authentication check for test accounts with proper navigation context
+    if (location.state?.fromTestAccounts || location.state?.fromNavigation) {
+      console.log("TeacherStudents: Allowing access due to navigation context");
+      return;
+    }
+    
     if (!user) {
-      // Allow test accounts to access this page more easily
-      if (location.state?.fromTestAccounts || location.state?.fromNavigation) {
-        console.log("TeacherStudents: Allowing access due to navigation context");
-        return;
-      }
-      
       console.log("TeacherStudents: No user found, redirecting to login");
       navigate("/login", { replace: true });
       return;
@@ -31,9 +40,7 @@ const TeacherStudents = () => {
     // But skip this check if we're coming from a known navigation flow
     if (userRole && 
         userRole !== "teacher" && 
-        !location.state?.preserveContext && 
-        !location.state?.fromNavigation && 
-        !location.state?.fromTestAccounts) {
+        !location.state?.preserveContext) {
       console.log("TeacherStudents: Redirecting non-teacher user to dashboard");
       navigate("/dashboard", { replace: true });
     }

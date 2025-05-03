@@ -1,3 +1,4 @@
+
 // Import necessary functions
 import { format } from 'date-fns';
 import { getMockAnalyticsData } from './sessionLogging';
@@ -6,481 +7,266 @@ import {
   AnalyticsSummary,
   SessionData,
   TopicData,
-  StudyTimeData,
-  SchoolPerformanceSummary as SchoolPerfSummary,
-  SchoolPerformanceData as SchoolPerfData,
-  TeacherPerformanceData,
-  StudentPerformanceData,
-  DateRange
+  StudyTimeData
 } from '@/components/analytics/types';
+import { supabase } from '@/integrations/supabase/client';
 
-// Renamed the imported types to avoid conflicts
-type SchoolPerformanceData = SchoolPerfData;
-type SchoolPerformanceSummary = SchoolPerfSummary;
-
-/**
- * Helper to create text representation of date range
- */
-export const getDateRangeText = (dateRange?: DateRange): string => {
-  if (!dateRange?.from) return 'All time';
-  
-  const fromDate = dateRange.from ? format(dateRange.from, 'MMM d, yyyy') : '';
-  const toDate = dateRange.to ? format(dateRange.to, 'MMM d, yyyy') : 'Present';
-  
-  return `${fromDate} to ${toDate}`;
-};
-
-/**
- * Fetch analytics summary data
- */
-export const fetchAnalyticsSummary = async (
-  schoolId: string,
-  filters: AnalyticsFilters
-): Promise<AnalyticsSummary> => {
-  // For test accounts, use mock data
-  if (!schoolId || schoolId === 'test') {
-    console.log("Using mock data for analytics summary");
-    try {
-      const mockData = getMockAnalyticsData(schoolId, filters);
-      return mockData.summary;
-    } catch (error) {
-      console.error("Error generating mock analytics summary:", error);
-      // Return fallback data in case of error
-      return {
-        activeStudents: 15,
-        totalSessions: 42,
-        totalQueries: 128,
-        avgSessionMinutes: 18
-      };
-    }
-  }
+// Fetch analytics summary data
+export const fetchAnalyticsSummary = async (schoolId: string, filters: AnalyticsFilters): Promise<AnalyticsSummary> => {
+  console.info("Fetching real analytics summary data for school:", schoolId);
   
   try {
-    // Implement real API logic here
-    console.log("Fetching real analytics summary data for school:", schoolId);
-    // This is just a placeholder
-    return {
+    // Check if this is a test ID
+    if (schoolId.startsWith('test-')) {
+      // Return mock data for test accounts
+      const mock = getMockAnalyticsData(schoolId);
+      return mock.summary;
+    }
+    
+    // For real accounts, fetch from supabase
+    const { data, error } = await supabase.rpc('get_analytics_summary', {
+      school_id: schoolId,
+      start_date: filters.dateRange?.from ? format(filters.dateRange.from, 'yyyy-MM-dd') : undefined,
+      end_date: filters.dateRange?.to ? format(filters.dateRange.to, 'yyyy-MM-dd') : undefined,
+      teacher_id: filters.teacherId || undefined,
+      student_id: filters.studentId || undefined
+    });
+    
+    if (error) {
+      console.error("Error fetching analytics summary:", error);
+      throw error;
+    }
+    
+    return data || {
       activeStudents: 0,
       totalSessions: 0,
       totalQueries: 0,
       avgSessionMinutes: 0
     };
   } catch (error) {
-    console.error('Error fetching analytics summary:', error);
-    throw error;
-  }
-};
-
-/**
- * Fetch session logs
- */
-export const fetchSessionLogs = async (
-  schoolId: string,
-  filters: AnalyticsFilters
-): Promise<SessionData[]> => {
-  // For test accounts, use mock data
-  if (!schoolId || schoolId === 'test') {
-    console.log("Using mock data for session logs");
-    try {
-      const mockData = getMockAnalyticsData(schoolId, filters).sessions;
-      
-      // Convert mock data to expected SessionData format
-      return mockData.map(session => ({
-        id: session.id,
-        student_name: session.userName || "Unknown",
-        student_id: session.userId || "",
-        session_date: session.startTime || new Date().toISOString(),
-        duration_minutes: typeof session.duration === 'string' ? 
-          parseInt(session.duration) : 
-          (typeof session.duration === 'number' ? session.duration : 0),
-        topics: [session.topicOrContent || "General"],
-        questions_asked: session.numQueries || session.queries || 0,
-        questions_answered: session.numQueries || session.queries || 0,
-        
-        // Keep backward compatibility fields
-        userId: session.userId,
-        userName: session.userName,
-        student: session.userName, // Change this from session.student
-        topicOrContent: session.topicOrContent,
-        topic: session.topicOrContent, // Change this from session.topic
-        startTime: session.startTime,
-        endTime: session.endTime,
-        duration: session.duration,
-        numQueries: session.numQueries,
-        queries: session.queries
-      }));
-    } catch (error) {
-      console.error("Error generating mock session logs:", error);
-      // Return empty array in case of error
-      return [];
-    }
-  }
-  
-  try {
-    // Implement real API logic here
-    console.log("Fetching real session logs for school:", schoolId);
-    // This is just a placeholder
-    return [];
-  } catch (error) {
-    console.error('Error fetching session logs:', error);
-    throw error;
-  }
-};
-
-/**
- * Fetch popular topics
- */
-export const fetchTopics = async (
-  schoolId: string,
-  filters: AnalyticsFilters
-): Promise<TopicData[]> => {
-  // For test accounts, use mock data
-  if (!schoolId || schoolId === 'test') {
-    console.log("Using mock data for topics");
-    try {
-      const mockData = getMockAnalyticsData(schoolId, filters).topics;
-      
-      // Convert mock data to expected TopicData format
-      return mockData.map(topicData => ({
-        topic: topicData.topic || topicData.name || "",
-        count: topicData.count || topicData.value || 0,
-        
-        // Keep backward compatibility fields
-        name: topicData.name || topicData.topic,
-        value: topicData.value || topicData.count
-      }));
-    } catch (error) {
-      console.error("Error generating mock topics:", error);
-      // Return fallback data in case of error
-      return [
-        { topic: 'Math', count: 15, name: 'Math', value: 15 },
-        { topic: 'Science', count: 12, name: 'Science', value: 12 },
-        { topic: 'History', count: 8, name: 'History', value: 8 },
-        { topic: 'English', count: 7, name: 'English', value: 7 },
-        { topic: 'Geography', count: 5, name: 'Geography', value: 5 }
-      ];
-    }
-  }
-  
-  try {
-    // Implement real API logic here
-    console.log("Fetching real topics for school:", schoolId);
-    // This is just a placeholder
-    return [];
-  } catch (error) {
-    console.error('Error fetching topics:', error);
-    throw error;
-  }
-};
-
-/**
- * Fetch study time data
- */
-export const fetchStudyTime = async (
-  schoolId: string,
-  filters: AnalyticsFilters
-): Promise<StudyTimeData[]> => {
-  // For test accounts, use mock data
-  if (!schoolId || schoolId === 'test') {
-    console.log("Using mock data for study time");
-    try {
-      const mockData = getMockAnalyticsData(schoolId, filters).studyTime;
-      
-      // Convert mock data to expected StudyTimeData format
-      return mockData.map(studyData => ({
-        student_name: studyData.studentName || studyData.name || "Unknown",
-        student_id: "", // Mock data doesn't have student_id
-        total_minutes: (studyData.hours || 0) * 60,
-        
-        // Keep backward compatibility fields
-        studentName: studyData.studentName || studyData.name,
-        name: studyData.name || studyData.studentName,
-        hours: studyData.hours,
-        week: studyData.week,
-        year: studyData.year
-      }));
-    } catch (error) {
-      console.error("Error generating mock study time:", error);
-      // Return fallback data in case of error
-      return [
-        { student_id: 'student-1', student_name: 'Student 1', total_minutes: 240, name: 'Student 1', studentName: 'Student 1', hours: 4, week: 1, year: 2023 },
-        { student_id: 'student-2', student_name: 'Student 2', total_minutes: 180, name: 'Student 2', studentName: 'Student 2', hours: 3, week: 1, year: 2023 },
-        { student_id: 'student-3', student_name: 'Student 3', total_minutes: 150, name: 'Student 3', studentName: 'Student 3', hours: 2.5, week: 1, year: 2023 }
-      ];
-    }
-  }
-  
-  try {
-    // Implement real API logic here
-    console.log("Fetching real study time for school:", schoolId);
-    // This is just a placeholder
-    return [];
-  } catch (error) {
-    console.error('Error fetching study time data:', error);
-    throw error;
-  }
-};
-
-/**
- * Fetch school performance data
- */
-export const fetchSchoolPerformance = async (
-  schoolId: string,
-  filters: AnalyticsFilters
-): Promise<{
-  monthlyData: SchoolPerformanceData[];
-  summary: SchoolPerformanceSummary | null;
-}> => {
-  try {
-    // For test accounts or development, return mock data
-    if (!schoolId || schoolId === 'test') {
-      console.log("Using mock data for school performance");
-      try {
-        // Generate mock monthly data
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
-        const monthlyData: SchoolPerformanceData[] = months.map(month => ({
-          month: month,
-          avg_monthly_score: 70 + Math.floor(Math.random() * 20),
-          monthly_completion_rate: 75 + Math.floor(Math.random() * 15),
-          score_improvement_rate: 5 + Math.floor(Math.random() * 10),
-          completion_improvement_rate: 3 + Math.floor(Math.random() * 5),
-          
-          // Additional properties for utils compatibility
-          average_score: 70 + Math.floor(Math.random() * 20),
-          total_questions: 100 + Math.floor(Math.random() * 200)
-        }));
-        
-        // Generate mock summary
-        const summary: SchoolPerformanceSummary = {
-          total_assessments: 120,
-          students_with_submissions: 95,
-          total_students: 110,
-          avg_submissions_per_assessment: 4.2,
-          avg_score: 85,
-          completion_rate: 87,
-          student_participation_rate: 92,
-          
-          // Additional properties for utils compatibility
-          average_score: 85,
-          total_questions: 1250,
-          improvement_rate: 12.5
-        };
-        
-        return { monthlyData, summary };
-      } catch (error) {
-        console.error("Error generating mock school performance:", error);
-        // Return empty data in case of error
-        return {
-          monthlyData: [],
-          summary: null
-        };
-      }
-    }
-    
-    // For real accounts, implement API call here
-    console.log("Fetching real school performance for school:", schoolId);
-    // This is just a placeholder
+    console.error("Error in fetchAnalyticsSummary:", error);
+    // Return default values on error
     return {
-      monthlyData: [],
-      summary: null
-    };
-  } catch (error) {
-    console.error('Error fetching school performance:', error);
-    return {
-      monthlyData: [],
-      summary: null
+      activeStudents: 0,
+      totalSessions: 0,
+      totalQueries: 0,
+      avgSessionMinutes: 0
     };
   }
 };
 
-/**
- * Fetch teacher performance data
- */
-export const fetchTeacherPerformance = async (
-  schoolId: string,
-  filters: AnalyticsFilters
-): Promise<TeacherPerformanceData[]> => {
+// Fetch session logs
+export const fetchSessionLogs = async (schoolId: string, filters: AnalyticsFilters): Promise<SessionData[]> => {
+  console.info("Fetching real session logs for school:", schoolId);
+  
   try {
-    // For test accounts or development, return mock data
-    if (!schoolId || schoolId === 'test') {
-      console.log("Using mock data for teacher performance");
-      try {
-        const teacherNames = [
-          'Ms. Johnson',
-          'Mr. Smith',
-          'Mrs. Davis',
-          'Dr. Wilson',
-          'Prof. Martinez'
-        ];
-        
-        return teacherNames.map((name, index) => ({
-          teacher_id: `teacher-${index}`,
-          teacher_name: name,
-          assessments_created: 10 + Math.floor(Math.random() * 15),
-          students_assessed: 15 + Math.floor(Math.random() * 15),
-          completion_rate: 70 + Math.floor(Math.random() * 25),
-          avg_student_score: 70 + Math.floor(Math.random() * 25),
-          avg_submissions_per_assessment: 3 + Math.floor(Math.random() * 4),
-          
-          // Additional properties for utils compatibility
-          id: `teacher-${index}`,
-          name: name,
-          students_count: 15 + Math.floor(Math.random() * 15),
-          average_score: 70 + Math.floor(Math.random() * 25),
-          total_questions: 200 + Math.floor(Math.random() * 300),
-          improvement_rate: Math.floor(Math.random() * 20) - 5
-        }));
-      } catch (error) {
-        console.error("Error generating mock teacher performance:", error);
-        // Return empty array in case of error
-        return [];
-      }
+    // Check if this is a test ID
+    if (schoolId.startsWith('test-')) {
+      // Return mock data for test accounts
+      const mock = getMockAnalyticsData(schoolId);
+      return mock.sessions;
     }
     
-    // For real accounts, implement API call here
-    console.log("Fetching real teacher performance for school:", schoolId);
-    // This is just a placeholder
-    return [];
+    // For real accounts, fetch from supabase
+    const { data, error } = await supabase
+      .from('session_logs')
+      .select(`
+        id,
+        user_id,
+        profiles!session_logs_user_id_fkey (
+          full_name
+        ),
+        session_start,
+        session_end,
+        topic_or_content_used,
+        num_queries
+      `)
+      .eq('school_id', schoolId)
+      .order('session_start', { ascending: false });
+      
+    if (error) {
+      console.error("Error fetching session logs:", error);
+      throw error;
+    }
+    
+    // Transform data to expected format
+    return data.map(session => ({
+      id: session.id,
+      student_id: session.user_id,
+      student_name: session.profiles?.full_name || 'Unknown Student',
+      session_date: session.session_start,
+      duration_minutes: session.session_end 
+        ? Math.round((new Date(session.session_end).getTime() - new Date(session.session_start).getTime()) / 60000)
+        : 0,
+      topics: [session.topic_or_content_used || 'Unknown'],
+      questions_asked: session.num_queries || 0,
+      questions_answered: session.num_queries || 0,
+      // Add compatibility fields for older code
+      userId: session.user_id,
+      userName: session.profiles?.full_name || 'Unknown Student',
+      topic: session.topic_or_content_used || 'Unknown',
+      queries: session.num_queries || 0
+    })) || [];
   } catch (error) {
-    console.error('Error fetching teacher performance:', error);
+    console.error("Error in fetchSessionLogs:", error);
+    // Return empty array on error
     return [];
   }
 };
 
-/**
- * Fetch student performance data
- */
-export const fetchStudentPerformance = async (
-  schoolId: string,
-  filters: AnalyticsFilters
-): Promise<StudentPerformanceData[]> => {
+// Fetch topics
+export const fetchTopics = async (schoolId: string, filters: AnalyticsFilters): Promise<TopicData[]> => {
+  console.info("Fetching real topics for school:", schoolId);
+  
   try {
-    // For test accounts or development, return mock data
-    if (!schoolId || schoolId === 'test') {
-      console.log("Using mock data for student performance");
-      try {
-        const studentNames = [
-          'Emma Thompson',
-          'Liam Johnson',
-          'Olivia Davis',
-          'Noah Wilson',
-          'Ava Martinez',
-          'Sophia Brown',
-          'Jackson Lee',
-          'Isabella Taylor',
-          'Lucas Garcia',
-          'Mia Robinson'
-        ];
-        
-        const teacherNames = [
-          'Ms. Johnson',
-          'Mr. Smith',
-          'Mrs. Davis',
-          'Dr. Wilson',
-          'Prof. Martinez'
-        ];
-        
-        return studentNames.map((name, index) => {
-          const today = new Date();
-          const lastActive = new Date(today);
-          lastActive.setDate(today.getDate() - Math.floor(Math.random() * 14));
-          
-          const avgScore = 65 + Math.floor(Math.random() * 30);
-          const assessmentsTaken = 5 + Math.floor(Math.random() * 10);
-          const assessmentsCompleted = Math.floor(assessmentsTaken * 0.8);
-          
-          return {
-            student_id: `student-${index}`,
-            student_name: name,
-            assessments_taken: assessmentsTaken,
-            avg_score: avgScore,
-            avg_time_spent_seconds: 180 + Math.floor(Math.random() * 300),
-            assessments_completed: assessmentsCompleted,
-            completion_rate: Math.floor((assessmentsCompleted / assessmentsTaken) * 100),
-            top_strengths: "Critical thinking, Analysis",
-            top_weaknesses: "Time management, Organization",
-            
-            // Additional properties for utils compatibility
-            id: `student-${index}`,
-            name: name,
-            teacher_name: teacherNames[Math.floor(Math.random() * teacherNames.length)],
-            average_score: avgScore,
-            total_questions: 50 + Math.floor(Math.random() * 150),
-            improvement_rate: Math.floor(Math.random() * 25) - 5,
-            last_active: format(lastActive, 'MMM d, yyyy')
-          };
-        });
-      } catch (error) {
-        console.error("Error generating mock student performance:", error);
-        // Return empty array in case of error
-        return [];
-      }
+    // Check if this is a test ID
+    if (schoolId.startsWith('test-')) {
+      // Return mock data for test accounts
+      const mock = getMockAnalyticsData(schoolId);
+      return mock.topics;
     }
     
-    // For real accounts, implement API call here
-    console.log("Fetching real student performance for school:", schoolId);
-    // This is just a placeholder
-    return [];
+    // For real accounts, fetch from supabase
+    const { data, error } = await supabase.rpc('get_topic_counts', {
+      school_id: schoolId,
+      start_date: filters.dateRange?.from ? format(filters.dateRange.from, 'yyyy-MM-dd') : undefined,
+      end_date: filters.dateRange?.to ? format(filters.dateRange.to, 'yyyy-MM-dd') : undefined,
+      teacher_id: filters.teacherId || undefined,
+      student_id: filters.studentId || undefined
+    });
+    
+    if (error) {
+      console.error("Error fetching topics:", error);
+      throw error;
+    }
+    
+    // Transform data to expected format
+    return (data || []).map(topic => ({
+      topic: topic.topic,
+      count: topic.count,
+      name: topic.topic,
+      value: topic.count
+    }));
   } catch (error) {
-    console.error('Error fetching student performance:', error);
+    console.error("Error in fetchTopics:", error);
+    // Return empty array on error
     return [];
   }
 };
 
-/**
- * Export analytics data to CSV
- */
+// Fetch study time
+export const fetchStudyTime = async (schoolId: string, filters: AnalyticsFilters): Promise<StudyTimeData[]> => {
+  console.info("Fetching real study time for school:", schoolId);
+  
+  try {
+    // Check if this is a test ID
+    if (schoolId.startsWith('test-')) {
+      // Return mock data for test accounts
+      const mock = getMockAnalyticsData(schoolId);
+      return mock.studyTime;
+    }
+    
+    // For real accounts, fetch from supabase
+    const { data, error } = await supabase.rpc('get_study_time_by_student', {
+      school_id: schoolId,
+      start_date: filters.dateRange?.from ? format(filters.dateRange.from, 'yyyy-MM-dd') : undefined,
+      end_date: filters.dateRange?.to ? format(filters.dateRange.to, 'yyyy-MM-dd') : undefined,
+      teacher_id: filters.teacherId || undefined,
+      student_id: filters.studentId || undefined
+    });
+    
+    if (error) {
+      console.error("Error fetching study time:", error);
+      throw error;
+    }
+    
+    // Transform data to expected format
+    return (data || []).map(item => ({
+      student_id: item.student_id,
+      student_name: item.student_name,
+      total_minutes: item.total_minutes,
+      // Add compatibility fields for older code
+      name: item.student_name,
+      studentName: item.student_name,
+      hours: Math.round(item.total_minutes / 60 * 10) / 10, // Convert minutes to hours with 1 decimal
+      week: 1,
+      year: new Date().getFullYear()
+    }));
+  } catch (error) {
+    console.error("Error in fetchStudyTime:", error);
+    // Return empty array on error
+    return [];
+  }
+};
+
+// Get formatted date range text
+export const getDateRangeText = (dateRange: DateRange | undefined): string => {
+  if (!dateRange || !dateRange.from) {
+    return "All Time";
+  }
+  
+  const fromDate = format(dateRange.from, 'MMM dd, yyyy');
+  const toDate = dateRange.to ? format(dateRange.to, 'MMM dd, yyyy') : format(new Date(), 'MMM dd, yyyy');
+  
+  return `${fromDate} - ${toDate}`;
+};
+
+// Export analytics to CSV
 export const exportAnalyticsToCSV = (
   summary: AnalyticsSummary,
   sessions: SessionData[],
   topics: TopicData[],
-  studyTimes: StudyTimeData[],
+  studyTime: StudyTimeData[],
   dateRangeText: string
 ): void => {
-  try {
-    // Create CSV content for summary
-    const summaryCSV = `Analytics Summary (${dateRangeText})
-Active Students,${summary.activeStudents}
-Total Sessions,${summary.totalSessions}
-Total Queries,${summary.totalQueries}
-Average Session Duration (minutes),${summary.avgSessionMinutes}
-
-`;
-
-    // Create CSV content for sessions
-    let sessionsCSV = 'Student,Topic,Queries,Duration,Date\n';
-    sessions.forEach(session => {
-      sessionsCSV += `"${session.student_name}","${session.topics[0] || ''}",${session.questions_asked},${session.duration_minutes},"${session.session_date}"\n`;
-    });
-    sessionsCSV += '\n';
-
-    // Create CSV content for topics
-    let topicsCSV = 'Topic,Count\n';
-    topics.forEach(topic => {
-      topicsCSV += `"${topic.topic}",${topic.count}\n`;
-    });
-    topicsCSV += '\n';
-
-    // Create CSV content for study time
-    let studyTimeCSV = 'Student,Total Minutes\n';
-    studyTimes.forEach(studyTime => {
-      studyTimeCSV += `"${studyTime.student_name}",${studyTime.total_minutes}\n`;
-    });
-
-    // Combine all CSV content
-    const csvContent = summaryCSV + sessionsCSV + topicsCSV + studyTimeCSV;
-
-    // Create a blob and download link
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `analytics_export_${format(new Date(), 'yyyy-MM-dd')}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  } catch (error) {
-    console.error('Error exporting analytics data:', error);
-  }
+  // Create CSV content
+  let csvContent = "data:text/csv;charset=utf-8,";
+  
+  // Add header
+  csvContent += `Analytics Export (${dateRangeText})\n\n`;
+  
+  // Add summary
+  csvContent += "SUMMARY\n";
+  csvContent += `Active Students,${summary.activeStudents}\n`;
+  csvContent += `Total Sessions,${summary.totalSessions}\n`;
+  csvContent += `Total Queries,${summary.totalQueries}\n`;
+  csvContent += `Avg. Session Minutes,${summary.avgSessionMinutes}\n\n`;
+  
+  // Add sessions
+  csvContent += "SESSIONS\n";
+  csvContent += "Student,Date,Duration (min),Topic,Queries\n";
+  
+  sessions.forEach(session => {
+    const row = [
+      session.student_name,
+      format(new Date(session.session_date), 'yyyy-MM-dd'),
+      session.duration_minutes,
+      session.topics.join("; "),
+      session.questions_asked
+    ].join(',');
+    csvContent += row + "\n";
+  });
+  
+  csvContent += "\nTOPICS\n";
+  csvContent += "Topic,Count\n";
+  
+  topics.forEach(topic => {
+    csvContent += `${topic.topic},${topic.count}\n`;
+  });
+  
+  csvContent += "\nSTUDY TIME\n";
+  csvContent += "Student,Total Minutes,Hours\n";
+  
+  studyTime.forEach(student => {
+    csvContent += `${student.student_name},${student.total_minutes},${student.hours}\n`;
+  });
+  
+  // Create and click download link
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement("a");
+  link.setAttribute("href", encodedUri);
+  link.setAttribute("download", `analytics_${format(new Date(), 'yyyy-MM-dd')}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 };

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
@@ -30,7 +31,7 @@ import SessionsTable from "@/components/analytics/SessionsTable";
 import { AnalyticsSummaryCards } from "@/components/analytics/AnalyticsSummaryCards";
 
 const TeacherAnalytics = () => {
-  const { user, profile } = useAuth();
+  const { user, profile, userRole } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [initialLoad, setInitialLoad] = useState(true);
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
@@ -50,68 +51,101 @@ const TeacherAnalytics = () => {
   const [retryCount, setRetryCount] = useState(0);
   const [dataError, setDataError] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false);
+  const [dataFetchDisabled, setDataFetchDisabled] = useState(false);
   
   // Get teacher's school ID with memoization
-  const schoolId = useMemo(() => profile?.organization?.id || "test", [profile?.organization?.id]);
-  const userRole = useMemo(() => profile?.user_type || "teacher", [profile?.user_type]);
-  const teacherId = useMemo(() => user?.id || "test-teacher", [user?.id]);
+  const schoolId = useMemo(() => profile?.organization?.id || "test-school-0", [profile?.organization?.id]);
+  const teacherId = useMemo(() => user?.id || "test-teacher-0", [user?.id]);
+  
+  // Check if we're using a test account
+  const isTestAccount = useMemo(() => {
+    return Boolean(
+      (user?.email && user.email.includes(".test@learnable.edu")) || 
+      (user?.id && user.id.startsWith("test-")) ||
+      teacherId.startsWith("test-")
+    );
+  }, [user?.email, user?.id, teacherId]);
 
-  // Generate mock data function to prevent UI flickering
+  // Generate mock data for test accounts immediately without API calls
   const generateMockData = useCallback(() => {
-    // Only use mock data if we have no real data yet
-    if (summary.activeStudents === 0 && summary.totalSessions === 0) {
-      setSummary({
-        activeStudents: 12,
-        totalSessions: 35,
-        totalQueries: 105,
-        avgSessionMinutes: 22
-      });
+    // Skip if we already have data
+    if (dataLoaded && summary.activeStudents > 0 && sessions.length > 0) {
+      return;
     }
     
-    if (sessions.length === 0) {
-      const mockSessions: SessionData[] = Array(5).fill(null).map((_, i) => ({
-        id: `mock-session-${i}`,
-        student_id: `student-${i % 3 + 1}`,
-        student_name: `Student ${i % 3 + 1}`,
-        session_date: new Date(Date.now() - i * 86400000).toISOString(),
-        duration_minutes: Math.floor(Math.random() * 45) + 10,
-        topics: ['Math', 'Science', 'History', 'English', 'Geography'][i % 5].split(','),
-        questions_asked: Math.floor(Math.random() * 10) + 3,
-        questions_answered: Math.floor(Math.random() * 8) + 2,
-        userId: `student-${i % 3 + 1}`,
-        userName: `Student ${i % 3 + 1}`,
-        topic: ['Math', 'Science', 'History', 'English', 'Geography'][i % 5],
-        queries: Math.floor(Math.random() * 10) + 3
-      }));
-      setSessions(mockSessions);
-    }
+    // Set mock summary data
+    const mockSummary = {
+      activeStudents: 12,
+      totalSessions: 35,
+      totalQueries: 105,
+      avgSessionMinutes: 22
+    };
     
-    if (topics.length === 0) {
-      const mockTopics: TopicData[] = [
-        { topic: 'Math', count: 15, name: 'Math', value: 15 },
-        { topic: 'Science', count: 12, name: 'Science', value: 12 },
-        { topic: 'History', count: 8, name: 'History', value: 8 },
-        { topic: 'English', count: 7, name: 'English', value: 7 },
-        { topic: 'Geography', count: 5, name: 'Geography', value: 5 }
-      ];
-      setTopics(mockTopics);
-    }
+    // Set mock sessions data
+    const mockSessions: SessionData[] = Array(15).fill(null).map((_, i) => ({
+      id: `mock-session-${i}`,
+      student_id: `student-${i % 5 + 1}`,
+      student_name: `Student ${i % 5 + 1}`,
+      session_date: new Date(Date.now() - (i * 86400000)).toISOString(),
+      duration_minutes: Math.floor(Math.random() * 45) + 10,
+      topics: ['Math', 'Science', 'History', 'English', 'Geography'][i % 5].split(','),
+      questions_asked: Math.floor(Math.random() * 10) + 3,
+      questions_answered: Math.floor(Math.random() * 8) + 2,
+      userId: `student-${i % 5 + 1}`,
+      userName: `Student ${i % 5 + 1}`,
+      topic: ['Math', 'Science', 'History', 'English', 'Geography'][i % 5],
+      queries: Math.floor(Math.random() * 10) + 3
+    }));
     
-    if (studyTime.length === 0) {
-      const mockStudyTime: StudyTimeData[] = [
-        { student_id: 'student-1', student_name: 'Student 1', total_minutes: 240, name: 'Student 1', studentName: 'Student 1', hours: 4, week: 1, year: 2023 },
-        { student_id: 'student-2', student_name: 'Student 2', total_minutes: 180, name: 'Student 2', studentName: 'Student 2', hours: 3, week: 1, year: 2023 },
-        { student_id: 'student-3', student_name: 'Student 3', total_minutes: 150, name: 'Student 3', studentName: 'Student 3', hours: 2.5, week: 1, year: 2023 },
-      ];
-      setStudyTime(mockStudyTime);
-    }
+    // Set mock topics data
+    const mockTopics: TopicData[] = [
+      { topic: 'Math', count: 15, name: 'Math', value: 15 },
+      { topic: 'Science', count: 12, name: 'Science', value: 12 },
+      { topic: 'History', count: 8, name: 'History', value: 8 },
+      { topic: 'English', count: 7, name: 'English', value: 7 },
+      { topic: 'Geography', count: 5, name: 'Geography', value: 5 }
+    ];
     
-    // Mark data as loaded even if we're using mock data
+    // Set mock study time data
+    const mockStudyTime: StudyTimeData[] = [
+      { student_id: 'student-1', student_name: 'Student 1', total_minutes: 240, name: 'Student 1', studentName: 'Student 1', hours: 4, week: 1, year: 2023 },
+      { student_id: 'student-2', student_name: 'Student 2', total_minutes: 180, name: 'Student 2', studentName: 'Student 2', hours: 3, week: 1, year: 2023 },
+      { student_id: 'student-3', student_name: 'Student 3', total_minutes: 150, name: 'Student 3', studentName: 'Student 3', hours: 2.5, week: 1, year: 2023 },
+      { student_id: 'student-4', student_name: 'Student 4', total_minutes: 120, name: 'Student 4', studentName: 'Student 4', hours: 2, week: 1, year: 2023 },
+      { student_id: 'student-5', student_name: 'Student 5', total_minutes: 90, name: 'Student 5', studentName: 'Student 5', hours: 1.5, week: 1, year: 2023 },
+    ];
+    
+    // Update state all at once to minimize re-renders
+    setSummary(mockSummary);
+    setSessions(mockSessions);
+    setTopics(mockTopics);
+    setStudyTime(mockStudyTime);
     setDataLoaded(true);
-  }, [summary, sessions, topics, studyTime]);
+    setIsLoading(false);
+    setInitialLoad(false);
+    
+  }, [dataLoaded, summary.activeStudents, sessions.length]);
+
+  // Effect for immediate mock data if test account
+  useEffect(() => {
+    if (isTestAccount) {
+      console.log("Test account detected, using mock data immediately");
+      generateMockData();
+      setDataFetchDisabled(true); // Disable real API calls for test accounts
+    } else {
+      setDataFetchDisabled(false);
+    }
+  }, [isTestAccount, generateMockData]);
 
   // Improved data loading function with debounce to prevent flickering
   const loadAnalyticsData = useCallback(async () => {
+    // Skip data loading for test accounts
+    if (dataFetchDisabled || isTestAccount) {
+      console.log("Data fetch disabled or test account detected, using mock data");
+      generateMockData();
+      return;
+    }
+    
     // Don't show loading state on subsequent data loads after initial
     if (!initialLoad) {
       setIsLoading(true);
@@ -168,8 +202,10 @@ const TeacherAnalytics = () => {
       // Wait for all promises to resolve or reject
       await Promise.allSettled(promises);
       
-      // Only generate mock data if we need it
-      generateMockData();
+      // Generate mock data if needed (when real data fetch fails)
+      if (summary.activeStudents === 0 || sessions.length === 0) {
+        generateMockData();
+      }
       
     } catch (error) {
       console.error("Error loading analytics data:", error);
@@ -183,12 +219,17 @@ const TeacherAnalytics = () => {
       setInitialLoad(false);
       setDataLoaded(true);
     }
-  }, [schoolId, dateRange, teacherId, initialLoad, generateMockData]);
+  }, [schoolId, dateRange, teacherId, initialLoad, generateMockData, dataFetchDisabled, isTestAccount, summary.activeStudents, sessions.length]);
 
   // Handler functions
   const handleRefreshData = useCallback(() => {
+    // For test accounts, just regenerate mock data
+    if (isTestAccount) {
+      generateMockData();
+      return;
+    }
     setRetryCount(prev => prev + 1);
-  }, []);
+  }, [isTestAccount, generateMockData]);
 
   const handleExport = useCallback(() => {
     try {
@@ -213,9 +254,16 @@ const TeacherAnalytics = () => {
   // Effect for initial data loading and refresh
   useEffect(() => {
     if (user) {
-      loadAnalyticsData();
+      // Skip the real data loading for test accounts
+      if (isTestAccount) {
+        if (!dataLoaded) {
+          generateMockData();
+        }
+      } else {
+        loadAnalyticsData();
+      }
     }
-  }, [user, dateRange, retryCount, loadAnalyticsData]);
+  }, [user, dateRange, retryCount, loadAnalyticsData, isTestAccount, dataLoaded, generateMockData]);
 
   // Custom components that adapt to the expected props for the analytics components
   const TopicsChart = ({ data }: { data: TopicData[] }) => {

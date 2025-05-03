@@ -9,6 +9,25 @@ const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 // Create a Supabase client
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+// Handle UUID validation - make sure we have proper UUID format or convert test IDs
+const validateId = (id: string, prefix: string): string => {
+  // UUID pattern
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  
+  if (uuidPattern.test(id)) {
+    return id; // Already a valid UUID
+  }
+  
+  // For test IDs, create a deterministic UUID to ensure consistency
+  if (id.startsWith('test-')) {
+    // Create a deterministic UUID for test accounts
+    return `00000000-0000-${id.slice(-4)}-0000-000000000${prefix}`;
+  }
+  
+  // If not a valid UUID and not a test ID, return a default
+  return `00000000-0000-0000-0000-000000000${prefix}`;
+};
+
 // Handle HTTP requests
 serve(async (req) => {
   try {
@@ -36,11 +55,15 @@ serve(async (req) => {
 
     console.log(`Populating test performance data for user ${userId} in school ${schoolId}`);
 
+    // Convert test IDs to valid UUIDs if needed
+    const validUserId = validateId(userId, '1');
+    const validSchoolId = validateId(schoolId, '2');
+    
     // Check if we already have session data for this user
     const { data: existingSessions, error: checkError } = await supabase
       .from("session_logs")
       .select("id")
-      .eq("user_id", userId)
+      .eq("user_id", validUserId)
       .limit(1);
 
     if (checkError) {
@@ -49,7 +72,6 @@ serve(async (req) => {
     }
 
     // If sessions already exist, don't add more - but still return success
-    // since we don't want to actually fail the login attempt
     if (existingSessions && existingSessions.length > 0) {
       console.log(`User ${userId} already has session data, skipping population`);
       return new Response(
@@ -60,36 +82,10 @@ serve(async (req) => {
         { headers, status: 200 }
       );
     }
-
+    
     // Create test sessions for this user
     const topics = ["Algebra equations", "World War II", "Chemical reactions", "Shakespeare's Macbeth", "Programming basics"];
     const now = new Date();
-    
-    // Handle UUID validation - make sure we have proper UUID format
-    let validUserId = userId;
-    let validSchoolId = schoolId;
-    
-    // Validate UUID format - either use as is if valid, or handle test- prefixed values
-    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    
-    if (!uuidPattern.test(validUserId)) {
-      // For test IDs, create a deterministic UUID to ensure consistency across requests
-      if (validUserId.startsWith('test-')) {
-        // Create a deterministic UUID for test accounts to avoid creating new data on each login
-        validUserId = `00000000-0000-${validUserId.slice(-4)}-0000-000000000001`;
-      } else {
-        throw new Error(`Invalid user ID format: ${validUserId}`);
-      }
-    }
-    
-    if (!uuidPattern.test(validSchoolId)) {
-      if (validSchoolId.startsWith('test-')) {
-        // Same approach for school ID to ensure consistency
-        validSchoolId = `00000000-0000-${validSchoolId.slice(-4)}-0000-000000000001`;
-      } else {
-        throw new Error(`Invalid school ID format: ${validSchoolId}`);
-      }
-    }
     
     // Create sessions even if some fail - we'll still proceed with as many as we can
     let createdSessions = 0;

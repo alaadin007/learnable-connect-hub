@@ -1,15 +1,12 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
-import { getMockAnalyticsData } from "@/utils/sessionLogging";
 import { format, subDays, startOfWeek, endOfWeek } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Loader2, Download, Calendar, Filter } from 'lucide-react';
+import { Loader2, Download, Calendar } from 'lucide-react';
 
 // Define types for analytics data
 interface Session {
@@ -51,16 +48,78 @@ interface AnalyticsData {
   studyTime: StudyTime[];
 }
 
+// Generate mock data for analytics dashboard
+export const getMockAnalyticsData = (schoolId: string, options?: { startDate?: string, endDate?: string }): AnalyticsData => {
+  // Constants to generate consistent data
+  const NUM_STUDENTS = 12;
+  const NUM_SESSIONS = 35;
+  const AVG_MINUTES = 22;
+  const NUM_QUERIES = 105;
+  
+  // Generate mock sessions
+  const sessions: Session[] = Array(NUM_SESSIONS).fill(null).map((_, i) => ({
+    id: `mock-session-${i}`,
+    userId: `student-${i % NUM_STUDENTS + 1}`,
+    userName: `Student ${i % NUM_STUDENTS + 1}`,
+    startTime: new Date(Date.now() - i * 86400000).toISOString(),
+    endTime: new Date(Date.now() - i * 86400000 + 30 * 60000).toISOString(),
+    duration: Math.floor(Math.random() * 45) + 10,
+    topicOrContent: ['Algebra equations', 'World War II', 'Chemical reactions', 'Shakespeare', 'Programming'][i % 5],
+    numQueries: Math.floor(Math.random() * 10) + 3,
+    queries: Math.floor(Math.random() * 10) + 3
+  }));
+  
+  // Generate mock topics
+  const topicNames = ['Algebra equations', 'World War II', 'Chemical reactions', 'Shakespeare', 'Programming'];
+  const topics: Topic[] = topicNames.map((name, i) => ({
+    topic: name,
+    name,
+    count: Math.floor(Math.random() * 15) + 5,
+    value: Math.floor(Math.random() * 15) + 5
+  }));
+  
+  // Generate mock study time
+  const studyTime: StudyTime[] = Array(NUM_STUDENTS).fill(null).map((_, i) => ({
+    studentName: `Student ${i + 1}`,
+    name: `Student ${i + 1}`,
+    hours: Math.floor(Math.random() * 5) + 1,
+    week: 1,
+    year: new Date().getFullYear()
+  }));
+  
+  // Return mock data object
+  return {
+    summary: {
+      activeStudents: NUM_STUDENTS,
+      totalSessions: NUM_SESSIONS,
+      totalQueries: NUM_QUERIES,
+      avgSessionMinutes: AVG_MINUTES
+    },
+    sessions,
+    topics,
+    studyTime
+  };
+};
+
 // Chart colors
 const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff8042', '#0088fe', '#00C49F'];
 
 const AnalyticsDashboard: React.FC = () => {
-  const { profile, schoolId } = useAuth();
+  const { profile, schoolId, user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [initialLoad, setInitialLoad] = useState(true);
   const [timeRange, setTimeRange] = useState('7days');
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
   const [dataLoaded, setDataLoaded] = useState(false);
+  
+  // Check if we're using a test account
+  const isTestAccount = useMemo(() => {
+    return Boolean(
+      user?.email?.includes('.test@learnable.edu') ||
+      user?.id?.startsWith('test-') ||
+      schoolId?.startsWith('test-')
+    );
+  }, [user?.email, user?.id, schoolId]);
   
   // Get date range for filtering
   const getDateRange = () => {
@@ -91,8 +150,25 @@ const AnalyticsDashboard: React.FC = () => {
     };
   };
   
+  // Initialize mock data immediately for test accounts
+  useEffect(() => {
+    if (isTestAccount && !dataLoaded) {
+      console.log("Test account detected, using mock data immediately");
+      const mockData = getMockAnalyticsData(schoolId || 'test');
+      setAnalyticsData(mockData);
+      setDataLoaded(true);
+      setLoading(false);
+      setInitialLoad(false);
+    }
+  }, [isTestAccount, schoolId, dataLoaded]);
+  
   // Fetch analytics data asynchronously
   useEffect(() => {
+    // Skip data fetch for test accounts
+    if (isTestAccount) {
+      return;
+    }
+    
     const fetchAnalyticsData = async () => {
       if (!initialLoad) {
         setLoading(true);
@@ -105,27 +181,19 @@ const AnalyticsDashboard: React.FC = () => {
         
         const dateRange = getDateRange();
 
-        // Simulate async fetch of mock data to avoid blocking UI
-        const mockData = await new Promise<AnalyticsData>(resolve => {
-          setTimeout(() => {
-            resolve(getMockAnalyticsData(schoolId!, {
-              startDate: dateRange.startDate,
-              endDate: dateRange.endDate
-            }));
-          }, 0);
+        // Use mock data for now, but in a non-blocking way
+        const mockData = getMockAnalyticsData(schoolId, {
+          startDate: dateRange.startDate,
+          endDate: dateRange.endDate
         });
 
         setAnalyticsData(mockData);
         setDataLoaded(true);
       } catch (error) {
         console.error('Error fetching analytics data:', error);
-        // Use mock data fallback async as well
+        // Use mock data fallback
         if (schoolId) {
-          const mockData = await new Promise<AnalyticsData>(resolve => {
-            setTimeout(() => {
-              resolve(getMockAnalyticsData(schoolId!, {}));
-            }, 0);
-          });
+          const mockData = getMockAnalyticsData(schoolId, {});
           setAnalyticsData(mockData);
           setDataLoaded(true);
         }
@@ -136,7 +204,7 @@ const AnalyticsDashboard: React.FC = () => {
     };
     
     fetchAnalyticsData();
-  }, [schoolId, timeRange, initialLoad]);
+  }, [schoolId, timeRange, isTestAccount]);
   
   // Format duration for display
   const formatDuration = (minutes: number | string) => {
@@ -210,8 +278,8 @@ const AnalyticsDashboard: React.FC = () => {
     document.body.removeChild(link);
   };
   
-  // Only show loading on initial load
-  const showLoading = initialLoad && loading && !dataLoaded;
+  // Only show loading on initial load and not when we already have data
+  const showLoading = initialLoad && loading && !dataLoaded && !analyticsData;
   
   if (showLoading) {
     return (
@@ -421,23 +489,8 @@ const AnalyticsDashboard: React.FC = () => {
         <TabsContent value="students" className="space-y-4">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Student Activity</CardTitle>
-                  <CardDescription>Student engagement metrics</CardDescription>
-                </div>
-                <Select defaultValue="hours">
-                  <SelectTrigger className="w-[180px]">
-                    <Filter className="mr-2 h-4 w-4" />
-                    <SelectValue placeholder="Sort by" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="hours">Hours (High to Low)</SelectItem>
-                    <SelectItem value="sessions">Sessions (High to Low)</SelectItem>
-                    <SelectItem value="name">Name (A-Z)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              <CardTitle>Student Activity</CardTitle>
+              <CardDescription>Student engagement metrics</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
@@ -470,12 +523,8 @@ const AnalyticsDashboard: React.FC = () => {
         <TabsContent value="sessions" className="space-y-4">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Session History</CardTitle>
-                  <CardDescription>Detailed session logs</CardDescription>
-                </div>
-              </div>
+              <CardTitle>Session History</CardTitle>
+              <CardDescription>Detailed session logs</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
