@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
@@ -180,10 +179,8 @@ const AdminAnalytics = () => {
     } catch (error: any) {
       console.error("Error loading analytics data:", error);
       setDataError(true);
-      toast({
-        title: "Error",
-        description: "Failed to load analytics data. Showing mock data instead.",
-      });
+      // Fix the toast call by using the correct format for sonner
+      toast.error("Failed to load analytics data. Showing mock data instead.");
       // We'll rely on mock data generation in the next useEffect
     } finally {
       setIsLoading(false);

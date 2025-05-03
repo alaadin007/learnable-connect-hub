@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { BarChart, LineChart, PieChart } from "@/components/ui/charts";
-import { Loader2, Download, Users, Clock, BookOpen, Search, RefreshCw } from "lucide-react";
+import { Loader2, Download, Users, Clock, BookOpen, Search, RefreshCw, AlertCircle } from "lucide-react";
 import { 
   fetchAnalyticsSummary, 
   fetchSessionLogs, 
