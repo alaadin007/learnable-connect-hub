@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import {
   Select,
@@ -85,12 +86,12 @@ export function TeacherSelector({
         Filter by Teacher:
       </label>
       <Select
-        aria-labelledby={labelId}
         value={selectedTeacherId ?? "all"}
         onValueChange={(value) =>
           onTeacherChange(value === "all" ? undefined : value)
         }
         disabled={isLoading}
+        aria-labelledby={labelId}
       >
         <SelectTrigger className="w-full">
           <SelectValue placeholder="Select teacher..." />
