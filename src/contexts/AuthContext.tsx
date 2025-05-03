@@ -333,28 +333,28 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
     }
   };
 
-  // Enhanced setTestUser method to properly handle test account authentication
+  // Enhanced setTestUser method that creates a mock session without authentication
   const setTestUser = async (
     type: 'school' | 'teacher' | 'student',
     schoolIndex: number = 0
   ): Promise<void> => {
     setIsLoading(true);
     try {
-      // Skip verification check for faster login - directly create a mock user session
       console.log(`Setting up test user: ${type}`);
       
-      // Prepare mock user data
+      // Prepare mock user data with a consistent ID pattern
       const mockId = `test-${type}-${schoolIndex}`;
       const mockUser = {
         id: mockId,
         email: `${type}.test@learnable.edu`,
         user_metadata: {
-          full_name: `Test ${type.charAt(0).toUpperCase() + type.slice(1)}`
+          full_name: `Test ${type.charAt(0).toUpperCase() + type.slice(1)}`,
+          user_type: type
         },
         app_metadata: {},
         aud: "authenticated",
         created_at: new Date().toISOString()
-      } as unknown as User; // Type assertion to User
+      } as User; // Type assertion to User
 
       // Create mock profile based on user type
       const mockProfile: UserProfile = {
@@ -368,41 +368,22 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
         }
       };
 
-      // Set context values immediately
+      // Create a mock session
+      const mockSession = {
+        user: mockUser,
+        access_token: `test-token-${type}-${Date.now()}`,
+        refresh_token: `test-refresh-${type}-${Date.now()}`,
+        expires_at: Date.now() + 3600000 // 1 hour from now
+      } as Session;
+
+      // Set context values immediately for instant UI response
       setUser(mockUser);
       setProfile(mockProfile);
       setUserRole(type);
       setIsSuperviser(false);
       setSchoolId(mockProfile.organization?.id || null);
-
-      // Create a fake session
-      const mockSession = {
-        user: mockUser,
-        access_token: "test-token",
-        refresh_token: "test-refresh-token",
-        expires_at: Date.now() + 3600000
-      } as Session;
-
       setSession(mockSession);
       
-      // Ensure test accounts exist in the backend (do this after setting local state for faster UI response)
-      try {
-        // Check if we need to create test accounts in the background
-        const { data: exists, error: checkError } = await supabase.rpc('verify_school_code', { 
-          code: "TESTCODE"
-        });
-        
-        if (checkError || !exists) {
-          console.log("Test accounts don't exist, creating them in the background...");
-          supabase.functions.invoke("create-test-accounts", {
-            body: { createAccounts: true }
-          }).catch(err => console.error("Background test account creation failed:", err));
-        }
-      } catch (error) {
-        console.error("Error checking test accounts:", error);
-        // Don't block the login process for this background operation
-      }
-
       // For student test accounts, ensure we have proper session tracking
       if (type === 'student') {
         try {
@@ -417,8 +398,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       console.log(`Test user ${type} set up successfully`);
     } catch (error) {
       console.error("Error setting test user:", error);
-      toast.error("Failed to set test user");
-      throw error;
+      throw new Error("Failed to set up test account");
     } finally {
       setIsLoading(false);
     }

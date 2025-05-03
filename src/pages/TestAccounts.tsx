@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -104,13 +105,16 @@ const TestAccounts = () => {
     const account = TEST_ACCOUNTS[accountType];
     
     try {
-      // Use enhanced setTestUser that handles authentication directly
+      console.log(`Attempting to login as ${accountType} test account...`);
+      
+      // Use the direct test user setup function
       await setTestUser(accountType);
       
       toast.success(`Logged in as ${account.role} (test mode)`, {
         id: `login-success-${accountType}`
       });
       
+      // Navigate to the appropriate page based on account type
       navigate(account.redirectPath);
     } catch (error: any) {
       console.error(`Error signing in as ${accountType}:`, error);

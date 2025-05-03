@@ -59,7 +59,7 @@ const LoginForm = () => {
     setIsLoading(true);
     
     try {
-      // Handle test accounts first to ensure they are routed correctly
+      // Direct handling of test accounts for instant login
       if (email.includes('.test@learnable.edu')) {
         // Extract user type from email
         let type: 'school' | 'teacher' | 'student' = 'student';
@@ -70,13 +70,15 @@ const LoginForm = () => {
           type = 'teacher';
         }
         
-        // Use the enhanced setTestUser function for direct authentication
+        console.log(`Quick login for test account type: ${type}`);
+        
+        // Use direct test account setup
         await setTestUser(type);
         
         // Get the appropriate redirect path
         const redirectPath = type === 'school' ? '/admin' : 
-                            type === 'teacher' ? '/teacher/analytics' : 
-                            '/dashboard';
+                           type === 'teacher' ? '/teacher/analytics' : 
+                           '/dashboard';
         
         // Toast notification and redirect
         toast.success("Login successful", {
@@ -162,11 +164,12 @@ const LoginForm = () => {
     try {
       setIsLoading(true);
       setLoginError(null);
+      console.log(`Quick login for test account type: ${type}`);
       
-      // Use enhanced setTestUser for direct authentication without checks
+      // Use direct test account setup without authentication checks
       await setTestUser(type, schoolIndex);
       
-      // Navigate based on user type for test accounts
+      // Navigate based on user type
       if (type === 'school') {
         navigate('/admin');
       } else if (type === 'teacher') {
