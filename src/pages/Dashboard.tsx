@@ -127,7 +127,7 @@ const Dashboard = () => {
             title="Analytics"
             description="View student performance analytics"
             icon={<BarChart3 className="h-10 w-10" />}
-            onClick={() => navigate("/teacher/analytics")}
+            onClick={() => navigate("/teacher/analytics", { state: { fromNavigation: true } })}
           />
           <DashboardCard
             title="Chat with AI"

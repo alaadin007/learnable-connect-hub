@@ -1,4 +1,3 @@
-
 import React, {
   createContext,
   useState,
@@ -293,12 +292,18 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
   const updateProfile = async (updates: Partial<UserProfile>) => {
     setIsLoading(true);
     try {
-      // Fix error 2: Ensure user_type is always provided when updating profiles
+      // Ensure user_type is always provided when updating profiles
       const updatesForDb: any = { ...updates };
       
       // Ensure user_type is present and not undefined
       if (!updatesForDb.user_type && profile?.user_type) {
         updatesForDb.user_type = profile.user_type;
+      }
+      
+      // Make sure user_type is always set to a valid value
+      if (typeof updatesForDb.user_type === 'undefined') {
+        // Provide a default value if missing from both updates and existing profile
+        updatesForDb.user_type = "student";
       }
       
       const { error } = await supabase.from("profiles").upsert({
@@ -338,25 +343,30 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
         created_at: new Date().toISOString(),
       };
 
+      // Create test organization with complete required properties
+      const testOrgId = `test-school-${schoolIndex}`;
+      const testOrgName = schoolIndex === 0 ? "Test School" : `Test School ${schoolIndex + 1}`;
+      const testOrgCode = `TEST${schoolIndex}`;
+      
       const mockProfile: UserProfile = {
         id: mockId,
         user_type: type,
         full_name: `Test ${type.charAt(0).toUpperCase() + type.slice(1)}`,
         organization: {
-          id: `test-school-${schoolIndex}`,
-          name: schoolIndex === 0 ? "Test School" : `Test School ${schoolIndex + 1}`,
-          code: `TEST${schoolIndex}`,
+          id: testOrgId,
+          name: testOrgName,
+          code: testOrgCode,
         },
       };
 
-      // Fix error 3: Create a complete Session object with all required properties
+      // Create a complete Session object with all required properties
       const mockSession: Session = {
         user: mockUser,
         access_token: `test-token-${type}-${Date.now()}`,
         refresh_token: `test-refresh-${type}-${Date.now()}`,
         expires_at: Date.now() + 3600000,
-        expires_in: 3600,  // Adding missing property
-        token_type: "bearer"  // Adding missing property
+        expires_in: 3600,
+        token_type: "bearer"
       };
 
       // Set all state variables synchronously to ensure consistent state
@@ -380,7 +390,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       } else if (type === "teacher") {
         try {
           console.log(`AuthContext: Creating teacher test sessions for ${mockId}`);
-          const orgId = mockProfile.organization?.id || "";
+          const orgId = testOrgId; // Use the test organization ID directly
           if (orgId) {
             await populateTestAccountWithSessions(mockId, orgId);
             console.log(`AuthContext: Populated test data for teacher ${mockId}`);

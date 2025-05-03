@@ -57,11 +57,13 @@ const LoginForm = () => {
     setIsLoading(true);
 
     try {
+      // Handle test accounts
       if (email.includes(".test@learnable.edu")) {
         let type: "school" | "teacher" | "student" = "student";
         if (email.startsWith("school")) type = "school";
         else if (email.startsWith("teacher")) type = "teacher";
 
+        console.log(`LoginForm: Setting up test user of type ${type}`);
         await setTestUser(type);
 
         const redirectPath = type === "school"
@@ -80,8 +82,7 @@ const LoginForm = () => {
           }!`,
         });
 
-        navigate(redirectPath, { state: { fromTestAccounts: true } });
-        setIsLoading(false);
+        navigate(redirectPath, { state: { fromTestAccounts: true, accountType: type } });
         return;
       }
 
@@ -147,6 +148,7 @@ const LoginForm = () => {
     setLoginError(null);
 
     try {
+      console.log(`LoginForm: Quick login as ${type}`);
       await setTestUser(type, schoolIndex);
 
       const redirectPath =
@@ -166,7 +168,12 @@ const LoginForm = () => {
         }`
       );
 
-      navigate(redirectPath, { state: { fromTestAccounts: true } });
+      navigate(redirectPath, { 
+        state: { 
+          fromTestAccounts: true,
+          accountType: type
+        }
+      });
     } catch (error: any) {
       setLoginError(`Failed to log in with test account: ${error.message}`);
       toast.error("Failed to log in with test account");

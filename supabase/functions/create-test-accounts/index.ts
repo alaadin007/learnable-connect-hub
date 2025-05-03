@@ -31,6 +31,8 @@ serve(async (req: Request) => {
       }
     );
 
+    console.log("Creating test accounts: Starting process");
+
     // Parse request body
     const { createAccounts = false } = await req.json();
 
@@ -45,20 +47,35 @@ serve(async (req: Request) => {
     }
 
     // Check if the school code already exists
-    const { data: schoolCodeData } = await supabaseClient
+    const { data: schoolCodeData, error: schoolCodeError } = await supabaseClient
       .from("school_codes")
       .select("*")
       .eq("code", TEST_SCHOOL_CODE)
       .single();
+      
+    if (schoolCodeError && !schoolCodeError.message.includes('No rows found')) {
+      console.error("Error checking for school code:", schoolCodeError);
+    }
+
+    console.log("School code check result:", schoolCodeData ? "Found" : "Not found");
 
     // If school code doesn't exist, create it and all test accounts
     if (!schoolCodeData) {
+      console.log("Creating new school code and test accounts");
+      
       // Step 1: Create school code
-      await supabaseClient.from("school_codes").insert({
+      const { error: createSchoolCodeError } = await supabaseClient.from("school_codes").insert({
         code: TEST_SCHOOL_CODE,
         school_name: TEST_SCHOOL_NAME,
         active: true,
       });
+      
+      if (createSchoolCodeError) {
+        console.error("Error creating school code:", createSchoolCodeError);
+        throw new Error(`Failed to create school code: ${createSchoolCodeError.message}`);
+      }
+      
+      console.log("School code created successfully");
 
       // Step 2: Create test accounts
       const testAccounts = [
@@ -86,6 +103,20 @@ serve(async (req: Request) => {
 
       // Create each account
       for (const account of testAccounts) {
+        console.log(`Creating ${account.userType} account: ${account.email}`);
+        
+        // Check if user already exists
+        const { data: existingUsers } = await supabaseClient.auth.admin.listUsers({
+          filters: {
+            email: account.email,
+          },
+        });
+        
+        if (existingUsers && existingUsers.users && existingUsers.users.length > 0) {
+          console.log(`User ${account.email} already exists, deleting first`);
+          await supabaseClient.auth.admin.deleteUser(existingUsers.users[0].id);
+        }
+        
         // Create auth user
         const { data: userData, error: userError } = await supabaseClient.auth.admin.createUser({
           email: account.email,
@@ -100,20 +131,28 @@ serve(async (req: Request) => {
         });
 
         if (userError) {
+          console.error(`Error creating ${account.userType} account:`, userError);
           throw new Error(`Error creating ${account.userType} account: ${userError.message}`);
         }
 
+        console.log(`Created ${account.userType} account: ${userData.user?.id}`);
+        
         // For school account, capture the school ID for other accounts
         if (account.userType === "school" && userData.user) {
           // Get the school ID
-          const { data: schoolData } = await supabaseClient
+          const { data: schoolData, error: schoolError } = await supabaseClient
             .from("schools")
             .select("id")
             .eq("code", TEST_SCHOOL_CODE)
             .single();
+            
+          if (schoolError) {
+            console.error("Error getting school ID:", schoolError);
+          }
 
           if (schoolData) {
             schoolId = schoolData.id;
+            console.log(`Retrieved school ID: ${schoolId}`);
           }
         }
 
@@ -121,22 +160,35 @@ serve(async (req: Request) => {
         if (schoolId && account.userType !== "school" && userData.user) {
           if (account.userType === "teacher") {
             // Update teacher's school_id
-            await supabaseClient
+            const { error: updateTeacherError } = await supabaseClient
               .from("teachers")
               .update({ school_id: schoolId })
               .eq("id", userData.user.id);
+              
+            if (updateTeacherError) {
+              console.error("Error updating teacher's school ID:", updateTeacherError);
+            } else {
+              console.log(`Linked teacher ${userData.user.id} to school ${schoolId}`);
+            }
           } else {
             // Update student's school_id
-            await supabaseClient
+            const { error: updateStudentError } = await supabaseClient
               .from("students")
               .update({ school_id: schoolId })
               .eq("id", userData.user.id);
+              
+            if (updateStudentError) {
+              console.error("Error updating student's school ID:", updateStudentError);
+            } else {
+              console.log(`Linked student ${userData.user.id} to school ${schoolId}`);
+            }
           }
         }
       }
 
       // Generate some sample data for the test accounts
       if (schoolId) {
+        console.log(`Generating sample data for school ID: ${schoolId}`);
         await generateSampleData(supabaseClient, schoolId);
       }
 
@@ -153,14 +205,20 @@ serve(async (req: Request) => {
     }
 
     // School code exists, check if test users exist
-    const { data: schoolTestUser } = await supabaseClient.auth.admin.listUsers({
+    console.log("School code exists, checking if test users exist");
+    const { data: schoolTestUser, error: schoolTestUserError } = await supabaseClient.auth.admin.listUsers({
       filters: {
         email: "school.test@learnable.edu",
       },
     });
+    
+    if (schoolTestUserError) {
+      console.error("Error checking for school test user:", schoolTestUserError);
+    }
 
     // If school test user doesn't exist, recreate all test accounts
     if (!schoolTestUser.users || schoolTestUser.users.length === 0) {
+      console.log("School test user not found, suggesting recreation");
       return new Response(
         JSON.stringify({
           message: "Test accounts need to be recreated",
@@ -173,6 +231,7 @@ serve(async (req: Request) => {
       );
     }
 
+    console.log("Test accounts already exist");
     // Test accounts exist
     return new Response(
       JSON.stringify({
@@ -200,17 +259,27 @@ serve(async (req: Request) => {
 async function generateSampleData(supabaseClient: any, schoolId: string) {
   try {
     // Get the teacher and student IDs
-    const { data: teacherData } = await supabaseClient.auth.admin.listUsers({
+    const { data: teacherData, error: teacherError } = await supabaseClient.auth.admin.listUsers({
       filters: {
         email: "teacher.test@learnable.edu",
       },
     });
+    
+    if (teacherError) {
+      console.error("Error getting teacher data:", teacherError);
+      return;
+    }
 
-    const { data: studentData } = await supabaseClient.auth.admin.listUsers({
+    const { data: studentData, error: studentError } = await supabaseClient.auth.admin.listUsers({
       filters: {
         email: "student.test@learnable.edu",
       },
     });
+    
+    if (studentError) {
+      console.error("Error getting student data:", studentError);
+      return;
+    }
 
     if (!teacherData.users || !teacherData.users[0] || !studentData.users || !studentData.users[0]) {
       console.error("Missing teacher or student data");
@@ -219,12 +288,14 @@ async function generateSampleData(supabaseClient: any, schoolId: string) {
 
     const teacherId = teacherData.users[0].id;
     const studentId = studentData.users[0].id;
+    
+    console.log(`Generating sample data for: Teacher ID ${teacherId}, Student ID ${studentId}`);
 
     // Create sample conversations for the student
     const topics = ["Math Homework", "Science Project", "History Essay", "English Literature", "Computer Science"];
 
     for (let i = 0; i < topics.length; i++) {
-      const { data: conversation } = await supabaseClient
+      const { data: conversation, error: conversationError } = await supabaseClient
         .from("conversations")
         .insert({
           user_id: studentId,
@@ -238,10 +309,16 @@ async function generateSampleData(supabaseClient: any, schoolId: string) {
         })
         .select()
         .single();
+        
+      if (conversationError) {
+        console.error(`Error creating conversation for ${topics[i]}:`, conversationError);
+        continue;
+      }
 
       if (conversation) {
+        console.log(`Created conversation: ${conversation.id} for ${topics[i]}`);
         // Add sample messages to each conversation
-        await supabaseClient.from("messages").insert([
+        const { error: messagesError } = await supabaseClient.from("messages").insert([
           {
             conversation_id: conversation.id,
             sender: "user",
@@ -263,16 +340,21 @@ async function generateSampleData(supabaseClient: any, schoolId: string) {
             content: `Let me explain the key principles of ${topics[i]} in a simple way...`,
           },
         ]);
+        
+        if (messagesError) {
+          console.error(`Error creating messages for conversation ${conversation.id}:`, messagesError);
+        }
       }
     }
 
     // Create sample session logs for the student
+    console.log("Creating sample session logs");
     const now = new Date();
     for (let i = 0; i < 10; i++) {
       const sessionDate = new Date(now);
       sessionDate.setDate(now.getDate() - i);
       
-      await supabaseClient.from("session_logs").insert({
+      const { error: sessionError } = await supabaseClient.from("session_logs").insert({
         user_id: studentId,
         school_id: schoolId,
         topic_or_content_used: topics[i % topics.length],
@@ -280,13 +362,18 @@ async function generateSampleData(supabaseClient: any, schoolId: string) {
         session_end: new Date(sessionDate.getTime() + 30 * 60000).toISOString(), // 30 minutes later
         num_queries: Math.floor(Math.random() * 10) + 5,
       });
+      
+      if (sessionError) {
+        console.error(`Error creating session log ${i}:`, sessionError);
+      }
     }
 
     // Create sample assessments from the teacher
+    console.log("Creating sample assessments");
     const assessmentTopics = ["Algebra Quiz", "Chemistry Test", "History Exam", "Literature Analysis", "Programming Challenge"];
 
     for (let i = 0; i < assessmentTopics.length; i++) {
-      const { data: assessment } = await supabaseClient
+      const { data: assessment, error: assessmentError } = await supabaseClient
         .from("assessments")
         .insert({
           school_id: schoolId,
@@ -298,11 +385,17 @@ async function generateSampleData(supabaseClient: any, schoolId: string) {
         })
         .select()
         .single();
+        
+      if (assessmentError) {
+        console.error(`Error creating assessment ${assessmentTopics[i]}:`, assessmentError);
+        continue;
+      }
 
       if (assessment) {
+        console.log(`Created assessment: ${assessment.id} for ${assessmentTopics[i]}`);
         // Create a submission for some assessments
         if (i < 3) {
-          await supabaseClient.from("assessment_submissions").insert({
+          const { error: submissionError } = await supabaseClient.from("assessment_submissions").insert({
             assessment_id: assessment.id,
             student_id: studentId,
             score: Math.floor(Math.random() * 30) + 70, // Random score between 70-100
@@ -313,12 +406,19 @@ async function generateSampleData(supabaseClient: any, schoolId: string) {
             strengths: ["Concept understanding", "Problem solving"],
             weaknesses: ["Time management", "Attention to detail"],
           });
+          
+          if (submissionError) {
+            console.error(`Error creating submission for assessment ${assessment.id}:`, submissionError);
+          } else {
+            console.log(`Created submission for assessment ${assessment.id}`);
+          }
         }
       }
     }
 
     // Create a sample document for the student
-    await supabaseClient.from("documents").insert({
+    console.log("Creating sample document");
+    const { error: documentError } = await supabaseClient.from("documents").insert({
       user_id: studentId,
       filename: "Sample Study Notes.pdf",
       file_type: "application/pdf",
@@ -326,6 +426,10 @@ async function generateSampleData(supabaseClient: any, schoolId: string) {
       storage_path: `documents/${studentId}/sample-study-notes.pdf`,
       processing_status: "completed",
     });
+    
+    if (documentError) {
+      console.error("Error creating sample document:", documentError);
+    }
 
     console.log("Sample data generated successfully");
   } catch (error) {
