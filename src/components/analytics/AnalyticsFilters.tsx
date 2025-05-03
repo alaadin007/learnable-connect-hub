@@ -1,4 +1,3 @@
-
 import React from "react";
 import { DateRangePicker } from "./DateRangePicker";
 import { StudentSelector } from "./StudentSelector";
@@ -12,39 +11,34 @@ interface AnalyticsFiltersProps {
   onFiltersChange: (filters: FiltersType) => void;
   showStudentSelector?: boolean;
   showTeacherSelector?: boolean;
-  students?: { id: string; name: string }[]; // Add students prop
+  students?: { id: string; name: string }[];
 }
 
-export function AnalyticsFilters({ 
-  filters, 
+export const AnalyticsFilters: React.FC<AnalyticsFiltersProps> = ({
+  filters,
   onFiltersChange,
   showStudentSelector = false,
   showTeacherSelector = false,
-  students = [] // Default to empty array
-}: AnalyticsFiltersProps) {
+  students = []
+}) => {
   const handleDateRangeChange = (range: DateRange | undefined) => {
-    // Ensure 'from' is defined in the DateRange as required by type
-    const updatedRange = range 
-      ? { ...range, from: range.from || undefined } 
-      : undefined;
-      
     onFiltersChange({
       ...filters,
-      dateRange: updatedRange
+      dateRange: range,
     });
   };
 
   const handleStudentChange = (studentId: string | undefined) => {
     onFiltersChange({
       ...filters,
-      studentId
+      studentId,
     });
   };
 
   const handleTeacherChange = (teacherId: string | undefined) => {
     onFiltersChange({
       ...filters,
-      teacherId
+      teacherId,
     });
   };
 
@@ -56,7 +50,7 @@ export function AnalyticsFilters({
             <Filter className="w-4 h-4 mr-2" />
             <span>Filter Analytics:</span>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full">
             <div>
               <DateRangePicker
@@ -64,21 +58,21 @@ export function AnalyticsFilters({
                 onDateRangeChange={handleDateRangeChange}
               />
             </div>
-            
+
             {showStudentSelector && (
               <div>
-                <StudentSelector 
+                <StudentSelector
                   students={students}
-                  selectedStudentId={filters.studentId} 
+                  selectedStudentId={filters.studentId}
                   onStudentChange={handleStudentChange}
                 />
               </div>
             )}
-            
+
             {showTeacherSelector && (
               <div>
                 <TeacherSelector
-                  schoolId={typeof filters.schoolId === 'string' ? filters.schoolId : ''}
+                  schoolId={typeof filters.schoolId === "string" ? filters.schoolId : ""}
                   selectedTeacherId={filters.teacherId}
                   onTeacherChange={handleTeacherChange}
                 />
@@ -89,4 +83,4 @@ export function AnalyticsFilters({
       </CardContent>
     </Card>
   );
-}
+};
