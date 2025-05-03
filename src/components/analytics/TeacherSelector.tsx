@@ -20,10 +20,10 @@ interface Teacher {
   name: string;
 }
 
-export function TeacherSelector({ 
-  schoolId, 
+export function TeacherSelector({
+  schoolId,
   selectedTeacherId,
-  onTeacherChange 
+  onTeacherChange,
 }: TeacherSelectorProps) {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -34,37 +34,37 @@ export function TeacherSelector({
         setTeachers([]);
         return;
       }
-      
+
       setIsLoading(true);
       try {
-        // Fetch teacher IDs associated with school
         const { data: teachersData, error } = await supabase
-          .from('teachers')
-          .select('id')
-          .eq('school_id', schoolId);
+          .from("teachers")
+          .select("id")
+          .eq("school_id", schoolId);
 
         if (error) throw error;
-        
+
         if (!teachersData || teachersData.length === 0) {
           setTeachers([]);
           setIsLoading(false);
           return;
         }
-        
-        const teacherIds = teachersData.map(t => t.id);
-        // Fetch profiles of those teachers
+
+        const teacherIds = teachersData.map((t) => t.id);
         const { data: profilesData, error: profilesError } = await supabase
-          .from('profiles')
-          .select('id, full_name')
-          .in('id', teacherIds);
+          .from("profiles")
+          .select("id, full_name")
+          .in("id", teacherIds);
 
         if (profilesError) throw profilesError;
 
-        const formattedTeachers: Teacher[] = (profilesData ?? []).map(profile => ({
-          id: profile.id,
-          name: profile.full_name || 'Unknown Teacher'
-        }));
-          
+        const formattedTeachers: Teacher[] = (profilesData ?? []).map(
+          (profile) => ({
+            id: profile.id,
+            name: profile.full_name || "Unknown Teacher",
+          })
+        );
+
         setTeachers(formattedTeachers);
       } catch (error) {
         console.error("Error fetching teachers:", error);
@@ -73,23 +73,24 @@ export function TeacherSelector({
         setIsLoading(false);
       }
     };
-    
+
     fetchTeachers();
   }, [schoolId]);
 
-  const selectId = "teacher-select";
+  const labelId = "teacher-selector-label";
 
   return (
     <div className="space-y-2">
-      <label htmlFor={selectId} className="text-sm font-medium">
+      <label id={labelId} className="text-sm font-medium">
         Filter by Teacher:
       </label>
       <Select
-        id={selectId}
+        aria-labelledby={labelId}
         value={selectedTeacherId ?? "all"}
-        onValueChange={(value) => onTeacherChange(value === "all" ? undefined : value)}
+        onValueChange={(value) =>
+          onTeacherChange(value === "all" ? undefined : value)
+        }
         disabled={isLoading}
-        aria-label="Select teacher"
       >
         <SelectTrigger className="w-full">
           <SelectValue placeholder="Select teacher..." />
