@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
@@ -393,7 +392,7 @@ const TeacherAnalytics = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {isLoading && !initialLoadComplete ? (
+                  {isLoading && !dataLoaded ? (
                     <div className="flex justify-center items-center py-12">
                       <Loader2 className="h-8 w-8 animate-spin text-learnable-purple" />
                     </div>
@@ -445,7 +444,7 @@ const TeacherAnalytics = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {isLoading && !initialLoadComplete ? (
+                  {isLoading && !dataLoaded ? (
                     <div className="flex justify-center items-center py-12">
                       <Loader2 className="h-8 w-8 animate-spin text-learnable-purple" />
                     </div>
