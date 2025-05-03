@@ -369,23 +369,32 @@ export type Database = {
       schools: {
         Row: {
           code: string
+          contact_email: string | null
           created_at: string
+          description: string | null
           id: string
           name: string
+          notifications_enabled: boolean | null
           updated_at: string
         }
         Insert: {
           code: string
+          contact_email?: string | null
           created_at?: string
+          description?: string | null
           id?: string
           name: string
+          notifications_enabled?: boolean | null
           updated_at?: string
         }
         Update: {
           code?: string
+          contact_email?: string | null
           created_at?: string
+          description?: string | null
           id?: string
           name?: string
+          notifications_enabled?: boolean | null
           updated_at?: string
         }
         Relationships: [
@@ -449,6 +458,58 @@ export type Database = {
           },
           {
             foreignKeyName: "session_logs_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      student_invites: {
+        Row: {
+          code: string | null
+          created_at: string | null
+          email: string | null
+          expires_at: string | null
+          id: string
+          school_id: string
+          status: string
+        }
+        Insert: {
+          code?: string | null
+          created_at?: string | null
+          email?: string | null
+          expires_at?: string | null
+          id?: string
+          school_id: string
+          status?: string
+        }
+        Update: {
+          code?: string | null
+          created_at?: string | null
+          email?: string | null
+          expires_at?: string | null
+          id?: string
+          school_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_invites_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_improvement_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "student_invites_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_performance_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "student_invites_school_id_fkey"
             columns: ["school_id"]
             isOneToOne: false
             referencedRelation: "schools"

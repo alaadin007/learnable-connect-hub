@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -28,7 +27,7 @@ interface SchoolData {
 }
 
 const SchoolSettings = () => {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth(); // Added user to access the email
   const navigate = useNavigate();
   const [schoolName, setSchoolName] = useState("");
   const [schoolCode, setSchoolCode] = useState("");
@@ -58,9 +57,9 @@ const SchoolSettings = () => {
           setSchoolName(data.name || "");
           setSchoolCode(data.code || "");
           // For these fields, we'll use default values since they don't exist in the DB yet
-          setContactEmail(profile.email || "");
-          setDescription("");
-          setNotificationsEnabled(true);
+          setContactEmail(user?.email || ""); // Using user.email instead of profile.email
+          setDescription(data.description || "");
+          setNotificationsEnabled(data.notifications_enabled !== false); // Default to true if undefined
         }
       } catch (error) {
         console.error("Error fetching school data:", error);
@@ -70,7 +69,7 @@ const SchoolSettings = () => {
     };
 
     fetchSchoolData();
-  }, [profile]);
+  }, [profile, user]); // Added user to the dependency array
 
   const handleSaveSettings = async () => {
     if (!profile?.organization?.id) return;
@@ -82,11 +81,10 @@ const SchoolSettings = () => {
         .from("schools")
         .update({
           name: schoolName,
+          contact_email: contactEmail,
+          description: description,
+          notifications_enabled: notificationsEnabled,
           updated_at: new Date().toISOString()
-          // In a real implementation, we would add these fields to the schools table
-          // contact_email: contactEmail,
-          // description: description,
-          // notifications_enabled: notificationsEnabled
         })
         .eq("id", profile.organization.id);
 
