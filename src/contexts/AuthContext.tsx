@@ -1,3 +1,4 @@
+
 import React, {
   createContext,
   useState,
@@ -76,47 +77,60 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
     const getInitialSession = async () => {
       setIsLoading(true);
       try {
+        // First set up the auth state change listener
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+          async (event: AuthChangeEvent, currentSession: Session | null) => {
+            console.log(`Auth state changed: ${event}`, currentSession);
+            setSession(currentSession);
+            setUser(currentSession?.user || null);
+
+            if (currentSession?.user) {
+              await fetchProfile(currentSession.user.id);
+            } else {
+              setProfile(null);
+              setUserRole(null);
+              setIsSuperviser(false);
+              setSchoolId(null);
+            }
+          }
+        );
+
+        // Then get the initial session
         const {
           data: { session: initialSession },
         } = await supabase.auth.getSession();
 
+        console.log("Initial session retrieved:", initialSession);
         setSession(initialSession);
         setUser(initialSession?.user || null);
 
         if (initialSession?.user) {
           await fetchProfile(initialSession.user.id);
         }
+
+        // Return the unsubscribe function
+        return () => subscription.unsubscribe();
       } catch (error) {
         console.error("Error getting initial session:", error);
         toast.error("Failed to retrieve session. Please try again.");
+        return () => {}; // Return empty function as fallback
       } finally {
         setIsLoading(false);
       }
     };
 
-    getInitialSession();
+    const unsubscribe = getInitialSession();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event: AuthChangeEvent, currentSession: Session | null) => {
-        setSession(currentSession);
-        setUser(currentSession?.user || null);
-
-        if (currentSession?.user) {
-          await fetchProfile(currentSession.user.id);
-        } else {
-          setProfile(null);
-          setUserRole(null);
-          setIsSuperviser(false);
-          setSchoolId(null);
-        }
-      }
-    );
-
-    return () => subscription.unsubscribe();
+    return () => {
+      // Call the unsubscribe function when component unmounts
+      unsubscribe.then(unsub => unsub());
+    };
   }, []);
 
   const fetchProfile = async (userId: string) => {
     try {
+      console.log(`Fetching profile for user: ${userId}`);
+      
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
         .select(
@@ -134,7 +148,12 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
         .eq("id", userId)
         .single();
 
-      if (profileError) throw profileError;
+      if (profileError) {
+        console.error("Error fetching profile:", profileError);
+        throw profileError;
+      }
+
+      console.log("Profile data retrieved:", profileData);
 
       let safeProfileData: UserProfile = {
         ...profileData,
@@ -230,6 +249,8 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
   };
 
   const signIn = async (email: string, password?: string) => {
+    console.log(`Signing in user with email: ${email}`);
+    
     // If this is a test account email, handle it directly through setTestUser
     if (email.includes(".test@learnable.edu")) {
       let type: "school" | "teacher" | "student" = "student";
@@ -242,14 +263,21 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
     setIsLoading(true);
     try {
       if (password) {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        console.log("Attempting password-based authentication");
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) {
+          console.error("Sign in error:", error);
+          throw error;
+        }
+        console.log("Sign in successful:", data);
       } else {
+        console.log("Attempting OTP-based authentication");
         const { error } = await supabase.auth.signInWithOtp({ email });
         if (error) throw error;
         toast.success("Check your email to verify your login");
       }
     } catch (error: any) {
+      console.error("Sign in error caught:", error);
       toast.error(error.error_description ?? error.message);
       throw error;
     } finally {
@@ -260,10 +288,16 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
   const signUp = async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.signUp({ email, password });
-      if (error) throw error;
+      console.log("Signing up new user");
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      if (error) {
+        console.error("Sign up error:", error);
+        throw error;
+      }
+      console.log("Sign up successful:", data);
       toast.success("Registration successful! Please check your email.");
     } catch (error: any) {
+      console.error("Sign up error caught:", error);
       toast.error(error.error_description ?? error.message);
       throw error;
     } finally {
@@ -285,7 +319,10 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       const isTestUser =
         user?.email?.includes(".test@learnable.edu") || user?.id?.startsWith("test-");
 
-      if (!isTestUser) await supabase.auth.signOut();
+      if (!isTestUser) {
+        console.log("Signing out user");
+        await supabase.auth.signOut();
+      }
 
       setSession(null);
       setUser(null);
@@ -297,6 +334,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       navigate("/");
       toast.success(isTestUser ? "Test session ended" : "Logged out successfully");
     } catch (error: any) {
+      console.error("Sign out error:", error);
       toast.error(error.error_description ?? error.message ?? "Failed to log out");
     } finally {
       setIsLoading(false);
@@ -464,7 +502,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
           try {
             console.log(`AuthContext: Creating teacher test sessions for ${mockId} with organization ID ${testOrgId}`);
             await populateTestAccountWithSessions(mockId, testOrgId, 5);
-            console.log(`AuthContext: Successfully populated test data for teacher ${mockId}`);
+            console.log(`AuthContext: Successfully populated test data for teacher ${userId}`);
           } catch (e) {
             console.error("Error creating teacher test sessions:", e);
           }

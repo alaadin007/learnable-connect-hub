@@ -59,6 +59,9 @@ const LoginForm = () => {
     setIsLoading(true);
 
     try {
+      // Log the login attempt for debugging
+      console.log(`Attempting to login with email: ${email}`);
+      
       // Handle test accounts - direct login without authentication
       if (email.includes(".test@learnable.edu")) {
         let type: "school" | "teacher" | "student" = "student";
@@ -97,19 +100,43 @@ const LoginForm = () => {
         return;
       }
 
+      // Get session data first to check if user exists in the system
+      const { data: sessionData } = await supabase.auth.getSession();
+      console.log("Current session data:", sessionData);
+      
       // Regular user login flow
-      await signIn(email, password);
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ 
+        email, 
+        password 
+      });
+      
+      if (signInError) {
+        console.error("Login error from Supabase:", signInError);
+        throw signInError;
+      }
 
+      console.log("Sign in successful:", signInData);
+
+      // Check if we have a user after login
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
       if (user) {
-        const { data: profile } = await supabase
+        console.log("Retrieved user after login:", user);
+        
+        // Get user profile to determine redirect path
+        const { data: profile, error: profileError } = await supabase
           .from("profiles")
           .select("user_type")
           .eq("id", user.id)
           .single();
+
+        if (profileError) {
+          console.error("Error fetching profile:", profileError);
+        }
+
+        console.log("User profile retrieved:", profile);
 
         const redirectPath =
           profile?.user_type === "school"
@@ -222,6 +249,9 @@ const LoginForm = () => {
       console.error("Quick login error:", error);
       setLoginError(`Failed to log in with test account: ${error.message}`);
       toast.error("Failed to log in with test account");
+      
+      // Make sure to reset loading state on error
+      setIsLoading(null);
     } finally {
       setIsLoading(false);
     }
