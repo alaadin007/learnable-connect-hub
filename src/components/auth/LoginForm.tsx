@@ -112,6 +112,29 @@ const LoginForm = () => {
       
       if (signInError) {
         console.error("Login error from Supabase:", signInError);
+        
+        // More detailed error handling
+        if (signInError.message.includes("Invalid login credentials")) {
+          setLoginError("Invalid login credentials. Please check your email and password and try again.");
+          toast.error("Login failed", {
+            description: "Invalid email or password combination."
+          });
+        } else if (signInError.message.includes("Email not confirmed")) {
+          setLoginError("Your email has not been verified. Please check your inbox for the verification email.");
+          toast.error("Email not verified", {
+            description: "Please check your inbox for the verification email.",
+            action: {
+              label: "Resend email",
+              onClick: async () => handleResendVerification(email),
+            }
+          });
+        } else {
+          setLoginError(signInError.message);
+          toast.error("Authentication error", {
+            description: signInError.message
+          });
+        }
+        
         throw signInError;
       }
 
@@ -130,10 +153,13 @@ const LoginForm = () => {
           .from("profiles")
           .select("user_type")
           .eq("id", user.id)
-          .single();
+          .maybeSingle();
 
         if (profileError) {
           console.error("Error fetching profile:", profileError);
+          toast.error("Error fetching profile", {
+            description: "Please try logging in again."
+          });
         }
 
         console.log("User profile retrieved:", profile);
@@ -160,46 +186,31 @@ const LoginForm = () => {
     } catch (error: any) {
       console.error("Login error:", error);
       
-      let errorMessage = error.message || "Login failed. Please try again.";
-      setLoginError(errorMessage);
-
-      if (error.message.includes("Email not confirmed")) {
-        toast.error("Email not verified", {
-          description: 
-            "Please check your inbox and spam folder for the verification email. ",
-          action: {
-            label: "Resend email",
-            onClick: async () => {
-              try {
-                const { error } = await supabase.auth.resend({
-                  type: "signup",
-                  email,
-                });
-                
-                if (error) throw error;
-                
-                toast.success("Verification email sent", {
-                  description: "Please check your inbox and spam folder."
-                });
-              } catch (err: any) {
-                toast.error("Failed to resend verification email", {
-                  description: err.message
-                });
-              }
-            }
-          }
-        });
-      } else if (error.message.includes("Invalid login credentials")) {
-        toast.error("Login failed", {
-          description: "Invalid email or password. Please check your credentials and try again.",
-        });
-      } else {
-        toast.error(`Login failed`, {
-          description: errorMessage
-        });
+      // Error is already handled above, this is just a fallback
+      if (!loginError) {
+        setLoginError(error.message || "Login failed. Please try again.");
       }
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleResendVerification = async (email: string) => {
+    try {
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email,
+      });
+      
+      if (error) throw error;
+      
+      toast.success("Verification email sent", {
+        description: "Please check your inbox and spam folder."
+      });
+    } catch (err: any) {
+      toast.error("Failed to resend verification email", {
+        description: err.message
+      });
     }
   };
 
@@ -251,7 +262,7 @@ const LoginForm = () => {
       toast.error("Failed to log in with test account");
       
       // Make sure to reset loading state on error
-      setIsLoading(null);
+      setIsLoading(false);
     } finally {
       setIsLoading(false);
     }
