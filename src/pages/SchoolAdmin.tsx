@@ -1,5 +1,5 @@
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
 import { useAuth } from "@/contexts/AuthContext";
@@ -8,9 +8,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Link, useNavigate } from "react-router-dom";
-import { Users, BarChart2 } from "lucide-react";
+import { Users, BarChart2, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 // Define the basic type for teacher invitations
 export type TeacherInvitation = {
@@ -27,6 +33,7 @@ export type TeacherInvitation = {
 const SchoolAdmin = () => {
   const { profile, userRole } = useAuth();
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState("teachers");
   
   // Use optional chaining for organization properties
   const schoolId = profile?.organization?.id || null;
@@ -95,6 +102,26 @@ const SchoolAdmin = () => {
     // displayErrorIfNeeded();
   }, [profile, schoolId]);
 
+  // Quick actions dropdown handler
+  const handleQuickActionSelect = (action: string) => {
+    switch (action) {
+      case "manage-teachers":
+        navigate("/admin/teacher-management");
+        break;
+      case "view-analytics":
+        navigate("/admin/analytics");
+        break;
+      case "school-settings":
+        setActiveTab("settings");
+        break;
+      case "students":
+        setActiveTab("students");
+        break;
+      default:
+        break;
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
@@ -132,22 +159,35 @@ const SchoolAdmin = () => {
           <div className="mb-6 flex flex-wrap gap-3 justify-between items-center">
             <h2 className="text-xl font-semibold">Quick Actions</h2>
             <div className="flex flex-wrap gap-3">
-              <Link to="/admin/teacher-management">
-                <Button className="gradient-bg">
-                  <Users className="mr-2 h-4 w-4" />
-                  Manage Teachers
-                </Button>
-              </Link>
-              <Link to="/admin/analytics">
-                <Button variant="outline" className="border-learnable-blue text-learnable-blue">
-                  <BarChart2 className="mr-2 h-4 w-4" />
-                  View Analytics
-                </Button>
-              </Link>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button className="gradient-bg">
+                    <Users className="mr-2 h-4 w-4" />
+                    Quick Actions
+                    <ChevronDown className="ml-2 h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56 bg-white">
+                  <DropdownMenuItem onClick={() => handleQuickActionSelect("manage-teachers")}>
+                    <Users className="mr-2 h-4 w-4" />
+                    <span>Manage Teachers</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleQuickActionSelect("view-analytics")}>
+                    <BarChart2 className="mr-2 h-4 w-4" />
+                    <span>View Analytics</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleQuickActionSelect("school-settings")}>
+                    <span>School Settings</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleQuickActionSelect("students")}>
+                    <span>Student Management</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
           
-          <Tabs defaultValue="teachers" className="space-y-4">
+          <Tabs defaultValue="teachers" value={activeTab} onValueChange={setActiveTab} className="space-y-4">
             <TabsList className="w-full border-b">
               <TabsTrigger value="teachers" className="flex-1">
                 Teachers
