@@ -40,7 +40,3 @@ verify_jwt = true
 [[edge_functions]]
 name = "text-to-speech"
 verify_jwt = true
-
-[[edge_functions]]
-name = "register-school"
-verify_jwt = false

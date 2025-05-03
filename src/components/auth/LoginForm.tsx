@@ -14,7 +14,7 @@ const LoginForm = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const { signIn, setTestUser, userRole, profile } = useAuth();
+  const { signIn, setTestUser, userRole } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [loginError, setLoginError] = useState<string | null>(null);
@@ -36,29 +36,15 @@ const LoginForm = () => {
   // Redirect if user role already set
   useEffect(() => {
     if (userRole) {
-      console.log("LoginForm: User already logged in with role:", userRole);
-      console.log("LoginForm: User profile:", profile);
-      
-      // Define redirect path based on user role
-      let redirectPath;
-      if (userRole === "school") {
-        redirectPath = "/admin";
-      } else if (userRole === "teacher") {
-        redirectPath = "/teacher/analytics";
-      } else {
-        redirectPath = "/dashboard";
-      }
+      const redirectPath = userRole === "school"
+        ? "/admin"
+        : userRole === "teacher"
+        ? "/teacher/analytics"
+        : "/dashboard";
 
-      console.log(`LoginForm: Redirecting to ${redirectPath}`);
-      navigate(redirectPath, { 
-        replace: true,
-        state: { 
-          fromLogin: true,
-          preserveContext: true
-        } 
-      });
+      navigate(redirectPath);
     }
-  }, [userRole, navigate, profile]);
+  }, [userRole, navigate]);
 
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -71,8 +57,6 @@ const LoginForm = () => {
     setIsLoading(true);
 
     try {
-      console.log(`LoginForm: Attempting login for ${email}`);
-      
       // Handle test accounts - direct login without authentication
       if (email.includes(".test@learnable.edu")) {
         let type: "school" | "teacher" | "student" = "student";
@@ -112,191 +96,38 @@ const LoginForm = () => {
       }
 
       // Regular user login flow
-      const { data: authData, error: signInError } = await signIn(email, password);
+      await signIn(email, password);
 
-      if (signInError) throw signInError;
-
-      console.log("LoginForm: Sign in successful, fetching user data");
-      
-      // Small delay to ensure auth state has been processed
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
       const {
         data: { user },
-        error: getUserError
       } = await supabase.auth.getUser();
 
-      if (getUserError) throw getUserError;
-      
-      if (!user) {
-        throw new Error("Failed to retrieve user data after login");
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("user_type")
+          .eq("id", user.id)
+          .single();
+
+        const redirectPath =
+          profile?.user_type === "school"
+            ? "/admin"
+            : profile?.user_type === "teacher"
+            ? "/teacher/analytics"
+            : "/dashboard";
+
+        toast.success("Login successful", {
+          description: `Welcome back, ${
+            user.user_metadata?.full_name || email
+          }!`,
+        });
+
+        navigate(redirectPath);
+      } else {
+        // fallback
+        toast.success("Login successful");
+        navigate("/dashboard");
       }
-
-      console.log(`LoginForm: User authenticated, ID: ${user.id}`);
-
-      // Fetch the user profile directly from Supabase
-      const { data: profileData, error: profileError } = await supabase
-        .from("profiles")
-        .select("user_type, full_name, school_code, school_name")
-        .eq("id", user.id)
-        .single();
-
-      if (profileError) {
-        console.error("LoginForm: Error fetching profile:", profileError);
-        
-        // Check if profile doesn't exist - create a basic one if needed
-        if (profileError.code === "PGRST116") {
-          console.log("LoginForm: Profile not found, creating basic profile");
-          
-          // Try to extract relevant data from user metadata
-          const defaultUserType = user.user_metadata?.user_type || "student";
-          const defaultName = user.user_metadata?.full_name || user.email?.split('@')[0] || "User";
-          const schoolCode = user.user_metadata?.school_code;
-          const schoolName = user.user_metadata?.school_name || "Default School";
-          
-          // Create a basic profile
-          const { error: createProfileError } = await supabase
-            .from("profiles")
-            .insert({
-              id: user.id,
-              user_type: defaultUserType,
-              full_name: defaultName,
-              school_code: schoolCode,
-              school_name: schoolName
-            });
-            
-          if (createProfileError) {
-            console.error("LoginForm: Failed to create profile:", createProfileError);
-            throw new Error("Failed to create user profile");
-          }
-          
-          // For school admin, ensure school entry exists
-          if (defaultUserType === "school") {
-            // Check if school already exists
-            const { data: existingSchool } = await supabase
-              .from("schools")
-              .select("id")
-              .eq("code", schoolCode || `SCHOOL_${user.id.substring(0, 8)}`)
-              .single();
-              
-            if (!existingSchool) {
-              // Create school entry
-              const schoolCode = user.user_metadata?.school_code || `SCHOOL_${user.id.substring(0, 8)}`;
-              await supabase
-                .from("schools")
-                .insert({
-                  name: schoolName,
-                  code: schoolCode
-                });
-                
-              // Update profile with school code
-              await supabase
-                .from("profiles")
-                .update({ school_code: schoolCode })
-                .eq("id", user.id);
-            }
-          }
-          
-          // Redirect based on user type
-          const userType = defaultUserType as "school" | "teacher" | "student";
-          const redirectPath = userType === "school" ? "/admin" : 
-                              userType === "teacher" ? "/teacher/analytics" :
-                              "/dashboard";
-                              
-          toast.success("Login successful", {
-            description: `Welcome, ${defaultName}!`,
-          });
-          
-          navigate(redirectPath, { 
-            replace: true,
-            state: { preserveContext: true }
-          });
-          return;
-        }
-        
-        throw profileError;
-      }
-
-      console.log(`LoginForm: Profile retrieved, user_type: ${profileData?.user_type}`);
-
-      // If user is a school admin, fetch the organization data
-      let orgData = null;
-      if (profileData?.user_type === "school") {
-        try {
-          // Get or create school data
-          let schoolData;
-          
-          if (profileData.school_code) {
-            const { data, error: schoolError } = await supabase
-              .from("schools")
-              .select("id, name, code")
-              .eq("code", profileData.school_code)
-              .single();
-              
-            if (!schoolError && data) {
-              schoolData = data;
-            }
-          }
-          
-          // Create school if it doesn't exist
-          if (!schoolData) {
-            console.log("LoginForm: School data not found, creating school entry");
-            const schoolCode = profileData.school_code || `SCHOOL_${user.id.substring(0, 8)}`;
-            const schoolName = profileData.school_name || user.user_metadata?.school_name || "Default School";
-            
-            const { data: newSchool, error: createSchoolError } = await supabase
-              .from("schools")
-              .insert({
-                name: schoolName,
-                code: schoolCode
-              })
-              .select()
-              .single();
-              
-            if (createSchoolError) {
-              console.error("LoginForm: Error creating school:", createSchoolError);
-            } else {
-              schoolData = newSchool;
-              
-              // Update profile with school code
-              await supabase
-                .from("profiles")
-                .update({ school_code: schoolCode })
-                .eq("id", user.id);
-            }
-          }
-          
-          if (schoolData) {
-            console.log("LoginForm: Found school data:", schoolData);
-            orgData = schoolData;
-          }
-        } catch (err) {
-          console.error("LoginForm: Error handling school data:", err);
-        }
-      }
-
-      const redirectPath =
-        profileData?.user_type === "school"
-          ? "/admin"
-          : profileData?.user_type === "teacher"
-          ? "/teacher/analytics"
-          : "/dashboard";
-
-      toast.success("Login successful", {
-        description: `Welcome back, ${
-          profileData?.full_name || user.user_metadata?.full_name || email
-        }!`,
-      });
-
-      console.log(`LoginForm: Redirecting to ${redirectPath}`);
-      navigate(redirectPath, { 
-        replace: true,
-        state: { 
-          fromNavigation: true,
-          preserveContext: true,
-          orgData: orgData
-        } 
-      });
     } catch (error: any) {
       console.error("Login error:", error);
       setLoginError(error.message);

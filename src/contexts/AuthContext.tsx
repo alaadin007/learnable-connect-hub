@@ -9,7 +9,6 @@ import {
   Session,
   User,
   AuthChangeEvent,
-  AuthError,
 } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
@@ -46,7 +45,7 @@ interface AuthContextType {
   loading: boolean;
   isSuperviser: boolean;
   schoolId: string | null;
-  signIn: (email: string, password?: string) => Promise<{ data: any, error: AuthError | null }>;
+  signIn: (email: string, password?: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
@@ -74,25 +73,18 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    console.log("AuthContext: Initializing");
-    
     const getInitialSession = async () => {
       setIsLoading(true);
       try {
-        // First get the initial session
         const {
           data: { session: initialSession },
         } = await supabase.auth.getSession();
 
-        console.log("AuthContext: Initial session retrieved", initialSession ? "Session exists" : "No session");
-        
         setSession(initialSession);
         setUser(initialSession?.user || null);
 
         if (initialSession?.user) {
           await fetchProfile(initialSession.user.id);
-        } else {
-          console.log("AuthContext: No user in initial session");
         }
       } catch (error) {
         console.error("Error getting initial session:", error);
@@ -102,11 +94,10 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       }
     };
 
-    // Set up the auth state change listener
+    getInitialSession();
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event: AuthChangeEvent, currentSession: Session | null) => {
-        console.log(`AuthContext: Auth state changed: ${event}`);
-        
         setSession(currentSession);
         setUser(currentSession?.user || null);
 
@@ -121,121 +112,48 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       }
     );
 
-    // Get the initial session
-    getInitialSession();
-
     return () => subscription.unsubscribe();
   }, []);
 
   const fetchProfile = async (userId: string) => {
     try {
-      console.log(`AuthContext: Fetching profile for user ${userId}`);
-      
-      // First fetch the basic profile data
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
-        .select("id, user_type, full_name, school_code, school_name")
+        .select(
+          `
+          id,
+          user_type,
+          full_name,
+          organization (
+            id,
+            name,
+            code
+          )
+        `
+        )
         .eq("id", userId)
         .single();
 
-      if (profileError) {
-        console.error("AuthContext: Error fetching profile:", profileError);
-        
-        // If profile doesn't exist, try to create one based on user metadata
-        if (profileError.code === "PGRST116" && user) {
-          console.log("AuthContext: Profile not found, attempting to create one");
-          
-          const userMeta = user.user_metadata || {};
-          const userType = userMeta.user_type || "student";
-          const fullName = userMeta.full_name || user.email?.split('@')[0] || "User";
-          const schoolCode = userMeta.school_code;
-          const schoolName = userMeta.school_name;
-          
-          try {
-            await supabase.from("profiles").insert({
-              id: userId,
-              user_type: userType,
-              full_name: fullName,
-              school_code: schoolCode,
-              school_name: schoolName
-            });
-            
-            // Try fetching again
-            const { data: newProfile, error: newProfileError } = await supabase
-              .from("profiles")
-              .select("id, user_type, full_name, school_code, school_name")
-              .eq("id", userId)
-              .single();
-              
-            if (newProfileError) throw newProfileError;
-            
-            // Continue with the new profile data
-            await processProfileData(newProfile, userId);
-            return;
-          } catch (createError) {
-            console.error("AuthContext: Failed to create profile:", createError);
-            throw createError;
-          }
-        }
-        
-        throw profileError;
+      if (profileError) throw profileError;
+
+      let safeProfileData: UserProfile = {
+        ...profileData,
+        organization: null,
+      };
+
+      const org = profileData.organization;
+
+      if (isNonNullObject(org) && !("error" in org)) {
+        safeProfileData.organization = org;
       }
 
-      await processProfileData(profileData, userId);
-    } catch (error) {
-      console.error("AuthContext: Error in fetchProfile:", error);
-      toast.error("Failed to retrieve profile. Please try again.");
-    }
-  };
+      setProfile(safeProfileData);
+      setUserRole(profileData.user_type || null);
+      setIsSuperviser(profileData.user_type === "superviser");
+      setSchoolId(safeProfileData.organization?.id || null);
 
-  const processProfileData = async (profileData: any, userId: string) => {
-    console.log("AuthContext: Processing profile data:", profileData);
-    
-    // Set up basic profile data
-    let safeProfileData: UserProfile = {
-      ...profileData,
-      id: profileData.id,
-      organization: null,
-    };
-
-    setUserRole(profileData.user_type || null);
-    setIsSuperviser(profileData.user_type === "superviser");
-    
-    // If user is a school admin or teacher, fetch organization data
-    if (profileData.user_type === "school" || profileData.user_type === "teacher") {
-      try {
-        const { data: schoolData, error: schoolError } = await supabase
-          .from("schools")
-          .select("id, name, code")
-          .eq("code", profileData.school_code)
-          .single();
-          
-        if (schoolError) {
-          console.warn("AuthContext: Error fetching school:", schoolError);
-        } else if (schoolData) {
-          console.log("AuthContext: Found school data:", schoolData);
-          
-          safeProfileData.organization = {
-            id: schoolData.id,
-            name: schoolData.name,
-            code: schoolData.code
-          };
-          
-          setSchoolId(schoolData.id);
-        }
-      } catch (err) {
-        console.error("AuthContext: Error processing school data:", err);
-      }
-    }
-    
-    // Set the profile with complete data
-    setProfile(safeProfileData);
-
-    console.log(`AuthContext: Profile updated, user_type: ${profileData.user_type}, organization:`, safeProfileData.organization);
-
-    // Handle test account specific logic
-    if (user && isTestAccount(user.email || '')) {
-      console.log("AuthContext: Test account detected, ensuring organization data is complete");
+      if (user && isTestAccount(user.email || '')) {
+        console.log("AuthContext: Test account detected, ensuring organization data is complete");
         
         // Ensure organization object has all required properties for test accounts
         if (!safeProfileData.organization || !safeProfileData.organization.code) {
@@ -299,11 +217,14 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
           }
         }
       }
+    } catch (error) {
+      console.error("Error fetching profile:", error);
+      toast.error("Failed to retrieve profile. Please try again.");
+    }
   };
 
   const refreshProfile = async () => {
     if (user) {
-      console.log(`AuthContext: Refreshing profile for user ${user.id}`);
       await fetchProfile(user.id);
     }
   };
@@ -315,29 +236,20 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       if (email.startsWith("school")) type = "school";
       else if (email.startsWith("teacher")) type = "teacher";
       await setTestUser(type);
-      return { data: { user: { email } }, error: null };
+      return;
     }
 
     setIsLoading(true);
     try {
-      console.log(`AuthContext: Signing in user ${email}`);
-      
       if (password) {
-        const result = await supabase.auth.signInWithPassword({ email, password });
-        if (result.error) {
-          console.error("AuthContext: Sign in error:", result.error);
-          throw result.error;
-        }
-        console.log("AuthContext: Sign in successful");
-        return result;
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
       } else {
-        const result = await supabase.auth.signInWithOtp({ email });
-        if (result.error) throw result.error;
+        const { error } = await supabase.auth.signInWithOtp({ email });
+        if (error) throw error;
         toast.success("Check your email to verify your login");
-        return result;
       }
     } catch (error: any) {
-      console.error("AuthContext: Error during sign in:", error);
       toast.error(error.error_description ?? error.message);
       throw error;
     } finally {
@@ -348,17 +260,9 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
   const signUp = async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      // Change to NOT auto-confirm emails - let Supabase send the verification email
-      const { error } = await supabase.auth.signUp({ 
-        email, 
-        password,
-        options: {
-          emailRedirectTo: window.location.origin + "/login?email_confirmed=true"
-        }
-      });
-      
+      const { error } = await supabase.auth.signUp({ email, password });
       if (error) throw error;
-      toast.success("Registration successful! Please check your email to verify your account.");
+      toast.success("Registration successful! Please check your email.");
     } catch (error: any) {
       toast.error(error.error_description ?? error.message);
       throw error;

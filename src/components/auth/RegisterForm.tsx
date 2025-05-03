@@ -210,15 +210,15 @@ const RegisterForm = () => {
         return;
       }
 
-      // Pass signUp only the required arguments
+      // Fix: Pass only two arguments to signUp
       await signUp(teacherEmail, teacherPassword);
       
       toast.success("Registration successful!", {
-        description: "Please check your email to verify your account before logging in."
+        description: "Please check your email to verify your account."
       });
       
       // Navigate to login page with a query parameter
-      navigate("/login?registered=true&email=" + encodeURIComponent(teacherEmail));
+      navigate("/login?registered=true");
       
     } catch (error: any) {
       console.error("Registration error:", error);
@@ -280,15 +280,15 @@ const RegisterForm = () => {
         return;
       }
 
-      // Pass signUp only the required arguments
+      // Fix: Pass only two arguments to signUp
       await signUp(studentEmail, studentPassword);
       
       toast.success("Registration successful!", {
-        description: "Please check your email to verify your account before logging in."
+        description: "Please check your email to verify your account."
       });
       
       // Navigate to login page with a query parameter
-      navigate("/login?registered=true&email=" + encodeURIComponent(studentEmail));
+      navigate("/login?registered=true");
       
     } catch (error: any) {
       console.error("Registration error:", error);
