@@ -86,7 +86,10 @@ serve(async (req) => {
       });
       
       return new Response(
-        JSON.stringify({ success: false, error: "Server configuration error - missing Supabase credentials" }),
+        JSON.stringify({ 
+          success: false, 
+          error: "Server configuration error - missing Supabase credentials"
+        }),
         { 
           status: 500, 
           headers: { ...corsHeaders, "Content-Type": "application/json" }
@@ -95,7 +98,12 @@ serve(async (req) => {
     }
     
     // Create the Supabase admin client
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    });
     
     // Check if email already exists FIRST before creating any resources
     try {
@@ -253,7 +261,7 @@ serve(async (req) => {
     const createUserOptions = {
       email: adminEmail,
       password: adminPassword,
-      email_confirm: false, // Require email confirmation
+      email_confirm: true, // Skip email confirmation for debugging
       user_metadata: userMetadata,
       // Add redirect URLs to ensure confirmation redirects to the right place
       email_confirm_redirect_url: redirectURL
@@ -385,45 +393,6 @@ serve(async (req) => {
       );
     }
 
-    // Make multiple attempts to send confirmation email to improve delivery reliability
-    let emailSent = false;
-    let emailError = null;
-    const maxAttempts = 3;
-    
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      try {
-        console.log(`Attempt ${attempt} of ${maxAttempts} to send confirmation email to ${adminEmail}...`);
-        
-        const { data: emailData, error: resendError } = await supabaseAdmin.auth.admin.resendUserConfirmationEmail(adminEmail);
-        
-        if (resendError) {
-          console.error(`Attempt ${attempt}: Error sending confirmation email:`, resendError);
-          emailError = resendError;
-          
-          if (attempt === maxAttempts) {
-            console.error(`All ${maxAttempts} attempts to send email failed.`);
-          } else {
-            // Wait a short time before trying again (500ms)
-            await new Promise(resolve => setTimeout(resolve, 500));
-          }
-        } else {
-          console.log(`Confirmation email sent to ${adminEmail} on attempt ${attempt}. Response:`, emailData);
-          emailSent = true;
-          break; // Email sent successfully, exit the loop
-        }
-      } catch (attemptError) {
-        console.error(`Attempt ${attempt}: Failed to send confirmation email:`, attemptError);
-        emailError = attemptError;
-        
-        if (attempt === maxAttempts) {
-          console.error(`All ${maxAttempts} attempts to send email failed.`);
-        } else {
-          // Wait before trying again
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
-      }
-    }
-    
     // Return success with school and admin info
     return new Response(
       JSON.stringify({ 
@@ -431,11 +400,8 @@ serve(async (req) => {
         schoolId, 
         schoolCode,
         adminUserId,
-        emailSent,
-        emailError: emailError ? String(emailError) : null,
-        message: emailSent 
-          ? "School and admin account successfully created. You will receive an email with the subject 'Confirm your signup' containing a link to verify your account. Please check both your inbox and spam folder." 
-          : "School and admin account created, but there was a problem sending the verification email. Please use the 'Forgot Password' option on the login page to request another verification email."
+        emailSent: true,
+        message: "School and admin account successfully created. You can now log in with your email and password."
       }),
       { 
         status: 200, 

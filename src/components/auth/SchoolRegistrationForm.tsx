@@ -48,6 +48,7 @@ const SchoolRegistrationForm = () => {
   const [serverError, setServerError] = useState<string | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [existingRole, setExistingRole] = useState<string | null>(null);
+  const [serviceUnavailable, setServiceUnavailable] = useState(false);
   const navigate = useNavigate();
 
   const form = useForm<SchoolFormValues>({
@@ -65,6 +66,7 @@ const SchoolRegistrationForm = () => {
     setServerError(null);
     setEmailError(null);
     setExistingRole(null);
+    setServiceUnavailable(false);
   };
 
   const checkIfEmailExists = async (email: string): Promise<boolean> => {
@@ -167,6 +169,16 @@ const SchoolRegistrationForm = () => {
           return;
         }
         
+        // Check if it's a service unavailable error
+        if (error.message?.includes("500") || error.message?.includes("503")) {
+          setServiceUnavailable(true);
+          toast.error("Registration service unavailable", {
+            description: "The registration service is currently unavailable. Please try again later."
+          });
+          setIsLoading(false);
+          return;
+        }
+        
         throw new Error(error.message || "Failed to register school");
       }
 
@@ -205,7 +217,7 @@ const SchoolRegistrationForm = () => {
         });
       } else if (error.message?.includes("non-2xx") || error.message?.includes("Edge Function")) {
         // Handle edge function errors
-        setServerError("The registration service is currently unavailable. Please try again later.");
+        setServiceUnavailable(true);
         toast.error("Registration service unavailable", {
           description: "Please try again later or contact support if the issue persists."
         });
@@ -227,6 +239,17 @@ const SchoolRegistrationForm = () => {
           <Alert variant="destructive" className="mb-6">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>{serverError}</AlertDescription>
+          </Alert>
+        )}
+        
+        {serviceUnavailable && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Registration Service Unavailable</AlertTitle>
+            <AlertDescription>
+              The registration service is currently unavailable. Please try again later or 
+              contact support if the issue persists.
+            </AlertDescription>
           </Alert>
         )}
         
@@ -337,7 +360,7 @@ const SchoolRegistrationForm = () => {
             <Button 
               type="submit" 
               className="w-full gradient-bg" 
-              disabled={isLoading}
+              disabled={isLoading || serviceUnavailable}
               aria-busy={isLoading}
             >
               {isLoading ? (
@@ -345,6 +368,8 @@ const SchoolRegistrationForm = () => {
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Registering...
                 </>
+              ) : serviceUnavailable ? (
+                "Service Unavailable"
               ) : (
                 "Register School"
               )}
