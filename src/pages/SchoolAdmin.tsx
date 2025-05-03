@@ -27,6 +27,7 @@ export type TeacherInvitation = {
   created_by: string;
   created_at: string;
   expires_at: string;
+  expires_at: string;
 };
 
 const SchoolAdmin = () => {
@@ -101,7 +102,7 @@ const SchoolAdmin = () => {
     // displayErrorIfNeeded();
   }, [profile, schoolId]);
 
-  // Quick actions dropdown handler
+  // Quick actions dropdown handler with fixed routes
   const handleQuickActionSelect = (action: string) => {
     switch (action) {
       case "manage-teachers":
