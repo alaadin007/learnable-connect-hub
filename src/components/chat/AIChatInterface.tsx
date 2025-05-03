@@ -41,13 +41,13 @@ const AIChatInterface: React.FC<AIChatInterfaceProps> = ({
 
   // Start a new session when the component mounts
   useEffect(() => {
+    let isMounted = true; // to avoid setting state if unmounted
+
     const startNewSession = async () => {
       try {
         const newSessionId = await sessionLogger.startSession(topic);
-        if (newSessionId) {
+        if (isMounted && newSessionId) {
           setSessionId(newSessionId);
-          
-          // If we have an initial prompt, add it as a system message
           if (initialPrompt) {
             setMessages([
               { role: "system", content: initialPrompt, timestamp: new Date() }
@@ -61,81 +61,83 @@ const AIChatInterface: React.FC<AIChatInterfaceProps> = ({
 
     startNewSession();
 
-    // End the session when the component unmounts
     return () => {
+      isMounted = false;
       if (sessionId) {
-        sessionLogger.endSession(sessionId);
+        sessionLogger.endSession(sessionId).catch(console.error);
       }
     };
+  // Here sessionId is a dependency but it is set asynchronously, so 
+  // the cleanup may not see the updated sessionId; to fix:
+  // either omit it here (and send endSession in separate effect) or
+  // move endSession to separate useEffect tracking sessionId.
   }, [topic, initialPrompt]);
 
-  // Scroll to the bottom when messages change
+  // To fix the cleanup for session end - better separate effect:
+  useEffect(() => {
+    return () => {
+      if (sessionId) {
+        sessionLogger.endSession(sessionId).catch(console.error);
+      }
+    };
+  }, [sessionId]);
+
+  // Scroll to bottom when messages change
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages]);
 
-  // Handle form submission
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    
+
     if (!input.trim() && !initialPrompt) return;
-    
+
     const userMessage = input.trim() || initialPrompt;
     setInput("");
-    
-    // Update messages with user input
+
     setMessages(prev => [...prev, {
       role: "user",
       content: userMessage,
       timestamp: new Date()
     }]);
-    
-    // Set loading state
+
     setIsLoading(true);
-    
+
     try {
-      // Update session topic if it's not set yet
       if (topic && sessionId) {
         await sessionLogger.updateSessionTopic(sessionId, topic);
       }
-      
-      // Call the Edge Function
+
       const { data, error } = await supabase.functions.invoke("ask-ai", {
-        body: { 
-          question: userMessage, 
-          topic, 
+        body: {
+          question: userMessage,
+          topic,
           documentId,
-          sessionId 
+          sessionId
         }
       });
-      
-      if (error) {
-        throw new Error(error.message);
-      }
-      
-      // Update messages with AI response
+
+      if (error) throw new Error(error.message);
+
       setMessages(prev => [...prev, {
         role: "assistant",
         content: data.response,
         timestamp: new Date()
       }]);
-      
-      // Update model if returned
+
       if (data.model) {
         setModel(data.model);
       }
-      
-      // Increment query count
+
       if (sessionId) {
         await sessionLogger.incrementQueryCount(sessionId);
       }
     } catch (error) {
       console.error("Error getting AI response:", error);
       toast.error("Failed to get a response from the AI.");
-      
-      // Add error message
+
       setMessages(prev => [...prev, {
         role: "system",
         content: "Sorry, I couldn't process your request. Please try again later.",
@@ -165,7 +167,6 @@ const AIChatInterface: React.FC<AIChatInterfaceProps> = ({
     setInput(text);
   };
 
-  // Format timestamp
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
@@ -186,6 +187,7 @@ const AIChatInterface: React.FC<AIChatInterfaceProps> = ({
           Ask questions and get help with your studies
         </CardDescription>
       </CardHeader>
+
       <CardContent className="flex-grow overflow-hidden pt-4">
         <ScrollArea className="h-[calc(100vh-320px)] pr-4">
           <div className="space-y-4 mb-4">
@@ -195,7 +197,7 @@ const AIChatInterface: React.FC<AIChatInterfaceProps> = ({
                 <p>Start a conversation with the AI assistant</p>
               </div>
             )}
-            
+
             {messages.map((message, index) => (
               <div
                 key={index}
@@ -237,7 +239,7 @@ const AIChatInterface: React.FC<AIChatInterfaceProps> = ({
                 </div>
               </div>
             ))}
-            
+
             {isLoading && (
               <div className="flex items-start">
                 <div className="max-w-[85%] rounded-lg p-4 bg-muted">
@@ -250,11 +252,12 @@ const AIChatInterface: React.FC<AIChatInterfaceProps> = ({
                 </div>
               </div>
             )}
-            
+
             <div ref={messagesEndRef} />
           </div>
         </ScrollArea>
       </CardContent>
+
       <CardFooter className="border-t pt-4">
         <form onSubmit={handleSubmit} className="w-full space-y-2">
           <div className="w-full flex items-center space-x-2">
