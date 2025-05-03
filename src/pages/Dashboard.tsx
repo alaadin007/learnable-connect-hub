@@ -21,17 +21,38 @@ const Dashboard = () => {
 
   // Redirect for school and teacher users on direct dashboard access
   useEffect(() => {
+    // Check if this is a direct access to dashboard (not via test accounts or navigation)
     const isDirectDashboardAccess = location.pathname === "/dashboard";
     const hasDefinedUserRole = Boolean(userRole);
+    
+    // Check various sources that could indicate we should NOT redirect
     const isFromTestAccounts = Boolean(location.state?.fromTestAccounts);
-    const isExplicitNavigation =
-      Boolean(location.state?.fromNavigation || location.state?.fromDashboard);
-
+    const isFromNavigation = Boolean(location.state?.fromNavigation);
+    const isFromDashboard = Boolean(location.state?.fromDashboard);
+    const hasSpecificAccountType = Boolean(location.state?.accountType);
+    
+    // Debug logging
+    console.log("Dashboard: Checking redirect conditions:", {
+      isDirectDashboardAccess,
+      hasDefinedUserRole,
+      isFromTestAccounts,
+      isFromNavigation,
+      isFromDashboard,
+      hasSpecificAccountType,
+      userRole
+    });
+    
+    // Only redirect if: 
+    // 1. User is directly accessing dashboard
+    // 2. We know their role
+    // 3. They didn't come from test accounts or explicit navigation
     if (
       isDirectDashboardAccess &&
       hasDefinedUserRole &&
       !isFromTestAccounts &&
-      !isExplicitNavigation
+      !isFromNavigation &&
+      !isFromDashboard &&
+      !hasSpecificAccountType
     ) {
       if (userRole === "school" && profile?.organization?.id) {
         console.log("Dashboard: Redirecting school admin to /admin");
@@ -40,8 +61,10 @@ const Dashboard = () => {
         console.log("Dashboard: Redirecting teacher to /teacher/analytics");
         navigate("/teacher/analytics", { replace: true, state: { fromDashboard: true } });
       } else {
-        console.log("Dashboard: Keeping student at dashboard");
+        console.log("Dashboard: Keeping student at dashboard (no redirect needed)");
       }
+    } else {
+      console.log("Dashboard: Skipping redirect - coming from test accounts or navigation");
     }
   }, [userRole, navigate, location.pathname, profile, location.state]);
 

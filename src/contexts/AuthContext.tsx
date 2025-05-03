@@ -306,6 +306,8 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
   ): Promise<void> => {
     setIsLoading(true);
     try {
+      console.log(`AuthContext: Setting up test user of type: ${type}`);
+      
       const mockId = `test-${type}-${schoolIndex}`;
       const mockUser: User = {
         id: mockId,
@@ -337,6 +339,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
         expires_at: Date.now() + 3600000,
       };
 
+      // Set all state variables synchronously to ensure consistent state
       setUser(mockUser);
       setProfile(mockProfile);
       setUserRole(type);
@@ -344,17 +347,23 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       setSchoolId(mockProfile.organization?.id || null);
       setSession(mockSession);
 
+      console.log(`AuthContext: Test user set up successfully. User role: ${type}`);
+
+      // Create mock sessions and data for different user types
       if (type === "student") {
         try {
+          console.log(`AuthContext: Creating student test session for ${mockId}`);
           await sessionLogger.startSession("Test Login Session", mockId);
         } catch (e) {
           console.error("Error starting test session:", e);
         }
       } else if (type === "teacher") {
         try {
+          console.log(`AuthContext: Creating teacher test sessions for ${mockId}`);
           const orgId = mockProfile.organization?.id || "";
           if (orgId) {
             await populateTestAccountWithSessions(mockId, orgId);
+            console.log(`AuthContext: Populated test data for teacher ${mockId}`);
           }
         } catch (e) {
           console.error("Error creating test sessions:", e);
