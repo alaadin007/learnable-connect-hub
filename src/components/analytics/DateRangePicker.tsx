@@ -1,4 +1,3 @@
-
 import React from "react";
 import { format } from "date-fns";
 import { Calendar as CalendarIcon } from "lucide-react";
@@ -24,11 +23,12 @@ export function DateRangePicker({ dateRange, onDateRangeChange }: DateRangePicke
         <PopoverTrigger asChild>
           <Button
             id="date"
-            variant={"outline"}
+            variant="outline"
             className={cn(
               "w-full justify-start text-left font-normal",
               !dateRange?.from && "text-muted-foreground"
             )}
+            aria-label="Select date range"
           >
             <CalendarIcon className="mr-2 h-4 w-4" />
             {dateRange?.from ? (
@@ -50,10 +50,11 @@ export function DateRangePicker({ dateRange, onDateRangeChange }: DateRangePicke
             initialFocus
             mode="range"
             defaultMonth={dateRange?.from}
-            selected={dateRange ? { 
-              from: dateRange.from || undefined, 
-              to: dateRange.to 
-            } : undefined}
+            selected={
+              dateRange
+                ? { from: dateRange.from || undefined, to: dateRange.to }
+                : undefined
+            }
             onSelect={onDateRangeChange}
             numberOfMonths={2}
             className={cn("p-3 pointer-events-auto")}
