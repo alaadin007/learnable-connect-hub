@@ -19,38 +19,29 @@ const LoginForm = () => {
   const [searchParams] = useSearchParams();
   const [loginError, setLoginError] = useState<string | null>(null);
   
-  // Check for registration success message
+  // Show success toast for registration and email verification
   useEffect(() => {
-    const registered = searchParams.get('registered');
-    const emailConfirmed = searchParams.get('email_confirmed');
-    
-    if (registered === 'true') {
+    if (searchParams.get('registered') === 'true') {
       toast.success("Registration successful!", {
         description: "Please check your email to verify your account before logging in."
       });
     }
-    
-    if (emailConfirmed === 'true') {
+    if (searchParams.get('email_confirmed') === 'true') {
       toast.success("Email verified!", {
         description: "Your email has been verified. You can now log in."
       });
     }
   }, [searchParams]);
 
-  // Redirect if already logged in
+  // Redirect if user role already set
   useEffect(() => {
     if (userRole) {
-      let redirectPath;
-      
-      if (userRole === 'school') {
-        redirectPath = '/admin';
-      } else if (userRole === 'teacher') {
-        redirectPath = '/teacher/analytics';
-      } else {
-        redirectPath = '/dashboard';
-      }
-      
-      console.log(`LoginForm: Already logged in as ${userRole}, redirecting to ${redirectPath}`);
+      const redirectPath = userRole === "school"
+        ? "/admin"
+        : userRole === "teacher"
+        ? "/teacher/analytics"
+        : "/dashboard";
+
       navigate(redirectPath);
     }
   }, [userRole, navigate]);
@@ -58,99 +49,87 @@ const LoginForm = () => {
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
     setLoginError(null);
-    
+
     if (!email || !password) {
       toast.error("Please enter both email and password");
       return;
     }
-
     setIsLoading(true);
-    
+
     try {
-      // Direct handling of test accounts for instant login
-      if (email.includes('.test@learnable.edu')) {
-        // Extract user type from email
-        let type: 'school' | 'teacher' | 'student' = 'student';
-        
-        if (email.startsWith('school')) {
-          type = 'school';
-        } else if (email.startsWith('teacher')) {
-          type = 'teacher';
-        }
-        
-        console.log(`LoginForm: Quick login for test account type: ${type}`);
-        
-        // Use direct test account setup
+      if (email.includes(".test@learnable.edu")) {
+        let type: "school" | "teacher" | "student" = "student";
+        if (email.startsWith("school")) type = "school";
+        else if (email.startsWith("teacher")) type = "teacher";
+
         await setTestUser(type);
-        
-        // Define exact redirect paths based on account type
-        let redirectPath;
-        
-        if (type === 'school') {
-          redirectPath = '/admin';
-        } else if (type === 'teacher') {
-          redirectPath = '/teacher/analytics';
-        } else {
-          redirectPath = '/dashboard';
-        }
-        
-        console.log(`LoginForm: Redirecting test account to: ${redirectPath}`);
-        
-        // Toast notification and redirect
+
+        const redirectPath = type === "school"
+          ? "/admin"
+          : type === "teacher"
+          ? "/teacher/analytics"
+          : "/dashboard";
+
         toast.success("Login successful", {
-          description: `Welcome, ${type === 'school' ? 'School Admin' : type === 'teacher' ? 'Teacher' : 'Student'}!`
+          description: `Welcome, ${
+            type === "school"
+              ? "School Admin"
+              : type === "teacher"
+              ? "Teacher"
+              : "Student"
+          }!`,
         });
-        
+
         navigate(redirectPath, { state: { fromTestAccounts: true } });
         setIsLoading(false);
         return;
       }
-      
-      // For regular users, proceed with normal sign-in flow
+
+      // Regular user login flow
       await signIn(email, password);
-      
-      // Get the user's role
-      const { data: { user } } = await supabase.auth.getUser();
-      
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
       if (user) {
         const { data: profile } = await supabase
-          .from('profiles')
-          .select('user_type')
-          .eq('id', user.id)
+          .from("profiles")
+          .select("user_type")
+          .eq("id", user.id)
           .single();
-        
-        if (profile) {
-          // Redirect based on user role
-          const redirectPath = profile.user_type === 'school' ? '/admin' : 
-                             profile.user_type === 'teacher' ? '/teacher/analytics' : 
-                             '/dashboard';
-          
-          console.log(`Redirecting regular user to: ${redirectPath}`);
-          navigate(redirectPath);
-          toast.success("Login successful", {
-            description: `Welcome back, ${user.user_metadata.full_name || email}!`
-          });
-        } else {
-          // If no profile found, redirect to dashboard as fallback
-          navigate('/dashboard');
-          toast.success("Login successful");
-        }
+
+        const redirectPath =
+          profile?.user_type === "school"
+            ? "/admin"
+            : profile?.user_type === "teacher"
+            ? "/teacher/analytics"
+            : "/dashboard";
+
+        toast.success("Login successful", {
+          description: `Welcome back, ${
+            user.user_metadata?.full_name || email
+          }!`,
+        });
+
+        navigate(redirectPath);
       } else {
-        // Default fallback if no user data
-        navigate('/dashboard');
+        // fallback
         toast.success("Login successful");
+        navigate("/dashboard");
       }
     } catch (error: any) {
       console.error("Login error:", error);
       setLoginError(error.message);
-      
+
       if (error.message.includes("Email not confirmed")) {
         toast.error("Email not verified", {
-          description: "Please check your inbox and spam folder for the verification email."
+          description:
+            "Please check your inbox and spam folder for the verification email.",
         });
       } else if (error.message.includes("Invalid login credentials")) {
         toast.error("Login failed", {
-          description: "Invalid email or password. Please try again."
+          description: "Invalid email or password. Please try again.",
         });
       } else {
         toast.error(`Login failed: ${error.message}`);
@@ -160,34 +139,38 @@ const LoginForm = () => {
     }
   };
 
-  const handleQuickLogin = async (type: 'school' | 'teacher' | 'student', schoolIndex: number = 0) => {
+  const handleQuickLogin = async (
+    type: "school" | "teacher" | "student",
+    schoolIndex = 0
+  ) => {
+    setIsLoading(true);
+    setLoginError(null);
+
     try {
-      setIsLoading(true);
-      setLoginError(null);
-      console.log(`LoginForm: Quick login for test account type: ${type}`);
-      
-      // Use direct test account setup without authentication checks
       await setTestUser(type, schoolIndex);
-      
-      // Define exact redirect paths based on account type
-      let redirectPath;
-      
-      if (type === 'school') {
-        redirectPath = '/admin';
-      } else if (type === 'teacher') {
-        redirectPath = '/teacher/analytics';
-      } else {
-        redirectPath = '/dashboard';
-      }
-      
-      console.log(`LoginForm: Quick login redirecting to: ${redirectPath}`);
+
+      const redirectPath =
+        type === "school"
+          ? "/admin"
+          : type === "teacher"
+          ? "/teacher/analytics"
+          : "/dashboard";
+
+      toast.success(
+        `Logged in as ${
+          type === "school"
+            ? "School Admin"
+            : type === "teacher"
+            ? "Teacher"
+            : "Student"
+        }`
+      );
+
       navigate(redirectPath, { state: { fromTestAccounts: true } });
-      
-      toast.success(`Logged in as ${type === 'school' ? 'School Admin' : type === 'teacher' ? 'Teacher' : 'Student'}`);
     } catch (error: any) {
-      console.error("Quick login error:", error);
       setLoginError(`Failed to log in with test account: ${error.message}`);
       toast.error("Failed to log in with test account");
+      console.error("Quick login error:", error);
     } finally {
       setIsLoading(false);
     }
@@ -198,18 +181,19 @@ const LoginForm = () => {
       toast.error("Please enter your email address");
       return;
     }
-    
     setIsLoading(true);
+
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: window.location.origin + "/login?email_confirmed=true",
+        redirectTo: `${window.location.origin}/login?email_confirmed=true`,
       });
-      
+
       if (error) {
         toast.error("Failed to send password reset email: " + error.message);
       } else {
         toast.success("Password reset email sent", {
-          description: "Please check your inbox and spam folder for the reset link."
+          description:
+            "Please check your inbox and spam folder for the reset link.",
         });
       }
     } catch (error: any) {
@@ -224,9 +208,7 @@ const LoginForm = () => {
       <Card className="w-full">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold">Welcome back</CardTitle>
-          <CardDescription>
-            Enter your email and password to log in
-          </CardDescription>
+          <CardDescription>Enter your email and password to log in</CardDescription>
         </CardHeader>
         <CardContent>
           {loginError && (
@@ -234,44 +216,45 @@ const LoginForm = () => {
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Login Error</AlertTitle>
               <AlertDescription>
-                {loginError.includes("Email not confirmed") 
+                {loginError.includes("Email not confirmed")
                   ? "Your email address has not been verified. Please check your inbox for the verification email."
                   : loginError}
               </AlertDescription>
             </Alert>
           )}
-          
+
           <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-md">
             <div className="flex">
               <Clock className="h-5 w-5 text-amber-700 mr-2 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-amber-800 font-medium">
-                  Need quick access?
-                </p>
+                <p className="text-amber-800 font-medium">Need quick access?</p>
                 <p className="mt-1 text-sm text-amber-700">
                   Use our pre-configured test accounts for instant login without email verification.
                 </p>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  <button 
-                    onClick={() => handleQuickLogin('school')}
+                  <button
+                    type="button"
+                    onClick={() => handleQuickLogin("school")}
                     className="text-sm text-blue-800 font-semibold hover:text-blue-900 bg-blue-100 px-3 py-1 rounded-full transition-colors duration-200"
                   >
                     Admin Login
                   </button>
-                  <button 
-                    onClick={() => handleQuickLogin('teacher')}
+                  <button
+                    type="button"
+                    onClick={() => handleQuickLogin("teacher")}
                     className="text-sm text-green-800 font-semibold hover:text-green-900 bg-green-100 px-3 py-1 rounded-full transition-colors duration-200"
                   >
                     Teacher Login
                   </button>
-                  <button 
-                    onClick={() => handleQuickLogin('student')}
+                  <button
+                    type="button"
+                    onClick={() => handleQuickLogin("student")}
                     className="text-sm text-purple-800 font-semibold hover:text-purple-900 bg-purple-100 px-3 py-1 rounded-full transition-colors duration-200"
                   >
                     Student Login
                   </button>
-                  <Link 
-                    to="/test-accounts" 
+                  <Link
+                    to="/test-accounts"
                     className="text-sm text-amber-800 font-semibold hover:text-amber-900 bg-amber-200 px-3 py-1 rounded-full transition-colors duration-200"
                   >
                     View All →
@@ -284,13 +267,14 @@ const LoginForm = () => {
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input 
-                id="email" 
-                type="email" 
-                placeholder="you@school.edu" 
+              <Input
+                id="email"
+                type="email"
+                placeholder="you@school.edu"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                autoComplete="email"
               />
             </div>
             <div className="space-y-2">
@@ -304,25 +288,29 @@ const LoginForm = () => {
                   Forgot password?
                 </button>
               </div>
-              <Input 
-                id="password" 
+              <Input
+                id="password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                autoComplete="current-password"
               />
             </div>
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               className="w-full gradient-bg"
               disabled={isLoading}
+              aria-busy={isLoading}
             >
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Logging in...
                 </>
-              ) : "Log in"}
+              ) : (
+                "Log in"
+              )}
             </Button>
           </form>
         </CardContent>
