@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -56,8 +57,10 @@ const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff8042', '#0088fe', '#00C49F'
 const AnalyticsDashboard: React.FC = () => {
   const { profile, schoolId } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [initialLoad, setInitialLoad] = useState(true);
   const [timeRange, setTimeRange] = useState('7days');
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
+  const [dataLoaded, setDataLoaded] = useState(false);
   
   // Get date range for filtering
   const getDateRange = () => {
@@ -91,7 +94,9 @@ const AnalyticsDashboard: React.FC = () => {
   // Fetch analytics data asynchronously
   useEffect(() => {
     const fetchAnalyticsData = async () => {
-      setLoading(true);
+      if (!initialLoad) {
+        setLoading(true);
+      }
       
       try {
         if (!schoolId) {
@@ -111,6 +116,7 @@ const AnalyticsDashboard: React.FC = () => {
         });
 
         setAnalyticsData(mockData);
+        setDataLoaded(true);
       } catch (error) {
         console.error('Error fetching analytics data:', error);
         // Use mock data fallback async as well
@@ -121,14 +127,16 @@ const AnalyticsDashboard: React.FC = () => {
             }, 0);
           });
           setAnalyticsData(mockData);
+          setDataLoaded(true);
         }
       } finally {
         setLoading(false);
+        setInitialLoad(false);
       }
     };
     
     fetchAnalyticsData();
-  }, [schoolId, timeRange]);
+  }, [schoolId, timeRange, initialLoad]);
   
   // Format duration for display
   const formatDuration = (minutes: number | string) => {
@@ -202,7 +210,10 @@ const AnalyticsDashboard: React.FC = () => {
     document.body.removeChild(link);
   };
   
-  if (loading) {
+  // Only show loading on initial load
+  const showLoading = initialLoad && loading && !dataLoaded;
+  
+  if (showLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-learnable-purple" />

@@ -56,9 +56,10 @@ const AdminAnalytics = () => {
   });
   const [activeTab, setActiveTab] = useState<string>("engagement");
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [initialLoad, setInitialLoad] = useState<boolean>(true);
   const [retryCount, setRetryCount] = useState<number>(0);
   const [dataError, setDataError] = useState<boolean>(false);
-  const [initialLoadComplete, setInitialLoadComplete] = useState<boolean>(false);
+  const [dataLoaded, setDataLoaded] = useState<boolean>(false);
 
   // Performance metrics state
   const [schoolPerformanceData, setSchoolPerformanceData] = useState<any[]>([]);
@@ -148,11 +149,17 @@ const AdminAnalytics = () => {
         { id: 2, name: 'Student 2', teacher: 'Teacher 1', avgScore: 79, trend: 'steady', subjects: ['English', 'History'] },
       ]);
     }
+    
+    // Mark data as loaded
+    setDataLoaded(true);
   }, [summary, sessions, topics, studyTime, activeTab, schoolPerformanceData.length]);
 
   const loadAnalyticsData = useCallback(async () => {
-    if (isLoading && initialLoadComplete) { return; }
-    setIsLoading(true);
+    // Only show loading state on initial load
+    if (!initialLoad) {
+      setIsLoading(true);
+    }
+    
     setDataError(false);
 
     try {
@@ -161,80 +168,129 @@ const AdminAnalytics = () => {
         schoolId,
       }));
 
-      try {
-        const summaryData = await fetchAnalyticsSummary(schoolId, filters);
-        setSummary(summaryData);
-      } catch (err) {
-        console.error("Error fetching summary data:", err);
-      }
+      // Fetch data in parallel with separate try/catch blocks to prevent unnecessary state clearing
+      const promises = [];
 
-      try {
-        const sessionData = await fetchSessionLogs(schoolId, filters);
-        setSessions(Array.isArray(sessionData) ? sessionData : []);
-      } catch (err) {
-        console.error("Error fetching session data:", err);
-        setSessions([]);
-      }
+      // Summary data
+      promises.push(
+        fetchAnalyticsSummary(schoolId, filters)
+          .then(summaryData => setSummary(summaryData))
+          .catch(err => {
+            console.error("Error fetching summary data:", err);
+            // Don't clear previous data
+          })
+      );
 
-      try {
-        const topicData = await fetchTopics(schoolId, filters);
-        setTopics(Array.isArray(topicData) ? topicData : []);
-      } catch (err) {
-        console.error("Error fetching topic data:", err);
-        setTopics([]);
-      }
+      // Session data
+      promises.push(
+        fetchSessionLogs(schoolId, filters)
+          .then(sessionData => {
+            if (Array.isArray(sessionData) && sessionData.length > 0) {
+              setSessions(sessionData);
+            }
+            // Keep previous sessions if no new data
+          })
+          .catch(err => {
+            console.error("Error fetching session data:", err);
+            // Don't clear previous sessions
+          })
+      );
 
-      try {
-        const studyTimeData = await fetchStudyTime(schoolId, filters);
-        setStudyTime(Array.isArray(studyTimeData) ? studyTimeData : []);
-      } catch (err) {
-        console.error("Error fetching study time data:", err);
-        setStudyTime([]);
-      }
+      // Topic data
+      promises.push(
+        fetchTopics(schoolId, filters)
+          .then(topicData => {
+            if (Array.isArray(topicData) && topicData.length > 0) {
+              setTopics(topicData);
+            }
+            // Keep previous topics if no new data
+          })
+          .catch(err => {
+            console.error("Error fetching topic data:", err);
+            // Don't clear previous topics
+          })
+      );
 
+      // Study time data
+      promises.push(
+        fetchStudyTime(schoolId, filters)
+          .then(studyTimeData => {
+            if (Array.isArray(studyTimeData) && studyTimeData.length > 0) {
+              setStudyTime(studyTimeData);
+            }
+            // Keep previous study time if no new data
+          })
+          .catch(err => {
+            console.error("Error fetching study time data:", err);
+            // Don't clear previous study time
+          })
+      );
+
+      // Only fetch performance data when on performance tab
       if (activeTab === "performance") {
-        try {
-          const schoolPerformance = await fetchSchoolPerformance(schoolId, filters);
-          setSchoolPerformanceData(Array.isArray(schoolPerformance?.monthlyData) ? schoolPerformance.monthlyData : []);
-          setSchoolPerformanceSummary(schoolPerformance?.summary || null);
-        } catch (err) {
-          console.error("Error fetching school performance:", err);
-          setSchoolPerformanceData([]);
-          setSchoolPerformanceSummary(null);
-        }
+        // School performance
+        promises.push(
+          fetchSchoolPerformance(schoolId, filters)
+            .then(schoolPerformance => {
+              if (schoolPerformance?.monthlyData && Array.isArray(schoolPerformance.monthlyData)) {
+                setSchoolPerformanceData(schoolPerformance.monthlyData);
+                setSchoolPerformanceSummary(schoolPerformance?.summary || null);
+              }
+            })
+            .catch(err => {
+              console.error("Error fetching school performance:", err);
+              // Don't clear previous data
+            })
+        );
 
-        try {
-          const teacherPerformance = await fetchTeacherPerformance(schoolId, filters);
-          setTeacherPerformanceData(Array.isArray(teacherPerformance) ? teacherPerformance : []);
-        } catch (err) {
-          console.error("Error fetching teacher performance:", err);
-          setTeacherPerformanceData([]);
-        }
+        // Teacher performance
+        promises.push(
+          fetchTeacherPerformance(schoolId, filters)
+            .then(teacherPerformance => {
+              if (Array.isArray(teacherPerformance) && teacherPerformance.length > 0) {
+                setTeacherPerformanceData(teacherPerformance);
+              }
+            })
+            .catch(err => {
+              console.error("Error fetching teacher performance:", err);
+              // Don't clear previous data
+            })
+        );
 
-        try {
-          const studentPerformance = await fetchStudentPerformance(schoolId, filters);
-          setStudentPerformanceData(Array.isArray(studentPerformance) ? studentPerformance : []);
-        } catch (err) {
-          console.error("Error fetching student performance:", err);
-          setStudentPerformanceData([]);
-        }
+        // Student performance
+        promises.push(
+          fetchStudentPerformance(schoolId, filters)
+            .then(studentPerformance => {
+              if (Array.isArray(studentPerformance) && studentPerformance.length > 0) {
+                setStudentPerformanceData(studentPerformance);
+              }
+            })
+            .catch(err => {
+              console.error("Error fetching student performance:", err);
+              // Don't clear previous data
+            })
+        );
       }
+
+      // Wait for all promises to complete
+      await Promise.allSettled(promises);
+
+      // Generate mock data for any missing data
+      generateMockData();
+      
     } catch (error: any) {
       console.error("Error loading analytics data:", error);
       setDataError(true);
       toast.error("Failed to load analytics data. Showing mock data instead.");
+      
+      // Generate mock data on error
+      generateMockData();
     } finally {
       setIsLoading(false);
-      setInitialLoadComplete(true);
+      setInitialLoad(false);
+      setDataLoaded(true);
     }
-  }, [schoolId, filters, activeTab, initialLoadComplete, isLoading]);
-
-  // Only call generateMockData once after initial load if needed
-  useEffect(() => {
-    if (initialLoadComplete && !dataError) {
-      generateMockData();
-    }
-  }, [initialLoadComplete, dataError, generateMockData]);
+  }, [schoolId, filters, activeTab, initialLoad, generateMockData]);
 
   const handleRefreshData = useCallback(() => {
     setRetryCount((count) => count + 1);
@@ -261,10 +317,12 @@ const AdminAnalytics = () => {
 
   const handleTabChange = useCallback((value: string) => {
     setActiveTab(value);
-    setRetryCount((prev) => prev + 1);
   }, []);
 
   const dateRangeText = useMemo(() => getDateRangeText(filters.dateRange), [filters.dateRange]);
+
+  // Show loading state only on initial load
+  const showLoading = initialLoad && isLoading && !dataLoaded;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -309,13 +367,13 @@ const AdminAnalytics = () => {
             </Button>
           </div>
 
-          {isLoading && !initialLoadComplete ? (
+          {showLoading ? (
             <div className="space-y-4">
               <Skeleton className="w-full h-40" />
               <Skeleton className="w-full h-40" />
               <Skeleton className="w-full h-60" />
             </div>
-          ) : dataError && !initialLoadComplete ? (
+          ) : dataError && !dataLoaded ? (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Error!</AlertTitle>
@@ -332,7 +390,7 @@ const AdminAnalytics = () => {
                 </TabsList>
 
                 <TabsContent value="engagement" className="space-y-6 mt-6">
-                  <AnalyticsSummaryCards summary={summary} isLoading={isLoading} />
+                  <AnalyticsSummaryCards summary={summary} isLoading={false} />
                   
                   <Card>
                     <CardHeader className="flex flex-row items-center justify-between">
@@ -356,7 +414,7 @@ const AdminAnalytics = () => {
                         sessions={sessions} 
                         title="Recent Learning Sessions" 
                         description="Details of student learning sessions"
-                        isLoading={isLoading}
+                        isLoading={false} // Never show loading state after initial load
                       />
                     </CardContent>
                   </Card>
@@ -366,13 +424,13 @@ const AdminAnalytics = () => {
                       data={topics}
                       title="Most Studied Topics"
                       description="Top 10 topics students are currently studying"
-                      isLoading={isLoading}
+                      isLoading={false} // Never show loading state after initial load
                     />
                     <StudyTimeChart
                       data={studyTime}
                       title="Student Study Time"
                       description="Weekly study time per student"
-                      isLoading={isLoading}
+                      isLoading={false} // Never show loading state after initial load
                     />
                   </div>
                 </TabsContent>
@@ -381,15 +439,15 @@ const AdminAnalytics = () => {
                   <SchoolPerformancePanel
                     monthlyData={schoolPerformanceData}
                     summary={schoolPerformanceSummary}
-                    isLoading={isLoading}
+                    isLoading={false} // Never show loading state after initial load
                   />
                   <TeacherPerformanceTable
                     data={teacherPerformanceData}
-                    isLoading={isLoading}
+                    isLoading={false} // Never show loading state after initial load
                   />
                   <StudentPerformanceTable
                     data={studentPerformanceData}
-                    isLoading={isLoading}
+                    isLoading={false} // Never show loading state after initial load
                   />
                 </TabsContent>
               </Tabs>

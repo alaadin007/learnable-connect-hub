@@ -33,6 +33,7 @@ import { AnalyticsSummaryCards } from "@/components/analytics/AnalyticsSummaryCa
 const TeacherAnalytics = () => {
   const { user, profile } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
+  const [initialLoad, setInitialLoad] = useState(true);
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: new Date(new Date().setDate(new Date().getDate() - 30)),
     to: new Date(),
@@ -49,7 +50,7 @@ const TeacherAnalytics = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [retryCount, setRetryCount] = useState(0);
   const [dataError, setDataError] = useState(false);
-  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  const [dataLoaded, setDataLoaded] = useState(false);
   
   // Get teacher's school ID with memoization
   const schoolId = useMemo(() => profile?.organization?.id || "test", [profile?.organization?.id]);
@@ -58,8 +59,8 @@ const TeacherAnalytics = () => {
 
   // Generate mock data function to prevent UI flickering
   const generateMockData = useCallback(() => {
-    // Create mock summary if none exists
-    if (!summary || (summary.activeStudents === 0 && summary.totalSessions === 0)) {
+    // Only use mock data if we have no real data yet
+    if (summary.activeStudents === 0 && summary.totalSessions === 0) {
       setSummary({
         activeStudents: 12,
         totalSessions: 35,
@@ -68,7 +69,6 @@ const TeacherAnalytics = () => {
       });
     }
     
-    // Create mock sessions if none exist
     if (sessions.length === 0) {
       const mockSessions: SessionData[] = Array(5).fill(null).map((_, i) => ({
         id: `mock-session-${i}`,
@@ -87,7 +87,6 @@ const TeacherAnalytics = () => {
       setSessions(mockSessions);
     }
     
-    // Create mock topics if none exist
     if (topics.length === 0) {
       const mockTopics: TopicData[] = [
         { topic: 'Math', count: 15, name: 'Math', value: 15 },
@@ -99,7 +98,6 @@ const TeacherAnalytics = () => {
       setTopics(mockTopics);
     }
     
-    // Create mock study time if none exists
     if (studyTime.length === 0) {
       const mockStudyTime: StudyTimeData[] = [
         { student_id: 'student-1', student_name: 'Student 1', total_minutes: 240, name: 'Student 1', studentName: 'Student 1', hours: 4, week: 1, year: 2023 },
@@ -108,15 +106,18 @@ const TeacherAnalytics = () => {
       ];
       setStudyTime(mockStudyTime);
     }
+    
+    // Mark data as loaded even if we're using mock data
+    setDataLoaded(true);
   }, [summary, sessions, topics, studyTime]);
 
-  // Improved data loading function
+  // Improved data loading function with debounce to prevent flickering
   const loadAnalyticsData = useCallback(async () => {
-    if (isLoading && initialLoadComplete) {
-      return; // Don't trigger multiple loads simultaneously
+    // Don't show loading state on subsequent data loads after initial
+    if (!initialLoad) {
+      setIsLoading(true);
     }
     
-    setIsLoading(true);
     setDataError(false);
     try {
       const filters: AnalyticsFilters = {
@@ -125,49 +126,65 @@ const TeacherAnalytics = () => {
       };
 
       // Fetch all analytics data in parallel with individual try/catch blocks
-      try {
-        const summaryData = await fetchAnalyticsSummary(schoolId, filters);
-        setSummary(summaryData);
-      } catch (error) {
-        console.error("Error loading summary data:", error);
-        // Continue with other data
-      }
+      const promises = [];
+      
+      // Fetch summary
+      promises.push(fetchAnalyticsSummary(schoolId, filters)
+        .then(summaryData => setSummary(summaryData))
+        .catch(error => {
+          console.error("Error loading summary data:", error);
+          // Don't set error flag here, continue with other data
+        }));
 
-      try {
-        const sessionsData = await fetchSessionLogs(schoolId, filters);
-        setSessions(Array.isArray(sessionsData) ? sessionsData : []);
-      } catch (error) {
-        console.error("Error loading sessions data:", error);
-        setSessions([]);
-      }
+      // Fetch sessions
+      promises.push(fetchSessionLogs(schoolId, filters)
+        .then(sessionsData => {
+          setSessions(Array.isArray(sessionsData) ? sessionsData : []);
+        })
+        .catch(error => {
+          console.error("Error loading sessions data:", error);
+          // Don't clear sessions here to prevent flickering
+        }));
 
-      try {
-        const topicsData = await fetchTopics(schoolId, filters);
-        setTopics(Array.isArray(topicsData) ? topicsData : []);
-      } catch (error) {
-        console.error("Error loading topics data:", error);
-        setTopics([]);
-      }
+      // Fetch topics
+      promises.push(fetchTopics(schoolId, filters)
+        .then(topicsData => {
+          setTopics(Array.isArray(topicsData) ? topicsData : []);
+        })
+        .catch(error => {
+          console.error("Error loading topics data:", error);
+          // Don't clear topics here to prevent flickering
+        }));
 
-      try {
-        const studyTimeData = await fetchStudyTime(schoolId, filters);
-        setStudyTime(Array.isArray(studyTimeData) ? studyTimeData : []);
-      } catch (error) {
-        console.error("Error loading study time data:", error);
-        setStudyTime([]);
-      }
+      // Fetch study time
+      promises.push(fetchStudyTime(schoolId, filters)
+        .then(studyTimeData => {
+          setStudyTime(Array.isArray(studyTimeData) ? studyTimeData : []);
+        })
+        .catch(error => {
+          console.error("Error loading study time data:", error);
+          // Don't clear study time here to prevent flickering
+        }));
+
+      // Wait for all promises to resolve or reject
+      await Promise.allSettled(promises);
+      
+      // Only generate mock data if we need it
+      generateMockData();
+      
     } catch (error) {
       console.error("Error loading analytics data:", error);
       setDataError(true);
       toast.error("Failed to load analytics data. Using demo data instead.");
+      
+      // Generate mock data on error
+      generateMockData();
     } finally {
       setIsLoading(false);
-      setInitialLoadComplete(true);
-      
-      // Generate mock data after fetching real data if needed
-      generateMockData();
+      setInitialLoad(false);
+      setDataLoaded(true);
     }
-  }, [schoolId, dateRange, teacherId, isLoading, initialLoadComplete, generateMockData]);
+  }, [schoolId, dateRange, teacherId, initialLoad, generateMockData]);
 
   // Handler functions
   const handleRefreshData = useCallback(() => {
@@ -192,7 +209,6 @@ const TeacherAnalytics = () => {
 
   const handleTabChange = useCallback((value: string) => {
     setActiveTab(value);
-    // Will trigger UI update
   }, []);
 
   // Effect for initial data loading and refresh
@@ -222,6 +238,9 @@ const TeacherAnalytics = () => {
 
     return <BarChart data={chartData} />;
   };
+
+  // Determine if we should show loading state - only on the first load
+  const showLoading = initialLoad && isLoading && !dataLoaded;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -266,11 +285,11 @@ const TeacherAnalytics = () => {
             </TabsList>
 
             <TabsContent value="overview" className="space-y-4">
-              {isLoading && !initialLoadComplete ? (
+              {showLoading ? (
                 <div className="flex justify-center items-center py-12">
                   <Loader2 className="h-8 w-8 animate-spin text-learnable-purple" />
                 </div>
-              ) : dataError && !initialLoadComplete ? (
+              ) : dataError && !dataLoaded ? (
                 <Card>
                   <CardContent className="pt-6">
                     <div className="flex flex-col items-center justify-center p-6 text-center">
@@ -290,7 +309,7 @@ const TeacherAnalytics = () => {
                 <>
                   <AnalyticsSummaryCards 
                     summary={summary}
-                    isLoading={isLoading}
+                    isLoading={false} // Never show loading after initial load
                     dateRange={dateRange}
                   />
                   
@@ -332,7 +351,7 @@ const TeacherAnalytics = () => {
                         sessions={sessions.slice(0, 5)} 
                         title="Recent Sessions"
                         description="Latest learning sessions"
-                        isLoading={isLoading}
+                        isLoading={false} // Never show loading after initial load
                       />
                     </CardContent>
                   </Card>
@@ -349,7 +368,7 @@ const TeacherAnalytics = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {isLoading && !initialLoadComplete ? (
+                  {showLoading ? (
                     <div className="flex justify-center items-center py-12">
                       <Loader2 className="h-8 w-8 animate-spin text-learnable-purple" />
                     </div>
@@ -358,7 +377,7 @@ const TeacherAnalytics = () => {
                       sessions={sessions} 
                       title="All Sessions"
                       description="Complete history of learning sessions"
-                      isLoading={isLoading}
+                      isLoading={false} // Never show loading after initial load
                     />
                   )}
                 </CardContent>
