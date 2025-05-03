@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Link, useNavigate } from "react-router-dom";
-import { Users, BarChart2, ChevronDown } from "lucide-react";
+import { Users, BarChart2, ChevronDown, Settings, User } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -114,7 +114,7 @@ const SchoolAdmin = () => {
       case "school-settings":
         setActiveTab("settings");
         break;
-      case "students":
+      case "student-management":
         setActiveTab("students");
         break;
       default:
@@ -161,8 +161,7 @@ const SchoolAdmin = () => {
             <div className="flex flex-wrap gap-3">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button className="gradient-bg">
-                    <Users className="mr-2 h-4 w-4" />
+                  <Button className="bg-blue-600 hover:bg-blue-700 text-white">
                     Quick Actions
                     <ChevronDown className="ml-2 h-4 w-4" />
                   </Button>
@@ -177,9 +176,11 @@ const SchoolAdmin = () => {
                     <span>View Analytics</span>
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleQuickActionSelect("school-settings")}>
+                    <Settings className="mr-2 h-4 w-4" />
                     <span>School Settings</span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleQuickActionSelect("students")}>
+                  <DropdownMenuItem onClick={() => handleQuickActionSelect("student-management")}>
+                    <User className="mr-2 h-4 w-4" />
                     <span>Student Management</span>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
