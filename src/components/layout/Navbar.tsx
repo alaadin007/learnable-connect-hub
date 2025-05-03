@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -123,7 +122,7 @@ const Navbar = () => {
   // Check if we're on the test accounts page to hide the entire navbar
   const isTestAccountsPage = location.pathname === "/test-accounts";
 
-  // Completely rewritten isActiveLink function to fix navigation highlighting
+  // Improved isActiveLink function to properly handle all navigation links
   const isActiveLink = (href: string): boolean => {
     const currentPath = location.pathname;
     
@@ -134,13 +133,10 @@ const Navbar = () => {
         
       // School Admin link
       case "/admin":
-        // Don't highlight Admin when on teacher management or analytics pages
-        // since those have their own dedicated nav items
+        // Don't highlight Admin when on specific subpages that have their own nav items
         return currentPath === "/admin" || 
                (currentPath.startsWith("/admin/") && 
-                currentPath !== "/admin/teacher-management" && 
-                currentPath !== "/admin/analytics" && 
-                currentPath !== "/admin/students");
+                !currentPath.match(/^\/(admin\/(teacher-management|analytics|students))$/));
         
       // Teachers link - active only on teacher management page
       case "/admin/teacher-management":
@@ -154,13 +150,13 @@ const Navbar = () => {
       case "/admin/students":
         return currentPath === "/admin/students";
       
-      // Chat link - active only on chat page
+      // Chat link - active for any chat-related page
       case "/chat":
-        return currentPath === "/chat";
+        return currentPath === "/chat" || currentPath.startsWith("/chat/");
         
-      // Documents link - active only on documents page  
+      // Documents link - active for any documents-related page
       case "/documents":
-        return currentPath === "/documents";
+        return currentPath === "/documents" || currentPath.startsWith("/documents/");
         
       // For all other links, use exact matching
       default:
