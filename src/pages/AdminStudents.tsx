@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -72,6 +71,8 @@ const AdminStudents = () => {
         console.log("Fetching invites for school ID:", schoolId);
         
         // First, check if student_invites table exists and has data
+        // Use the explicit table name "student_invites" directly without a variable
+        // This ensures TypeScript knows it's a valid table name
         const { data: studentInvites, error: studentInviteError } = await supabase
           .from("student_invites")
           .select("*")
@@ -140,18 +141,32 @@ const AdminStudents = () => {
         }
         
         // Create the invitation in the appropriate table
-        const { data, error } = await supabase
-          .from(targetTable)
-          .insert({
-            email: values.email,
-            school_id: schoolId,
-            created_by: user.id,
-            status: "pending",
-            invitation_token: Math.random().toString(36).substring(2, 15)
-          })
-          .select();
+        if (targetTable === "student_invites") {
+          const { data, error } = await supabase
+            .from("student_invites")
+            .insert({
+              email: values.email,
+              school_id: schoolId,
+              created_by: user.id,
+              status: "pending"
+            })
+            .select();
 
-        if (error) throw new Error(error.message);
+          if (error) throw new Error(error.message);
+        } else {
+          const { data, error } = await supabase
+            .from("teacher_invitations")
+            .insert({
+              email: values.email,
+              school_id: schoolId,
+              created_by: user.id,
+              status: "pending",
+              invitation_token: Math.random().toString(36).substring(2, 15)
+            })
+            .select();
+            
+          if (error) throw new Error(error.message);
+        }
         
         toast.success(`Invitation sent to ${values.email}`);
         form.reset();
