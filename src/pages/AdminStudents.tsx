@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,8 +13,16 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Mail, User, ArrowLeft, Copy, UserPlus } from "lucide-react";
+import { Mail, User, ArrowLeft, Copy, UserPlus, RefreshCw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 // Define the schema for student invite form
 const addStudentSchema = z.object({
@@ -40,6 +49,7 @@ const AdminStudents = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [invites, setInvites] = useState<StudentInvite[]>([]);
   const [generatedCode, setGeneratedCode] = useState("");
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   
   console.log("AdminStudents: User profile:", profile);
   console.log("AdminStudents: School ID from auth context:", authSchoolId);
@@ -70,9 +80,7 @@ const AdminStudents = () => {
       try {
         console.log("Fetching invites for school ID:", schoolId);
         
-        // First, check if student_invites table exists and has data
-        // Use the explicit table name "student_invites" directly without a variable
-        // This ensures TypeScript knows it's a valid table name
+        // Try to fetch from student_invites table
         const { data: studentInvites, error: studentInviteError } = await supabase
           .from("student_invites")
           .select("*")
@@ -84,16 +92,22 @@ const AdminStudents = () => {
           console.log("Found student invites:", studentInvites);
           setInvites(studentInvites as StudentInvite[]);
           return;
+        } else {
+          console.log("No student invites found or error:", studentInviteError);
         }
         
-        // Fallback to teacher_invitations table as mock data
+        // Fallback to teacher_invitations table for display
         const { data, error } = await supabase
           .from("teacher_invitations")
           .select("*")
+          .eq("school_id", schoolId)
           .order("created_at", { ascending: false })
           .limit(10);
 
-        if (error) throw error;
+        if (error) {
+          console.error("Error fetching teacher invitations:", error);
+          throw error;
+        }
         
         // Convert teacher_invitations to our StudentInvite type
         const studentInviteData: StudentInvite[] = (data || []).map(invite => ({
@@ -115,7 +129,7 @@ const AdminStudents = () => {
     if (schoolId) {
       fetchInvites();
     }
-  }, [schoolId]);
+  }, [schoolId, refreshTrigger]);
 
   const onSubmit = async (values: AddStudentFormValues) => {
     if (!user || !schoolId) {
@@ -129,19 +143,8 @@ const AdminStudents = () => {
       if (values.method === "invite") {
         console.log("Creating email invitation for:", values.email);
         
-        // Check if student_invites table exists
-        let targetTable = "student_invites";
-        const { count: studentInvitesCount, error: countError } = await supabase
-          .from("student_invites")
-          .select("*", { count: "exact", head: true });
-          
-        if (countError) {
-          console.log("student_invites table may not exist, using teacher_invitations as fallback");
-          targetTable = "teacher_invitations";
-        }
-        
-        // Create the invitation in the appropriate table
-        if (targetTable === "student_invites") {
+        // Try to insert into student_invites first
+        try {
           const { data, error } = await supabase
             .from("student_invites")
             .insert({
@@ -152,9 +155,17 @@ const AdminStudents = () => {
             })
             .select();
 
-          if (error) throw new Error(error.message);
-        } else {
-          const { data, error } = await supabase
+          if (error) {
+            console.error("Error inserting into student_invites:", error);
+            throw error;
+          } else {
+            console.log("Successfully created student invite:", data);
+          }
+        } catch (error: any) {
+          console.error("Failed to insert into student_invites, trying teacher_invitations:", error);
+          
+          // Fallback to teacher_invitations
+          const { data, error: fallbackError } = await supabase
             .from("teacher_invitations")
             .insert({
               email: values.email,
@@ -165,7 +176,10 @@ const AdminStudents = () => {
             })
             .select();
             
-          if (error) throw new Error(error.message);
+          if (fallbackError) {
+            console.error("Fallback also failed:", fallbackError);
+            throw fallbackError;
+          }
         }
         
         toast.success(`Invitation sent to ${values.email}`);
@@ -178,7 +192,7 @@ const AdminStudents = () => {
         
         // Try to store in student_invites if it exists
         try {
-          await supabase
+          const { data, error } = await supabase
             .from("student_invites")
             .insert({
               code: inviteCode,
@@ -186,31 +200,21 @@ const AdminStudents = () => {
               created_by: user.id,
               status: "pending"
             });
+          
+          if (error) {
+            console.warn("Could not store code in student_invites:", error);
+          } else {
+            console.log("Successfully stored code in student_invites");
+          }
         } catch (error) {
-          console.log("Could not store code in database, but will still display it to user");
+          console.warn("Could not store code in database, but will still display it to user");
         }
         
         toast.success("Student invitation code generated");
       }
       
       // Refresh the invites list
-      const { data: refreshedInvites } = await supabase
-        .from("teacher_invitations")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(10);
-
-      if (refreshedInvites) {
-        const updatedInvites: StudentInvite[] = (refreshedInvites || []).map(invite => ({
-          id: invite.id,
-          email: invite.email,
-          created_at: invite.created_at,
-          expires_at: invite.expires_at,
-          status: invite.status
-        }));
-        
-        setInvites(updatedInvites);
-      }
+      setRefreshTrigger(prev => prev + 1);
       
     } catch (error: any) {
       console.error("Error inviting student:", error);
@@ -223,6 +227,11 @@ const AdminStudents = () => {
   const copyInviteCode = () => {
     navigator.clipboard.writeText(generatedCode);
     toast.success("Code copied to clipboard!");
+  };
+  
+  const handleRefresh = () => {
+    setRefreshTrigger(prev => prev + 1);
+    toast.success("Refreshing student invitations...");
   };
 
   return (
@@ -349,41 +358,47 @@ const AdminStudents = () => {
           </Card>
           
           <Card className="mt-6">
-            <CardHeader>
-              <CardTitle>Student Invitations</CardTitle>
-              <CardDescription>
-                Recent student invitations and codes
-              </CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Student Invitations</CardTitle>
+                <CardDescription>
+                  Recent student invitations and codes
+                </CardDescription>
+              </div>
+              <Button variant="outline" size="sm" onClick={handleRefresh} className="flex items-center gap-2">
+                <RefreshCw className="h-4 w-4" />
+                Refresh
+              </Button>
             </CardHeader>
             <CardContent>
               {invites.length > 0 ? (
                 <div className="overflow-x-auto">
-                  <table className="w-full border-collapse">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left py-2 px-1">Email/Code</th>
-                        <th className="text-left py-2 px-1">Created</th>
-                        <th className="text-left py-2 px-1">Expires</th>
-                        <th className="text-left py-2 px-1">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Email/Code</TableHead>
+                        <TableHead>Created</TableHead>
+                        <TableHead>Expires</TableHead>
+                        <TableHead>Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
                       {invites.map((invite) => (
-                        <tr key={invite.id} className="border-b hover:bg-muted/50">
-                          <td className="py-2 px-1">
+                        <TableRow key={invite.id}>
+                          <TableCell>
                             {invite.email || 
                              <code className="bg-muted p-1 rounded text-xs font-mono">
                                {invite.code || 'N/A'}
                              </code>
                             }
-                          </td>
-                          <td className="py-2 px-1">
+                          </TableCell>
+                          <TableCell>
                             {new Date(invite.created_at).toLocaleDateString()}
-                          </td>
-                          <td className="py-2 px-1">
+                          </TableCell>
+                          <TableCell>
                             {new Date(invite.expires_at).toLocaleDateString()}
-                          </td>
-                          <td className="py-2 px-1">
+                          </TableCell>
+                          <TableCell>
                             <span className={`text-xs font-medium px-2 py-0.5 rounded ${
                               invite.status === "pending"
                                 ? "bg-yellow-100 text-yellow-800"
@@ -393,11 +408,11 @@ const AdminStudents = () => {
                             }`}>
                               {invite.status.charAt(0).toUpperCase() + invite.status.slice(1)}
                             </span>
-                          </td>
-                        </tr>
+                          </TableCell>
+                        </TableRow>
                       ))}
-                    </tbody>
-                  </table>
+                    </TableBody>
+                  </Table>
                 </div>
               ) : (
                 <p className="text-muted-foreground">No invitations found.</p>

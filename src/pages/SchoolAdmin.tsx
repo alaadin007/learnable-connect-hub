@@ -124,6 +124,17 @@ const SchoolAdmin = () => {
     }
   };
 
+  const handleTabClick = (value: string) => {
+    setActiveTab(value);
+    
+    // Navigate to specific pages for certain tabs
+    if (value === "students") {
+      navigate("/admin/students");
+    } else if (value === "settings") {
+      navigate("/admin/settings");
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
@@ -190,7 +201,7 @@ const SchoolAdmin = () => {
             </div>
           </div>
           
-          <Tabs defaultValue="teachers" value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+          <Tabs defaultValue="teachers" value={activeTab} onValueChange={handleTabClick} className="space-y-4">
             <TabsList className="w-full border-b">
               <TabsTrigger value="teachers" className="flex-1">
                 Teachers
@@ -220,7 +231,7 @@ const SchoolAdmin = () => {
                     </p>
                     <Button 
                       onClick={() => navigate('/admin/students')} 
-                      className="w-full sm:w-auto"
+                      className="w-full sm:w-auto gradient-bg"
                     >
                       <User className="mr-2 h-4 w-4" />
                       Go to Student Management
@@ -243,7 +254,7 @@ const SchoolAdmin = () => {
                     </p>
                     <Button 
                       onClick={() => navigate('/admin/settings')} 
-                      className="w-full sm:w-auto"
+                      className="w-full sm:w-auto gradient-bg"
                     >
                       <Settings className="mr-2 h-4 w-4" />
                       Go to School Settings
