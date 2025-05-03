@@ -110,7 +110,7 @@ const TestAccounts = () => {
           id: `login-success-${accountType}`,
         });
 
-        // Define redirect paths
+        // Define redirect paths based on account type
         let redirectPath = "/dashboard";
         if (accountType === "school") {
           redirectPath = "/admin";

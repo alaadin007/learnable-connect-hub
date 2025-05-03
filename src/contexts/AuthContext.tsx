@@ -454,8 +454,10 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
         }
       } else if (type === "teacher") {
         try {
-          console.log(`AuthContext: Creating teacher test sessions for ${mockId} with orgId ${testOrgId}`);
+          console.log(`AuthContext: Creating teacher test sessions for ${mockId} with organization ID ${testOrgId}`);
+          // Make sure the test school ID is properly passed to the function
           await populateTestAccountWithSessions(mockId, testOrgId);
+          console.log(`AuthContext: Successfully populated test data for teacher ${mockId}`);
         } catch (e) {
           console.error("Error creating teacher test sessions:", e);
         }

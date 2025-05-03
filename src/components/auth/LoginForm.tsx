@@ -162,12 +162,13 @@ const LoginForm = () => {
       await setTestUser(type, schoolIndex);
       console.log(`LoginForm: Successfully set up quick login for ${type}`);
 
-      const redirectPath =
-        type === "school"
-          ? "/admin"
-          : type === "teacher"
-          ? "/teacher/analytics"
-          : "/dashboard";
+      // Define redirect paths
+      let redirectPath = "/dashboard";
+      if (type === "school") {
+        redirectPath = "/admin";
+      } else if (type === "teacher") {
+        redirectPath = "/teacher/analytics";
+      }
 
       console.log(`LoginForm: Redirecting quick login user to ${redirectPath}`);
       toast.success(
