@@ -1,4 +1,3 @@
-
 import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -274,51 +273,17 @@ const SchoolRegistrationForm: React.FC = () => {
         setRegisteredEmail(data.adminEmail);
         setSchoolCode(responseData.schoolCode);
         
-        // Set email sent state - with auto-confirmation we can go straight to login
+        // Set email sent state
         setEmailSent(true);
         
         // Show success message with school details
         toast.success(
           `School "${data.schoolName}" successfully registered!`,
           {
-            description: `Your school code is: ${responseData.schoolCode}. Please save this code - you will need it to add teachers and students to your school.`,
+            description: `Your school code is: ${responseData.schoolCode}. Please check your email to verify your account before logging in.`,
             duration: 10000, // Show for 10 seconds
           }
         );
-        
-        // Actually log the user in immediately if possible
-        try {
-          console.log("Attempting to sign in user after registration");
-          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-            email: data.adminEmail,
-            password: data.adminPassword
-          });
-          
-          if (signInError) {
-            console.warn("Auto sign-in failed, redirecting to login:", signInError);
-            // Auto navigate to login after 3 seconds
-            setTimeout(() => {
-              navigate('/login', { 
-                state: { 
-                  registeredEmail: data.adminEmail,
-                  schoolCode: responseData.schoolCode 
-                } 
-              });
-            }, 3000);
-          } else {
-            console.log("Auto sign-in successful, redirecting to admin");
-            // Redirect to admin dashboard
-            setTimeout(() => {
-              navigate('/admin');
-            }, 3000);
-          }
-        } catch (signInError) {
-          console.error("Error during auto sign-in:", signInError);
-          // Fall back to redirecting to login
-          setTimeout(() => {
-            navigate('/login');
-          }, 3000);
-        }
       } else {
         toast.error(`Registration failed: ${responseData?.error || "Unknown error"}`);
       }
@@ -340,7 +305,8 @@ const SchoolRegistrationForm: React.FC = () => {
           </div>
           <h2 className="text-2xl font-semibold mb-3 gradient-text">Registration Successful!</h2>
           <p className="text-gray-600 mb-4">
-            Your school has been successfully registered. You can now log in with your email and password.
+            Your school has been successfully registered. We've sent a verification email to your address.
+            Please check your inbox (and spam folder) to verify your email before logging in.
           </p>
           
           {schoolCode && (
@@ -358,9 +324,29 @@ const SchoolRegistrationForm: React.FC = () => {
             <Button 
               variant="default" 
               className="w-full gradient-bg" 
-              onClick={() => navigate("/login")}
+              onClick={() => navigate("/login", { 
+                state: { 
+                  registeredEmail: registeredEmail,
+                  verificationRequired: true
+                }
+              })}
             >
               Go to Login
+            </Button>
+            <Button 
+              variant="outline" 
+              className="w-full"
+              onClick={handleResetPassword}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                "Resend Verification Email"
+              )}
             </Button>
           </div>
         </div>

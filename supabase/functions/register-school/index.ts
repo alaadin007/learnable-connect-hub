@@ -112,7 +112,7 @@ serve(async (req) => {
         // Try checking if we can sign in with this email
         const { data: signInData, error: signInError } = await supabaseAdmin.auth.signInWithPassword({
           email: adminEmail,
-          password: "dummy-password-for-check"
+          password: "dummy-password-for-check-only",
         });
         
         // If there's no error or the error is not about invalid credentials, email might exist
@@ -229,11 +229,11 @@ serve(async (req) => {
     const redirectURL = `${frontendURL}/login?email_confirmed=true`;
     console.log(`Email confirmation redirect URL: ${redirectURL}`);
     
-    // Create the admin user with auth.admin
+    // Create the admin user with auth.admin - CHANGED FROM TRUE TO FALSE for email_confirm
     const { data: userData, error: userError } = await supabaseAdmin.auth.admin.createUser({
       email: adminEmail,
       password: adminPassword,
-      email_confirm: true, // Changed to true to simplify testing - not requiring email confirmation
+      email_confirm: false, // Changed to false to require email confirmation
       user_metadata: {
         full_name: adminFullName,
         user_type: "school", // Designate as school admin
@@ -366,9 +366,9 @@ serve(async (req) => {
         schoolId, 
         schoolCode,
         adminUserId,
-        emailSent: false, // Since we're auto-confirming emails
+        emailSent: true, // Changed from false to true since we're sending confirmation emails
         emailError: null,
-        message: "School and admin account successfully created. You can now log in with your email and password."
+        message: "School and admin account successfully created. Please check your email to verify your account before logging in."
       }),
       { 
         status: 200, 

@@ -348,9 +348,17 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
   const signUp = async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.signUp({ email, password });
+      // Change to NOT auto-confirm emails - let Supabase send the verification email
+      const { error } = await supabase.auth.signUp({ 
+        email, 
+        password,
+        options: {
+          emailRedirectTo: window.location.origin + "/login?email_confirmed=true"
+        }
+      });
+      
       if (error) throw error;
-      toast.success("Registration successful! Please check your email.");
+      toast.success("Registration successful! Please check your email to verify your account.");
     } catch (error: any) {
       toast.error(error.error_description ?? error.message);
       throw error;
