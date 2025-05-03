@@ -293,7 +293,7 @@ const SchoolRegistrationForm: React.FC = () => {
         toast.info(
           "Email verification required",
           {
-            description: "Please check your inbox and spam folders for the verification email. If you don't receive it within a few minutes, you can request another verification email using the button below.",
+            description: "You will receive an email with the subject 'Confirm your signup' containing a link to verify your account. Please check both your inbox and spam folders.",
             duration: 15000,
             icon: <Mail className="h-4 w-4" />,
           }
@@ -312,11 +312,11 @@ const SchoolRegistrationForm: React.FC = () => {
         }
       } else {
         toast.error(`Registration failed: ${responseData.error || "Unknown error"}`);
+        setIsLoading(false);
       }
     } catch (error: any) {
       console.error("Unexpected error:", error);
       toast.error(`An unexpected error occurred: ${error.message || "Unknown error"}`);
-    } finally {
       setIsLoading(false);
     }
   };
@@ -333,6 +333,17 @@ const SchoolRegistrationForm: React.FC = () => {
           <p className="text-gray-600 mb-4">
             We've sent a verification link to your email address. Please check your inbox and spam folder and verify your account to continue.
           </p>
+
+          <Alert className="mb-4 bg-blue-50 border-blue-200">
+            <AlertTitle className="text-blue-800">Email Confirmation Message</AlertTitle>
+            <AlertDescription className="text-blue-700 mt-2">
+              <div className="p-4 border border-blue-200 bg-white rounded-md">
+                <h3 className="font-semibold text-gray-800">Confirm your signup</h3>
+                <p className="mt-2 text-gray-600">Follow the link in the email to confirm your user account.</p>
+                <p className="mt-2 text-gray-600">Look for a button or link labeled "Confirm your mail"</p>
+              </div>
+            </AlertDescription>
+          </Alert>
           
           {schoolCode && (
             <Alert className="mb-4 bg-amber-50 border-amber-200">

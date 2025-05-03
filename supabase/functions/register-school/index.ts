@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -408,7 +407,7 @@ serve(async (req) => {
         emailSent,
         emailError: emailError ? String(emailError) : null,
         message: emailSent 
-          ? "School and admin account successfully created. Please check your email (including spam folder) to verify your account." 
+          ? "School and admin account successfully created. You will receive an email with the subject 'Confirm your signup' containing a link to verify your account. Please check both your inbox and spam folder." 
           : "School and admin account created, but there was a problem sending the verification email. Please use the 'Forgot Password' option on the login page to request another verification email."
       }),
       { 
