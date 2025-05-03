@@ -43,48 +43,35 @@ const SchoolAdmin = () => {
     // Check if we're getting the API error shown in the image
     const displayErrorIfNeeded = async () => {
       try {
-        // Create mock teacher invitations in supabase
-        const createMockInvitations = async () => {
-          // First check if we already have mock invitations
-          const { data: existingInvites } = await supabase
-            .from("teacher_invitations")
-            .select("id")
-            .limit(1);
+        // Try to get the user's role from the profiles table
+        const { data: existingInvites } = await supabase
+          .from("teacher_invitations")
+          .select("id")
+          .limit(1);
             
-          // If no invitations exist, create mock data
-          if (!existingInvites || existingInvites.length === 0) {
-            const mockInvites = [
-              {
-                email: "teacher1@example.com",
-                status: "pending",
-                school_id: schoolId,
-                invitation_token: "mock-token-1",
-                created_by: profile?.id,
-              },
-              {
-                email: "teacher2@example.com",
-                status: "accepted",
-                school_id: schoolId,
-                invitation_token: "mock-token-2",
-                created_by: profile?.id,
-              }
-            ];
+        // If no invitations exist, create mock data
+        if (!existingInvites || existingInvites.length === 0) {
+          const mockInvites = [
+            {
+              email: "teacher1@example.com",
+              status: "pending",
+              school_id: schoolId,
+              invitation_token: "mock-token-1",
+              created_by: profile?.id,
+            },
+            {
+              email: "teacher2@example.com",
+              status: "accepted",
+              school_id: schoolId,
+              invitation_token: "mock-token-2",
+              created_by: profile?.id,
+            }
+          ];
             
-            // Insert mock invitations
-            await supabase.from("teacher_invitations").insert(mockInvites);
+          // Insert mock invitations
+          await supabase.from("teacher_invitations").insert(mockInvites);
             
-            console.log("Created mock teacher invitations");
-          }
-        };
-        
-        // For demo purposes, always create mock invitations
-        // We'll use try/catch here since this is initialization code
-        try {
-          if (schoolId) {
-            await createMockInvitations();
-          }
-        } catch (mockError) {
-          console.error("Error creating mock data:", mockError);
+          console.log("Created mock teacher invitations");
         }
         
         // For the API error simulation, we'll now use the proper Response type
@@ -160,7 +147,7 @@ const SchoolAdmin = () => {
             </div>
           </div>
           
-          <div className="mb-4">
+          <Tabs defaultValue="teachers" className="space-y-4">
             <TabsList className="w-full border-b">
               <TabsTrigger value="teachers" className="flex-1">
                 Teachers
@@ -172,9 +159,7 @@ const SchoolAdmin = () => {
                 School Settings
               </TabsTrigger>
             </TabsList>
-          </div>
-          
-          <Tabs defaultValue="teachers" className="space-y-4">
+            
             <TabsContent value="teachers" className="space-y-4">
               <TeacherManagement />
             </TabsContent>
