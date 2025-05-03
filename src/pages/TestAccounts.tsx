@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -64,73 +63,32 @@ const TestAccounts = () => {
   const [dataCreationLoading, setDataCreationLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Check if we need to initialize test accounts on first load
-  useEffect(() => {
-    const checkTestAccounts = async () => {
-      try {
-        // Check if test accounts exists
-        const { data: exists, error: checkError } = await supabase.rpc('verify_school_code', { 
-          code: "TESTCODE"
-        });
-        
-        if (checkError || !exists) {
-          console.log("Test accounts may need to be created on first load");
-          // We don't auto-create here to avoid unexpected loading
-          // User can click the refresh button if needed
-        }
-      } catch (error) {
-        console.error("Error checking test accounts:", error);
-      }
-    };
-    
-    checkTestAccounts();
-  }, []);
-
   const createTestAccounts = async () => {
     try {
       setDataCreationLoading(true);
-      // Add toast ID to prevent duplicate toasts
-      toast.loading("Checking test accounts status...", { 
+      toast.loading("Refreshing test accounts...", { 
         id: "test-accounts-status" 
       });
       
-      // Use the verify_school_code RPC function which returns boolean
-      const { data: exists, error: verifyError } = await supabase.rpc('verify_school_code', { 
-        code: "TESTCODE"
+      const response = await supabase.functions.invoke("create-test-accounts", {
+        body: { createAccounts: true }
       });
       
-      // Check if there was an error or the code doesn't exist
-      if (verifyError || !exists) {
-        // If not, invoke the edge function to create them
-        toast.loading("Creating test accounts... (this may take a moment)", {
-          id: "test-accounts-creation"
+      if (response.error) {
+        toast.error("Failed to refresh test accounts", {
+          id: "test-accounts-error"
         });
-        
-        const response = await supabase.functions.invoke("create-test-accounts", {
-          body: { createAccounts: true }
-        });
-        
-        if (response.error) {
-          toast.error("Failed to create test accounts", {
-            id: "test-accounts-error"
-          });
-          console.error("Error creating test accounts:", response.error);
-          return false;
-        }
-        
-        toast.success("Test accounts created successfully!", {
-          id: "test-accounts-success"
-        });
-        return true;
+        console.error("Error creating test accounts:", response.error);
+        return false;
       }
       
-      toast.success("Test accounts are ready to use!", {
-        id: "test-accounts-ready"
+      toast.success("Test accounts refreshed successfully!", {
+        id: "test-accounts-success"
       });
       return true;
     } catch (error) {
-      console.error("Error checking/creating test accounts:", error);
-      toast.error("An error occurred while preparing test accounts", {
+      console.error("Error refreshing test accounts:", error);
+      toast.error("An error occurred while refreshing test accounts", {
         id: "test-accounts-general-error"
       });
       return false;
@@ -146,10 +104,7 @@ const TestAccounts = () => {
     const account = TEST_ACCOUNTS[accountType];
     
     try {
-      // Force create the test accounts if they don't exist
-      await createTestAccounts();
-      
-      // Use enhanced setTestUser that handles authentication
+      // Use enhanced setTestUser that handles authentication directly
       await setTestUser(accountType);
       
       toast.success(`Logged in as ${account.role} (test mode)`, {
@@ -202,8 +157,8 @@ const TestAccounts = () => {
           <Alert className="mb-6 bg-amber-50">
             <Info className="h-4 w-4" />
             <AlertDescription>
-              All test accounts are automatically populated with sample data to demonstrate the full functionality of the platform.
-              You can refresh the data or create new test accounts using the button below.
+              All test accounts are automatically authenticated and populated with sample data. 
+              No password or email verification required - just click login!
             </AlertDescription>
           </Alert>
           
@@ -254,9 +209,9 @@ const TestAccounts = () => {
                       </li>
                     ))}
                   </ul>
-                  <p className="font-medium mb-1 text-sm">Login credentials</p>
-                  <p className="text-xs font-mono bg-gray-50 p-1 rounded mb-1">Email: {account.email}</p>
-                  <p className="text-xs font-mono bg-gray-50 p-1 rounded">Password: {account.password}</p>
+                  <div className="bg-amber-50 p-2 rounded-md">
+                    <p className="text-amber-700 text-xs font-semibold">Instant login without password</p>
+                  </div>
                 </div>
                 <Button 
                   className="w-full bg-blue-700 hover:bg-blue-800" 

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -71,14 +70,20 @@ const LoginForm = () => {
           type = 'teacher';
         }
         
-        // Use the setTestUser function which handles all the test account setup
+        // Use the enhanced setTestUser function for direct authentication
         await setTestUser(type);
         
-        // Toast notification
+        // Get the appropriate redirect path
+        const redirectPath = type === 'school' ? '/admin' : 
+                            type === 'teacher' ? '/teacher/analytics' : 
+                            '/dashboard';
+        
+        // Toast notification and redirect
         toast.success("Login successful", {
-          description: `Welcome back, ${type === 'school' ? 'School Admin' : type === 'teacher' ? 'Teacher' : 'Student'}!`
+          description: `Welcome, ${type === 'school' ? 'School Admin' : type === 'teacher' ? 'Teacher' : 'Student'}!`
         });
         
+        navigate(redirectPath);
         setIsLoading(false);
         return;
       }
@@ -158,34 +163,7 @@ const LoginForm = () => {
       setIsLoading(true);
       setLoginError(null);
       
-      // First, ensure test accounts exist
-      const { data: exists, error: checkError } = await supabase.rpc('verify_school_code', { 
-        code: "TESTCODE"
-      });
-      
-      if (checkError || !exists) {
-        toast.loading("Setting up test accounts...", {
-          id: "create-test-accounts"
-        });
-        
-        const response = await supabase.functions.invoke("create-test-accounts", {
-          body: { createAccounts: true }
-        });
-        
-        if (response.error) {
-          toast.error("Failed to create test accounts", {
-            id: "create-test-accounts"
-          });
-          setLoginError("Failed to create test accounts");
-          return;
-        }
-        
-        toast.success("Test accounts created", {
-          id: "create-test-accounts"
-        });
-      }
-      
-      // Now login with the test user
+      // Use enhanced setTestUser for direct authentication without checks
       await setTestUser(type, schoolIndex);
       
       // Navigate based on user type for test accounts

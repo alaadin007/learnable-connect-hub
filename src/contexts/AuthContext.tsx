@@ -1,4 +1,3 @@
-
 import React, {
   createContext,
   useState,
@@ -232,6 +231,20 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
   };
 
   const signIn = async (email: string, password?: string) => {
+    // For test accounts, use setTestUser directly for instant authentication
+    if (email.includes('.test@learnable.edu')) {
+      let type: 'school' | 'teacher' | 'student' = 'student';
+      
+      if (email.startsWith('school')) {
+        type = 'school';
+      } else if (email.startsWith('teacher')) {
+        type = 'teacher';
+      }
+      
+      await setTestUser(type);
+      return;
+    }
+    
     setIsLoading(true);
     try {
       // Handle password-based authentication if provided
@@ -327,148 +340,81 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
   ): Promise<void> => {
     setIsLoading(true);
     try {
-      // First check if we need to create test accounts
-      const { data: exists, error: checkError } = await supabase.rpc('verify_school_code', { 
-        code: "TESTCODE"
-      });
+      // Skip verification check for faster login - directly create a mock user session
+      console.log(`Setting up test user: ${type}`);
       
-      if (checkError || !exists) {
-        console.log("Test accounts don't exist, creating them...");
-        toast.loading("Setting up test accounts...", { id: "test-accounts-setup" });
-        
-        try {
-          const response = await supabase.functions.invoke("create-test-accounts", {
-            body: { createAccounts: true }
-          });
-          
-          if (response.error) {
-            console.error("Error creating test accounts:", response.error);
-            toast.error("Failed to create test accounts", { id: "test-accounts-setup" });
-            throw new Error("Failed to create test accounts");
-          }
-          
-          toast.success("Test accounts created", { id: "test-accounts-setup" });
-        } catch (createError) {
-          console.error("Error invoking create-test-accounts function:", createError);
-          toast.error("Failed to create test accounts", { id: "test-accounts-setup" });
-          throw createError;
+      // Prepare mock user data
+      const mockId = `test-${type}-${schoolIndex}`;
+      const mockUser = {
+        id: mockId,
+        email: `${type}.test@learnable.edu`,
+        user_metadata: {
+          full_name: `Test ${type.charAt(0).toUpperCase() + type.slice(1)}`
+        },
+        app_metadata: {},
+        aud: "authenticated",
+        created_at: new Date().toISOString()
+      } as unknown as User; // Type assertion to User
+
+      // Create mock profile based on user type
+      const mockProfile: UserProfile = {
+        id: mockId,
+        user_type: type,
+        full_name: `Test ${type.charAt(0).toUpperCase() + type.slice(1)}`,
+        organization: {
+          id: `test-school-${schoolIndex}`,
+          name: schoolIndex === 0 ? "Test School" : `Test School ${schoolIndex + 1}`,
+          code: `TEST${schoolIndex}`
         }
-      }
+      };
+
+      // Set context values immediately
+      setUser(mockUser);
+      setProfile(mockProfile);
+      setUserRole(type);
+      setIsSuperviser(false);
+      setSchoolId(mockProfile.organization?.id || null);
+
+      // Create a fake session
+      const mockSession = {
+        user: mockUser,
+        access_token: "test-token",
+        refresh_token: "test-refresh-token",
+        expires_at: Date.now() + 3600000
+      } as Session;
+
+      setSession(mockSession);
       
-      // Now perform the actual sign-in
-      let email = '';
-      let password = '';
-      
-      switch(type) {
-        case 'school':
-          email = "school.test@learnable.edu";
-          password = "school123";
-          break;
-        case 'teacher':
-          email = "teacher.test@learnable.edu";
-          password = "teacher123";
-          break;
-        case 'student':
-          email = "student.test@learnable.edu";
-          password = "student123";
-          break;
-      }
-      
-      console.log(`Signing in as ${type} with email: ${email}`);
-      
-      // Try to sign in normally first
+      // Ensure test accounts exist in the backend (do this after setting local state for faster UI response)
       try {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
+        // Check if we need to create test accounts in the background
+        const { data: exists, error: checkError } = await supabase.rpc('verify_school_code', { 
+          code: "TESTCODE"
         });
         
-        if (error) {
-          console.error("Auth error:", error);
-          throw error;
+        if (checkError || !exists) {
+          console.log("Test accounts don't exist, creating them in the background...");
+          supabase.functions.invoke("create-test-accounts", {
+            body: { createAccounts: true }
+          }).catch(err => console.error("Background test account creation failed:", err));
         }
-        
-        if (data.user) {
-          console.log("Signed in successfully:", data.user);
-          return;
-        }
-      } catch (signInError) {
-        console.error("Sign in error:", signInError);
-        
-        // If sign in fails, fall back to the mock approach
-        console.log("Falling back to mock user approach...");
-        
-        // Mock user and profile data for test accounts
-        const mockId = `test-${type}-${schoolIndex}`;
-        const mockUser = {
-          id: mockId,
-          email: `${type}.test@learnable.edu`,
-          user_metadata: {
-            full_name: `Test ${type.charAt(0).toUpperCase() + type.slice(1)}`
-          },
-          app_metadata: {},
-          aud: "authenticated",
-          created_at: new Date().toISOString()
-        } as unknown as User; // Type assertion to User
+      } catch (error) {
+        console.error("Error checking test accounts:", error);
+        // Don't block the login process for this background operation
+      }
 
-        // Create mock profile based on user type
-        const mockProfile: UserProfile = {
-          id: mockId,
-          user_type: type,
-          full_name: `Test ${type.charAt(0).toUpperCase() + type.slice(1)}`,
-          organization: {
-            id: `test-school-${schoolIndex}`,
-            name: schoolIndex === 0 ? "Test School" : `Test School ${schoolIndex + 1}`,
-            code: `TEST${schoolIndex}`
-          }
-        };
-
-        // Set context values
-        setUser(mockUser);
-        setProfile(mockProfile);
-        setUserRole(type);
-        setIsSuperviser(false);
-        setSchoolId(mockProfile.organization?.id || null);
-
-        // Create a fake session
-        const mockSession = {
-          user: mockUser,
-          access_token: "test-token",
-          refresh_token: "test-refresh-token",
-          expires_at: Date.now() + 3600000
-        } as Session;
-
-        setSession(mockSession);
-
-        // For test accounts, pre-populate with appropriate data based on role
-        if (type === 'student') {
+      // For student test accounts, ensure we have proper session tracking
+      if (type === 'student') {
+        try {
           // Start a session for the student
           await sessionLogger.startSession('Test Login Session', mockId);
-          
-          // Generate sample sessions for historical data
-          const topics = ['Algebra', 'Chemistry', 'History', 'Literature', 'Computer Science'];
-          const now = new Date();
-          
-          for (let i = 1; i <= 5; i++) {
-            const pastDate = new Date(now);
-            pastDate.setDate(now.getDate() - i);
-            
-            await supabase.from('session_logs').insert({
-              user_id: mockId,
-              school_id: mockProfile.organization?.id,
-              topic_or_content_used: topics[i % topics.length],
-              session_start: pastDate.toISOString(),
-              session_end: new Date(pastDate.getTime() + 45 * 60000).toISOString(), // 45 min session
-              num_queries: Math.floor(Math.random() * 15) + 5 // 5-20 queries
-            });
-          }
-        } else if (type === 'teacher') {
-          // Generate students and their assessment data for this teacher
-          await populateTestAccountWithSessions(mockId, mockProfile.organization?.id || '', 15);
+        } catch (error) {
+          console.error("Error starting test session:", error);
+          // Continue with login even if session tracking fails
         }
       }
 
-      toast.success(`Logged in as test ${type}`);
+      console.log(`Test user ${type} set up successfully`);
     } catch (error) {
       console.error("Error setting test user:", error);
       toast.error("Failed to set test user");
