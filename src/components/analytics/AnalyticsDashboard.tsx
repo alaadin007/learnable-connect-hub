@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { getMockAnalyticsData } from "@/utils/sessionLogging";
-import { format, subDays, startOfWeek, endOfWeek, getWeek } from 'date-fns';
+import { format, subDays, startOfWeek, endOfWeek } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Loader2, Download, Calendar, Filter } from 'lucide-react';
 
@@ -88,7 +88,7 @@ const AnalyticsDashboard: React.FC = () => {
     };
   };
   
-  // Fetch analytics data
+  // Fetch analytics data asynchronously
   useEffect(() => {
     const fetchAnalyticsData = async () => {
       setLoading(true);
@@ -99,30 +99,27 @@ const AnalyticsDashboard: React.FC = () => {
         }
         
         const dateRange = getDateRange();
-        
-        // In a real app, we would fetch from the API
-        // const { data, error } = await supabase.functions.invoke('get-school-analytics', {
-        //   body: { 
-        //     schoolId,
-        //     startDate: dateRange.startDate,
-        //     endDate: dateRange.endDate
-        //   }
-        // });
-        
-        // if (error) throw error;
-        
-        // For now, use mock data
-        const mockData = getMockAnalyticsData(schoolId, {
-          startDate: dateRange.startDate,
-          endDate: dateRange.endDate
+
+        // Simulate async fetch of mock data to avoid blocking UI
+        const mockData = await new Promise<AnalyticsData>(resolve => {
+          setTimeout(() => {
+            resolve(getMockAnalyticsData(schoolId!, {
+              startDate: dateRange.startDate,
+              endDate: dateRange.endDate
+            }));
+          }, 0);
         });
-        
+
         setAnalyticsData(mockData);
       } catch (error) {
         console.error('Error fetching analytics data:', error);
-        // Use mock data as fallback
+        // Use mock data fallback async as well
         if (schoolId) {
-          const mockData = getMockAnalyticsData(schoolId, {});
+          const mockData = await new Promise<AnalyticsData>(resolve => {
+            setTimeout(() => {
+              resolve(getMockAnalyticsData(schoolId!, {}));
+            }, 0);
+          });
           setAnalyticsData(mockData);
         }
       } finally {
@@ -141,7 +138,27 @@ const AnalyticsDashboard: React.FC = () => {
     const remainingMins = mins % 60;
     return `${hours}h ${remainingMins}m`;
   };
-  
+
+  // Memoize processed student stats to avoid repeated filtering in render
+  const studentStats = useMemo(() => {
+    if (!analyticsData) return [];
+    return analyticsData.studyTime.map(student => {
+      const studentSessions = analyticsData.sessions.filter(
+        session => session.userName === student.studentName
+      );
+      const sessionCount = studentSessions.length;
+      const avgDuration = sessionCount > 0 
+        ? studentSessions.reduce((sum, s) => sum + Number(s.duration), 0) / sessionCount
+        : 0;
+        
+      return {
+        ...student,
+        sessionCount,
+        avgDuration,
+      };
+    });
+  }, [analyticsData]);
+
   // Custom tooltip for charts
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
@@ -161,13 +178,10 @@ const AnalyticsDashboard: React.FC = () => {
   const exportData = () => {
     if (!analyticsData) return;
     
-    // Create CSV content
     let csvContent = "data:text/csv;charset=utf-8,";
     
-    // Add headers
     csvContent += "Student,Session Date,Duration (min),Topic,Queries\n";
     
-    // Add session data
     analyticsData.sessions.forEach(session => {
       const row = [
         session.userName,
@@ -179,7 +193,6 @@ const AnalyticsDashboard: React.FC = () => {
       csvContent += row + "\n";
     });
     
-    // Create download link
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
@@ -427,25 +440,14 @@ const AnalyticsDashboard: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {analyticsData.studyTime.map((student) => {
-                      // Count sessions for this student
-                      const studentSessions = analyticsData.sessions.filter(
-                        session => session.userName === student.studentName
-                      );
-                      const sessionCount = studentSessions.length;
-                      const avgDuration = sessionCount > 0 
-                        ? studentSessions.reduce((sum, s) => sum + Number(s.duration), 0) / sessionCount
-                        : 0;
-                        
-                      return (
-                        <tr key={student.studentName} className="border-b">
-                          <td className="py-2 px-4">{student.studentName}</td>
-                          <td className="py-2 px-4 text-right">{student.hours}</td>
-                          <td className="py-2 px-4 text-right">{sessionCount}</td>
-                          <td className="py-2 px-4 text-right">{formatDuration(avgDuration)}</td>
-                        </tr>
-                      );
-                    })}
+                    {studentStats.map((student) => (
+                      <tr key={student.studentName} className="border-b">
+                        <td className="py-2 px-4">{student.studentName}</td>
+                        <td className="py-2 px-4 text-right">{student.hours}</td>
+                        <td className="py-2 px-4 text-right">{student.sessionCount}</td>
+                        <td className="py-2 px-4 text-right">{formatDuration(student.avgDuration)}</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
