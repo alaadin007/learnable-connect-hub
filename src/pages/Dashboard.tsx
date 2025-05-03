@@ -1,4 +1,3 @@
-
 import React, { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -20,7 +19,7 @@ const Dashboard = () => {
     }
   }, [user, navigate]);
   
-  // Fixed redirect logic to prevent flickering and navigation loops
+  // Improved redirect logic to prevent flickering and navigation loops
   useEffect(() => {
     // Only redirect on the initial /dashboard load, not when explicitly navigating to /dashboard
     if (location.pathname === "/dashboard" && userRole && !location.state?.fromNavigation) {

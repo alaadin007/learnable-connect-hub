@@ -46,7 +46,7 @@ const SchoolAdmin = () => {
     }
   }, [userRole, navigate]);
 
-  // Updated Quick actions dropdown handler with improved state handling for navigation
+  // Fixed Quick actions dropdown handler to prevent navigation issues
   const handleQuickActionSelect = (action: string) => {
     switch (action) {
       case "manage-teachers":
@@ -62,8 +62,11 @@ const SchoolAdmin = () => {
         navigate("/admin/students");
         break;
       case "dashboard":
-        // Add state to prevent navigation loop and clearly mark the source
-        navigate("/dashboard", { state: { fromNavigation: true }});
+        // Clear any previous state and set new state to prevent redirect loops
+        navigate("/dashboard", { 
+          state: { fromNavigation: true },
+          replace: true
+        });
         break;
       default:
         break;

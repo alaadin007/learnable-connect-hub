@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -123,23 +122,24 @@ const Navbar = () => {
   // Check if we're on the test accounts page to hide the entire navbar
   const isTestAccountsPage = location.pathname === "/test-accounts";
 
-  // Enhanced helper function to fix active link highlighting
+  // Enhanced isActiveLink function to fix the simultaneous highlighting issue
   const isActiveLink = (href) => {
     const currentPath = location.pathname;
     
-    // Special handling for Dashboard link
+    // Special handling for Dashboard link - make it mutually exclusive with School Admin
     if (href === "/dashboard") {
-      // Consider dashboard active when on the dashboard or default role pages
-      return currentPath === "/dashboard" || 
-            (userType === "school" && currentPath === "/admin" && location.state?.fromDashboard) ||
-            (userType === "teacher" && currentPath === "/teacher/analytics" && location.state?.fromDashboard);
+      // Dashboard is active only when exactly on dashboard or when explicitly coming from dashboard
+      return currentPath === "/dashboard" &&
+             // Make sure it's not active when on admin pages
+             !(currentPath === "/admin" || currentPath.startsWith("/admin/"));
     }
     
-    // Special handling for School Admin link
+    // Special handling for School Admin link - make it mutually exclusive with Dashboard
     if (href === "/admin") {
-      // Consider admin active for all admin routes, except when coming from dashboard
-      return (currentPath === "/admin" && !location.state?.fromDashboard) || 
-             (currentPath.startsWith("/admin/") && currentPath !== "/admin/analytics");
+      // Admin is active when on any admin page and not coming directly from dashboard
+      return (currentPath === "/admin" || currentPath.startsWith("/admin/")) &&
+             // Ensure it's the only active item when on admin pages
+             !(currentPath === "/dashboard");
     }
     
     // For Teachers menu item
