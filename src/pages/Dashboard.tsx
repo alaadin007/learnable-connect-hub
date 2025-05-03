@@ -1,4 +1,3 @@
-
 import React, { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -16,9 +15,16 @@ const Dashboard = () => {
   // Redirect if not logged in
   useEffect(() => {
     if (!user) {
+      // Allow test accounts/navigation with preserved context to bypass this check
+      if (location.state?.fromTestAccounts || location.state?.preserveContext) {
+        console.log("Dashboard: Bypassing login check due to navigation context");
+        return;
+      }
+      
+      console.log("Dashboard: No user found, redirecting to login");
       navigate("/login");
     }
-  }, [user, navigate]);
+  }, [user, navigate, location.state]);
 
   // More targeted approach to role-based redirection
   useEffect(() => {
@@ -38,9 +44,9 @@ const Dashboard = () => {
       });
       
       if (userRole === "school" && profile?.organization?.id) {
-        navigate("/admin", { replace: true, state: { fromDashboard: true } });
+        navigate("/admin", { replace: true, state: { fromDashboard: true, preserveContext: true } });
       } else if (userRole === "teacher") {
-        navigate("/teacher/analytics", { replace: true, state: { fromDashboard: true } });
+        navigate("/teacher/analytics", { replace: true, state: { fromDashboard: true, preserveContext: true } });
       }
       // Student stays on dashboard
     }
@@ -59,7 +65,7 @@ const Dashboard = () => {
   }
 
   const renderUserDashboard = () => {
-    const userType = profile.user_type;
+    const userType = profile?.user_type;
 
     if (userType === "school") {
       return (

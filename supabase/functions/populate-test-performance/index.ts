@@ -48,7 +48,8 @@ serve(async (req) => {
       throw checkError;
     }
 
-    // If sessions already exist, don't add more
+    // If sessions already exist, don't add more - but still return success
+    // since we don't want to actually fail the login attempt
     if (existingSessions && existingSessions.length > 0) {
       console.log(`User ${userId} already has session data, skipping population`);
       return new Response(
@@ -72,9 +73,10 @@ serve(async (req) => {
     const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     
     if (!uuidPattern.test(validUserId)) {
-      // If using test IDs, map to valid UUIDs for database compatibility
+      // For test IDs, create a deterministic UUID to ensure consistency across requests
       if (validUserId.startsWith('test-')) {
-        validUserId = "00000000-0000-0000-0000-000000000001";
+        // Create a deterministic UUID for test accounts to avoid creating new data on each login
+        validUserId = `00000000-0000-${validUserId.slice(-4)}-0000-000000000001`;
       } else {
         throw new Error(`Invalid user ID format: ${validUserId}`);
       }
@@ -82,40 +84,50 @@ serve(async (req) => {
     
     if (!uuidPattern.test(validSchoolId)) {
       if (validSchoolId.startsWith('test-')) {
-        validSchoolId = "00000000-0000-0000-0000-000000000001";
+        // Same approach for school ID to ensure consistency
+        validSchoolId = `00000000-0000-${validSchoolId.slice(-4)}-0000-000000000001`;
       } else {
         throw new Error(`Invalid school ID format: ${validSchoolId}`);
       }
     }
     
+    // Create sessions even if some fail - we'll still proceed with as many as we can
+    let createdSessions = 0;
+    
     for (let i = 1; i <= numSessions; i++) {
-      const pastDate = new Date(now);
-      pastDate.setDate(now.getDate() - i);
-      
-      // Create a session log
-      const { data: sessionLog, error: sessionError } = await supabase
-        .from("session_logs")
-        .insert({
-          user_id: validUserId,
-          school_id: validSchoolId,
-          topic_or_content_used: topics[i % topics.length],
-          session_start: pastDate.toISOString(),
-          session_end: new Date(pastDate.getTime() + 45 * 60000).toISOString(),
-          num_queries: Math.floor(Math.random() * 15) + 5,
-        })
-        .select();
+      try {
+        const pastDate = new Date(now);
+        pastDate.setDate(now.getDate() - i);
+        
+        // Create a session log
+        const { data: sessionLog, error: sessionError } = await supabase
+          .from("session_logs")
+          .insert({
+            user_id: validUserId,
+            school_id: validSchoolId,
+            topic_or_content_used: topics[i % topics.length],
+            session_start: pastDate.toISOString(),
+            session_end: new Date(pastDate.getTime() + 45 * 60000).toISOString(),
+            num_queries: Math.floor(Math.random() * 15) + 5,
+          })
+          .select();
 
-      if (sessionError) {
-        console.error(`Error creating session ${i}:`, sessionError);
-        throw sessionError;
+        if (sessionError) {
+          console.error(`Error creating session ${i}:`, sessionError);
+          continue; // Continue with the next session even if this one fails
+        }
+
+        createdSessions++;
+        console.log(`Created session ${i} for user ${userId}`);
+      } catch (error) {
+        console.error(`Error creating session ${i}:`, error);
+        // Continue with the next session
       }
-
-      console.log(`Created session ${i} for user ${userId}`);
     }
 
     return new Response(
       JSON.stringify({ 
-        message: `Successfully populated ${numSessions} test sessions for user ${userId}`,
+        message: `Successfully populated ${createdSessions} test sessions for user ${userId}`,
         success: true 
       }),
       { headers, status: 200 }

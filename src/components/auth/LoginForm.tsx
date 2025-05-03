@@ -88,7 +88,8 @@ const LoginForm = () => {
           replace: true, 
           state: { 
             fromTestAccounts: true, 
-            accountType: type 
+            accountType: type,
+            preserveContext: true
           } 
         });
         return;
@@ -185,7 +186,9 @@ const LoginForm = () => {
         replace: true,
         state: { 
           fromTestAccounts: true,
-          accountType: type
+          accountType: type,
+          preserveContext: true,
+          timestamp: Date.now()
         }
       });
     } catch (error: any) {

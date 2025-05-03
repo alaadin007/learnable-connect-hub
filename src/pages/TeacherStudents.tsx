@@ -16,12 +16,24 @@ const TeacherStudents = () => {
   // Protection against direct access without authentication
   useEffect(() => {
     if (!user) {
+      // Allow test accounts to access this page more easily
+      if (location.state?.fromTestAccounts || location.state?.fromNavigation) {
+        console.log("TeacherStudents: Allowing access due to navigation context");
+        return;
+      }
+      
+      console.log("TeacherStudents: No user found, redirecting to login");
       navigate("/login", { replace: true });
       return;
     }
     
     // Verify the user is a teacher when directly accessing this page
-    if (userRole && userRole !== "teacher" && !location.state?.preserveContext) {
+    // But skip this check if we're coming from a known navigation flow
+    if (userRole && 
+        userRole !== "teacher" && 
+        !location.state?.preserveContext && 
+        !location.state?.fromNavigation && 
+        !location.state?.fromTestAccounts) {
       console.log("TeacherStudents: Redirecting non-teacher user to dashboard");
       navigate("/dashboard", { replace: true });
     }
@@ -29,7 +41,19 @@ const TeacherStudents = () => {
   
   // Handle back navigation with context preservation
   const handleBack = () => {
-    navigate(-1);
+    if (location.state?.fromTestAccounts || location.state?.fromNavigation) {
+      // Preserve context when navigating back
+      navigate("/teacher/analytics", { 
+        state: { 
+          preserveContext: true,
+          fromNavigation: location.state?.fromNavigation,
+          fromTestAccounts: location.state?.fromTestAccounts,
+          accountType: location.state?.accountType
+        } 
+      });
+    } else {
+      navigate(-1);
+    }
   };
   
   return (

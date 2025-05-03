@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -127,12 +126,6 @@ const TestAccounts = () => {
         // Define redirect paths based on account type 
         // with consistent state parameters for smooth navigation
         let redirectPath = "/dashboard";
-        let redirectState = { 
-          fromTestAccounts: true, 
-          accountType,
-          preserveContext: true,
-          timestamp: Date.now()
-        };
         
         if (accountType === "school") {
           redirectPath = "/admin";
@@ -145,7 +138,12 @@ const TestAccounts = () => {
         // Use replace: true to prevent going back to login page from the dashboard
         navigate(redirectPath, {
           replace: true,
-          state: redirectState
+          state: { 
+            fromTestAccounts: true,
+            accountType,
+            preserveContext: true,
+            timestamp: Date.now()
+          }
         });
       } catch (error: any) {
         console.error(`Error setting up ${accountType} test account:`, error);
