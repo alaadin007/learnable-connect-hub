@@ -7,21 +7,18 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Helper function to generate a random password
-function generateRandomPassword(length: number): string {
+// Generate a random secure password
+function generatePassword() {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()";
-  let result = '';
-  const randomValues = new Uint8Array(length);
-  crypto.getRandomValues(randomValues);
-  
-  for (let i = 0; i < length; i++) {
-    result += chars.charAt(randomValues[i] % chars.length);
+  let password = "";
+  for (let i = 0; i < 12; i++) {
+    password += chars.charAt(Math.floor(Math.random() * chars.length));
   }
-  
-  return result;
+  return password;
 }
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response(null, {
       headers: corsHeaders,
@@ -30,7 +27,7 @@ serve(async (req) => {
   }
 
   try {
-    // Create a Supabase client with auth context
+    // Create authenticated client with user's JWT
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_ANON_KEY") ?? "",
@@ -41,7 +38,7 @@ serve(async (req) => {
       }
     );
 
-    // Create admin client for user creation
+    // Create admin client for operations requiring higher privileges
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
@@ -74,37 +71,6 @@ serve(async (req) => {
       );
     }
 
-    // Get the school_id of the logged in user
-    const { data: schoolId, error: schoolIdError } = await supabaseClient
-      .rpc("get_user_school_id");
-
-    if (schoolIdError || !schoolId) {
-      return new Response(
-        JSON.stringify({ error: "Could not determine school ID" }),
-        { 
-          status: 400,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        }
-      );
-    }
-
-    // Get the school details
-    const { data: schoolData, error: schoolError } = await supabaseClient
-      .from("schools")
-      .select("name, code")
-      .eq("id", schoolId)
-      .single();
-    
-    if (schoolError || !schoolData) {
-      return new Response(
-        JSON.stringify({ error: "Could not find school information" }),
-        { 
-          status: 400,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        }
-      );
-    }
-
     // Parse the request body
     const { email, full_name } = await req.json();
 
@@ -118,49 +84,122 @@ serve(async (req) => {
       );
     }
 
-    // Generate a random password
-    const tempPassword = generateRandomPassword(12);
+    // Get the school information of the creator
+    const { data: teacherData, error: teacherError } = await supabaseClient
+      .from("teachers")
+      .select("school_id")
+      .eq("id", user.id)
+      .single();
 
-    // Create the user
-    const { data: newUser, error: createUserError } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password: tempPassword,
-      email_confirm: true, // Skip email verification
-      user_metadata: {
-        user_type: 'teacher',
-        full_name: full_name || '',
-        school_code: schoolData.code,
-        school_name: schoolData.name
-      }
-    });
-
-    if (createUserError) {
+    if (teacherError || !teacherData) {
+      console.error("Error getting school info:", teacherError);
       return new Response(
-        JSON.stringify({ error: createUserError.message }),
+        JSON.stringify({ error: "Failed to get school information" }),
         { 
-          status: 400,
+          status: 500,
           headers: { "Content-Type": "application/json", ...corsHeaders },
         }
       );
     }
 
-    // Create teacher record
-    const { error: teacherInsertError } = await supabaseAdmin
+    // Get the school name and code
+    const { data: schoolData, error: schoolError } = await supabaseClient
+      .from("schools")
+      .select("name, code")
+      .eq("id", teacherData.school_id)
+      .single();
+
+    if (schoolError || !schoolData) {
+      console.error("Error getting school name:", schoolError);
+      return new Response(
+        JSON.stringify({ error: "Failed to get school name" }),
+        { 
+          status: 500,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
+
+    // Generate a temporary password
+    const tempPassword = generatePassword();
+
+    // Create the teacher user with admin privileges
+    const { data: userData, error: createError } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password: tempPassword,
+      email_confirm: true, // Auto-confirm email
+      user_metadata: {
+        full_name: full_name || email.split('@')[0], // Use provided name or derive from email
+        user_type: "teacher", // CRITICAL: Explicitly set user_type for teacher
+        school_code: schoolData.code,
+        school_name: schoolData.name
+      }
+    });
+
+    if (createError) {
+      console.error("Error creating teacher account:", createError);
+      return new Response(
+        JSON.stringify({ error: "Failed to create teacher account", details: createError.message }),
+        { 
+          status: 500,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
+
+    if (!userData || !userData.user) {
+      console.error("No user data returned when creating teacher");
+      return new Response(
+        JSON.stringify({ error: "Failed to create teacher account - no user data returned" }),
+        { 
+          status: 500,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
+
+    const teacherId = userData.user.id;
+    
+    // Manually create profile record to ensure user_type is set
+    console.log("Creating profile record for teacher:", teacherId);
+    const { error: profileError } = await supabaseAdmin
+      .from("profiles")
+      .insert({
+        id: teacherId,
+        user_type: "teacher", // Explicitly set user_type to avoid null constraint violation
+        full_name: full_name || email.split('@')[0], 
+        school_code: schoolData.code,
+        school_name: schoolData.name
+      });
+      
+    if (profileError) {
+      console.error("Error creating profile:", profileError);
+      // Continue anyway, as the handle_new_user trigger may handle this
+      console.log("Continuing despite profile error - handle_new_user trigger should handle this");
+    }
+
+    // Register as teacher in the school
+    const { error: teacherRegError } = await supabaseAdmin
       .from("teachers")
       .insert({
-        id: newUser.user.id,
-        school_id: schoolId,
-        is_supervisor: false
+        id: teacherId,
+        school_id: teacherData.school_id,
+        is_supervisor: false // Regular teacher, not supervisor
       });
 
-    if (teacherInsertError) {
-      console.error("Error creating teacher record:", teacherInsertError);
+    if (teacherRegError) {
+      console.error("Error registering teacher:", teacherRegError);
       
-      // Delete the user if teacher record creation fails
-      await supabaseAdmin.auth.admin.deleteUser(newUser.user.id);
+      // Clean up on failure
+      try {
+        await supabaseAdmin.auth.admin.deleteUser(teacherId);
+        console.log("Deleted user after teacher registration failed");
+      } catch (cleanupError) {
+        console.error("Error during cleanup:", cleanupError);
+      }
       
       return new Response(
-        JSON.stringify({ error: "Failed to create teacher record" }),
+        JSON.stringify({ error: "Failed to register teacher", details: teacherRegError.message }),
         { 
           status: 500,
           headers: { "Content-Type": "application/json", ...corsHeaders },
@@ -170,11 +209,8 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({ 
-        message: "Teacher account created successfully", 
-        data: { 
-          email,
-          temp_password: tempPassword
-        }
+        message: "Teacher account created successfully",
+        temp_password: tempPassword
       }),
       { 
         status: 200,
@@ -184,7 +220,7 @@ serve(async (req) => {
   } catch (error) {
     console.error("Error processing request:", error);
     return new Response(
-      JSON.stringify({ error: "Internal server error" }),
+      JSON.stringify({ error: "Internal server error", details: error.message }),
       { 
         status: 500,
         headers: { "Content-Type": "application/json", ...corsHeaders },
