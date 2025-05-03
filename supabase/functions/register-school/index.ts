@@ -243,7 +243,7 @@ serve(async (req) => {
       email_confirm: false, // Require email confirmation
       user_metadata: {
         full_name: adminFullName,
-        user_type: "school", // Designate as school admin
+        user_type: "school", // Designate as school admin - CRITICAL! This must be set explicitly
         school_code: schoolCode,
         school_name: schoolName
       },
@@ -325,13 +325,13 @@ serve(async (req) => {
     const adminUserId = userData.user.id;
     console.log(`Admin user created with ID: ${adminUserId}`);
     
-    // Create profile record
+    // Create profile record - CRITICAL FIX: explicitly set user_type to "school"
     console.log("Creating profile record for user:", adminUserId);
     const { error: profileError } = await supabaseAdmin
       .from("profiles")
       .insert({
         id: adminUserId,
-        user_type: "school",
+        user_type: "school", // Explicitly set user_type to avoid null constraint violation
         full_name: adminFullName,
         school_code: schoolCode,
         school_name: schoolName
