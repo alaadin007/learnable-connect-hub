@@ -281,15 +281,44 @@ const SchoolRegistrationForm: React.FC = () => {
         toast.success(
           `School "${data.schoolName}" successfully registered!`,
           {
-            description: `Your school code is: ${responseData.schoolCode}. You can now log in with your email and password.`,
+            description: `Your school code is: ${responseData.schoolCode}. Please save this code - you will need it to add teachers and students to your school.`,
             duration: 10000, // Show for 10 seconds
           }
         );
         
-        // Auto navigate to login after 3 seconds
-        setTimeout(() => {
-          navigate('/login');
-        }, 3000);
+        // Actually log the user in immediately if possible
+        try {
+          console.log("Attempting to sign in user after registration");
+          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+            email: data.adminEmail,
+            password: data.adminPassword
+          });
+          
+          if (signInError) {
+            console.warn("Auto sign-in failed, redirecting to login:", signInError);
+            // Auto navigate to login after 3 seconds
+            setTimeout(() => {
+              navigate('/login', { 
+                state: { 
+                  registeredEmail: data.adminEmail,
+                  schoolCode: responseData.schoolCode 
+                } 
+              });
+            }, 3000);
+          } else {
+            console.log("Auto sign-in successful, redirecting to admin");
+            // Redirect to admin dashboard
+            setTimeout(() => {
+              navigate('/admin');
+            }, 3000);
+          }
+        } catch (signInError) {
+          console.error("Error during auto sign-in:", signInError);
+          // Fall back to redirecting to login
+          setTimeout(() => {
+            navigate('/login');
+          }, 3000);
+        }
       } else {
         toast.error(`Registration failed: ${responseData?.error || "Unknown error"}`);
       }
