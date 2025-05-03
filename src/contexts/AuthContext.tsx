@@ -292,9 +292,15 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
         }
       }
       
-      await supabase.auth.signOut();
+      // Check if this is a test account
+      const isTestUser = user?.email?.includes('.test@learnable.edu') || user?.id?.startsWith('test-');
       
-      // Clear local state
+      if (!isTestUser) {
+        // For real accounts, use Supabase signOut
+        await supabase.auth.signOut();
+      }
+      
+      // Clear local state regardless of account type
       setSession(null);
       setUser(null);
       setProfile(null);
@@ -302,9 +308,15 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       setIsSuperviser(false);
       setSchoolId(null);
       
+      // Always redirect to home page after logout
       navigate("/");
+      
+      // Provide feedback to the user
+      toast.success(isTestUser ? "Test session ended" : "Logged out successfully");
+      
     } catch (error: any) {
-      toast.error(error.error_description || error.message);
+      console.error("Error during sign out:", error);
+      toast.error(error.error_description || error.message || "Failed to log out");
     } finally {
       setIsLoading(false);
     }
