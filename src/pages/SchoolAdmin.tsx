@@ -1,4 +1,6 @@
+
 import React, { useEffect, useState } from "react";
+import { Outlet } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
 import { useAuth } from "@/contexts/AuthContext";
