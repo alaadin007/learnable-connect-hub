@@ -31,7 +31,7 @@ export type TeacherInvitation = {
 };
 
 const SchoolAdmin = () => {
-  const { profile, userRole } = useAuth();
+  const { profile, userRole, isLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [activeTab, setActiveTab] = useState("teachers");
@@ -39,32 +39,43 @@ const SchoolAdmin = () => {
   // Use optional chaining for organization properties
   const schoolId = profile?.organization?.id || null;
   
-  // Verify correct user role
+  // Verify correct user role when auth is loaded
   useEffect(() => {
-    if (userRole && userRole !== "school") {
-      navigate("/dashboard");
+    console.log("SchoolAdmin: Auth check", { userRole, isLoading });
+    
+    if (!isLoading && userRole && userRole !== "school") {
+      console.log(`SchoolAdmin: Redirecting user with role ${userRole} to dashboard`);
+      navigate("/dashboard", { state: { fromRoleRedirect: true } });
     }
-  }, [userRole, navigate]);
+  }, [userRole, navigate, isLoading]);
 
-  // Fixed Quick actions dropdown handler to prevent navigation issues
+  // Handle Quick actions dropdown
   const handleQuickActionSelect = (action: string) => {
     switch (action) {
       case "manage-teachers":
-        navigate("/admin/teacher-management");
+        navigate("/admin/teacher-management", { 
+          state: { fromNavigation: true, preserveContext: true } 
+        });
         break;
       case "view-analytics":
-        navigate("/admin/analytics");
+        navigate("/admin/analytics", { 
+          state: { fromNavigation: true, preserveContext: true } 
+        });
         break;
       case "school-settings":
-        navigate("/admin/settings");
+        navigate("/admin/settings", { 
+          state: { fromNavigation: true, preserveContext: true } 
+        });
         break;
       case "student-management":
-        navigate("/admin/students");
+        navigate("/admin/students", { 
+          state: { fromNavigation: true, preserveContext: true } 
+        });
         break;
       case "dashboard":
         // Clear any previous state and set new state to prevent redirect loops
         navigate("/dashboard", { 
-          state: { fromNavigation: true },
+          state: { fromNavigation: true, preserveContext: true },
           replace: true
         });
         break;
@@ -78,11 +89,31 @@ const SchoolAdmin = () => {
     setActiveTab(value);
     
     if (value === "students") {
-      navigate("/admin/students");
+      navigate("/admin/students", { 
+        state: { fromNavigation: true, preserveContext: true }
+      });
     } else if (value === "settings") {
-      navigate("/admin/settings");
+      navigate("/admin/settings", { 
+        state: { fromNavigation: true, preserveContext: true }
+      });
     }
   };
+
+  // Show loading state during authentication
+  if (isLoading) {
+    return (
+      <>
+        <Navbar />
+        <main className="flex-grow bg-learnable-super-light py-8">
+          <div className="container mx-auto px-4 text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
+            <p className="text-xl">Verifying your admin access...</p>
+          </div>
+        </main>
+        <Footer />
+      </>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -183,7 +214,7 @@ const SchoolAdmin = () => {
                       Manage your school's students, including enrollment and class assignments.
                     </p>
                     <Button 
-                      onClick={() => navigate('/admin/students')} 
+                      onClick={() => navigate('/admin/students', { state: { fromNavigation: true, preserveContext: true } })} 
                       className="w-full sm:w-auto gradient-bg"
                     >
                       <User className="mr-2 h-4 w-4" />
@@ -206,7 +237,7 @@ const SchoolAdmin = () => {
                       Configure your school settings, including notification preferences and school details.
                     </p>
                     <Button 
-                      onClick={() => navigate('/admin/settings')} 
+                      onClick={() => navigate('/admin/settings', { state: { fromNavigation: true, preserveContext: true } })} 
                       className="w-full sm:w-auto gradient-bg"
                     >
                       <Settings className="mr-2 h-4 w-4" />

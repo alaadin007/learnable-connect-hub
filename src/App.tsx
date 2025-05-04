@@ -1,5 +1,5 @@
 
-import React, { useEffect } from "react";
+import React from "react";
 import {
   Route,
   Routes,
@@ -21,13 +21,16 @@ import TestAccounts from "./pages/TestAccounts";
 import SchoolAdmin from "./pages/SchoolAdmin";
 import TeacherAnalytics from "./pages/TeacherAnalytics";
 import SchoolSettings from "./pages/SchoolSettings";
+import AdminTeacherManagement from "./pages/AdminTeacherManagement";
+import AdminTeachers from "./pages/AdminTeachers";
+import ChatWithAI from "./pages/ChatWithAI";
 import "./App.css";
 
 function AppRoutes() {
   const { userRole, isLoading } = useAuth();
   const navigate = useNavigate();
 
-  useEffect(() => {
+  React.useEffect(() => {
     // Only redirect if we're not in the middle of loading
     if (!isLoading && userRole) {
       console.log(`AppRoutes: Redirecting based on user role: ${userRole}`);
@@ -69,6 +72,18 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      
+      {/* Chat route */}
+      <Route
+        path="/chat"
+        element={
+          <ProtectedRoute>
+            <ChatWithAI />
+          </ProtectedRoute>
+        }
+      />
+      
+      {/* School Admin Routes */}
       <Route
         path="/admin"
         element={
@@ -86,14 +101,21 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/teacher/analytics"
+        path="/admin/teacher-management"
         element={
-          <ProtectedRoute requiredRole="teacher">
-            <TeacherAnalytics />
+          <ProtectedRoute requiredRole="school">
+            <AdminTeacherManagement />
           </ProtectedRoute>
         }
       />
-
+      <Route
+        path="/admin/teachers"
+        element={
+          <ProtectedRoute requiredRole="school">
+            <AdminTeachers />
+          </ProtectedRoute>
+        }
+      />
       <Route 
         path="/admin/tools" 
         element={
@@ -101,6 +123,16 @@ function AppRoutes() {
             <AdminTools />
           </ProtectedRoute>
         } 
+      />
+      
+      {/* Teacher Routes */}
+      <Route
+        path="/teacher/analytics"
+        element={
+          <ProtectedRoute requiredRole="teacher">
+            <TeacherAnalytics />
+          </ProtectedRoute>
+        }
       />
 
       {/* Catch-all route for 404 errors */}
