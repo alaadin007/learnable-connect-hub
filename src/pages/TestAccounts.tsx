@@ -67,6 +67,9 @@ const TestAccounts = () => {
     const clearPreviousSessions = async () => {
       try {
         await supabase.auth.signOut();
+        localStorage.removeItem("testUser");
+        localStorage.removeItem("testUserRole");
+        localStorage.removeItem("testUserIndex");
         console.log("TestAccounts: Cleared previous sessions on page load");
       } catch (error) {
         console.error("Error clearing sessions:", error);
@@ -122,7 +125,7 @@ const TestAccounts = () => {
     }
   }, []);
 
-  // Updated for instant login
+  // Updated for instant login with timeout handling
   const handleUseAccount = useCallback(
     async (accountType: AccountType) => {
       setErrorMessage(null);
@@ -131,10 +134,20 @@ const TestAccounts = () => {
       try {
         console.log(`TestAccounts: Setting up instant login for ${accountType} test account...`);
         
+        // Add timeout to reset loading state if setTestUser takes too long
+        const loginTimeout = setTimeout(() => {
+          console.warn("Login timeout reached - resetting loading state");
+          setLoadingAccount(null);
+          toast.error("Login attempt timed out. Please try again.");
+        }, 5000);
+        
         // Set test user in auth context for instant login
         await setTestUser(accountType);
         
-        // Navigation is now handled in setTestUser for faster experience
+        // Clear timeout if login was successful
+        clearTimeout(loginTimeout);
+        
+        // Navigation is handled in setTestUser for faster experience
       } catch (error: any) {
         console.error(`Error setting up ${accountType} test account:`, error);
         setErrorMessage(`Setup failed: ${error.message || "Unknown error"}`);
@@ -153,6 +166,17 @@ const TestAccounts = () => {
         return <Users className="h-8 w-8 text-green-600" aria-hidden="true" />;
       case "student":
         return <GraduationCap className="h-8 w-8 text-purple-600" aria-hidden="true" />;
+    }
+  };
+
+  const getButtonLabel = (accountType: AccountType) => {
+    switch (accountType) {
+      case "school":
+        return "Login as School Admin";
+      case "teacher": 
+        return "Login as Teacher";
+      case "student":
+        return "Login as Student";
     }
   };
 
@@ -273,7 +297,7 @@ const TestAccounts = () => {
                       Accessing...
                     </>
                   ) : (
-                    `Login as ${account.role}`
+                    getButtonLabel(type as AccountType)
                   )}
                 </Button>
               </div>

@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, useEffect, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
@@ -66,6 +67,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const handleAuthenticatedNavigation = useCallback((role: string | null) => {
     const dashboardRoute = getDashboardByRole(role);
     const fromLocation = location.state?.from || dashboardRoute;
+    console.log(`Navigating authenticated user to: ${fromLocation}`);
     navigate(fromLocation, { replace: true });
   }, [getDashboardByRole, location.state, navigate]);
 
@@ -176,7 +178,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const setTestUser = useCallback(async (accountType: string, index = 0) => {
     setIsLoading(true);
     try {
+      // First clear any existing sessions
       await supabase.auth.signOut();
+      localStorage.removeItem("testUser");
+      localStorage.removeItem("testUserRole");
+      localStorage.removeItem("testUserIndex");
 
       const mockId = `test-${accountType}-${index}`;
       const mockSchoolId = `test-school-${index}`;
@@ -214,19 +220,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         },
       };
 
-      localStorage.setItem("testUser", JSON.stringify(mockUser));
-      localStorage.setItem("testUserRole", accountType);
-      localStorage.setItem("testUserIndex", index.toString());
-
+      // Set the local state
       setUser(mockUser);
       setProfile(mockProfile);
       setUserRole(accountType);
       setSchoolId(mockSchoolId);
       setIsSupervisor(accountType === "school");
+      
+      // Save to local storage for persistence
+      localStorage.setItem("testUser", JSON.stringify(mockUser));
+      localStorage.setItem("testUserRole", accountType);
+      localStorage.setItem("testUserIndex", index.toString());
 
       toast.success(`Logged in as test ${accountType} user`);
 
+      // Navigate to the appropriate dashboard based on role
       const dashboardRoute = getDashboardByRole(accountType);
+      console.log(`Navigating test user to: ${dashboardRoute}`);
       navigate(dashboardRoute, { replace: true });
     } catch (error) {
       toast.error(`Test account setup failed: ${(error as Error).message}`);
@@ -310,12 +320,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const initAuth = async () => {
+      setIsLoading(true);
       try {
         const storedTestUser = localStorage.getItem("testUser");
         const storedTestRole = localStorage.getItem("testUserRole");
         const storedTestIndex = localStorage.getItem("testUserIndex") ?? "0";
 
         if (storedTestUser && storedTestRole) {
+          console.log("Restoring test user session from localStorage");
           const testUser = JSON.parse(storedTestUser) as User;
           const testIndex = Number(storedTestIndex);
           const testEmail = testUser.email ?? `${storedTestRole}.test${testIndex}@learnable.edu`;
@@ -339,12 +351,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUserRole(storedTestRole);
           setSchoolId(`test-school-${testIndex}`);
           setIsSupervisor(storedTestRole === "school");
-
-          setIsLoading(false);
+          
+          // Set a timeout to ensure UI updates before we continue
+          setTimeout(() => {
+            setIsLoading(false);
+          }, 100);
         } else {
-          setIsLoading(true);
+          console.log("No test user found, checking for real user session");
           const { data } = await supabase.auth.getSession();
           if (data?.session?.user) {
+            console.log("Found real user session:", data.session.user.id);
             setUser(data.session.user);
             await fetchUserProfile(data.session.user.id);
           }
@@ -383,7 +399,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       userRole,
       isLoading,
       schoolId,
-      isSuperviser: isSupervisor,
+      isSupervisor, // Fixed the typo from isSuperviser
       signIn,
       signOut,
       setTestUser,

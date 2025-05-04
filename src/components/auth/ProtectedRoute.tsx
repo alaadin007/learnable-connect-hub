@@ -21,7 +21,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   requireSameSchool = false,
   redirectTo = "/login",
 }) => {
-  const { user, userRole, isLoading, isSuperviser, schoolId } = useAuth();
+  const { user, userRole, isLoading, isSupervisor, schoolId } = useAuth();
   const location = useLocation();
   const [forcedTimeout, setForcedTimeout] = useState(false);
 
@@ -29,10 +29,11 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   useEffect(() => {
     // Only set timeout if still loading
     if (isLoading) {
+      console.log("ProtectedRoute: Setting loading timeout");
       const timeoutId = setTimeout(() => {
         console.warn("ProtectedRoute: Loading timeout reached - forcing resolution");
         setForcedTimeout(true);
-      }, 2000); // Reduced timeout to 2 seconds
+      }, 1500); // Reduced timeout to 1.5 seconds
 
       return () => clearTimeout(timeoutId);
     }
@@ -46,6 +47,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   // Use the forced timeout to proceed if loading takes too long
   if (isLoading && !forcedTimeout) {
+    console.log("ProtectedRoute: Showing loading spinner");
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
@@ -55,6 +57,9 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
       </div>
     );
   }
+
+  // Debug logs to track what's happening
+  console.log(`ProtectedRoute checks - User role: ${userRole}, Required role: ${requiredRole}, Supervisor: ${isSupervisor}`);
 
   // Check role requirements if specified
   if (requiredRole && userRole !== requiredRole) {
@@ -69,7 +74,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   // Check supervisor requirement if specified
-  if (requireSupervisor && !isSuperviser) {
+  if (requireSupervisor && !isSupervisor) {
     console.log("ProtectedRoute: User is not a supervisor");
     return <Navigate to="/unauthorized" replace />;
   }
@@ -81,6 +86,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   // User is authorized, render children
+  console.log("ProtectedRoute: User authorized, rendering children");
   return <>{children}</>;
 };
 
