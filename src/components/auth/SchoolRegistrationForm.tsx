@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -64,18 +65,34 @@ const SchoolRegistrationForm = () => {
   const resendVerificationEmail = async (email: string) => {
     try {
       setIsLoading(true);
-      const { error } = await supabase.functions.invoke('resend-verification', {
+      const response = await supabase.functions.invoke('resend-verification', {
         body: { email }
       });
 
-      if (error) {
-        toast.error("Failed to resend verification email", { description: error.message });
+      if (response.error) {
+        console.error("Error from resend-verification function:", response.error);
+        toast.error("Failed to resend verification email", { 
+          description: response.error.message || "Please try again later" 
+        });
         return;
       }
 
-      toast.success("Verification email sent", { description: `A new verification email has been sent to ${email}` });
+      if (response.data && response.data.error) {
+        console.error("Error from response data:", response.data.error);
+        toast.error("Failed to resend verification email", { 
+          description: response.data.error || "Please try again later" 
+        });
+        return;
+      }
+
+      toast.success("Verification email sent", { 
+        description: `A new verification email has been sent to ${email}` 
+      });
     } catch (err: any) {
-      toast.error("Failed to resend verification email", { description: err?.message || "An unexpected error occurred" });
+      console.error("Exception in resendVerificationEmail:", err);
+      toast.error("Failed to resend verification email", { 
+        description: err?.message || "An unexpected error occurred" 
+      });
     } finally {
       setIsLoading(false);
     }
@@ -85,70 +102,66 @@ const SchoolRegistrationForm = () => {
     clearErrors();
     setIsLoading(true);
     try {
-      // Call your Supabase Edge Function to register school
-      try {
-        const { data, error } = await supabase.functions.invoke('register-school', {
-          body: {
-            schoolName: values.schoolName,
-            adminEmail: values.adminEmail,
-            adminPassword: values.adminPassword,
-            adminFullName: values.adminFullName,
-          },
-        });
+      console.log("Submitting registration form...");
+      const response = await supabase.functions.invoke('register-school', {
+        body: {
+          schoolName: values.schoolName,
+          adminEmail: values.adminEmail,
+          adminPassword: values.adminPassword,
+          adminFullName: values.adminFullName,
+        },
+      });
 
-        if (error) {
-          // Handle known error cases, e.g. email already registered
-          setIsLoading(false);
-          
-          // If we have a response with an error message
-          if (error.message?.includes("Email already registered") || 
-              (error.message?.includes("non-2xx status code") && 
-               error.message?.includes("409"))) {
-            setEmailError(values.adminEmail);
-            toast.error("Email already registered", {
-              description: "Please use a different email address or login."
-            });
-            return;
-          }
-          
-          // For other errors
-          setServerError(error.message || "Registration failed");
-          toast.error("Registration failed", {
-            description: error.message || "Please try again."
+      console.log("Response from register-school:", response);
+
+      // Check if there was an error calling the function
+      if (response.error) {
+        const errorMsg = response.error.message || "Registration failed";
+        console.error("Function invoke error:", errorMsg);
+        
+        // Handle known error cases from the error object
+        if (errorMsg.includes("Email already registered") || 
+            errorMsg.includes("409")) {
+          setEmailError(values.adminEmail);
+          toast.error("Email already registered", {
+            description: "Please use a different email address or login."
           });
-          return;
+        } else {
+          setServerError(errorMsg);
+          toast.error("Registration failed", {
+            description: errorMsg
+          });
         }
-
-        setRegistrationSuccess(true);
-        setVerificationEmail(values.adminEmail);
-        toast.success("Registration successful!", {
-          description: "Please check your email to verify your account."
-        });
-      } catch (invokeError: any) {
-        console.error("Edge function invoke error:", invokeError);
-        
-        // Try to parse the response data from the error
-        let errorMessage = "Registration failed";
-        try {
-          // Check if there's information in the error that we can extract
-          const errorBody = invokeError.message || '';
-          if (errorBody.includes("Email already registered") || 
-              errorBody.includes("already registered")) {
-            setEmailError(values.adminEmail);
-            errorMessage = "Email already registered";
-            toast.error("Email already registered", {
-              description: "Please use a different email address or login."
-            });
-            return;
-          }
-        } catch (parseError) {
-          console.error("Error parsing error response:", parseError);
-        }
-        
-        setServerError(errorMessage);
-        toast.error(errorMessage, { description: "Please try again." });
+        return;
       }
+
+      // Check if there's an error in the response data
+      if (response.data && response.data.error) {
+        const dataErrorMsg = response.data.error;
+        console.error("Response data error:", dataErrorMsg);
+        
+        if (dataErrorMsg.includes("Email already registered")) {
+          setEmailError(values.adminEmail);
+          toast.error("Email already registered", {
+            description: "Please use a different email address or login."
+          });
+        } else {
+          setServerError(dataErrorMsg);
+          toast.error("Registration failed", {
+            description: dataErrorMsg
+          });
+        }
+        return;
+      }
+
+      // If we got here, the registration was successful
+      setRegistrationSuccess(true);
+      setVerificationEmail(values.adminEmail);
+      toast.success("Registration successful!", {
+        description: "Please check your email to verify your account."
+      });
     } catch (err: any) {
+      console.error("Exception in onSubmit:", err);
       setServerError(err.message || "An unexpected error occurred");
       toast.error("Registration failed", {
         description: err.message || "Please try again."

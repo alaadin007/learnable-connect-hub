@@ -65,7 +65,30 @@ serve(async (req) => {
       }
     );
 
-    // Using admin API to generate a signup link
+    // Check if user exists
+    const { data: existingUserData, error: userLookupError } = await supabaseAdmin.auth.admin.listUsers({
+      filter: {
+        email: email,
+      },
+    });
+    
+    if (userLookupError) {
+      console.error("Error looking up user:", userLookupError);
+      return new Response(
+        JSON.stringify({ error: "Error looking up user: " + userLookupError.message }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+      );
+    }
+    
+    if (!existingUserData || !existingUserData.users || existingUserData.users.length === 0) {
+      console.log("User not found:", email);
+      return new Response(
+        JSON.stringify({ error: "No user found with this email" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 }
+      );
+    }
+
+    // Generate a signup link which will serve as our verification email
     const { data, error } = await supabaseAdmin.auth.admin.generateLink({
       type: 'signup',
       email: email,
