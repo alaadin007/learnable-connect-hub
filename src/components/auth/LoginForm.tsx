@@ -17,7 +17,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Loader2 } from "lucide-react";
+import { LogOut } from "lucide-react";
 
 const formSchema = z.object({
   email: z.string().email({
@@ -30,7 +30,7 @@ const formSchema = z.object({
 
 const LoginForm = () => {
   const navigate = useNavigate();
-  const { signIn, isLoading, setTestUser } = useAuth();
+  const { signIn, setTestUser } = useAuth();
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginInProgress, setLoginInProgress] = useState<boolean>(false);
 
@@ -74,7 +74,7 @@ const LoginForm = () => {
         }
         
         // Regular authentication for real users
-        setLoginInProgress(true); // Track real user login separately
+        setLoginInProgress(true);
         await signIn(email, password);
         // Navigation is handled in AuthContext on successful sign-in
       } catch (error: any) {
@@ -93,7 +93,6 @@ const LoginForm = () => {
   );
   
   const handleTestAccountClick = async (accountType: string) => {
-    // Skip setting loading state for test accounts
     try {
       console.log(`Direct test login for ${accountType} account`);
       
@@ -103,7 +102,6 @@ const LoginForm = () => {
       
       // Pass false to setTestUser to skip loading states
       await setTestUser(accountType, 0, false);
-      // Navigation handled inside setTestUser
     } catch (error: any) {
       console.error("Test account setup failed:", error);
       setLoginError(`Test account setup failed: ${error.message || "Unknown error"}`);
@@ -156,7 +154,7 @@ const LoginForm = () => {
         >
           {loginInProgress ? (
             <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              <LogOut className="mr-2 h-4 w-4" />
               Logging in...
             </>
           ) : (

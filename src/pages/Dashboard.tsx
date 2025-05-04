@@ -37,25 +37,9 @@ const MOCK_DATA = {
 };
 
 const Dashboard = () => {
-  const { userRole, profile, isTestUser, isLoading } = useAuth();
+  const { userRole, profile, isTestUser } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-
-  // Show loading state, but with a short timeout to avoid flashing
-  if (isLoading) {
-    return (
-      <>
-        <Navbar />
-        <main className="flex min-h-screen items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600 mx-auto mb-4" />
-            <p className="text-gray-600">Loading your dashboard...</p>
-          </div>
-        </main>
-        <Footer />
-      </>
-    );
-  }
 
   // Determine data source: real profile or mock
   const currentProfile = isTestUser && MOCK_DATA[userRole] ? MOCK_DATA[userRole] : profile;
