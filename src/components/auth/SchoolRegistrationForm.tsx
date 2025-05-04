@@ -65,9 +65,13 @@ const SchoolRegistrationForm = () => {
   const resendVerificationEmail = async (email: string) => {
     try {
       setIsLoading(true);
+      console.log("Attempting to resend verification email to:", email);
+      
       const response = await supabase.functions.invoke('resend-verification', {
         body: { email }
       });
+
+      console.log("Response from resend-verification:", response);
 
       if (response.error) {
         console.error("Error from resend-verification function:", response.error);
@@ -102,7 +106,8 @@ const SchoolRegistrationForm = () => {
     clearErrors();
     setIsLoading(true);
     try {
-      console.log("Submitting registration form...");
+      console.log("Submitting registration form...", values);
+      
       const response = await supabase.functions.invoke('register-school', {
         body: {
           schoolName: values.schoolName,

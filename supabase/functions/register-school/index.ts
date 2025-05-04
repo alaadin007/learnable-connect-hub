@@ -50,6 +50,7 @@ serve(async (req) => {
     let requestBody;
     try {
       requestBody = await req.json();
+      console.log("Request body:", JSON.stringify(requestBody));
     } catch (parseError) {
       console.error("Error parsing request body:", parseError);
       return new Response(
@@ -62,7 +63,12 @@ serve(async (req) => {
 
     // Validate required fields
     if (!schoolName || !adminEmail || !adminPassword || !adminFullName) {
-      console.log("Missing required fields");
+      console.log("Missing required fields:", { 
+        hasSchoolName: !!schoolName, 
+        hasAdminEmail: !!adminEmail, 
+        hasAdminPassword: !!adminPassword, 
+        hasAdminFullName: !!adminFullName 
+      });
       return new Response(
         JSON.stringify({ error: "Missing required fields" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
@@ -98,6 +104,13 @@ serve(async (req) => {
     }
 
     // Create the user with appropriate metadata
+    console.log("Creating admin user with metadata:", { 
+      email: adminEmail,
+      fullName: adminFullName,
+      schoolName: schoolName,
+      schoolCode: schoolCode 
+    });
+
     const { data: userData, error: userError } = await supabaseAdmin.auth.admin.createUser({
       email: adminEmail,
       password: adminPassword,
@@ -118,7 +131,52 @@ serve(async (req) => {
       );
     }
 
+    console.log("User created successfully:", userData.user.id);
+
+    // Create the school in database
+    try {
+      const { data: schoolData, error: schoolError } = await supabaseAdmin
+        .from('schools')
+        .insert([
+          { 
+            name: schoolName,
+            code: schoolCode,
+          }
+        ])
+        .select('id')
+        .single();
+
+      if (schoolError) {
+        console.error("Error creating school record:", schoolError);
+        // Continue the process, we'll return a warning later
+      } else {
+        console.log("School created successfully:", schoolData.id);
+        
+        // Create the teacher/admin record
+        const { error: teacherError } = await supabaseAdmin
+          .from('teachers')
+          .insert([
+            { 
+              id: userData.user.id,
+              school_id: schoolData.id,
+              is_supervisor: true, // Mark as supervisor (admin)
+            }
+          ]);
+
+        if (teacherError) {
+          console.error("Error creating teacher record:", teacherError);
+          // Continue the process, we'll return a warning later
+        } else {
+          console.log("Teacher record created successfully");
+        }
+      }
+    } catch (dbError) {
+      console.error("Error in database operations:", dbError);
+      // Continue the process, we'll return a warning later
+    }
+
     // After successful creation, send email verification separately
+    console.log("Sending verification email to:", adminEmail);
     const { data: linkData, error: verificationError } = await supabaseAdmin.auth.admin.generateLink({
       type: 'signup',
       email: adminEmail,
