@@ -21,6 +21,8 @@ serve(async (req) => {
   }
 
   try {
+    console.log("Register school function called");
+    
     // Create Supabase admin client
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -37,6 +39,7 @@ serve(async (req) => {
     const { schoolName, adminEmail, adminPassword, adminFullName } = await req.json() as RegisterSchoolRequest;
 
     if (!schoolName || !adminEmail || !adminPassword) {
+      console.log("Missing required fields");
       return new Response(
         JSON.stringify({ error: "Missing required fields" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
@@ -49,91 +52,106 @@ serve(async (req) => {
     console.log(`Registering school: ${schoolName} with admin: ${adminEmail}`);
     
     // Check if user already exists by directly querying auth.users
-    // This is more reliable than the previous implementation
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.listUsers({
-      page: 1,
-      perPage: 1,
-      filter: {
-        email: adminEmail,
-      },
-    });
-    
-    // Check if user exists in the returned list
-    if (authError) {
-      console.error("Error checking for existing user:", authError);
+    try {
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.listUsers({
+        page: 1,
+        perPage: 1,
+        filter: {
+          email: adminEmail,
+        },
+      });
+      
+      // Check if user exists in the returned list
+      if (authError) {
+        console.error("Error checking for existing user:", authError);
+        return new Response(
+          JSON.stringify({ error: "Error checking for existing user: " + authError.message }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+        );
+      }
+      
+      if (authData && authData.users && authData.users.length > 0) {
+        console.log("User already exists:", authData.users[0].email);
+        return new Response(
+          JSON.stringify({ error: "Email already registered" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+        );
+      }
+    } catch (checkError) {
+      console.error("Exception during email check:", checkError);
       return new Response(
-        JSON.stringify({ error: "Error checking for existing user: " + authError.message }),
+        JSON.stringify({ error: "Failed to check existing user: " + checkError.message }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
-      );
-    }
-    
-    if (authData && authData.users && authData.users.length > 0) {
-      console.log("User already exists:", authData.users[0].email);
-      return new Response(
-        JSON.stringify({ error: "Email already registered" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
       );
     }
 
     // Create the user with appropriate metadata
-    const { data: userData, error: userError } = await supabaseAdmin.auth.admin.createUser({
-      email: adminEmail,
-      password: adminPassword,
-      email_confirm: false, // Set to false to send email confirmation
-      user_metadata: {
-        full_name: adminFullName,
-        school_name: schoolName,
-        school_code: schoolCode,
-        user_type: "school" // This will mark the user as a school admin
+    try {
+      const { data: userData, error: userError } = await supabaseAdmin.auth.admin.createUser({
+        email: adminEmail,
+        password: adminPassword,
+        email_confirm: false, // Set to false to send email confirmation
+        user_metadata: {
+          full_name: adminFullName,
+          school_name: schoolName,
+          school_code: schoolCode,
+          user_type: "school" // This will mark the user as a school admin
+        }
+      });
+
+      if (userError) {
+        console.error("Error creating admin user:", userError);
+        return new Response(
+          JSON.stringify({ error: userError.message }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+        );
       }
-    });
 
-    if (userError) {
-      console.error("Error creating admin user:", userError);
-      return new Response(
-        JSON.stringify({ error: userError.message }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
-      );
-    }
+      // After successful creation, send email verification separately
+      const { data: linkData, error: verificationError } = await supabaseAdmin.auth.admin.generateLink({
+        type: 'signup',
+        email: adminEmail,
+      });
 
-    // After successful creation, send email verification separately
-    const { data: linkData, error: verificationError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'signup',
-      email: adminEmail,
-    });
+      if (verificationError) {
+        console.error("Error sending verification email:", verificationError);
+        // Still return success but note the verification issue
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            message: "School registered successfully, but there was an issue sending the verification email. Please try to login and request a new verification email.",
+            userId: userData.user.id,
+            schoolCode,
+            email_verification_sent: false
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 201 }
+        );
+      }
 
-    if (verificationError) {
-      console.error("Error sending verification email:", verificationError);
-      // Still return success but note the verification issue
+      console.log(`School registered successfully. Admin user ID: ${userData.user.id}, verification email sent`);
+
+      // Return success response
       return new Response(
         JSON.stringify({ 
           success: true, 
-          message: "School registered successfully, but there was an issue sending the verification email. Please try to login and request a new verification email.",
+          message: "School registered successfully. Please check your email to verify your account.",
           userId: userData.user.id,
           schoolCode,
-          email_verification_sent: false
+          email_verification_sent: true
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 201 }
       );
+    } catch (createError) {
+      console.error("Exception during user creation:", createError);
+      return new Response(
+        JSON.stringify({ error: "Failed to create user: " + createError.message }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+      );
     }
-
-    console.log(`School registered successfully. Admin user ID: ${userData.user.id}, verification email sent`);
-
-    // Return success response
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: "School registered successfully. Please check your email to verify your account.",
-        userId: userData.user.id,
-        schoolCode,
-        email_verification_sent: true
-      }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 201 }
-    );
   } catch (error) {
     console.error("Error in register-school function:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: "An unexpected error occurred: " + error.message }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
   }

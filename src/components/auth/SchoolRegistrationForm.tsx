@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -157,10 +158,10 @@ const SchoolRegistrationForm = () => {
         if (error.message.includes("service") || error.message.includes("unavailable")) {
           setServerError("Registration service is temporarily unavailable. Please try again later.");
         } else {
-          setServerError(error.message);
+          setServerError(error.message || "An error occurred during registration");
         }
         toast.error("Registration failed", {
-          description: error.message
+          description: error.message || "An error occurred during registration"
         });
         return;
       }
@@ -173,13 +174,12 @@ const SchoolRegistrationForm = () => {
           toast.error("Email already registered", {
             description: "Please use a different email address or login if this is your account."
           });
-          return;
+        } else {
+          setServerError(data.error);
+          toast.error("Registration failed", {
+            description: data.error
+          });
         }
-        
-        setServerError(data.error);
-        toast.error("Registration failed", {
-          description: data.error
-        });
         return;
       }
 
