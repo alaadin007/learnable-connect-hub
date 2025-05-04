@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -23,10 +22,11 @@ const Navbar = () => {
   const toggleMenu = () => setIsOpen((open) => !open);
 
   const handleLogout = useCallback(async () => {
+    console.log("Navbar: Logout requested");
     await signOut();
-    navigate("/");
+    // Navigation is handled in the signOut function
     setIsOpen(false);
-  }, [signOut, navigate]);
+  }, [signOut]);
 
   const handleBackToTestAccounts = useCallback(async () => {
     await signOut();
@@ -85,8 +85,6 @@ const Navbar = () => {
         ];
     }
   }, [profileUserType, isLoggedIn, isTestAccountsPage]);
-
-  const navLinks = getNavLinks();
 
   const isActiveLink = useCallback((href: string): boolean => {
     const currentPath = location.pathname;
@@ -175,7 +173,7 @@ const Navbar = () => {
 
           {/* Desktop nav */}
           <nav className="hidden md:flex space-x-8">
-            {navLinks.map((link) => (
+            {getNavLinks().map((link) => (
               <button
                 key={link.name}
                 onClick={() => handleNavigation(link.href)}
@@ -255,7 +253,7 @@ const Navbar = () => {
       >
         <div className="px-4 space-y-4 divide-y divide-gray-100 h-full overflow-y-auto">
           <div className="space-y-1">
-            {navLinks.map((link) => (
+            {getNavLinks().map((link) => (
               <button
                 key={link.name}
                 onClick={() => handleNavigation(link.href)}

@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -15,7 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 const Login = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { signIn, user, isLoading: authLoading } = useAuth();
+  const { signIn, user, isLoading: authLoading, profile } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -24,9 +23,15 @@ const Login = () => {
   // Redirect if already authenticated
   useEffect(() => {
     if (user) {
-      navigate('/dashboard');
+      // Redirect based on user role
+      if (profile?.user_type === "school") {
+        console.log("Login: Detected school admin, redirecting to admin dashboard");
+        navigate('/admin', { replace: true });
+      } else {
+        navigate('/dashboard', { replace: true });
+      }
     }
-  }, [user, navigate]);
+  }, [user, navigate, profile]);
 
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
@@ -116,6 +121,7 @@ const Login = () => {
     setIsLoading(true);
     
     try {
+      console.log("Login: Attempting to sign in");
       await signIn(email, password);
       // Auth context will handle redirection based on user role
     } catch (error: any) {

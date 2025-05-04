@@ -249,6 +249,43 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
     }
   };
 
+  // Role-based redirection handler - Fixed to properly handle school admin redirection
+  const handleRoleBasedRedirection = (role: string | undefined) => {
+    if (!role) return;
+    
+    console.log(`AuthContext: Handling redirect for role: ${role}, current path: ${location.pathname}`);
+    
+    // Avoid redirect loops by checking current path
+    const currentPath = location.pathname;
+    let targetPath = '';
+    
+    switch (role) {
+      case "school":
+        targetPath = "/admin";
+        if (currentPath.startsWith("/admin")) return;
+        break;
+        
+      case "teacher":
+        targetPath = "/teacher/analytics";
+        if (currentPath.startsWith("/teacher")) return;
+        break;
+        
+      case "student":
+        targetPath = "/dashboard";
+        if (currentPath === "/dashboard") return;
+        break;
+        
+      default:
+        return; // Unknown role, don't redirect
+    }
+    
+    // Only redirect if we have a target and aren't already there
+    if (targetPath && currentPath !== targetPath) {
+      console.log(`AuthContext: Redirecting from ${currentPath} to ${targetPath}`);
+      navigate(targetPath, { replace: true });
+    }
+  };
+
   // Prepare test data for student accounts
   const prepareTestStudentData = async (userId: string, profile: UserProfile) => {
     // Check for existing sessions or create test sessions
@@ -290,42 +327,6 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       } catch (error) {
         console.error("Error populating test data for teacher:", error);
       }
-    }
-  };
-
-  // Role-based redirection handler
-  const handleRoleBasedRedirection = (role: string | undefined) => {
-    if (!role) return;
-    
-    console.log(`AuthContext: Handling redirect for role: ${role}`);
-    
-    // Avoid redirect loops by checking current path
-    const currentPath = location.pathname;
-    let targetPath = '';
-    
-    switch (role) {
-      case "school":
-        targetPath = "/admin";
-        if (currentPath.startsWith("/admin")) return;
-        break;
-        
-      case "teacher":
-        targetPath = "/teacher/analytics";
-        if (currentPath.startsWith("/teacher")) return;
-        break;
-        
-      case "student":
-        targetPath = "/dashboard";
-        if (currentPath === "/dashboard") return;
-        break;
-        
-      default:
-        return; // Unknown role, don't redirect
-    }
-    
-    // Only redirect if we have a target and aren't already there
-    if (targetPath && currentPath !== targetPath) {
-      navigate(targetPath, { replace: true });
     }
   };
 
@@ -424,6 +425,48 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
     }
   };
 
+  // Fixed signOut function to properly handle both test and real accounts
+  const signOut = async () => {
+    setIsLoading(true);
+    try {
+      if (userRole === "student") {
+        try {
+          await sessionLogger.endSession("User logged out");
+        } catch (e) {
+          console.error("Failed to end session", e);
+        }
+      }
+
+      const isTestUser = user?.email?.includes(".test@learnable.edu") || user?.id?.startsWith("test-");
+
+      // For real users, we need to sign out from Supabase
+      if (!isTestUser) {
+        console.log("Signing out real user from Supabase");
+        const { error } = await supabase.auth.signOut();
+        if (error) throw error;
+      } else {
+        console.log("Signing out test user (no Supabase call needed)");
+      }
+
+      // Clear all auth state
+      setSession(null);
+      setUser(null);
+      setProfile(null);
+      setUserRole(null);
+      setIsSuperviser(false);
+      setSchoolId(null);
+
+      // Redirect to home page
+      navigate("/");
+      toast.success(isTestUser ? "Test session ended" : "Logged out successfully");
+    } catch (error: any) {
+      console.error("Sign out error:", error);
+      toast.error(error.error_description ?? error.message ?? "Failed to log out");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const signUp = async (email: string, password: string, metadata: object = {}) => {
     setIsLoading(true);
     try {
@@ -446,42 +489,6 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       console.error("Sign up error caught:", error);
       toast.error(error.error_description ?? error.message);
       throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const signOut = async () => {
-    setIsLoading(true);
-    try {
-      if (userRole === "student") {
-        try {
-          await sessionLogger.endSession("User logged out");
-        } catch (e) {
-          console.error("Failed to end session", e);
-        }
-      }
-
-      const isTestUser =
-        user?.email?.includes(".test@learnable.edu") || user?.id?.startsWith("test-");
-
-      if (!isTestUser) {
-        console.log("Signing out user");
-        await supabase.auth.signOut();
-      }
-
-      setSession(null);
-      setUser(null);
-      setProfile(null);
-      setUserRole(null);
-      setIsSuperviser(false);
-      setSchoolId(null);
-
-      navigate("/");
-      toast.success(isTestUser ? "Test session ended" : "Logged out successfully");
-    } catch (error: any) {
-      console.error("Sign out error:", error);
-      toast.error(error.error_description ?? error.message ?? "Failed to log out");
     } finally {
       setIsLoading(false);
     }

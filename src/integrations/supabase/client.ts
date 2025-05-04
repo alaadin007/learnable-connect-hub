@@ -38,7 +38,10 @@ supabase.auth.onAuthStateChange((event, session) => {
 export const isTestAccount = (email: string): boolean => {
   // Used to identify development test accounts which get special handling
   if (!email) return false;
-  return email.endsWith('@testschool.edu') || email.endsWith('.test@learnable.edu');
+  return email.endsWith('@testschool.edu') || 
+         email.endsWith('.test@learnable.edu') || 
+         email.includes('test') || 
+         email.includes('demo');
 };
 
 // Default test school code - used when creating test accounts
