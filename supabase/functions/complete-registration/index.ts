@@ -58,6 +58,8 @@ serve(async (req) => {
       );
     }
 
+    console.log("Complete Registration - Processing user ID:", userId);
+
     // Get user details
     const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(userId);
     
@@ -70,6 +72,7 @@ serve(async (req) => {
     }
 
     const user = userData.user;
+    console.log("User found:", user.id, "Email:", user.email);
     
     // Check if email is verified
     if (!user.email_confirmed_at) {
@@ -79,8 +82,11 @@ serve(async (req) => {
       );
     }
 
+    console.log("Email verified at:", user.email_confirmed_at);
+
     // Check if registration is already completed
     if (user.user_metadata?.registration_complete === true) {
+      console.log("Registration already completed for user:", userId);
       return new Response(
         JSON.stringify({ 
           success: true, 
@@ -96,11 +102,14 @@ serve(async (req) => {
     const adminFullName = user.user_metadata?.full_name;
     
     if (!schoolName || !schoolCode || !adminFullName) {
+      console.error("Missing user metadata for user:", userId, "Metadata:", user.user_metadata);
       return new Response(
         JSON.stringify({ error: "Missing user metadata" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
       );
     }
+
+    console.log("School info:", schoolName, schoolCode, "Admin:", adminFullName);
 
     // Create school records now that the user is verified
     try {
@@ -129,6 +138,8 @@ serve(async (req) => {
           registration_complete: true
         }
       });
+      
+      console.log("User metadata updated to mark registration as complete");
       
     } catch (error) {
       console.error("Error in createSchoolRecords:", error);

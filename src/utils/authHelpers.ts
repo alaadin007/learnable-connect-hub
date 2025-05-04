@@ -13,8 +13,15 @@ export const resendVerificationEmail = async (email: string): Promise<{ success:
     
     console.log("Calling resend-verification function with email:", email);
     
+    // Get the current deployment URL to send in the request
+    const currentUrl = window.location.origin;
+    console.log("Current deployment URL:", currentUrl);
+    
     const { data, error } = await supabase.functions.invoke("resend-verification", {
-      body: { email },
+      body: { 
+        email,
+        currentUrl  // Send the current URL to the function
+      },
     });
 
     console.log("Response from resend-verification:", { data, error });

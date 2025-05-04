@@ -28,6 +28,7 @@ const Login = () => {
   const [resendEmail, setResendEmail] = useState("");
   const [isResending, setIsResending] = useState(false);
   const [resendError, setResendError] = useState<string | null>(null);
+  const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
@@ -51,41 +52,59 @@ const Login = () => {
     const handleEmailConfirmation = async () => {
       // Check if this is a callback from email verification
       if (completeRegistration === "true") {
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        // If user is verified and logged in
-        if (session?.user?.email_confirmed_at) {
-          // Call complete-registration function with the user ID
-          try {
-            const userId = session.user.id;
-            toast.loading("Finalizing your registration...");
+        setProcessing(true);
+        try {
+          console.log("Checking session for completeRegistration");
+          const { data: { session } } = await supabase.auth.getSession();
+          
+          // If user is verified and logged in
+          if (session?.user?.email_confirmed_at) {
+            console.log("User is verified and has a session");
             
-            const response = await supabase.functions.invoke('complete-registration', {
-              body: { userId }
-            });
-            
-            if (response.error) {
-              console.error("Error completing registration:", response.error);
-              toast.error("Registration completion failed", { 
-                description: response.error.message
-              });
-              return;
-            }
-            
-            if (response.data && response.data.success) {
-              toast.success("Registration completed!", { 
-                description: "Your school has been registered successfully."
+            // Call complete-registration function with the user ID
+            try {
+              const userId = session.user.id;
+              toast.loading("Finalizing your registration...");
+              
+              console.log("Calling complete-registration function with userId:", userId);
+              const response = await supabase.functions.invoke('complete-registration', {
+                body: { userId }
               });
               
-              // Redirect to dashboard or home page
-              setTimeout(() => {
-                navigate("/");
-              }, 1500);
+              console.log("Response from complete-registration:", response);
+              
+              if (response.error) {
+                console.error("Error completing registration:", response.error);
+                toast.error("Registration completion failed", { 
+                  description: response.error.message
+                });
+                setProcessing(false);
+                return;
+              }
+              
+              if (response.data && response.data.success) {
+                toast.success("Registration completed!", { 
+                  description: "Your school has been registered successfully."
+                });
+                
+                // Redirect to dashboard or home page
+                setTimeout(() => {
+                  setProcessing(false);
+                  navigate("/");
+                }, 1500);
+              }
+            } catch (error) {
+              console.error("Error completing registration:", error);
+              toast.error("Failed to complete registration");
+              setProcessing(false);
             }
-          } catch (error) {
-            console.error("Error completing registration:", error);
-            toast.error("Failed to complete registration");
+          } else {
+            console.log("User is either not verified or doesn't have a session");
+            setProcessing(false);
           }
+        } catch (error) {
+          console.error("Error in email confirmation process:", error);
+          setProcessing(false);
         }
       }
     };
@@ -132,7 +151,15 @@ const Login = () => {
             </p>
           </div>
           
-          <LoginForm />
+          {processing ? (
+            <div className="text-center p-8">
+              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-learnable-purple" />
+              <p>Processing your verification...</p>
+              <p className="text-sm text-gray-500 mt-2">Please wait while we complete your registration.</p>
+            </div>
+          ) : (
+            <LoginForm />
+          )}
           
           <div className="mt-8 text-center space-y-4">
             <p className="text-sm text-gray-600">
