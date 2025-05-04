@@ -23,14 +23,27 @@ export const supabase = createClient<Database>(
     global: {
       // Set reasonable timeouts for fetches
       fetch: (url, options) => {
-        const timeout = 20000; // 20 seconds
+        const timeout = 30000; // 30 seconds (increased from 20)
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeout);
         
         return fetch(url, {
           ...options,
           signal: controller.signal,
-        }).finally(() => clearTimeout(timeoutId));
+          headers: {
+            ...options?.headers,
+            'X-Client-Info': 'learning-platform-web-app', // Add client identifier for better tracking
+          },
+        })
+        .then(response => {
+          clearTimeout(timeoutId);
+          return response;
+        })
+        .catch(error => {
+          clearTimeout(timeoutId);
+          console.error('Supabase fetch error:', error);
+          throw error;
+        });
       }
     }
   }
@@ -40,10 +53,15 @@ export const supabase = createClient<Database>(
 supabase.auth.onAuthStateChange((event, session) => {
   if (event === 'SIGNED_OUT') {
     console.log('User signed out');
+    // Clear any local session data
+    localStorage.removeItem('lastActiveRole');
+    localStorage.removeItem('lastActiveSchool');
   } else if (event === 'SIGNED_IN') {
     console.log('User signed in');
   } else if (event === 'TOKEN_REFRESHED') {
     console.log('Token refreshed');
+  } else if (event === 'USER_UPDATED') {
+    console.log('User updated');
   }
 });
 
@@ -78,3 +96,29 @@ export type TeacherInvitationResult = {
   school_name: string;
   email: string;
 }
+
+// Function to validate user role access
+export const validateRoleAccess = async (userId: string | undefined, requiredRole: string | string[] | undefined): Promise<boolean> => {
+  if (!userId || !requiredRole) return false;
+  
+  try {
+    // Get user profile to check role
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('user_type')
+      .eq('id', userId)
+      .single();
+    
+    if (error || !profile) return false;
+    
+    // Check if user has required role
+    if (Array.isArray(requiredRole)) {
+      return requiredRole.includes(profile.user_type);
+    } else {
+      return profile.user_type === requiredRole;
+    }
+  } catch (error) {
+    console.error('Error validating role access:', error);
+    return false;
+  }
+};

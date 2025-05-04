@@ -78,79 +78,79 @@ function App() {
             <Route path="/test-accounts" element={<TestAccounts />} />
             <Route path="/unauthorized" element={<Unauthorized />} />
 
-            {/* Protected routes */}
+            {/* Protected routes for all authenticated users */}
             <Route element={<ProtectedRoute />}>
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/chat" element={<ChatWithAI />} />
               <Route path="/chat-v2" element={<ChatPage />} />
               <Route path="/documents" element={<Documents />} />
-              
-              {/* Admin routes */}
-              <Route path="/admin/teachers" element={
-                <ProtectedRoute requiredRole="school">
-                  <AdminTeachers />
-                </ProtectedRoute>
-              } />
-              <Route path="/admin/students" element={
-                <ProtectedRoute requiredRole="school">
-                  <AdminStudents />
-                </ProtectedRoute>
-              } />
-              <Route path="/admin/settings" element={
-                <ProtectedRoute requiredRole="school">
-                  <SchoolSettings />
-                </ProtectedRoute>
-              } />
-              <Route path="/admin/analytics" element={
-                <ProtectedRoute requiredRole="school">
-                  <AdminAnalytics />
-                </ProtectedRoute>
-              } />
-              <Route path="/admin" element={
-                <ProtectedRoute requiredRole="school">
-                  <SchoolAdmin />
-                </ProtectedRoute>
-              } />
-              <Route path="/admin/tools" element={
-                <ProtectedRoute requiredRole="school">
-                  <AdminTools />
-                </ProtectedRoute>
-              } />
-              <Route path="/admin/teacher-management" element={
-                <ProtectedRoute requiredRole="school">
-                  <AdminTeacherManagement />
-                </ProtectedRoute>
-              } />
-
-              {/* Teacher routes */}
-              <Route path="/teacher/students" element={
-                <ProtectedRoute requiredRole="teacher">
-                  <TeacherStudents />
-                </ProtectedRoute>
-              } />
-              <Route path="/teacher/analytics" element={
-                <ProtectedRoute requiredRole="teacher">
-                  <TeacherAnalytics />
-                </ProtectedRoute>
-              } />
-
-              {/* Student routes */}
-              <Route path="/student/progress" element={
-                <ProtectedRoute requiredRole="student">
-                  <StudentProgress />
-                </ProtectedRoute>
-              } />
-              <Route path="/student/assessments" element={
-                <ProtectedRoute requiredRole="student">
-                  <StudentAssessments />
-                </ProtectedRoute>
-              } />
-              <Route path="/student/settings" element={
-                <ProtectedRoute requiredRole="student">
-                  <StudentSettings />
-                </ProtectedRoute>
-              } />
             </Route>
+              
+            {/* School Admin routes */}
+            <Route path="/admin" element={
+              <ProtectedRoute requiredRole="school">
+                <SchoolAdmin />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/teachers" element={
+              <ProtectedRoute requiredRole="school">
+                <AdminTeachers />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/students" element={
+              <ProtectedRoute requiredRole="school">
+                <AdminStudents />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/settings" element={
+              <ProtectedRoute requiredRole="school">
+                <SchoolSettings />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/analytics" element={
+              <ProtectedRoute requiredRole="school">
+                <AdminAnalytics />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/tools" element={
+              <ProtectedRoute requiredRole="school">
+                <AdminTools />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/teacher-management" element={
+              <ProtectedRoute requiredRole="school">
+                <AdminTeacherManagement />
+              </ProtectedRoute>
+            } />
+
+            {/* Teacher routes */}
+            <Route path="/teacher/students" element={
+              <ProtectedRoute requiredRole="teacher">
+                <TeacherStudents />
+              </ProtectedRoute>
+            } />
+            <Route path="/teacher/analytics" element={
+              <ProtectedRoute requiredRole="teacher">
+                <TeacherAnalytics />
+              </ProtectedRoute>
+            } />
+
+            {/* Student routes */}
+            <Route path="/student/progress" element={
+              <ProtectedRoute requiredRole="student">
+                <StudentProgress />
+              </ProtectedRoute>
+            } />
+            <Route path="/student/assessments" element={
+              <ProtectedRoute requiredRole="student">
+                <StudentAssessments />
+              </ProtectedRoute>
+            } />
+            <Route path="/student/settings" element={
+              <ProtectedRoute requiredRole="student">
+                <StudentSettings />
+              </ProtectedRoute>
+            } />
 
             {/* Special invite route */}
             <Route path="/invite/teacher/:token" element={<TeacherInvitation />} />

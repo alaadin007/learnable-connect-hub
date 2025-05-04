@@ -1,12 +1,12 @@
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { 
   MessageSquare, BarChart3, Users, School, FileText, Settings, 
-  ChevronDown, User 
+  ChevronDown, User, Loader2
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { 
@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 // Mock Data for Test Accounts
 const MOCK_DATA = {
@@ -39,12 +40,44 @@ const MOCK_DATA = {
 };
 
 const Dashboard = () => {
-  const { userRole, profile, isTestUser, isLoading, user } = useAuth();
+  const { userRole, profile, isTestUser, isLoading, user, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [isVerifying, setIsVerifying] = useState(false);
 
   // Determine data source: real profile or mock
   const currentProfile = isTestUser && MOCK_DATA[userRole] ? MOCK_DATA[userRole] : profile;
+
+  // Verify role on component mount
+  useEffect(() => {
+    const verifyUserRole = async () => {
+      if (user && !isTestUser) {
+        setIsVerifying(true);
+        try {
+          // Real-time check for user role in database
+          const { data: dbProfile, error } = await supabase
+            .from('profiles')
+            .select('user_type')
+            .eq('id', user.id)
+            .single();
+          
+          if (error) throw error;
+          
+          // If cached role doesn't match database role, refresh profile
+          if (dbProfile && userRole !== dbProfile.user_type) {
+            console.log(`Dashboard - Role mismatch detected. Cached: ${userRole}, DB: ${dbProfile.user_type}`);
+            await refreshProfile();
+          }
+        } catch (error) {
+          console.error("Error verifying user role:", error);
+        } finally {
+          setIsVerifying(false);
+        }
+      }
+    };
+    
+    verifyUserRole();
+  }, [user, userRole, isTestUser, refreshProfile]);
 
   useEffect(() => {
     // Check authentication status
@@ -59,7 +92,7 @@ const Dashboard = () => {
     console.log("Profile data:", profile);
   }, [isLoading, user, userRole, profile, navigate, location.pathname]);
 
-  if (isLoading) {
+  if (isLoading || isVerifying) {
     return (
       <>
         <Navbar />
@@ -91,7 +124,7 @@ const Dashboard = () => {
     );
   }
 
-  // Same conditional rendering of dashboards by role
+  // Redirect to role-specific dashboard
   if (userRole === "school") {
     return <SchoolAdminDashboard profile={currentProfile} />;
   }
@@ -155,6 +188,16 @@ const Dashboard = () => {
               })
             }
           />
+          <DashboardCard
+            title="Documents"
+            description="Upload and manage learning materials"
+            icon={<FileText className="h-10 w-10" />}
+            onClick={() =>
+              navigate("/documents", {
+                state: { fromNavigation: true },
+              })
+            }
+          />
         </div>
       );
     }
@@ -167,6 +210,16 @@ const Dashboard = () => {
           icon={<MessageSquare className="h-10 w-10" />}
           onClick={() =>
             navigate("/chat", {
+              state: { fromNavigation: true },
+            })
+          }
+        />
+        <DashboardCard
+          title="Documents"
+          description="Upload and access your learning materials"
+          icon={<FileText className="h-10 w-10" />}
+          onClick={() =>
+            navigate("/documents", {
               state: { fromNavigation: true },
             })
           }
@@ -208,6 +261,26 @@ const Dashboard = () => {
 
 const SchoolAdminDashboard: React.FC<{ profile: any }> = ({ profile }) => {
   const navigate = useNavigate();
+  const { refreshProfile } = useAuth();
+  const [isVerifyingSchool, setIsVerifyingSchool] = useState(false);
+  
+  // Verify school data on mount
+  useEffect(() => {
+    const verifySchoolData = async () => {
+      if (!profile?.organization) {
+        setIsVerifyingSchool(true);
+        try {
+          await refreshProfile();
+        } catch (error) {
+          console.error("Failed to refresh school profile:", error);
+        } finally {
+          setIsVerifyingSchool(false);
+        }
+      }
+    };
+    
+    verifySchoolData();
+  }, [profile, refreshProfile]);
 
   const handleQuickActionSelect = (action: string) => {
     const routes: Record<string, string> = {
@@ -215,9 +288,10 @@ const SchoolAdminDashboard: React.FC<{ profile: any }> = ({ profile }) => {
       "view-analytics": "/admin/analytics",
       "school-settings": "/admin/settings",
       "student-management": "/admin/students",
+      "dashboard": "/dashboard",
     };
     if (routes[action]) {
-      navigate(routes[action], { state: { fromNavigation: true } });
+      navigate(routes[action], { state: { fromNavigation: true, preserveContext: true } });
     }
   };
 
@@ -239,19 +313,26 @@ const SchoolAdminDashboard: React.FC<{ profile: any }> = ({ profile }) => {
               <CardDescription>Your school details</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2">
-                <div className="flex flex-col sm:flex-row sm:items-center">
-                  <span className="font-medium min-w-32">School Name:</span>
-                  <span>{profile.organization?.name ?? "Not available"}</span>
+              {isVerifyingSchool ? (
+                <div className="flex items-center space-x-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Loading school details...</span>
                 </div>
-                <div className="flex flex-col sm:flex-row sm:items-center">
-                  <span className="font-medium min-w-32">School Code:</span>
-                  <span className="font-mono">{profile.organization?.code ?? "Not available"}</span>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center">
+                    <span className="font-medium min-w-32">School Name:</span>
+                    <span>{profile.organization?.name ?? "Not available"}</span>
+                  </div>
+                  <div className="flex flex-col sm:flex-row sm:items-center">
+                    <span className="font-medium min-w-32">School Code:</span>
+                    <span className="font-mono">{profile.organization?.code ?? "Not available"}</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Your school code is used to invite teachers and students.
+                  </p>
                 </div>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Your school code is used to invite teachers and students.
-                </p>
-              </div>
+              )}
             </CardContent>
           </Card>
 
@@ -266,6 +347,10 @@ const SchoolAdminDashboard: React.FC<{ profile: any }> = ({ profile }) => {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-56 bg-white" >
+                  <DropdownMenuItem onClick={() => handleQuickActionSelect("dashboard")}>
+                    <User className="mr-2 h-4 w-4" />
+                    Dashboard
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleQuickActionSelect("manage-teachers")}>
                     <Users className="mr-2 h-4 w-4" />
                     Manage Teachers
@@ -317,6 +402,12 @@ const SchoolAdminDashboard: React.FC<{ profile: any }> = ({ profile }) => {
               description="Get help from our AI learning assistant"
               icon={<MessageSquare className="h-10 w-10" />}
               onClick={() => navigate("/chat", { state: { fromNavigation: true } })}
+            />
+            <DashboardCard
+              title="Documents"
+              description="Upload and manage learning materials"
+              icon={<FileText className="h-10 w-10" />}
+              onClick={() => navigate("/documents", { state: { fromNavigation: true } })}
             />
           </div>
         </div>

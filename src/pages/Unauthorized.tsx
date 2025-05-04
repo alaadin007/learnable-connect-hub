@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, ArrowLeft, Home } from "lucide-react";
@@ -9,7 +9,18 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 const Unauthorized = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { userRole, isTestUser } = useAuth();
+  const { userRole, isTestUser, user } = useAuth();
+  const fromPath = location.state?.from || "/";
+  
+  // Log unauthorized access attempts for debugging
+  useEffect(() => {
+    console.log("Unauthorized access attempt:", {
+      path: fromPath,
+      userRole,
+      userId: user?.id,
+      isTestUser
+    });
+  }, [fromPath, userRole, user, isTestUser]);
   
   const goBack = () => navigate(-1);
   
@@ -29,14 +40,14 @@ const Unauthorized = () => {
       <div className="max-w-md w-full px-6 py-8 bg-white shadow-md rounded-lg">
         <Alert className="mb-6 border-yellow-400 bg-yellow-50" role="region" aria-label="Access limited warning">
           <AlertCircle className="h-4 w-4 text-yellow-600" />
-          <AlertTitle className="text-yellow-700">Access limited</AlertTitle>
+          <AlertTitle className="text-yellow-700">Access Limited</AlertTitle>
           <AlertDescription className="text-yellow-700">
             You're trying to access a page that requires different permissions
           </AlertDescription>
         </Alert>
         
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-800 mb-4">Access Limited</h2>
+          <h2 className="text-2xl font-bold text-gray-800 mb-4">Access Restricted</h2>
           
           <p className="mb-6 text-gray-600">
             You're currently signed in as a <span className="font-medium">{userRole || "unknown"}</span> user.
