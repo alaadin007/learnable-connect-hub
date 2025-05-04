@@ -112,9 +112,7 @@ const Login = () => {
               }
               
               if (response.data && response.data.success) {
-                toast.success("Registration completed!", { 
-                  description: "Your school has been registered successfully."
-                });
+                toast.success("Registration completed!");
                 
                 setTimeout(() => {
                   setProcessing(false);
@@ -154,7 +152,6 @@ const Login = () => {
     try {
       console.log("Login: Attempting to sign in");
       await signIn(email, password);
-      toast.success("Logged in successfully");
       // Auth context will handle redirection based on user role
     } catch (error: any) {
       console.error("Login error:", error);
@@ -187,9 +184,7 @@ const Login = () => {
       
       if (error) throw error;
       
-      toast.success("Password reset email sent", {
-        description: "Please check your inbox for instructions"
-      });
+      toast.success("Password reset email sent");
     } catch (error: any) {
       console.error("Reset password error:", error);
       toast.error(error.message || "Failed to send reset email");
@@ -217,15 +212,11 @@ const Login = () => {
       }
       
       if (data && data.already_verified) {
-        toast.info("Email already verified", {
-          description: "You can now log in with your credentials."
-        });
+        toast.info("Email already verified");
         return;
       }
       
-      toast.success("Verification email sent", {
-        description: "Please check your inbox and spam folder."
-      });
+      toast.success("Verification email sent");
     } catch (error: any) {
       console.error("Resend verification error:", error);
       toast.error(error.message || "Failed to resend verification email");
@@ -237,14 +228,12 @@ const Login = () => {
     const { setTestUser } = useAuth();
     
     try {
-      setIsLoading(true);
+      // For test accounts, we skip the loading state
       setTestUser(accountType);
       // The setTestUser function will handle navigation
     } catch (error: any) {
       console.error("Test login error:", error);
       toast.error(`Failed to log in as test ${accountType}: ${error.message}`);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -295,11 +284,6 @@ const Login = () => {
             <div className="mb-4 p-4 bg-red-50 border border-red-200 text-red-600 rounded-md">
               <p className="text-sm">
                 <strong>Error:</strong> {errorMessage}
-                {errorMessage.includes("infinite recursion") && (
-                  <span className="block mt-1">
-                    There's a database policy issue. Please contact support.
-                  </span>
-                )}
               </p>
             </div>
           )}

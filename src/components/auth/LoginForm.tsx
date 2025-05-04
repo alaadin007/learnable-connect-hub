@@ -32,7 +32,6 @@ const LoginForm = () => {
   const navigate = useNavigate();
   const { signIn, isLoading, setTestUser } = useAuth();
   const [loginError, setLoginError] = useState<string | null>(null);
-  const [processingTestAccount, setProcessingTestAccount] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -50,9 +49,6 @@ const LoginForm = () => {
       try {
         // Check if this is a test account email
         if (email.includes(".test@learnable.edu")) {
-          // Set processing flag to show correct loading state
-          setProcessingTestAccount(true);
-          
           // Determine the account type from email
           let type: "school" | "teacher" | "student" = "student";
           if (email.startsWith("school")) type = "school";
@@ -61,15 +57,12 @@ const LoginForm = () => {
           console.log(`Test account detected: ${type}. Processing instant login...`);
           
           try {
-            // Handle test account directly with setTestUser
+            // Handle test account directly with setTestUser without loading state
             await setTestUser(type);
             // Navigation is handled inside setTestUser
           } catch (error: any) {
             console.error("Test account setup failed:", error);
-            toast.error(error.message || "Failed to set up test account");
             setLoginError(error.message || "Failed to set up test account");
-          } finally {
-            setProcessingTestAccount(false);
           }
           
           return;
@@ -133,12 +126,12 @@ const LoginForm = () => {
         <Button
           type="submit"
           className="w-full bg-learnable-blue hover:bg-learnable-blue/90"
-          disabled={isLoading || processingTestAccount}
+          disabled={isLoading}
         >
-          {isLoading || processingTestAccount ? (
+          {isLoading ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              {processingTestAccount ? "Setting up test account..." : "Logging in..."}
+              Logging in...
             </>
           ) : (
             "Login"

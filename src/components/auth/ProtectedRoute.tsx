@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
-import { toast } from "sonner";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -93,15 +92,11 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to={redirectTo} replace state={{ from: location.pathname }} />;
   }
 
-  // Log the role checks for debugging
-  console.log(`ProtectedRoute checks - User role: ${userRole}, Required role: ${requiredRole}`);
-
   // Special handling for test users - allow them more flexibly
   if (isTestUser) {
     // For test users, we'll only enforce that they can't access areas for different roles
     if (requiredRole && userRole !== requiredRole) {
       console.log(`Test user with role ${userRole} trying to access area requiring ${requiredRole}`);
-      toast.error(`You need ${requiredRole} permissions to access this area. Try logging in as a ${requiredRole} test user.`);
       return <Navigate to="/test-accounts" replace />;
     }
     
@@ -113,25 +108,21 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   
   // Check role requirements if specified
   if (requiredRole && userRole !== requiredRole) {
-    toast.error(`Access denied: This area requires ${requiredRole} permissions`);
     return <Navigate to="/unauthorized" replace state={{ from: location.pathname }} />;
   }
 
   // Check allowed roles if specified
   if (allowedRoles && allowedRoles.length > 0 && (!userRole || !allowedRoles.includes(userRole))) {
-    toast.error("Access denied: You don't have permission to view this page");
     return <Navigate to="/unauthorized" replace state={{ from: location.pathname }} />;
   }
 
   // Check supervisor requirement if specified
   if (requireSupervisor && !isSupervisor) {
-    toast.error("Access denied: This area requires supervisor permissions");
     return <Navigate to="/unauthorized" replace state={{ from: location.pathname }} />;
   }
 
   // Check school requirement if specified
   if (requireSameSchool && !schoolId) {
-    toast.error("Access denied: This area requires school association");
     return <Navigate to="/unauthorized" replace state={{ from: location.pathname }} />;
   }
 
