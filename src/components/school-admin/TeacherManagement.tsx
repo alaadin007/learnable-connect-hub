@@ -94,7 +94,7 @@ const TeacherManagement = () => {
     
     try {
       // Handle test accounts differently to prevent RLS policy issues
-      if (isTestSchool || isTestAccount(profile?.email || '')) {
+      if (isTestSchool || (profile && profile.email && isTestAccount(profile.email))) {
         console.log("Using mock data for test school:", schoolId);
         // For test accounts, return mock data instead of querying the database
         const mockInvitations: TeacherInvitation[] = [
@@ -159,7 +159,7 @@ const TeacherManagement = () => {
     setIsCreating(true);
     try {
       // Handle test accounts differently
-      if (isTestSchool || isTestAccount(profile?.email || '')) {
+      if (isTestSchool || (profile && profile.email && isTestAccount(profile.email))) {
         // For test accounts, simulate invitation creation
         const newInvitation: TeacherInvitation = {
           id: `test-invitation-${Date.now()}`,
@@ -211,7 +211,7 @@ const TeacherManagement = () => {
   const handleResendInvitation = async (invitation: TeacherInvitation) => {
     try {
       // Handle test accounts differently
-      if (isTestSchool || isTestAccount(profile?.email || '')) {
+      if (isTestSchool || (profile && profile.email && isTestAccount(profile.email))) {
         // For test accounts, just show a success message
         toast.success("Test invitation resent successfully!");
       } else {
@@ -271,7 +271,7 @@ const TeacherManagement = () => {
     setIsLoading(true);
     try {
       // Handle test accounts differently
-      if (isTestSchool || isTestAccount(profile?.email || '')) {
+      if (isTestSchool || (profile && profile.email && isTestAccount(profile.email))) {
         // For test accounts, filter out selected invitations from state
         setInvitations(prev => prev.filter(inv => !selectedInvitations.includes(inv.id)));
         toast.success("Selected test invitations deleted successfully!");

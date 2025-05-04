@@ -10,6 +10,7 @@ interface UserProfile {
   id: string;
   user_type: string;
   full_name: string;
+  email?: string; // Added email property for TypeScript safety
   school_code?: string;
   school_name?: string;
   organization?: {
@@ -28,7 +29,7 @@ interface AuthContextType {
   isSuperviser: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
-  setTestUser: (accountType: string) => Promise<void>;
+  setTestUser: (accountType: string, index?: number) => Promise<void>;
   signUp: (email: string, password: string, userData: any) => Promise<AuthResponse>;
   refreshProfile: () => Promise<void>;
 }
@@ -103,6 +104,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           id: userId,
           user_type: testType,
           full_name: `Test ${testType.charAt(0).toUpperCase()}${testType.slice(1)} User`,
+          email: `${testType}.test${testIndex > 0 ? testIndex : ''}@learnable.edu`, // Add email for test users
           school_code: mockSchoolCode,
           school_name: mockSchoolName,
           organization: {
@@ -193,9 +195,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
 
+      // Add email to the profile data
+      const userEmail = user?.email || profileData.email;
+      
       // Set full profile with organization if available
       const fullProfile = {
         ...profileData,
+        email: userEmail,
         organization: orgData
       };
 
@@ -207,7 +213,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error("Error fetching user profile:", error);
       return null;
     }
-  }, []);
+  }, [user]);
 
   // Refresh the current user's profile data
   const refreshProfile = useCallback(async () => {
@@ -249,6 +255,82 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(false);
     }
   }, []);
+
+  // Setup test user (bypass authentication) - MOVED BEFORE signIn to fix reference error
+  const setTestUser = useCallback(async (accountType: string, index: number = 0) => {
+    try {
+      setIsLoading(true);
+      
+      // Clear any existing auth first
+      await supabase.auth.signOut();
+      
+      // Create simulated user and profile based on account type
+      const testUserId = `test-${accountType}-${index}`;
+      const testSchoolId = `test-school-${index}`;
+      const testSchoolName = index > 0 ? `Test School ${index}` : "Test School";
+      const testSchoolCode = `TEST${index}`;
+      const testEmail = `${accountType}.test${index > 0 ? index : ''}@learnable.edu`;
+      
+      // Create mock user data with all required User properties
+      const mockUser = {
+        id: testUserId,
+        email: testEmail,
+        user_metadata: {
+          full_name: `Test ${accountType.charAt(0).toUpperCase() + accountType.slice(1)} User`,
+        },
+        app_metadata: {},
+        aud: 'authenticated',
+        created_at: new Date().toISOString(),
+        role: '',
+        confirmed_at: new Date().toISOString(),
+        last_sign_in_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        identities: [],
+        factors: [],
+      } as User;
+      
+      // Create mock profile data
+      const mockProfile = {
+        id: testUserId,
+        user_type: accountType,
+        email: testEmail, // Add email to mockProfile
+        full_name: `Test ${accountType.charAt(0).toUpperCase()}${accountType.slice(1)} User${index > 0 ? ' ' + index : ''}`,
+        school_code: testSchoolCode,
+        school_name: testSchoolName,
+        organization: {
+          id: testSchoolId,
+          name: testSchoolName,
+          code: testSchoolCode
+        }
+      };
+      
+      // Store test user flag in localStorage for persistence
+      localStorage.setItem("testUser", JSON.stringify(mockUser));
+      localStorage.setItem("testUserRole", accountType);
+      localStorage.setItem("testUserIndex", String(index));
+      
+      // Update states
+      setUser(mockUser);
+      setProfile(mockProfile);
+      setUserRole(accountType);
+      setSchoolId(testSchoolId);
+      setIsSuperviser(accountType === 'school');
+      
+      console.log(`Auth: Test ${accountType} user set up successfully`);
+      toast.success(`Logged in as test ${accountType} user`);
+      
+      // Redirect to the appropriate dashboard
+      const dashboardRoute = getDashboardByRole(accountType);
+      navigate(dashboardRoute, { replace: true });
+      
+    } catch (error: any) {
+      console.error("Setting up test user failed:", error);
+      toast.error(`Test account setup failed: ${error.message}`);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [navigate, getDashboardByRole]);
 
   // Sign in a user with email and password
   const signIn = useCallback(async (email: string, password: string) => {
@@ -339,80 +421,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [navigate]);
 
-  // Setup test user (bypass authentication)
-  const setTestUser = useCallback(async (accountType: string, index: number = 0) => {
-    try {
-      setIsLoading(true);
-      
-      // Clear any existing auth first
-      await supabase.auth.signOut();
-      
-      // Create simulated user and profile based on account type
-      const testUserId = `test-${accountType}-${index}`;
-      const testSchoolId = `test-school-${index}`;
-      const testSchoolName = index > 0 ? `Test School ${index}` : "Test School";
-      const testSchoolCode = `TEST${index}`;
-      
-      // Create mock user data with all required User properties
-      const mockUser = {
-        id: testUserId,
-        email: `${accountType}.test${index > 0 ? index : ''}@learnable.edu`,
-        user_metadata: {
-          full_name: `Test ${accountType.charAt(0).toUpperCase() + accountType.slice(1)} User`,
-        },
-        app_metadata: {},
-        aud: 'authenticated',
-        created_at: new Date().toISOString(),
-        role: '',
-        confirmed_at: new Date().toISOString(),
-        last_sign_in_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        identities: [],
-        factors: [],
-      } as User;
-      
-      // Create mock profile data
-      const mockProfile = {
-        id: testUserId,
-        user_type: accountType,
-        full_name: `Test ${accountType.charAt(0).toUpperCase()}${accountType.slice(1)} User${index > 0 ? ' ' + index : ''}`,
-        school_code: testSchoolCode,
-        school_name: testSchoolName,
-        organization: {
-          id: testSchoolId,
-          name: testSchoolName,
-          code: testSchoolCode
-        }
-      };
-      
-      // Store test user flag in localStorage for persistence
-      localStorage.setItem("testUser", JSON.stringify(mockUser));
-      localStorage.setItem("testUserRole", accountType);
-      localStorage.setItem("testUserIndex", String(index));
-      
-      // Update states
-      setUser(mockUser);
-      setProfile(mockProfile);
-      setUserRole(accountType);
-      setSchoolId(testSchoolId);
-      setIsSuperviser(accountType === 'school');
-      
-      console.log(`Auth: Test ${accountType} user set up successfully`);
-      toast.success(`Logged in as test ${accountType} user`);
-      
-      // Redirect to the appropriate dashboard
-      const dashboardRoute = getDashboardByRole(accountType);
-      navigate(dashboardRoute, { replace: true });
-      
-    } catch (error: any) {
-      console.error("Setting up test user failed:", error);
-      toast.error(`Test account setup failed: ${error.message}`);
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [navigate, getDashboardByRole]);
-
   // Initial authentication check and setup
   useEffect(() => {
     const initAuth = async () => {
@@ -427,11 +435,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           // Restore test user session
           const testUser = JSON.parse(storedTestUser) as User;
           const testIndex = parseInt(storedTestIndex);
+          const testEmail = testUser.email;
           
           // Setup simulated test user session from localStorage
           const mockProfile = {
             id: testUser.id,
             user_type: storedTestRole,
+            email: testEmail, // Add email to mockProfile
             full_name: testUser.user_metadata.full_name,
             school_code: `TEST${testIndex}`,
             school_name: testIndex > 0 ? `Test School ${testIndex}` : "Test School",
