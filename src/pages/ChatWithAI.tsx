@@ -3,7 +3,7 @@ import React from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { useAuth } from "@/contexts/AuthContext";
-import { MessageSquare } from "lucide-react";
+import AIChatInterface from "@/components/chat/AIChatInterface";
 
 const ChatWithAI = () => {
   const { user, isLoading } = useAuth();
@@ -20,12 +20,8 @@ const ChatWithAI = () => {
             </p>
           </div>
 
-          <div className="bg-white rounded-lg shadow-md p-8 text-center">
-            <MessageSquare className="h-16 w-16 text-blue-500 mx-auto mb-4" />
-            <h2 className="text-2xl font-semibold mb-2">Chat Interface Coming Soon</h2>
-            <p className="text-gray-600 mb-4">
-              The AI chat functionality is currently under development. Check back soon!
-            </p>
+          <div className="bg-white rounded-lg shadow-md p-4 mb-8">
+            <AIChatInterface />
           </div>
         </div>
       </main>

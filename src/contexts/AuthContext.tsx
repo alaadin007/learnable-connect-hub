@@ -9,7 +9,7 @@ interface UserProfile {
   id: string;
   user_type: string;
   full_name: string;
-  email?: string; // Added email property
+  email: string; // Added email property explicitly
   school_code?: string;
   school_name?: string;
   organization?: {
@@ -17,6 +17,8 @@ interface UserProfile {
     name: string;
     code: string;
   };
+  created_at?: string;
+  updated_at?: string;
 }
 
 interface AuthContextType {
@@ -103,7 +105,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           id: userId,
           user_type: testType,
           full_name: `Test ${testType.charAt(0).toUpperCase()}${testType.slice(1)} User`,
-          email: `${testType}.test${testIndex > 0 ? testIndex : ''}@learnable.edu`, // Set email for test users
+          email: `${testType}.test${testIndex > 0 ? testIndex : ''}@learnable.edu`,
           school_code: mockSchoolCode,
           school_name: mockSchoolName,
           organization: {
@@ -198,9 +200,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const userEmail = user?.email || profileData.email;
       
       // Set full profile with organization if available
-      const fullProfile = {
+      const fullProfile: UserProfile = {
         ...profileData,
-        email: userEmail,
+        email: userEmail, // Ensure email is included
         organization: orgData
       };
 
@@ -255,7 +257,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  // Setup test user (bypass authentication)
+  // Define setTestUser before using it in signIn
   const setTestUser = useCallback(async (accountType: string, index: number = 0) => {
     try {
       setIsLoading(true);
@@ -289,10 +291,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } as User;
       
       // Create mock profile data
-      const mockProfile = {
+      const mockProfile: UserProfile = {
         id: testUserId,
         user_type: accountType,
-        email: testEmail, // Ensure email is included
+        email: testEmail,
         full_name: `Test ${accountType.charAt(0).toUpperCase()}${accountType.slice(1)} User${index > 0 ? ' ' + index : ''}`,
         school_code: testSchoolCode,
         school_name: testSchoolName,
@@ -434,10 +436,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           // Restore test user session
           const testUser = JSON.parse(storedTestUser) as User;
           const testIndex = parseInt(storedTestIndex);
-          const testEmail = testUser.email;
+          const testEmail = testUser.email || `${storedTestRole}.test${testIndex > 0 ? testIndex : ''}@learnable.edu`;
           
           // Setup simulated test user session from localStorage
-          const mockProfile = {
+          const mockProfile: UserProfile = {
             id: testUser.id,
             user_type: storedTestRole,
             email: testEmail, // Ensure email is included
