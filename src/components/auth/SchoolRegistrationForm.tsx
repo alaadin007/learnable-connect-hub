@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/form";
 import { Card, CardContent } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, AlertCircle, Mail } from "lucide-react";
+import { Loader2, AlertCircle, Mail, CheckCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const schoolFormSchema = z
@@ -43,6 +43,8 @@ const SchoolRegistrationForm = () => {
   const [existingRole, setExistingRole] = useState<string | null>(null);
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
   const [verificationEmail, setVerificationEmail] = useState("");
+  const [resendingEmail, setResendingEmail] = useState(false);
+  const [resendSuccess, setResendSuccess] = useState(false);
   const navigate = useNavigate();
 
   const form = useForm<SchoolFormValues>({
@@ -64,7 +66,8 @@ const SchoolRegistrationForm = () => {
 
   const resendVerificationEmail = async (email: string) => {
     try {
-      setIsLoading(true);
+      setResendingEmail(true);
+      setResendSuccess(false);
       console.log("Attempting to resend verification email to:", email);
       
       const response = await supabase.functions.invoke('resend-verification', {
@@ -89,6 +92,7 @@ const SchoolRegistrationForm = () => {
         return;
       }
 
+      setResendSuccess(true);
       toast.success("Verification email sent", { 
         description: `A new verification email has been sent to ${email}` 
       });
@@ -98,7 +102,7 @@ const SchoolRegistrationForm = () => {
         description: err?.message || "An unexpected error occurred" 
       });
     } finally {
-      setIsLoading(false);
+      setResendingEmail(false);
     }
   };
 
@@ -193,6 +197,17 @@ const SchoolRegistrationForm = () => {
           <p className="text-amber-600 mb-8 max-w-md font-medium">
             You must verify your email before logging in. Check your spam folder if necessary.
           </p>
+          
+          {resendSuccess && (
+            <Alert className="mb-6 bg-green-50 border-green-200">
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <AlertTitle className="text-green-800">Email Sent Successfully</AlertTitle>
+              <AlertDescription className="text-green-700">
+                A new verification email has been sent. Please check your inbox.
+              </AlertDescription>
+            </Alert>
+          )}
+          
           <div className="flex gap-4">
             <Button variant="outline" onClick={() => navigate("/login")}>Go to Login</Button>
             <Button onClick={() => { setRegistrationSuccess(false); form.reset(); }}>
@@ -200,8 +215,17 @@ const SchoolRegistrationForm = () => {
             </Button>
           </div>
           <div className="mt-6">
-            <Button variant="link" onClick={() => resendVerificationEmail(verificationEmail)} disabled={isLoading}>
-              {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Sending...</> : "Didn't receive an email? Send again"}
+            <Button 
+              variant="link" 
+              onClick={() => resendVerificationEmail(verificationEmail)} 
+              disabled={isLoading || resendingEmail}
+            >
+              {resendingEmail ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Sending...
+                </>
+              ) : "Didn't receive an email? Send again"}
             </Button>
           </div>
         </CardContent>

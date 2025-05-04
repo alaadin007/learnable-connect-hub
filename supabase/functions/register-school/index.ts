@@ -75,12 +75,8 @@ serve(async (req) => {
       );
     }
 
-    // Generate a unique school code
-    const schoolCode = generateSchoolCode();
-
-    console.log(`Registering school: ${schoolName} with admin: ${adminEmail}`);
-    
     // Check if user already exists by email
+    console.log("Checking if user already exists:", adminEmail);
     const { data: existingUserData, error: userLookupError } = await supabaseAdmin.auth.admin.listUsers();
     
     if (userLookupError) {
@@ -102,6 +98,10 @@ serve(async (req) => {
       );
     }
 
+    // Generate a unique school code
+    const schoolCode = generateSchoolCode();
+    console.log("Generated school code:", schoolCode);
+
     // Create the user with appropriate metadata
     console.log("Creating admin user with metadata:", { 
       email: adminEmail,
@@ -118,7 +118,7 @@ serve(async (req) => {
         full_name: adminFullName,
         school_name: schoolName,
         school_code: schoolCode,
-        user_type: "school" // This will mark the user as a school admin
+        user_type: "school" // Mark the user as a school admin
       }
     });
 
@@ -132,90 +132,20 @@ serve(async (req) => {
 
     console.log("User created successfully:", userData.user.id);
 
-    // First create the entry in school_codes table
-    try {
-      const { error: schoolCodeError } = await supabaseAdmin
-        .from('school_codes')
-        .insert([
-          { 
-            code: schoolCode,
-            school_name: schoolName,
-            active: true 
-          }
-        ]);
+    // Create the database entries in a transaction to ensure consistency
+    const schoolId = await createSchoolRecords(
+      supabaseAdmin,
+      schoolCode,
+      schoolName,
+      userData.user.id,
+      adminFullName
+    );
 
-      if (schoolCodeError) {
-        console.error("Error creating school code record:", schoolCodeError);
-        // Continue with the process, we'll create the remaining records
-      } else {
-        console.log("School code created successfully");
-      }
-    } catch (dbError) {
-      console.error("Error creating school code:", dbError);
-      // Continue with the process
-    }
-
-    // Create the school in database
-    try {
-      const { data: schoolData, error: schoolError } = await supabaseAdmin
-        .from('schools')
-        .insert([
-          { 
-            name: schoolName,
-            code: schoolCode,
-          }
-        ])
-        .select('id')
-        .single();
-
-      if (schoolError) {
-        console.error("Error creating school record:", schoolError);
-        // Continue the process, we'll try to create profiles record
-      } else {
-        console.log("School created successfully:", schoolData.id);
-        
-        // Create the teacher/admin record
-        const { error: teacherError } = await supabaseAdmin
-          .from('teachers')
-          .insert([
-            { 
-              id: userData.user.id,
-              school_id: schoolData.id,
-              is_supervisor: true, // Mark as supervisor (admin)
-            }
-          ]);
-
-        if (teacherError) {
-          console.error("Error creating teacher record:", teacherError);
-        } else {
-          console.log("Teacher record created successfully");
-        }
-      }
-    } catch (dbError) {
-      console.error("Error in database operations:", dbError);
-    }
-
-    // Create the profile record
-    try {
-      const { error: profileError } = await supabaseAdmin
-        .from('profiles')
-        .insert([
-          { 
-            id: userData.user.id,
-            full_name: adminFullName,
-            user_type: "school",
-            school_name: schoolName,
-            school_code: schoolCode
-          }
-        ]);
-
-      if (profileError) {
-        console.error("Error creating profile record:", profileError);
-      } else {
-        console.log("Profile record created successfully");
-      }
-    } catch (dbError) {
-      console.error("Error creating profile:", dbError);
+    if (!schoolId) {
+      console.error("Failed to create complete school records, but user was created");
+      // Continue anyway as the user was created - they can retry the process later
+    } else {
+      console.log("School records created successfully with ID:", schoolId);
     }
 
     // After successful creation, send email verification separately
@@ -261,6 +191,120 @@ serve(async (req) => {
     );
   }
 });
+
+// Helper function to create all school-related records
+async function createSchoolRecords(
+  supabase: any,
+  schoolCode: string,
+  schoolName: string,
+  userId: string,
+  adminFullName: string
+): Promise<string | null> {
+  try {
+    // First create the entry in school_codes table
+    const { error: schoolCodeError } = await supabase
+      .from('school_codes')
+      .insert([
+        { 
+          code: schoolCode,
+          school_name: schoolName,
+          active: true 
+        }
+      ]);
+
+    if (schoolCodeError) {
+      console.error("Error creating school code record:", schoolCodeError);
+      // If this fails because the code already exists, generate a new code and retry
+      if (schoolCodeError.code === '23505') { // Unique violation
+        console.log("School code already exists, generating a new code");
+        const newCode = generateSchoolCode();
+        return createSchoolRecords(supabase, newCode, schoolName, userId, adminFullName);
+      }
+    } else {
+      console.log("School code created successfully");
+    }
+
+    // Create the school in database
+    const { data: schoolData, error: schoolError } = await supabase
+      .from('schools')
+      .insert([
+        { 
+          name: schoolName,
+          code: schoolCode,
+        }
+      ])
+      .select('id')
+      .single();
+
+    if (schoolError) {
+      console.error("Error creating school record:", schoolError);
+      return null;
+    }
+    
+    console.log("School created successfully:", schoolData.id);
+    
+    // Create the teacher/admin record
+    const { error: teacherError } = await supabase
+      .from('teachers')
+      .insert([
+        { 
+          id: userId,
+          school_id: schoolData.id,
+          is_supervisor: true, // Mark as supervisor (admin)
+        }
+      ]);
+
+    if (teacherError) {
+      console.error("Error creating teacher record:", teacherError);
+    } else {
+      console.log("Teacher record created successfully");
+    }
+
+    // Create the profile record
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .insert([
+        { 
+          id: userId,
+          full_name: adminFullName,
+          user_type: "school",
+          school_name: schoolName,
+          school_code: schoolCode
+        }
+      ]);
+
+    if (profileError) {
+      console.error("Error creating profile record:", profileError);
+      
+      // If this is a duplicate key error, try updating instead
+      if (profileError.code === '23505') {
+        console.log("Profile already exists, trying to update instead");
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ 
+            full_name: adminFullName,
+            user_type: "school",
+            school_name: schoolName,
+            school_code: schoolCode
+          })
+          .eq('id', userId);
+          
+        if (updateError) {
+          console.error("Error updating profile record:", updateError);
+        } else {
+          console.log("Profile record updated successfully");
+        }
+      }
+    } else {
+      console.log("Profile record created successfully");
+    }
+
+    return schoolData.id;
+  } catch (error) {
+    console.error("Error in createSchoolRecords:", error);
+    return null;
+  }
+}
 
 // Generate a unique school code
 function generateSchoolCode(): string {

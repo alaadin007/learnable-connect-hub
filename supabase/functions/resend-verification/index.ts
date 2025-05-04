@@ -67,6 +67,8 @@ serve(async (req) => {
       );
     }
 
+    console.log("Checking if user exists:", email);
+    
     // Check if the user exists
     const { data: userData, error: userLookupError } = await supabaseAdmin.auth.admin.listUsers();
     
@@ -90,27 +92,36 @@ serve(async (req) => {
     }
 
     console.log("Sending verification email to:", email);
-    const { data: linkData, error: verificationError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'signup',
-      email: email,
-    });
+    
+    try {
+      const { data: linkData, error: verificationError } = await supabaseAdmin.auth.admin.generateLink({
+        type: 'signup',
+        email: email,
+      });
 
-    if (verificationError) {
-      console.error("Error sending verification email:", verificationError);
+      if (verificationError) {
+        console.error("Error generating verification link:", verificationError);
+        return new Response(
+          JSON.stringify({ error: "Failed to send verification email: " + verificationError.message }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+        );
+      }
+
+      console.log("Verification email sent successfully to:", email);
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: "Verification email sent. Please check your inbox." 
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      );
+    } catch (verificationError: any) {
+      console.error("Exception while sending verification email:", verificationError);
       return new Response(
         JSON.stringify({ error: "Failed to send verification email: " + verificationError.message }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
       );
     }
-
-    console.log("Verification email sent successfully to:", email);
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: "Verification email sent. Please check your inbox." 
-      }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
-    );
   } catch (error) {
     console.error("Error in resend-verification function:", error);
     return new Response(
