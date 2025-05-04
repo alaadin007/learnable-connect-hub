@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, useEffect, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
@@ -56,7 +55,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [initAttempts, setInitAttempts] = useState<number>(0);
   const navigate = useNavigate();
   const location = useLocation();
-
+  
+  // Helper functions first
   const getDashboardByRole = useCallback((role: string | null) => {
     if (!role) return "/dashboard";
     switch (role) {
@@ -228,8 +228,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return null;
     }
   }, [user]);
-
-  // Define setTestUser before it's used in signIn
+  
+  // Define setTestUser BEFORE it's referenced in signIn
   const setTestUser = useCallback(async (accountType: string, index = 0) => {
     setIsLoading(true);
     try {

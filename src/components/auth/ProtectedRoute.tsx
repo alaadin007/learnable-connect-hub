@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -65,17 +64,27 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   console.log(`ProtectedRoute checks - User role: ${userRole}, Required role: ${requiredRole}, Supervisor: ${isSupervisor}, isTestUser: ${isTestUser}`);
 
+  // Special handling for test users - allow them to access their designated areas without strict permission checks
+  if (isTestUser) {
+    // For test users, we'll only enforce that they can't access areas for different roles
+    // Otherwise, bypass most of the permission checks
+    if (requiredRole && userRole !== requiredRole) {
+      console.log(`Test user with role ${userRole} trying to access area requiring ${requiredRole}`);
+      toast.error(`You need ${requiredRole} permissions to access this area. Try logging in as a ${requiredRole} test user.`);
+      return <Navigate to="/test-accounts" replace />;
+    }
+    
+    // Test users can skip other permission checks
+    console.log("Test user authorized, rendering children");
+    return <>{children}</>;
+  }
+
+  // Regular permission checks for real users
+  
   // Check role requirements if specified
   if (requiredRole && userRole !== requiredRole) {
     console.log(`ProtectedRoute: User role ${userRole} doesn't match required role ${requiredRole}`);
-    
-    // For test users, provide more guidance
-    if (isTestUser) {
-      toast.error(`You need ${requiredRole} permissions to access this area. Try logging in as a ${requiredRole} test user.`);
-    } else {
-      toast.error(`Access denied: This area requires ${requiredRole} permissions`);
-    }
-    
+    toast.error(`Access denied: This area requires ${requiredRole} permissions`);
     return <Navigate to="/unauthorized" replace state={{ from: location.pathname }} />;
   }
 

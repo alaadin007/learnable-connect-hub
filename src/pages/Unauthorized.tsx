@@ -31,16 +31,15 @@ const Unauthorized = () => {
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Access denied</AlertTitle>
           <AlertDescription>
-            This area requires school permissions
+            You do not have permission to access this area
           </AlertDescription>
         </Alert>
         
         <div className="text-center">
-          <h1 className="text-4xl font-bold text-blue-600 mb-6">404</h1>
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Oops! Page not found</h2>
+          <h2 className="text-2xl font-bold text-gray-800 mb-4">Unauthorized Access</h2>
           
           <div className="mb-6 text-gray-600">
-            <p>The page you're looking for doesn't exist or has been moved.</p>
+            <p>The page you're trying to access requires different permissions.</p>
             {isTestUser && (
               <div className="mt-4 p-3 bg-blue-50 rounded-md text-sm text-blue-700">
                 <p className="font-medium">You're using a test account as: {userRole}</p>
