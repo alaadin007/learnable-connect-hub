@@ -9,7 +9,7 @@ import { toast } from "sonner";
  */
 export const resendVerificationEmail = async (email: string): Promise<{ success: boolean; message: string }> => {
   try {
-    toast.loading("Sending verification email...");
+    const toastId = toast.loading("Sending verification email...");
     
     const { data, error } = await supabase.functions.invoke("resend-verification", {
       body: { email },
@@ -17,7 +17,7 @@ export const resendVerificationEmail = async (email: string): Promise<{ success:
 
     if (error) {
       console.error("Error resending verification email:", error);
-      toast.dismiss();
+      toast.dismiss(toastId);
       toast.error("Failed to resend verification email");
       return { 
         success: false, 
@@ -27,7 +27,7 @@ export const resendVerificationEmail = async (email: string): Promise<{ success:
 
     if (data && data.error) {
       console.error("Error from resend-verification function:", data.error);
-      toast.dismiss();
+      toast.dismiss(toastId);
       toast.error("Failed to resend verification email");
       return {
         success: false,
@@ -36,7 +36,7 @@ export const resendVerificationEmail = async (email: string): Promise<{ success:
     }
 
     if (data && data.already_verified) {
-      toast.dismiss();
+      toast.dismiss(toastId);
       toast.info("Email already verified", {
         description: "You can now log in with your credentials."
       });
@@ -46,7 +46,7 @@ export const resendVerificationEmail = async (email: string): Promise<{ success:
       };
     }
 
-    toast.dismiss();
+    toast.dismiss(toastId);
     toast.success("Verification email sent", {
       description: "Please check your inbox and spam folder."
     });
@@ -72,24 +72,35 @@ export const resendVerificationEmail = async (email: string): Promise<{ success:
  */
 export const requestPasswordReset = async (email: string): Promise<{ success: boolean; message: string }> => {
   try {
+    const toastId = toast.loading("Sending password reset email...");
+    
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/reset-password`,
     });
 
+    toast.dismiss(toastId);
+    
     if (error) {
       console.error("Error requesting password reset:", error);
+      toast.error("Failed to send password reset email");
       return { 
         success: false, 
         message: `Failed to send password reset email: ${error.message}` 
       };
     }
 
+    toast.success("Password reset email sent", {
+      description: "Please check your inbox and spam folder."
+    });
+    
     return { 
       success: true, 
       message: "Password reset email has been sent. Please check your inbox." 
     };
   } catch (error: any) {
     console.error("Error in requestPasswordReset:", error);
+    toast.dismiss();
+    toast.error("Failed to send password reset email");
     return { 
       success: false, 
       message: `An unexpected error occurred: ${error.message}` 

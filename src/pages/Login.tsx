@@ -5,7 +5,7 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
 import LoginForm from "@/components/auth/LoginForm";
 import { Button } from "@/components/ui/button";
-import { Toaster, toast } from "sonner";
+import { Toaster } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { 
   Dialog,
@@ -90,9 +90,11 @@ const Login = () => {
     };
     
     handleEmailConfirmation();
-  }, [location.search]);
+  }, [location.search, navigate]);
 
-  const handleResendSubmit = async () => {
+  const handleResendSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
     if (!resendEmail || !resendEmail.trim()) {
       setResendError("Please enter your email address");
       return;
@@ -165,43 +167,45 @@ const Login = () => {
             </Alert>
           )}
           
-          <div className="grid gap-4 py-2">
-            <div className="grid gap-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="email@example.com"
-                value={resendEmail}
-                onChange={(e) => setResendEmail(e.target.value)}
-              />
+          <form onSubmit={handleResendSubmit}>
+            <div className="grid gap-4 py-2">
+              <div className="grid gap-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="email@example.com"
+                  value={resendEmail}
+                  onChange={(e) => setResendEmail(e.target.value)}
+                />
+              </div>
             </div>
-          </div>
-          
-          <DialogFooter className="sm:justify-end">
-            <Button 
-              variant="secondary" 
-              onClick={() => setResendDialogOpen(false)}
-              disabled={isResending}
-            >
-              Cancel
-            </Button>
-            <Button 
-              type="submit" 
-              onClick={handleResendSubmit}
-              disabled={isResending}
-              className="ml-2"
-            >
-              {isResending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Sending...
-                </>
-              ) : (
-                "Send email"
-              )}
-            </Button>
-          </DialogFooter>
+            
+            <DialogFooter className="sm:justify-end mt-4">
+              <Button 
+                variant="secondary" 
+                onClick={() => setResendDialogOpen(false)}
+                disabled={isResending}
+                type="button"
+              >
+                Cancel
+              </Button>
+              <Button 
+                type="submit"
+                disabled={isResending}
+                className="ml-2"
+              >
+                {isResending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  "Send email"
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
       
