@@ -23,6 +23,17 @@ export const supabase = createClient<Database>(
   }
 );
 
+// Add error handling for supabase operations
+supabase.auth.onAuthStateChange((event, session) => {
+  if (event === 'SIGNED_OUT') {
+    console.log('User signed out');
+  } else if (event === 'SIGNED_IN') {
+    console.log('User signed in');
+  } else if (event === 'TOKEN_REFRESHED') {
+    console.log('Token refreshed');
+  }
+});
+
 // Helper function to detect test accounts
 export const isTestAccount = (email: string): boolean => {
   // Used to identify development test accounts which get special handling

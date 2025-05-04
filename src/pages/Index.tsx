@@ -5,6 +5,7 @@ import Hero from "@/components/landing/Hero";
 import Features from "@/components/landing/Features";
 import Testimonials from "@/components/landing/Testimonials";
 import Footer from "@/components/landing/Footer";
+import { Toaster } from "sonner";
 
 const Index = () => {
   return (
@@ -14,9 +15,9 @@ const Index = () => {
         <Hero />
         <Features />
         <Testimonials />
-        {/* Add more sections as needed */}
       </main>
       <Footer />
+      <Toaster position="bottom-right" />
     </div>
   );
 };
