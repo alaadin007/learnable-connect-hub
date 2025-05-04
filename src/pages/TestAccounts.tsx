@@ -131,7 +131,7 @@ const TestAccounts = () => {
         // Set test user in auth context for instant login
         await setTestUser(accountType);
         
-        // Note: Navigation is now handled directly in setTestUser for an even faster experience
+        // Navigation is now handled in setTestUser for faster experience
       } catch (error: any) {
         console.error(`Error setting up ${accountType} test account:`, error);
         setErrorMessage(`Setup failed: ${error.message || "Unknown error"}`);
