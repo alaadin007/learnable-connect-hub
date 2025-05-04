@@ -91,19 +91,47 @@ const TeacherManagement = () => {
     setLoadingError(null);
     
     try {
-      // Modify the query to NOT include 'role' since it doesn't exist in the table
-      const { data, error } = await supabase
-        .from("teacher_invitations")
-        .select("id, email, status, invitation_token, school_id, created_at, expires_at, created_by")
-        .eq("school_id", schoolId)
-        .order("created_at", { ascending: false });
+      // Handle test accounts differently to prevent RLS policy issues
+      if (schoolId === 'test-school-id' || schoolId.startsWith('test-')) {
+        // For test accounts, return mock data instead of querying the database
+        const mockInvitations: TeacherInvitation[] = [
+          {
+            id: "test-invitation-1",
+            email: "test.teacher1@example.com",
+            status: "pending",
+            invitation_token: "test-token-1",
+            school_id: schoolId,
+            created_at: new Date().toISOString(),
+            expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+            created_by: "test-school-0"
+          },
+          {
+            id: "test-invitation-2",
+            email: "test.teacher2@example.com",
+            status: "accepted",
+            invitation_token: "test-token-2",
+            school_id: schoolId,
+            created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+            expires_at: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toISOString(),
+            created_by: "test-school-0"
+          }
+        ];
+        
+        setInvitations(mockInvitations);
+      } else {
+        // For real accounts, query the database
+        const { data, error } = await supabase
+          .from("teacher_invitations")
+          .select("id, email, status, invitation_token, school_id, created_at, expires_at, created_by")
+          .eq("school_id", schoolId)
+          .order("created_at", { ascending: false });
 
-      if (error) {
-        throw error;
+        if (error) {
+          throw error;
+        }
+
+        setInvitations(data as TeacherInvitation[]);
       }
-
-      // Safely cast the data to our TeacherInvitation type
-      setInvitations(data as TeacherInvitation[]);
     } catch (error: any) {
       console.error("Error loading invitations:", error);
       setLoadingError(error.message || "Failed to load invitations");
@@ -126,29 +154,48 @@ const TeacherManagement = () => {
 
     setIsCreating(true);
     try {
-      const { data, error } = await supabase.functions.invoke("invite-teacher", {
-        body: {
+      // Handle test accounts differently
+      if (schoolId === 'test-school-id' || schoolId.startsWith('test-')) {
+        // For test accounts, simulate invitation creation
+        const newInvitation: TeacherInvitation = {
+          id: `test-invitation-${Date.now()}`,
           email,
           role,
-          schoolId,
-          customMessage,
-        },
-      });
+          status: "pending",
+          invitation_token: `test-token-${Date.now()}`,
+          school_id: schoolId,
+          created_at: new Date().toISOString(),
+          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          created_by: profile?.id || "test-user"
+        };
+        
+        setInvitations(prev => [newInvitation, ...prev]);
+        toast.success("Test invitation created successfully!");
+      } else {
+        // For real accounts, use the edge function
+        const { data, error } = await supabase.functions.invoke("invite-teacher", {
+          body: {
+            email,
+            role,
+            schoolId,
+            customMessage,
+          },
+        });
 
-      if (error) {
-        throw error;
+        if (error) {
+          throw error;
+        }
+
+        toast.success("Invitation sent successfully!");
+        // Reload invitations after a short delay to ensure DB consistency
+        setTimeout(() => {
+          loadInvitations();
+        }, 1000);
       }
-
-      toast.success("Invitation sent successfully!");
+      
       setEmail("");
       setCustomMessage("");
       setOpen(false);
-      
-      // Reload invitations after a short delay to ensure DB consistency
-      setTimeout(() => {
-        loadInvitations();
-      }, 1000);
-      
     } catch (error: any) {
       console.error("Error creating invitation:", error);
       toast.error(error.message || "Failed to create invitation");
@@ -159,17 +206,24 @@ const TeacherManagement = () => {
 
   const handleResendInvitation = async (invitation: TeacherInvitation) => {
     try {
-      const { error } = await supabase.functions.invoke("resend-teacher-invitation", {
-        body: {
-          invitationId: invitation.id,
-        },
-      });
+      // Handle test accounts differently
+      if (schoolId === 'test-school-id' || schoolId.startsWith('test-')) {
+        // For test accounts, just show a success message
+        toast.success("Test invitation resent successfully!");
+      } else {
+        // For real accounts, use the edge function
+        const { error } = await supabase.functions.invoke("resend-teacher-invitation", {
+          body: {
+            invitationId: invitation.id,
+          },
+        });
 
-      if (error) {
-        throw error;
+        if (error) {
+          throw error;
+        }
+
+        toast.success("Invitation resent successfully!");
       }
-
-      toast.success("Invitation resent successfully!");
     } catch (error: any) {
       toast.error(error.message || "Failed to resend invitation");
     }
@@ -212,17 +266,26 @@ const TeacherManagement = () => {
 
     setIsLoading(true);
     try {
-      const { error } = await supabase
-        .from("teacher_invitations")
-        .delete()
-        .in("id", selectedInvitations);
+      // Handle test accounts differently
+      if (schoolId === 'test-school-id' || schoolId.startsWith('test-')) {
+        // For test accounts, filter out selected invitations from state
+        setInvitations(prev => prev.filter(inv => !selectedInvitations.includes(inv.id)));
+        toast.success("Selected test invitations deleted successfully!");
+      } else {
+        // For real accounts, delete from the database
+        const { error } = await supabase
+          .from("teacher_invitations")
+          .delete()
+          .in("id", selectedInvitations);
 
-      if (error) {
-        throw error;
+        if (error) {
+          throw error;
+        }
+
+        toast.success("Selected invitations deleted successfully!");
+        loadInvitations();
       }
-
-      toast.success("Selected invitations deleted successfully!");
-      loadInvitations();
+      
       setSelectedInvitations([]);
       setSelectAll(false);
     } catch (error: any) {
