@@ -12,59 +12,15 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Handle redirect if not logged in
+  // Simplified dashboard that relies on AuthContext for redirects
   React.useEffect(() => {
-    console.log("Dashboard: Auth state check", { 
-      isLoading, 
-      user: user ? "exists" : "null", 
-      userRole, 
-      locationState: location.state 
-    });
-    
-    // Skip redirect for specific navigation contexts
-    if (location.state?.fromTestAccounts || location.state?.preserveContext) {
-      console.log("Dashboard: Bypassing login check due to navigation context");
-      return;
-    }
-    
-    // Redirect unauthenticated users, but avoid redirect loops
-    if (!isLoading && !user && !location.state?.fromLogin) {
-      console.log("Dashboard: No user found, redirecting to login");
-      navigate("/login", { state: { fromLogin: true } });
+    // If not authenticated and not in a special context, redirect to login
+    if (!isLoading && !user && !location.state?.fromTestAccounts) {
+      navigate("/login", { replace: true });
     }
   }, [user, navigate, location, isLoading]);
 
-  // Role-based redirection
-  React.useEffect(() => {
-    // Only redirect if we have a valid user and not loading
-    if (isLoading || !user) return;
-    
-    // Only redirect on specific conditions
-    const isDirectDashboardAccess = !location.state?.fromNavigation && 
-                                   !location.state?.fromTestAccounts &&
-                                   !location.state?.preserveContext &&
-                                   !location.state?.fromDashboard &&
-                                   !location.state?.fromRoleRedirect &&
-                                   !location.state?.fromLogin;
-    
-    // Only redirect if we know the role and it's a direct access
-    if (userRole && isDirectDashboardAccess) {
-      console.log("Dashboard: Redirecting based on role", {
-        userRole,
-        isDirectDashboardAccess,
-        locationState: location.state
-      });
-      
-      if (userRole === "school" && profile?.organization?.id) {
-        navigate("/admin", { replace: true, state: { fromDashboard: true, preserveContext: true } });
-      } else if (userRole === "teacher") {
-        navigate("/teacher/analytics", { replace: true, state: { fromDashboard: true, preserveContext: true } });
-      }
-      // Student stays on dashboard
-    }
-  }, [userRole, navigate, location.state, profile, isLoading, user]);
-
-  // Show loading state only during actual authentication
+  // Show loading state
   if (isLoading) {
     return (
       <>
@@ -72,7 +28,7 @@ const Dashboard = () => {
         <main className="container mx-auto px-4 py-8 min-h-screen flex items-center justify-center">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
-            <p className="text-xl">Verifying credentials...</p>
+            <p className="text-xl">Loading dashboard...</p>
           </div>
         </main>
         <Footer />
@@ -80,15 +36,15 @@ const Dashboard = () => {
     );
   }
 
-  // Show message when not authenticated and not from test accounts
-  if (!user && !location.state?.fromTestAccounts) {
+  // Show message when not authenticated
+  if (!user) {
     return (
       <>
         <Navbar />
         <main className="container mx-auto px-4 py-8 min-h-screen flex items-center justify-center">
           <div className="text-center">
             <p className="text-xl mb-4">You need to be logged in to access this page</p>
-            <Button onClick={() => navigate("/login", { state: { fromLogin: true } })}>Log In</Button>
+            <Button onClick={() => navigate("/login", { replace: true })}>Log In</Button>
           </div>
         </main>
         <Footer />
@@ -96,6 +52,7 @@ const Dashboard = () => {
     );
   }
 
+  // Keep the rest of the Dashboard component unchanged
   const renderUserDashboard = () => {
     const userType = profile?.user_type;
 

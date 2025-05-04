@@ -1,4 +1,3 @@
-
 import React, {
   createContext,
   useState,
@@ -12,7 +11,7 @@ import {
   AuthChangeEvent,
 } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
 import { isTestAccount, TEST_SCHOOL_CODE } from "@/integrations/supabase/client";
 import sessionLogger from "@/utils/sessionLogger";
@@ -72,60 +71,62 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
   const [schoolId, setSchoolId] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const navigate = useNavigate();
+  const location = useLocation();
 
+  // Improved session handling with faster initialization
   useEffect(() => {
-    const getInitialSession = async () => {
-      setIsLoading(true);
-      try {
-        // First set up the auth state change listener
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(
-          async (event: AuthChangeEvent, currentSession: Session | null) => {
-            console.log(`Auth state changed: ${event}`, currentSession);
-            setSession(currentSession);
-            setUser(currentSession?.user || null);
-
-            if (currentSession?.user) {
-              await fetchProfile(currentSession.user.id);
-            } else {
-              setProfile(null);
-              setUserRole(null);
-              setIsSuperviser(false);
-              setSchoolId(null);
-            }
-          }
-        );
-
-        // Then get the initial session
-        const {
-          data: { session: initialSession },
-        } = await supabase.auth.getSession();
-
-        console.log("Initial session retrieved:", initialSession);
-        setSession(initialSession);
-        setUser(initialSession?.user || null);
-
-        if (initialSession?.user) {
-          await fetchProfile(initialSession.user.id);
+    // Set initial loading state
+    setIsLoading(true);
+    
+    // Set up the auth state change listener immediately
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event: AuthChangeEvent, currentSession: Session | null) => {
+        console.log(`Auth state changed: ${event}`, currentSession);
+        
+        // Update session and user state immediately
+        setSession(currentSession);
+        setUser(currentSession?.user || null);
+        
+        // Only fetch profile if we have a user
+        if (currentSession?.user) {
+          await fetchProfile(currentSession.user.id);
+        } else {
+          // Clear user-related state if no session
+          setProfile(null);
+          setUserRole(null);
+          setIsSuperviser(false);
+          setSchoolId(null);
         }
+        
+        // Set loading to false after handling auth state change
+        setIsLoading(false);
+      }
+    );
 
-        // Return the unsubscribe function
-        return () => subscription.unsubscribe();
+    // Get the initial session asynchronously - this runs only once
+    const getInitialSession = async () => {
+      try {
+        const { data: { session: initialSession } } = await supabase.auth.getSession();
+        console.log("Initial session retrieved:", initialSession);
+        
+        if (!initialSession) {
+          // No session found, set loading to false
+          setIsLoading(false);
+        }
+        // If session exists, the onAuthStateChange handler will update state
       } catch (error) {
         console.error("Error getting initial session:", error);
-        toast.error("Failed to retrieve session. Please try again.");
-        return () => {}; // Return empty function as fallback
-      } finally {
         setIsLoading(false);
       }
     };
 
-    const unsubscribe = getInitialSession();
+    getInitialSession();
 
+    // Clean up subscription when component unmounts
     return () => {
-      // Call the unsubscribe function when component unmounts
-      unsubscribe.then(unsub => unsub());
+      subscription.unsubscribe();
     };
-  }, []);
+  }, [navigate]);
 
   const fetchProfile = async (userId: string) => {
     try {
@@ -237,33 +238,54 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
         }
       }
 
-      // Handle role-based redirections immediately after profile fetch
-      handleRoleBasedRedirection(profileData.user_type);
+      // Handle role-based redirections if not at login/register pages and not handling special routes
+      const nonRedirectPaths = ['/login', '/register', '/school-registration'];
+      const hasSpecialParams = location.search.includes('registered=') || 
+                               location.search.includes('completeRegistration=') ||
+                               location.search.includes('emailVerificationFailed=');
+                               
+      if (!nonRedirectPaths.includes(location.pathname) && !hasSpecialParams) {
+        handleRoleBasedRedirection(profileData.user_type);
+      }
     } catch (error) {
       console.error("Error fetching profile:", error);
       toast.error("Failed to retrieve profile. Please try again.");
     }
   };
 
-  // New function to handle role-based redirections
+  // Role-based redirection handler
   const handleRoleBasedRedirection = (role: string | undefined) => {
-    if (role) {
-      console.log(`AuthContext: Handling redirect for role: ${role}`);
-      
-      switch (role) {
-        case "school":
-          navigate("/admin", { state: { fromRoleRedirect: true } });
-          break;
-        case "teacher":
-          navigate("/teacher/analytics", { state: { fromRoleRedirect: true } });
-          break;
-        case "student":
-          navigate("/dashboard", { state: { fromRoleRedirect: true } });
-          break;
-        default:
-          // If unknown role, don't redirect
-          break;
-      }
+    if (!role) return;
+    
+    console.log(`AuthContext: Handling redirect for role: ${role}`);
+    
+    // Avoid redirect loops by checking current path
+    const currentPath = location.pathname;
+    let targetPath = '';
+    
+    switch (role) {
+      case "school":
+        targetPath = "/admin";
+        if (currentPath.startsWith("/admin")) return;
+        break;
+        
+      case "teacher":
+        targetPath = "/teacher/analytics";
+        if (currentPath.startsWith("/teacher")) return;
+        break;
+        
+      case "student":
+        targetPath = "/dashboard";
+        if (currentPath === "/dashboard") return;
+        break;
+        
+      default:
+        return; // Unknown role, don't redirect
+    }
+    
+    // Only redirect if we have a target and aren't already there
+    if (targetPath && currentPath !== targetPath) {
+      navigate(targetPath, { replace: true });
     }
   };
 
@@ -339,8 +361,11 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       }
       console.log("Sign in successful:", data);
       
-      // Profile and redirections will be handled by the auth state change listener
+      // Show success toast
       toast.success("Login successful");
+      
+      // NOTE: Don't navigate here - onAuthStateChange will handle that
+      // after setting up the user profile correctly
     } catch (error: any) {
       console.error("Sign in error caught:", error);
       
@@ -352,7 +377,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       toast.error(error.error_description ?? error.message);
       throw error;
     } finally {
-      setIsLoading(false);
+      // Loading state will be reset by onAuthStateChange
     }
   };
 
@@ -560,37 +585,30 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       
       // Keep session null for test users - no authentication needed
       setSession(null);
+      
+      // Finish loading
+      setIsLoading(false);
 
       console.log(`AuthContext: Test user set up successfully. User role: ${type}`);
       console.log(`AuthContext: Test user profile:`, mockProfile);
 
-      // Create mock sessions and data for different user types
-      // We'll handle this async, but not block the function completion on it
-      if (type === "student") {
-        setTimeout(async () => {
-          try {
-            console.log(`AuthContext: Creating student test session for ${mockId}`);
-            await sessionLogger.startSession("Test Login Session", mockId);
-          } catch (e) {
-            console.error("Error starting test session:", e);
-          }
-        }, 0);
-      } else if (type === "teacher") {
-        setTimeout(async () => {
-          try {
-            console.log(`AuthContext: Creating teacher test sessions for ${mockId} with organization ID ${testOrgId}`);
-            await populateTestAccountWithSessions(mockId, testOrgId, 5);
-            console.log(`AuthContext: Successfully populated test data for teacher ${mockId}`);
-          } catch (e) {
-            console.error("Error creating teacher test sessions:", e);
-          }
-        }, 0);
-      }
+      // Redirect based on role
+      handleRoleBasedRedirection(type);
+
+      // Create mock sessions and data for different user types (in background)
+      setTimeout(() => {
+        if (type === "student") {
+          sessionLogger.startSession("Test Login Session", mockId)
+            .catch(e => console.error("Error starting test session:", e));
+        } else if (type === "teacher") {
+          populateTestAccountWithSessions(mockId, testOrgId, 5)
+            .catch(e => console.error("Error creating teacher test sessions:", e));
+        }
+      }, 0);
     } catch (error) {
       console.error("Error setting test user:", error);
-      throw new Error("Failed to set up test account");
-    } finally {
       setIsLoading(false);
+      throw new Error("Failed to set up test account");
     }
   };
 

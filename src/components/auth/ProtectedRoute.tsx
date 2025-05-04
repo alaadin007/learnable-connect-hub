@@ -1,82 +1,66 @@
 
-import { Navigate, useLocation } from "react-router-dom";
-import { useAuth, UserRole } from "@/contexts/AuthContext";
+import React from "react";
+import { Navigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { Loader2 } from "lucide-react";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  requiredRole?: UserRole;
+  requiredRole?: string;
+  allowedRoles?: string[];
   requireSupervisor?: boolean;
   requireSameSchool?: boolean;
-  schoolId?: string;
-  allowedRoles?: Array<UserRole>;
+  redirectTo?: string;
 }
 
-const ProtectedRoute = ({ 
-  children, 
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
+  children,
   requiredRole,
-  allowedRoles, 
+  allowedRoles,
   requireSupervisor = false,
   requireSameSchool = false,
-  schoolId
-}: ProtectedRouteProps) => {
-  const { user, profile, isSuperviser, isLoading, userRole, schoolId: userSchoolId } = useAuth();
-  const location = useLocation();
+  redirectTo = "/login",
+}) => {
+  const { user, userRole, isLoading, isSuperviser, schoolId } = useAuth();
 
-  // Show a more informative loading state
+  // Show a nice loading spinner while authentication is being checked
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
-        <p className="text-lg text-blue-600">Loading authentication data...</p>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4 text-learnable-purple" />
+          <p className="text-gray-600">Verifying access...</p>
+        </div>
       </div>
     );
   }
 
-  // Not logged in
+  // If user is not authenticated, redirect to login
   if (!user) {
-    // Store the current location for redirect after login
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return <Navigate to={redirectTo} replace />;
   }
 
-  // If we require a specific user type and the user doesn't have it
+  // Check role requirements if specified
   if (requiredRole && userRole !== requiredRole) {
-    console.log(`ProtectedRoute: Access denied. Required role: ${requiredRole}, User role: ${userRole}`);
-    
-    // Redirect based on user role instead of generic dashboard
-    const redirectPath = userRole === 'school' ? '/admin' : 
-                        userRole === 'teacher' ? '/teacher/analytics' : 
-                        '/dashboard';
-    
-    return <Navigate to={redirectPath} replace />;
+    return <Navigate to="/unauthorized" replace />;
   }
 
-  // If we require specific roles and the user doesn't have one of them
-  if (allowedRoles && userRole && !allowedRoles.includes(userRole)) {
-    // Redirect based on user role instead of generic dashboard
-    const redirectPath = userRole === 'school' ? '/admin' : 
-                        userRole === 'teacher' ? '/teacher/analytics' : 
-                        '/dashboard';
-    return <Navigate to={redirectPath} replace />;
+  // Check allowed roles if specified
+  if (allowedRoles && allowedRoles.length > 0 && (!userRole || !allowedRoles.includes(userRole))) {
+    return <Navigate to="/unauthorized" replace />;
   }
 
-  // If we require supervisor access and the user isn't a supervisor
+  // Check supervisor requirement if specified
   if (requireSupervisor && !isSuperviser) {
-    // Redirect based on user role instead of generic dashboard
-    const redirectPath = userRole === 'school' ? '/admin' : 
-                        userRole === 'teacher' ? '/teacher/analytics' : 
-                        '/dashboard';
-    return <Navigate to={redirectPath} replace />;
+    return <Navigate to="/unauthorized" replace />;
   }
 
-  // If we require same school access and the school IDs don't match
-  if (requireSameSchool && schoolId && userSchoolId && schoolId !== userSchoolId) {
-    // Redirect based on user role
-    const redirectPath = userRole === 'school' ? '/admin' : 
-                        userRole === 'teacher' ? '/teacher/analytics' : 
-                        '/dashboard';
-    return <Navigate to={redirectPath} replace />;
+  // Check school requirement if specified
+  if (requireSameSchool && !schoolId) {
+    return <Navigate to="/unauthorized" replace />;
   }
 
+  // User is authorized, render children
   return <>{children}</>;
 };
 

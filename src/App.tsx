@@ -3,9 +3,8 @@ import React from "react";
 import {
   Route,
   Routes,
-  useNavigate,
 } from "react-router-dom";
-import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { AuthProvider } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
@@ -27,20 +26,9 @@ import ChatWithAI from "./pages/ChatWithAI";
 import "./App.css";
 
 function AppRoutes() {
-  // We're not using redirection logic here anymore as it's handled in AuthContext
-  const { isLoading } = useAuth();
-
-  // Show loading state if auth is still loading
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-      </div>
-    );
-  }
-
   return (
     <Routes>
+      {/* Public routes */}
       <Route path="/" element={<Index />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
@@ -50,6 +38,7 @@ function AppRoutes() {
       <Route path="/about" element={<About />} />
       <Route path="/test-accounts" element={<TestAccounts />} />
 
+      {/* Protected routes */}
       <Route
         path="/dashboard"
         element={

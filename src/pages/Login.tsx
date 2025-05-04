@@ -15,11 +15,18 @@ import { supabase } from "@/integrations/supabase/client";
 const Login = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { signIn, isLoading: authLoading } = useAuth();
+  const { signIn, user, isLoading: authLoading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (user) {
+      navigate('/dashboard');
+    }
+  }, [user, navigate]);
 
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
@@ -110,7 +117,7 @@ const Login = () => {
     
     try {
       await signIn(email, password);
-      // No need to navigate - the auth context will handle redirection
+      // Auth context will handle redirection based on user role
     } catch (error: any) {
       console.error("Login error:", error);
       toast.error(error.message || "Failed to sign in");
@@ -186,6 +193,21 @@ const Login = () => {
             <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-learnable-purple" />
             <p>Processing your verification...</p>
             <p className="text-sm text-gray-500 mt-2">Please wait while we complete your registration.</p>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Navbar />
+        <main className="flex-grow bg-learnable-super-light flex flex-col items-center justify-center py-10">
+          <div className="text-center p-8">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-learnable-purple" />
+            <p>Checking authentication status...</p>
           </div>
         </main>
         <Footer />
