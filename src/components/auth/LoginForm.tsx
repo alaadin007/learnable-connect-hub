@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -100,89 +99,109 @@ const LoginForm = () => {
         return;
       }
 
-      // Get session data first to check if user exists in the system
-      const { data: sessionData } = await supabase.auth.getSession();
-      console.log("Current session data:", sessionData);
-      
-      // Regular user login flow
-      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ 
+      // First check if the user exists by attempting a password reset
+      // This is a workaround to check if an email exists without revealing too much info
+      const { data: userExistsCheck, error: userCheckError } = await supabase.auth.resetPasswordForEmail(
         email, 
-        password 
-      });
+        { redirectTo: `${window.location.origin}/login` }
+      );
       
-      if (signInError) {
-        console.error("Login error from Supabase:", signInError);
+      // If there's no error with the reset password request, the email exists
+      if (!userCheckError) {
+        console.log("Email exists in the system, proceeding with login");
         
-        // More detailed error handling
-        if (signInError.message.includes("Invalid login credentials")) {
-          setLoginError("Invalid login credentials. Please check your email and password and try again.");
-          toast.error("Login failed", {
-            description: "Invalid email or password combination."
-          });
-        } else if (signInError.message.includes("Email not confirmed")) {
-          setLoginError("Your email has not been verified. Please check your inbox for the verification email.");
-          toast.error("Email not verified", {
-            description: "Please check your inbox for the verification email.",
-            action: {
-              label: "Resend email",
-              onClick: async () => handleResendVerification(email),
-            }
-          });
-        } else {
-          setLoginError(signInError.message);
-          toast.error("Authentication error", {
-            description: signInError.message
-          });
-        }
-        
-        throw signInError;
-      }
-
-      console.log("Sign in successful:", signInData);
-
-      // Check if we have a user after login
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (user) {
-        console.log("Retrieved user after login:", user);
-        
-        // Get user profile to determine redirect path
-        const { data: profile, error: profileError } = await supabase
-          .from("profiles")
-          .select("user_type")
-          .eq("id", user.id)
-          .maybeSingle();
-
-        if (profileError) {
-          console.error("Error fetching profile:", profileError);
-          toast.error("Error fetching profile", {
-            description: "Please try logging in again."
-          });
-        }
-
-        console.log("User profile retrieved:", profile);
-
-        const redirectPath =
-          profile?.user_type === "school"
-            ? "/admin"
-            : profile?.user_type === "teacher"
-            ? "/teacher/analytics"
-            : "/dashboard";
-
-        toast.success("Login successful", {
-          description: `Welcome back, ${
-            user.user_metadata?.full_name || email
-          }!`,
+        // Proceed with regular login flow
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ 
+          email, 
+          password 
         });
+        
+        if (signInError) {
+          console.error("Login error from Supabase:", signInError);
+          
+          // Handle different types of login errors
+          if (signInError.message.includes("Invalid login credentials")) {
+            setLoginError("Invalid login credentials. Please check your email and password and try again.");
+            toast.error("Login failed", {
+              description: "Invalid email or password combination."
+            });
+          } else if (signInError.message.includes("Email not confirmed")) {
+            setLoginError("Your email has not been verified. Please check your inbox for the verification email.");
+            toast.error("Email not verified", {
+              description: "Please check your inbox for the verification email.",
+              action: {
+                label: "Resend email",
+                onClick: async () => handleResendVerification(email),
+              }
+            });
+          } else {
+            setLoginError(signInError.message);
+            toast.error("Authentication error", {
+              description: signInError.message
+            });
+          }
+          
+          throw signInError;
+        }
 
-        navigate(redirectPath);
+        console.log("Sign in successful:", signInData);
+
+        // Check if we have a user after login
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (user) {
+          console.log("Retrieved user after login:", user);
+        
+          // Get user profile to determine redirect path
+          const { data: profile, error: profileError } = await supabase
+            .from("profiles")
+            .select("user_type")
+            .eq("id", user.id)
+            .maybeSingle();
+
+          if (profileError) {
+            console.error("Error fetching profile:", profileError);
+            toast.error("Error fetching profile", {
+              description: "Please try logging in again."
+            });
+          }
+
+          console.log("User profile retrieved:", profile);
+
+          const redirectPath =
+            profile?.user_type === "school"
+              ? "/admin"
+              : profile?.user_type === "teacher"
+              ? "/teacher/analytics"
+              : "/dashboard";
+
+          toast.success("Login successful", {
+            description: `Welcome back, ${
+              user.user_metadata?.full_name || email
+            }!`,
+          });
+
+          navigate(redirectPath);
+        } else {
+          // fallback
+          toast.success("Login successful");
+          navigate("/dashboard");
+        }
       } else {
-        // fallback
-        toast.success("Login successful");
-        navigate("/dashboard");
+        // User doesn't exist, show registration suggestion
+        console.log("Email doesn't exist in the system");
+        setLoginError(`The email "${email}" is not registered in our system.`);
+        toast.error("Account not found", {
+          description: "This email is not registered. Would you like to create an account?",
+          action: {
+            label: "Register",
+            onClick: () => navigate("/register")
+          }
+        });
       }
+      
     } catch (error: any) {
       console.error("Login error:", error);
       
@@ -340,6 +359,18 @@ const LoginForm = () => {
                     >
                       <Mail className="mr-2 h-4 w-4" />
                       Resend verification email
+                    </Button>
+                  </div>
+                ) : loginError.includes("not registered") ? (
+                  <div>
+                    <p>{loginError}</p>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="mt-2"
+                      onClick={() => navigate("/register")}
+                    >
+                      Create an account
                     </Button>
                   </div>
                 ) : loginError.includes("Invalid login credentials") ? (
