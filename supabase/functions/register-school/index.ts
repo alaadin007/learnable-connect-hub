@@ -48,37 +48,38 @@ serve(async (req) => {
 
     console.log(`Registering school: ${schoolName} with admin: ${adminEmail}`);
     
-    // Check if user already exists - using the correct method
-    const { data: existingUsers, error: checkError } = await supabaseAdmin
-      .from('profiles')
-      .select('id, user_type')
-      .eq('id', adminEmail)
-      .maybeSingle();
+    // Check if user already exists by directly querying auth.users
+    // This is more reliable than the previous implementation
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.listUsers({
+      page: 1,
+      perPage: 1,
+      filter: {
+        email: adminEmail,
+      },
+    });
     
-    // Using auth API to check email existence
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.listUsers();
-    const existingUser = authData?.users.find(user => user.email === adminEmail);
+    // Check if user exists in the returned list
+    if (authError) {
+      console.error("Error checking for existing user:", authError);
+      return new Response(
+        JSON.stringify({ error: "Error checking for existing user: " + authError.message }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+      );
+    }
     
-    if (existingUser) {
+    if (authData && authData.users && authData.users.length > 0) {
+      console.log("User already exists:", authData.users[0].email);
       return new Response(
         JSON.stringify({ error: "Email already registered" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
       );
     }
-    
-    if (authError) {
-      console.error("Error checking existing user:", authError);
-      return new Response(
-        JSON.stringify({ error: "Error checking existing user: " + authError.message }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
-      );
-    }
-    
+
     // Create the user with appropriate metadata
     const { data: userData, error: userError } = await supabaseAdmin.auth.admin.createUser({
       email: adminEmail,
       password: adminPassword,
-      email_confirm: true, // Set to true to avoid sending password reset email
+      email_confirm: false, // Set to false to send email confirmation
       user_metadata: {
         full_name: adminFullName,
         school_name: schoolName,
