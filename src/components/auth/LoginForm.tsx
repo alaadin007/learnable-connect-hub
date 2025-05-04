@@ -57,9 +57,13 @@ const LoginForm = () => {
           
           console.log(`Test account detected: ${type}. Processing instant login...`);
           
+          // For test accounts, bypass loading states completely
+          localStorage.setItem("testUserRole", type);
+          localStorage.setItem("testUserIndex", "0");
+          
           try {
-            // Handle test account directly with setTestUser without loading state
-            await setTestUser(type);
+            // Handle test account directly with setTestUser, hide loading state
+            await setTestUser(type, 0, false);
             // Navigation is handled inside setTestUser
           } catch (error: any) {
             console.error("Test account setup failed:", error);
@@ -86,16 +90,20 @@ const LoginForm = () => {
   );
   
   const handleTestAccountClick = async (accountType: string) => {
-    setTestLoginInProgress(accountType);
+    // Skip setting loading state for test accounts
     try {
-      console.log(`Initiating test login for ${accountType} account`);
-      await setTestUser(accountType);
+      console.log(`Direct test login for ${accountType} account`);
+      
+      // Immediately store role for quicker detection
+      localStorage.setItem("testUserRole", accountType);
+      localStorage.setItem("testUserIndex", "0");
+      
+      // Pass false to setTestUser to skip loading states
+      await setTestUser(accountType, 0, false);
       // Navigation handled inside setTestUser
     } catch (error: any) {
       console.error("Test account setup failed:", error);
       setLoginError(`Test account setup failed: ${error.message || "Unknown error"}`);
-    } finally {
-      setTestLoginInProgress(null);
     }
   };
 

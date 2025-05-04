@@ -31,7 +31,7 @@ interface AuthContextType {
   isTestUser: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
-  setTestUser: (accountType: string, index?: number) => Promise<void>;
+  setTestUser: (accountType: string, index?: number, showLoading?: boolean) => Promise<void>;
   signUp: (email: string, password: string, userData: any) => Promise<AuthResponse>;
   refreshProfile: () => Promise<void>;
 }
@@ -234,15 +234,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [user]);
   
   // Define setTestUser BEFORE it's referenced in signIn
-  const setTestUser = useCallback(async (accountType: string, index = 0) => {
-    setIsLoading(true);
+  const setTestUser = useCallback(async (accountType: string, index = 0, showLoading = true) => {
+    if (showLoading) setIsLoading(true);
     try {
       // First clear any existing sessions
       await supabase.auth.signOut();
-      localStorage.removeItem("testUser");
-      localStorage.removeItem("testUserRole");
-      localStorage.removeItem("testUserIndex");
-
+      
+      // Create mock user and profile
       const mockId = `test-${accountType}-${index}`;
       const mockSchoolId = `test-school-${index}`;
       const mockSchoolName = index > 0 ? `Test School ${index}` : "Test School";
@@ -293,20 +291,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       // Save to local storage for persistence
       localStorage.setItem("testUser", JSON.stringify(mockUser));
-      localStorage.setItem("testUserRole", accountType);
-      localStorage.setItem("testUserIndex", index.toString());
-
-      toast.success(`Logged in as test ${accountType} user`);
+      
+      // Only show toast for non-direct test user logins
+      if (showLoading) {
+        toast.success(`Logged in as test ${accountType} user`);
+      }
 
       // Navigate to the appropriate dashboard based on role
       const dashboardRoute = getDashboardByRole(accountType);
       console.log(`Navigating test user to: ${dashboardRoute}`);
       navigate(dashboardRoute, { replace: true });
     } catch (error) {
-      toast.error(`Test account setup failed: ${(error as Error).message}`);
+      if (showLoading) {
+        toast.error(`Test account setup failed: ${(error as Error).message}`);
+      }
       throw error;
     } finally {
-      setIsLoading(false);
+      if (showLoading) setIsLoading(false);
     }
   }, [navigate, getDashboardByRole]);
 
@@ -323,7 +324,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           ? parseInt(emailParts[1].replace("test", "")) ?? 0
           : 0;
 
-        await setTestUser(accountType, index);
+        await setTestUser(accountType, index, false);
         return;
       }
 
@@ -411,6 +412,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (storedTestUser && storedTestRole) {
           console.log("Restoring test user session from localStorage");
+          setIsLoading(false); // Immediately turn off loading for test users
           
           try {
             const testUser = JSON.parse(storedTestUser) as User;

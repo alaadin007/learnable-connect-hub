@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -125,34 +124,23 @@ const TestAccounts = () => {
     }
   }, []);
 
-  // Updated for instant login with timeout handling
+  // Updated for instant login with no loading state
   const handleUseAccount = useCallback(
     async (accountType: AccountType) => {
       setErrorMessage(null);
-      setLoadingAccount(accountType);
       
       try {
-        console.log(`TestAccounts: Setting up instant login for ${accountType} test account...`);
+        console.log(`TestAccounts: Setting up direct login for ${accountType} test account...`);
         
-        // Add timeout to reset loading state if setTestUser takes too long
-        const loginTimeout = setTimeout(() => {
-          console.warn("Login timeout reached - resetting loading state");
-          setLoadingAccount(null);
-          toast.error("Login attempt timed out. Please try again.");
-        }, 5000);
+        // Immediately store role for quicker detection
+        localStorage.setItem("testUserRole", accountType);
+        localStorage.setItem("testUserIndex", "0");
         
-        // Set test user in auth context for instant login
-        await setTestUser(accountType);
-        
-        // Clear timeout if login was successful
-        clearTimeout(loginTimeout);
-        
-        // Navigation is handled in setTestUser for faster experience
+        // Pass false to setTestUser to avoid loading states
+        await setTestUser(accountType, 0, false);
       } catch (error: any) {
         console.error(`Error setting up ${accountType} test account:`, error);
         setErrorMessage(`Setup failed: ${error.message || "Unknown error"}`);
-        toast.error(`Account setup failed: ${error.message || "Unknown error"}`);
-        setLoadingAccount(null);
       }
     },
     [setTestUser]
@@ -289,16 +277,8 @@ const TestAccounts = () => {
                 <Button
                   className="w-full bg-blue-700 hover:bg-blue-800"
                   onClick={() => handleUseAccount(type as AccountType)}
-                  disabled={loadingAccount !== null}
                 >
-                  {loadingAccount === type ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Accessing...
-                    </>
-                  ) : (
-                    getButtonLabel(type as AccountType)
-                  )}
+                  {getButtonLabel(type as AccountType)}
                 </Button>
               </div>
             ))}
