@@ -13,13 +13,8 @@ const Navbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(true);
   const isMobile = useIsMobile();
-
-  // Set loaded status after initial render to prevent flickering
-  useEffect(() => {
-    setIsLoaded(true);
-  }, []);
 
   const toggleMenu = () => setIsOpen((open) => !open);
 
@@ -126,21 +121,6 @@ const Navbar = () => {
 
   if (isTestAccountsPage) {
     return null;
-  }
-
-  // Don't render until we've determined loading state to prevent flickering
-  if (!isLoaded) {
-    return (
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="container mx-auto px-4 sm:px-6">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex-shrink-0">
-              <span className="ml-2 text-xl font-bold gradient-text">LearnAble</span>
-            </div>
-          </div>
-        </div>
-      </header>
-    );
   }
 
   return (

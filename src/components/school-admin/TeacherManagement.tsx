@@ -57,7 +57,6 @@ export interface TeacherInvitation {
 const TeacherManagement = () => {
   const { profile } = useAuth();
   const [invitations, setInvitations] = useState<TeacherInvitation[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("teacher");
@@ -76,7 +75,6 @@ const TeacherManagement = () => {
     if (schoolId) {
       loadInvitations();
     } else {
-      setIsLoading(false);
       setInvitations([]);
     }
   }, [schoolId]);
@@ -84,12 +82,10 @@ const TeacherManagement = () => {
   const loadInvitations = async () => {
     if (!schoolId) {
       console.warn("School ID is not available.");
-      setIsLoading(false);
       setLoadingError("School ID is not available");
       return;
     }
 
-    setIsLoading(true);
     setLoadingError(null);
     
     try {
@@ -121,7 +117,6 @@ const TeacherManagement = () => {
         ];
         
         setInvitations(mockInvitations);
-        setIsLoading(false);
       } else {
         // For real accounts, query the database
         const { data, error } = await supabase
@@ -134,14 +129,13 @@ const TeacherManagement = () => {
           throw error;
         }
 
+        console.log("Teacher invitations loaded:", data);
         setInvitations(data as TeacherInvitation[]);
-        setIsLoading(false);
       }
     } catch (error: any) {
       console.error("Error loading invitations:", error);
       setLoadingError(error.message || "Failed to load invitations");
       toast.error("Error loading teacher invitations. Please try refreshing the page.");
-      setIsLoading(false);
     }
   };
 
@@ -268,7 +262,6 @@ const TeacherManagement = () => {
       return;
     }
 
-    setIsLoading(true);
     try {
       // Handle test accounts differently
       if (isTestSchool || (profile && profile.email && isTestAccount(profile.email))) {
@@ -294,8 +287,6 @@ const TeacherManagement = () => {
       setSelectAll(false);
     } catch (error: any) {
       toast.error(error.message || "Failed to delete invitations");
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -409,12 +400,7 @@ const TeacherManagement = () => {
           </div>
         )}
         
-        {isLoading ? (
-          <div className="py-8 text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
-            <p>Loading invitations...</p>
-          </div>
-        ) : invitations.length > 0 ? (
+        {invitations.length > 0 ? (
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>

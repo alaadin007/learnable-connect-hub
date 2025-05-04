@@ -16,6 +16,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { supabase } from "@/integrations/supabase/client";
 
 // Define the extended type for teacher invitations to include error property
 export type TeacherInvitation = {
@@ -31,31 +32,10 @@ export type TeacherInvitation = {
 };
 
 const SchoolAdmin = () => {
-  // We'll add a more robust error handling approach
   const navigate = useNavigate();
   const location = useLocation();
   const [activeTab, setActiveTab] = useState("teachers");
-  const [isAuthError, setIsAuthError] = useState<boolean>(false);
-  
-  // Use a try-catch to prevent the app from crashing if auth context is undefined
-  let auth;
-  try {
-    auth = useAuth();
-    if (!auth) {
-      console.error("Auth context is undefined");
-      setIsAuthError(true);
-    }
-  } catch (error) {
-    console.error("Error accessing auth context:", error);
-    setIsAuthError(true);
-  }
-  
-  const {
-    profile,
-    userRole,
-    isLoading,
-    isTestUser
-  } = auth || {};
+  const { profile, userRole } = useAuth();
   
   // Debug school information
   useEffect(() => {
@@ -63,52 +43,21 @@ const SchoolAdmin = () => {
       console.log("SchoolAdmin - Profile loaded:", profile);
       console.log("School info:", profile.organization);
       console.log("User role:", userRole);
-      console.log("Is test user:", isTestUser);
     }
-  }, [profile, userRole, isTestUser]);
-  
-  // Handle auth error state with early return
-  if (isAuthError) {
-    return (
-      <div className="min-h-screen flex flex-col">
-        <Navbar />
-        <main className="flex-grow bg-learnable-super-light py-8">
-          <div className="container mx-auto px-4 text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-500 mx-auto mb-4"></div>
-            <p className="text-xl">Authentication error</p>
-            <p className="text-sm text-gray-600 mt-2">Unable to access authentication context</p>
-            <Button 
-              className="mt-4 bg-blue-600 hover:bg-blue-700"
-              onClick={() => window.location.reload()}
-            >
-              Refresh Page
-            </Button>
-            <Button 
-              className="mt-2 ml-2"
-              variant="outline"
-              onClick={() => navigate("/login")}
-            >
-              Return to Login
-            </Button>
-          </div>
-        </main>
-        <Footer />
-      </div>
-    );
-  }
+  }, [profile, userRole]);
   
   // Use optional chaining for organization properties to avoid undefined errors
   const schoolId = profile?.organization?.id || null;
   const schoolName = profile?.organization?.name || "Not available";
   const schoolCode = profile?.organization?.code || "Not available";
   
-  // Verify correct user role when auth is loaded
+  // Verify correct user role
   useEffect(() => {
-    if (!isLoading && userRole && userRole !== "school") {
+    if (userRole && userRole !== "school") {
       console.log(`SchoolAdmin: Redirecting user with role ${userRole} to dashboard`);
       navigate("/dashboard", { state: { fromRoleRedirect: true } });
     }
-  }, [userRole, navigate, isLoading]);
+  }, [userRole, navigate]);
 
   // Handle Quick actions dropdown
   const handleQuickActionSelect = (action: string) => {
@@ -165,30 +114,9 @@ const SchoolAdmin = () => {
     }
   };
 
-  // Show loading state during authentication
-  if (isLoading) {
-    return (
-      <>
-        <Navbar />
-        <main className="flex-grow bg-learnable-super-light py-8">
-          <div className="container mx-auto px-4 text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
-            <p className="text-xl">Verifying your admin access...</p>
-          </div>
-        </main>
-        <Footer />
-      </>
-    );
-  }
-
   // Add additional debug information when no organization is found
   if (!profile?.organization) {
     console.warn("No organization found in profile:", profile);
-    
-    // For test users, we need to ensure organization is set properly
-    if (isTestUser) {
-      console.log("Test user detected but missing organization");
-    }
   }
 
   return (
