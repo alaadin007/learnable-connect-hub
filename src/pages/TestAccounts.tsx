@@ -114,25 +114,23 @@ const TestAccounts = () => {
     }
   }, []);
 
+  // Updated for instant login
   const handleUseAccount = useCallback(
     async (accountType: AccountType) => {
       setErrorMessage(null);
       setLoadingAccount(accountType);
       
       try {
-        console.log(`TestAccounts: Setting up ${accountType} test account...`);
+        console.log(`TestAccounts: Setting up instant login for ${accountType} test account...`);
         
-        // Set test user in auth context which will handle the rest of login flow
+        // Set test user in auth context for instant login
         await setTestUser(accountType);
         
-        // Success toast is now in setTestUser as it needs to happen after user is properly set
-        console.log(`TestAccounts: Test user set, navigation will be handled by auth context`);
+        // Note: Navigation is now handled directly in setTestUser for an even faster experience
       } catch (error: any) {
         console.error(`Error setting up ${accountType} test account:`, error);
         setErrorMessage(`Setup failed: ${error.message || "Unknown error"}`);
         toast.error(`Account setup failed: ${error.message || "Unknown error"}`);
-        
-        // Make sure to reset loading state on error
         setLoadingAccount(null);
       }
     },
@@ -193,7 +191,7 @@ const TestAccounts = () => {
           <Alert className="mb-6 bg-amber-50" role="region" aria-label="Test accounts information">
             <Info className="h-4 w-4" aria-hidden="true" />
             <AlertDescription>
-              All test accounts are automatically authenticated - just click login to access the platform with the selected role!
+              <strong>Instant Login:</strong> Test accounts login instantly with no authentication required - just click to access the platform with your selected role!
             </AlertDescription>
           </Alert>
 
@@ -252,7 +250,7 @@ const TestAccounts = () => {
                   </ul>
                   <div className="bg-green-50 p-2 rounded-md">
                     <p className="text-green-700 text-xs font-semibold">
-                      Direct access - no authentication required
+                      Instant access - no authentication required
                     </p>
                   </div>
                 </div>

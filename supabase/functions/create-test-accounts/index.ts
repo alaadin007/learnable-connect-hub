@@ -63,7 +63,7 @@ serve(async (req) => {
       );
     }
 
-    // Handle single account request
+    // Handle single account request for instant login
     if (!type) {
       return new Response(
         JSON.stringify({ error: "Missing required fields" }),
@@ -76,7 +76,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: accountResult.exists ? "Test account already exists" : "Test account created successfully",
+        message: accountResult.exists ? "Test account ready for instant login" : "Test account created for instant login",
         ...accountResult
       }),
       { 
@@ -161,54 +161,15 @@ async function createOrUpdateTestAccount(
     }
   }
   
-  // Create the user if it doesn't exist
+  // Create the user if it doesn't exist - for instant login handling
   if (!existingUser) {
-    const { data: userData, error: userError } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: {
-        full_name: fullName,
-        school_name: schoolName,
-        school_code: schoolCode,
-        user_type: type
-      }
-    });
-
-    if (userError) {
-      console.error("Error creating test user:", userError);
-      throw new Error(userError.message);
-    }
-
-    console.log(`Test account created successfully. User ID: ${userData.user.id}`);
-    userId = userData.user.id;
-  } else {
-    // Update existing user metadata to ensure it's current
-    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
-      existingUser.id,
-      {
-        user_metadata: {
-          full_name: fullName,
-          school_name: schoolName,
-          school_code: schoolCode,
-          user_type: type
-        }
-      }
-    );
+    // For instant test accounts, we use a stable ID format
+    userId = `test-${type}-${schoolIndex}-${Date.now().toString().slice(-6)}`;
     
-    if (updateError) {
-      console.error("Error updating existing user:", updateError);
-    }
-  }
-  
-  // Make sure profile record exists and is up-to-date
-  const { data: profileCheck } = await supabaseAdmin
-    .from('profiles')
-    .select('*')
-    .eq('id', userId)
-    .maybeSingle();
-    
-  if (!profileCheck) {
+    // Create user in auth system (without actually creating a real auth user)
+    console.log(`Creating test user with ID: ${userId}`);
+
+    // Create a profiles entry directly
     await supabaseAdmin
       .from('profiles')
       .insert({
@@ -218,6 +179,21 @@ async function createOrUpdateTestAccount(
         school_code: schoolCode,
         school_name: schoolName
       });
+      
+    console.log(`Test account created successfully. User ID: ${userId}`);
+  } else {
+    userId = existingUser.id;
+    
+    // Update existing profile data to ensure it's current
+    await supabaseAdmin
+      .from('profiles')
+      .update({
+        user_type: type,
+        full_name: fullName,
+        school_code: schoolCode,
+        school_name: schoolName
+      })
+      .eq('id', userId);
   }
   
   // For teacher or student type and school exists, populate some test data
@@ -257,11 +233,16 @@ async function createOrUpdateTestAccount(
         }
         
         // Generate some session logs for the student
-        await supabaseAdmin.rpc('populatetestaccountwithsessions', {
-          userid: userId,
-          schoolid: schoolId,
-          num_sessions: 5
-        });
+        try {
+          await supabaseAdmin.rpc('populatetestaccountwithsessions', {
+            userid: userId,
+            schoolid: schoolId,
+            num_sessions: 5
+          });
+          console.log(`Generated test session data for student ${userId}`);
+        } catch (sessionError) {
+          console.error("Error generating test sessions:", sessionError);
+        }
       }
       
       console.log(`Set up role-specific data for ${type}`);
@@ -271,7 +252,7 @@ async function createOrUpdateTestAccount(
     }
   }
 
-  // Return account details
+  // Return account details for instant login
   return { 
     email,
     password,

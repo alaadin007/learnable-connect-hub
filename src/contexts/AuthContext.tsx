@@ -391,13 +391,14 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       let type: "school" | "teacher" | "student" = "student";
       if (email.startsWith("school")) type = "school";
       else if (email.startsWith("teacher")) type = "teacher";
+      console.log(`Test account detected: ${type}. Instantly logging in...`);
       await setTestUser(type);
       return;
     }
 
     setIsLoading(true);
     try {
-      console.log("Attempting password-based authentication");
+      console.log("Attempting password-based authentication for real user");
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
         console.error("Sign in error:", error);
@@ -425,10 +426,12 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
     }
   };
 
-  // Fixed signOut function to properly handle both test and real accounts
+  // Updated signOut function to handle test accounts differently
   const signOut = async () => {
-    setIsLoading(true);
     try {
+      const isTestUser = user?.email?.includes(".test@learnable.edu") || user?.id?.startsWith("test-");
+      
+      // For student role, try to end the session logging
       if (userRole === "student") {
         try {
           await sessionLogger.endSession("User logged out");
@@ -436,16 +439,21 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
           console.error("Failed to end session", e);
         }
       }
-
-      const isTestUser = user?.email?.includes(".test@learnable.edu") || user?.id?.startsWith("test-");
-
-      // For real users, we need to sign out from Supabase
+      
+      console.log(`Signing out ${isTestUser ? 'test' : 'real'} user`);
+      
+      // For real users, we sign out from Supabase
       if (!isTestUser) {
-        console.log("Signing out real user from Supabase");
+        setIsLoading(true);
         const { error } = await supabase.auth.signOut();
-        if (error) throw error;
+        if (error) {
+          console.error("Sign out error:", error);
+          toast.error(error.error_description ?? error.message ?? "Failed to log out");
+          return;
+        }
       } else {
-        console.log("Signing out test user (no Supabase call needed)");
+        // For test users, just clear the state immediately without Supabase signout
+        console.log("Instantly signing out test user");
       }
 
       // Clear all auth state
@@ -456,7 +464,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       setIsSuperviser(false);
       setSchoolId(null);
 
-      // Redirect to home page
+      // Redirect to homepage
       navigate("/");
       toast.success(isTestUser ? "Test session ended" : "Logged out successfully");
     } catch (error: any) {
@@ -643,7 +651,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
         },
       };
 
-      // Set state variables synchronously for test accounts
+      // Set state variables synchronously for test accounts - INSTANT LOGIN
       setUser(mockUser);
       setProfile(mockProfile);
       setUserRole(type);
