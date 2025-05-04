@@ -132,23 +132,7 @@ const Dashboard = () => {
 const SchoolAdminDashboard = () => {
   const { profile } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = React.useState("teachers");
   
-  const handleTabClick = (value: string) => {
-    setActiveTab(value);
-    
-    if (value === "students") {
-      navigate("/admin/students", { 
-        state: { fromNavigation: true, preserveContext: true }
-      });
-    } else if (value === "settings") {
-      navigate("/admin/settings", { 
-        state: { fromNavigation: true, preserveContext: true }
-      });
-    }
-  };
-
-  // Handle Quick actions dropdown
   const handleQuickActionSelect = (action: string) => {
     switch (action) {
       case "manage-teachers":
@@ -169,12 +153,6 @@ const SchoolAdminDashboard = () => {
       case "student-management":
         navigate("/admin/students", { 
           state: { fromNavigation: true, preserveContext: true } 
-        });
-        break;
-      case "dashboard":
-        navigate("/dashboard", { 
-          state: { fromNavigation: true, preserveContext: true },
-          replace: true
         });
         break;
       default:
@@ -227,10 +205,6 @@ const SchoolAdminDashboard = () => {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-56 bg-white">
-                  <DropdownMenuItem onClick={() => handleQuickActionSelect("dashboard")}>
-                    <User className="mr-2 h-4 w-4" />
-                    <span>Dashboard</span>
-                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleQuickActionSelect("manage-teachers")}>
                     <Users className="mr-2 h-4 w-4" />
                     <span>Manage Teachers</span>

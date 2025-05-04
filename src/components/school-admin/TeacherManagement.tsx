@@ -1,5 +1,4 @@
 
-// Add import for TeacherInvitation type from SchoolAdmin
 import React, { useState, useEffect } from "react";
 import {
   Card,
@@ -65,26 +64,36 @@ const TeacherManagement = () => {
   const [open, setOpen] = useState(false);
   const [selectedInvitations, setSelectedInvitations] = useState<string[]>([]);
   const [selectAll, setSelectAll] = useState(false);
+  const [loadingError, setLoadingError] = useState<string | null>(null);
 
   // Get the school ID from the profile
   const schoolId = profile?.organization?.id || null;
 
   useEffect(() => {
-    loadInvitations();
+    if (schoolId) {
+      loadInvitations();
+    } else {
+      setIsLoading(false);
+      setInvitations([]);
+    }
   }, [schoolId]);
 
   const loadInvitations = async () => {
     if (!schoolId) {
       console.warn("School ID is not available.");
       setIsLoading(false);
+      setLoadingError("School ID is not available");
       return;
     }
 
     setIsLoading(true);
+    setLoadingError(null);
+    
     try {
+      // Use a simpler query to avoid potential RLS policy issues
       const { data, error } = await supabase
         .from("teacher_invitations")
-        .select("*")
+        .select("id, email, status, invitation_token, school_id, created_at, expires_at, created_by, role")
         .eq("school_id", schoolId)
         .order("created_at", { ascending: false });
 
@@ -94,7 +103,9 @@ const TeacherManagement = () => {
 
       setInvitations(data as TeacherInvitation[]);
     } catch (error: any) {
-      toast.error(error.message || "Failed to load invitations");
+      console.error("Error loading invitations:", error);
+      setLoadingError(error.message || "Failed to load invitations");
+      toast.error("Error loading teacher invitations. Please try refreshing the page.");
     } finally {
       setIsLoading(false);
     }
@@ -103,6 +114,11 @@ const TeacherManagement = () => {
   const handleCreateInvitation = async () => {
     if (!schoolId) {
       toast.error("School ID is not available.");
+      return;
+    }
+
+    if (!email) {
+      toast.error("Email is required");
       return;
     }
 
@@ -122,11 +138,17 @@ const TeacherManagement = () => {
       }
 
       toast.success("Invitation sent successfully!");
-      loadInvitations(); // Reload invitations to reflect the new one
-      setOpen(false); // Close the dialog
-      setEmail(""); // Reset the email input
-      setCustomMessage(""); // Reset the custom message
+      setEmail("");
+      setCustomMessage("");
+      setOpen(false);
+      
+      // Reload invitations after a short delay to ensure DB consistency
+      setTimeout(() => {
+        loadInvitations();
+      }, 1000);
+      
     } catch (error: any) {
+      console.error("Error creating invitation:", error);
       toast.error(error.message || "Failed to create invitation");
     } finally {
       setIsCreating(false);
@@ -134,9 +156,8 @@ const TeacherManagement = () => {
   };
 
   const handleResendInvitation = async (invitation: TeacherInvitation) => {
-    setIsLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("resend-teacher-invitation", {
+      const { error } = await supabase.functions.invoke("resend-teacher-invitation", {
         body: {
           invitationId: invitation.id,
         },
@@ -149,8 +170,6 @@ const TeacherManagement = () => {
       toast.success("Invitation resent successfully!");
     } catch (error: any) {
       toast.error(error.message || "Failed to resend invitation");
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -227,6 +246,7 @@ const TeacherManagement = () => {
                 id="selectAll"
                 checked={selectAll}
                 onCheckedChange={handleSelectAllChange}
+                disabled={invitations.length === 0}
               />
               <span className="ml-2">Select All</span>
             </Label>
@@ -240,7 +260,7 @@ const TeacherManagement = () => {
               Delete Selected
             </Button>
           </div>
-          <Dialog>
+          <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button variant="outline">
                 <Plus className="mr-2 h-4 w-4" />
@@ -271,7 +291,7 @@ const TeacherManagement = () => {
                   <Label htmlFor="role" className="text-right">
                     Role
                   </Label>
-                  <Select onValueChange={setRole}>
+                  <Select value={role} onValueChange={setRole}>
                     <SelectTrigger className="col-span-3">
                       <SelectValue placeholder="Select a role" />
                     </SelectTrigger>
@@ -309,9 +329,23 @@ const TeacherManagement = () => {
             </DialogContent>
           </Dialog>
         </div>
+        
+        {loadingError && (
+          <div className="bg-red-50 border border-red-200 p-4 rounded-lg mb-4">
+            <p className="text-red-700 font-medium">Error loading invitations</p>
+            <p className="text-red-600 text-sm mt-1">{loadingError}</p>
+            <Button onClick={loadInvitations} className="mt-2" size="sm" variant="outline">
+              Retry
+            </Button>
+          </div>
+        )}
+        
         {isLoading ? (
-          <p>Loading invitations...</p>
-        ) : (
+          <div className="py-8 text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
+            <p>Loading invitations...</p>
+          </div>
+        ) : invitations.length > 0 ? (
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -337,8 +371,10 @@ const TeacherManagement = () => {
                     <TableCell>
                       {invitation.status === "pending" ? (
                         <Badge variant="secondary">Pending</Badge>
+                      ) : invitation.status === "accepted" ? (
+                        <Badge variant="success">Accepted</Badge>
                       ) : (
-                        invitation.status
+                        <Badge variant="destructive">Rejected</Badge>
                       )}
                     </TableCell>
                     <TableCell>
@@ -354,13 +390,9 @@ const TeacherManagement = () => {
                         variant="ghost"
                         size="sm"
                         onClick={() => handleResendInvitation(invitation)}
-                        disabled={isLoading}
+                        disabled={invitation.status !== "pending"}
                       >
-                        {isLoading ? (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                          <Mail className="mr-2 h-4 w-4" />
-                        )}
+                        <Mail className="mr-2 h-4 w-4" />
                         Resend
                       </Button>
                     </TableCell>
@@ -368,6 +400,13 @@ const TeacherManagement = () => {
                 ))}
               </TableBody>
             </Table>
+          </div>
+        ) : (
+          <div className="text-center py-8 border border-dashed rounded-md">
+            <p className="text-muted-foreground mb-4">No teacher invitations found.</p>
+            <p className="text-sm text-muted-foreground mb-4">
+              Invite teachers to join your school by clicking the "Invite Teacher" button.
+            </p>
           </div>
         )}
       </CardContent>

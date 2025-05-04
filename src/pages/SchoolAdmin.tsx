@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Users, BarChart2, ChevronDown, Settings, User } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,6 +37,8 @@ const SchoolAdmin = () => {
   
   // Use optional chaining for organization properties
   const schoolId = profile?.organization?.id || null;
+  const schoolName = profile?.organization?.name || "Not available";
+  const schoolCode = profile?.organization?.code || "Not available";
   
   // Verify correct user role when auth is loaded
   useEffect(() => {
@@ -136,11 +137,11 @@ const SchoolAdmin = () => {
               <div className="space-y-2">
                 <div className="flex flex-col sm:flex-row sm:items-center">
                   <span className="font-medium min-w-32">School Name:</span>
-                  <span>{profile?.organization?.name || "Not available"}</span>
+                  <span>{schoolName}</span>
                 </div>
                 <div className="flex flex-col sm:flex-row sm:items-center">
                   <span className="font-medium min-w-32">School Code:</span>
-                  <span className="font-mono">{profile?.organization?.code || "Not available"}</span>
+                  <span className="font-mono">{schoolCode}</span>
                 </div>
                 <p className="text-sm text-muted-foreground mt-2">
                   Your school code is used to invite teachers and students to join your school.
