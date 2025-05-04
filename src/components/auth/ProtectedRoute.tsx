@@ -22,25 +22,24 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   requireSameSchool = false,
   redirectTo = "/login",
 }) => {
-  const { user, userRole, isLoading, isSupervisor, schoolId } = useAuth();
+  const { user, userRole, isLoading, isSupervisor, schoolId, isTestUser } = useAuth();
   const location = useLocation();
   const [forcedTimeout, setForcedTimeout] = useState(false);
 
-  // Add safety timeout to prevent infinite loading
+  // Add safety timeout to prevent infinite loading - reduced to 800ms
   useEffect(() => {
-    // Only set timeout if still loading
     if (isLoading) {
       console.log("ProtectedRoute: Setting loading timeout");
       const timeoutId = setTimeout(() => {
         console.warn("ProtectedRoute: Loading timeout reached - forcing resolution");
         setForcedTimeout(true);
-      }, 1500); // Reduced timeout to 1.5 seconds
+      }, 800); // Reduced timeout for better UX
 
       return () => clearTimeout(timeoutId);
     }
   }, [isLoading]);
 
-  // If user is explicitly null (not just loading), redirect immediately
+  // If loading is done and there's no user, redirect immediately
   if (!isLoading && !user) {
     console.log("ProtectedRoute: No user detected, redirecting to login");
     return <Navigate to={redirectTo} replace state={{ from: location.pathname }} />;
@@ -60,7 +59,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   // Debug logs to track what's happening
-  console.log(`ProtectedRoute checks - User role: ${userRole}, Required role: ${requiredRole}, Supervisor: ${isSupervisor}`);
+  console.log(`ProtectedRoute checks - User role: ${userRole}, Required role: ${requiredRole}, Supervisor: ${isSupervisor}, isTestUser: ${isTestUser}`);
 
   // Check role requirements if specified
   if (requiredRole && userRole !== requiredRole) {
