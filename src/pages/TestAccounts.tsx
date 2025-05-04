@@ -60,6 +60,7 @@ const TestAccounts = () => {
   const [loadingAccount, setLoadingAccount] = useState<AccountType | null>(null);
   const [dataCreationLoading, setDataCreationLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Clear any existing sessions when arriving at the test accounts page
   useEffect(() => {
@@ -79,6 +80,7 @@ const TestAccounts = () => {
     try {
       setDataCreationLoading(true);
       setErrorMessage(null);
+      setRefreshing(true);
       toast.loading("Refreshing test accounts...", {
         id: "test-accounts-status",
       });
@@ -115,6 +117,7 @@ const TestAccounts = () => {
       return false;
     } finally {
       setDataCreationLoading(false);
+      setRefreshing(false);
       toast.dismiss("test-accounts-status");
     }
   }, []);
@@ -162,7 +165,7 @@ const TestAccounts = () => {
         aria-busy={dataCreationLoading || loadingAccount !== null}
       >
         <div className="max-w-4xl w-full mx-auto">
-          {errorMessage && (
+          {errorMessage && !refreshing && (
             <div
               className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4"
               role="alert"

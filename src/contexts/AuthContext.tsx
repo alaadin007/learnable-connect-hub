@@ -3,7 +3,7 @@ import React, { createContext, useState, useContext, useEffect, useCallback } fr
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import type { User } from "@supabase/supabase-js";
+import type { User, AuthResponse } from "@supabase/supabase-js";
 
 // Define types for our context
 interface UserProfile {
@@ -29,6 +29,8 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   setTestUser: (accountType: string) => Promise<void>;
+  signUp: (email: string, password: string, userData: any) => Promise<AuthResponse>;
+  refreshProfile: () => Promise<void>;
 }
 
 // Create the auth context
@@ -173,6 +175,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  // Refresh the current user's profile data
+  const refreshProfile = useCallback(async () => {
+    if (!user?.id) return;
+    
+    try {
+      setIsLoading(true);
+      await fetchUserProfile(user.id);
+      console.log("Auth: Profile refreshed successfully");
+    } catch (error) {
+      console.error("Error refreshing profile:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [fetchUserProfile, user]);
+
+  // Sign up a new user
+  const signUp = useCallback(async (email: string, password: string, userData: any): Promise<AuthResponse> => {
+    try {
+      setIsLoading(true);
+      const response = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: userData
+        }
+      });
+      
+      if (response.error) {
+        throw response.error;
+      }
+      
+      return response;
+    } catch (error: any) {
+      console.error("Sign up error:", error);
+      toast.error(`Registration failed: ${error.message}`);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   // Sign in a user with email and password
   const signIn = useCallback(async (email: string, password: string) => {
     try {
@@ -252,13 +295,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Create simulated user and profile based on account type
       const testUserId = `test-${accountType}-${Date.now()}`;
       
-      // Create mock user data
+      // Create mock user data with all required User properties
       const mockUser = {
         id: testUserId,
         email: `${accountType}.test@learnable.edu`,
         user_metadata: {
           full_name: `Test ${accountType.charAt(0).toUpperCase() + accountType.slice(1)} User`,
         },
+        app_metadata: {},
+        aud: 'authenticated',
+        created_at: new Date().toISOString(),
+        role: '',
+        confirmed_at: new Date().toISOString(),
+        last_sign_in_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        identities: [],
+        factors: [],
       } as User;
       
       // Create mock profile data
@@ -396,10 +448,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signIn,
         signOut,
         setTestUser,
+        signUp,
+        refreshProfile,
       }}
     >
       {children}
     </AuthContext.Provider>
   );
 };
-

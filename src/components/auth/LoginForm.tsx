@@ -148,10 +148,10 @@ const LoginForm = () => {
           <Button
             type="button"
             variant="link"
-            onClick={() => navigate("/forgot-password")}
+            onClick={() => navigate("/test-accounts")}
             className="text-sm"
           >
-            Forgot password?
+            Try test accounts instead
           </Button>
         </div>
       </form>
