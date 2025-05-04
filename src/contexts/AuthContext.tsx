@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, useEffect, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
@@ -9,7 +10,7 @@ interface UserProfile {
   id: string;
   user_type: string;
   full_name: string;
-  email: string; // Add email property to the interface
+  email: string; // Email property is required
   school_code?: string;
   school_name?: string;
   organization?: {
@@ -51,7 +52,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false); // Start with false to avoid unnecessary loading state
   const [schoolId, setSchoolId] = useState<string | null>(null);
   const [isSuperviser, setIsSuperviser] = useState(false);
   const navigate = useNavigate();
@@ -425,7 +426,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Initial authentication check and setup
   useEffect(() => {
     const initAuth = async () => {
-      setIsLoading(true);
+      // Only set loading true when we're actually doing something
       try {
         // Check if we have a test user in localStorage first
         const storedTestUser = localStorage.getItem("testUser");
@@ -433,6 +434,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const storedTestIndex = localStorage.getItem("testUserIndex") || "0";
         
         if (storedTestUser && storedTestRole) {
+          console.log("Auth: Found test user data in localStorage");
+          setIsLoading(true);
+          
           // Restore test user session
           const testUser = JSON.parse(storedTestUser) as User;
           const testIndex = parseInt(storedTestIndex);
@@ -459,21 +463,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setSchoolId(`test-school-${testIndex}`);
           setIsSuperviser(storedTestRole === 'school');
           console.log("Auth: Restored test user session from localStorage");
+          setTimeout(() => setIsLoading(false), 100); // Short timeout for UI to update
         } else {
           // Check for real authenticated session
+          setIsLoading(true);
           const { data } = await supabase.auth.getSession();
           
           if (data?.session?.user) {
+            console.log("Auth: Found authenticated session");
             setUser(data.session.user);
             await fetchUserProfile(data.session.user.id);
             console.log("Auth: Real user session restored from Supabase");
           }
+          setTimeout(() => setIsLoading(false), 100); // Short timeout for UI to update
         }
         
       } catch (error) {
         console.error("Auth initialization error:", error);
-      } finally {
-        setIsLoading(false);
+        setIsLoading(false); // Make sure to turn off loading state
       }
     };
 
@@ -486,6 +493,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         if (event === "SIGNED_IN" && session?.user) {
           setUser(session.user);
+          // Don't set isLoading here as it causes the persistent spinner
           const userRole = await fetchUserProfile(session.user.id);
           
           // Don't navigate here - the signIn function handles that
@@ -528,3 +536,4 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     </AuthContext.Provider>
   );
 };
+

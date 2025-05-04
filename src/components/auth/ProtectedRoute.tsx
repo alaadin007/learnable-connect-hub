@@ -31,8 +31,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
       const timeoutId = setTimeout(() => {
         console.warn("ProtectedRoute: Loading timeout reached - may indicate an auth problem");
         // Auth state is taking too long to resolve - could be an issue
-        // We don't force a redirect here to avoid breaking legitimate slow loads
-      }, 5000); // 5 second timeout
+      }, 3000); // Reduced to 3 seconds from 5
 
       return () => clearTimeout(timeoutId);
     }
