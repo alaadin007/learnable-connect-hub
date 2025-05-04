@@ -9,7 +9,7 @@ interface UserProfile {
   id: string;
   user_type: string;
   full_name: string;
-  email: string; // Added email property explicitly
+  email: string; // Explicitly defined email property
   school_code?: string;
   school_name?: string;
   organization?: {
