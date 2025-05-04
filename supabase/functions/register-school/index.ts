@@ -61,7 +61,7 @@ serve(async (req) => {
     const { schoolName, adminEmail, adminPassword, adminFullName } = requestBody as RegisterSchoolRequest;
 
     // Validate required fields
-    if (!schoolName || !adminEmail || !adminPassword) {
+    if (!schoolName || !adminEmail || !adminPassword || !adminFullName) {
       console.log("Missing required fields");
       return new Response(
         JSON.stringify({ error: "Missing required fields" }),
@@ -76,7 +76,7 @@ serve(async (req) => {
     
     // Check if user already exists by directly querying auth.users
     try {
-      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.listUsers({
+      const { data: existingUsers, error: authError } = await supabaseAdmin.auth.admin.listUsers({
         page: 1,
         perPage: 1,
         filter: {
@@ -84,7 +84,6 @@ serve(async (req) => {
         },
       });
       
-      // Check if user exists in the returned list
       if (authError) {
         console.error("Error checking for existing user:", authError);
         return new Response(
@@ -93,11 +92,11 @@ serve(async (req) => {
         );
       }
       
-      if (authData && authData.users && authData.users.length > 0) {
-        console.log("User already exists:", authData.users[0].email);
+      if (existingUsers && existingUsers.users && existingUsers.users.length > 0) {
+        console.log("User already exists:", existingUsers.users[0].email);
         return new Response(
           JSON.stringify({ error: "Email already registered" }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 409 }
         );
       }
     } catch (checkError) {

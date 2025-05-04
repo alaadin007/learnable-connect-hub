@@ -123,6 +123,33 @@ const SchoolRegistrationForm = () => {
     }
   };
 
+  const resendVerificationEmail = async (email: string) => {
+    try {
+      setIsLoading(true);
+      const { data, error } = await supabase.functions.invoke('resend-verification', {
+        body: { email }
+      });
+      
+      if (error) {
+        console.error("Error resending verification:", error);
+        toast.error("Failed to resend verification email", {
+          description: error.message
+        });
+        setIsLoading(false);
+        return;
+      }
+      
+      toast.success("Verification email sent", {
+        description: `A new verification email has been sent to ${email}`
+      });
+    } catch (err) {
+      console.error("Exception resending verification:", err);
+      toast.error("Failed to resend verification email");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const onSubmit = async (values: SchoolFormValues) => {
     clearErrors();
     setIsLoading(true);
@@ -144,62 +171,62 @@ const SchoolRegistrationForm = () => {
       }
       
       // Call the Supabase Edge Function for registration
-      const { data, error } = await supabase.functions.invoke('register-school', {
-        body: {
-          schoolName: values.schoolName,
-          adminEmail: values.adminEmail,
-          adminPassword: values.adminPassword,
-          adminFullName: values.adminFullName,
-        },
-      });
+      try {
+        const { data, error } = await supabase.functions.invoke('register-school', {
+          body: {
+            schoolName: values.schoolName,
+            adminEmail: values.adminEmail,
+            adminPassword: values.adminPassword,
+            adminFullName: values.adminFullName,
+          },
+        });
 
-      if (error) {
-        console.error("School registration error:", error);
-        const errorMsg = error.message || "Registration service is temporarily unavailable";
-        
-        if (errorMsg.includes("service") || errorMsg.includes("unavailable")) {
-          setServerError("Registration service is temporarily unavailable. Please try again later.");
-        } else if (errorMsg.includes("already registered") || errorMsg.includes("already exists")) {
-          setEmailError(values.adminEmail);
-          toast.error("Email already registered", {
-            description: "Please use a different email address or login if this is your account."
-          });
-        } else {
-          setServerError(errorMsg);
-          toast.error("Registration failed", {
-            description: errorMsg
-          });
+        if (error) {
+          console.error("School registration error:", error);
+          
+          // Check if the error is about email already registered (from the edge function)
+          if (error.message?.includes('non-2xx status code') && data?.error?.includes('already registered')) {
+            setEmailError(values.adminEmail);
+            toast.error("Email already registered", {
+              description: "Please use a different email address or login if this is your account."
+            });
+          } else {
+            setServerError(error.message || "Registration service is temporarily unavailable");
+            toast.error("Registration failed", {
+              description: error.message || "Please try again later."
+            });
+          }
+          
+          setIsLoading(false);
+          return;
         }
-        setIsLoading(false);
-        return;
-      }
 
-      // Check if the response contains an error property
-      if (data?.error) {
-        console.error("School registration API error:", data.error);
+        // Handle success
+        setRegistrationSuccess(true);
+        setVerificationEmail(values.adminEmail);
+        toast.success("School registration successful!", {
+          description: "Please check your email to verify your account.",
+        });
+      } catch (invokeError: any) {
+        console.error("Edge function invoke error:", invokeError);
         
-        if (data.error.includes("already registered") || data.error.includes("already exists")) {
-          setEmailError(values.adminEmail);
-          toast.error("Email already registered", {
-            description: "Please use a different email address or login if this is your account."
-          });
-        } else {
-          setServerError(data.error);
-          toast.error("Registration failed", {
-            description: data.error
-          });
+        // Try to parse the error message if it's from the edge function
+        let errorMessage = "Registration failed. Please try again.";
+        try {
+          const errorBody = invokeError.message || '';
+          
+          if (errorBody.includes('already registered')) {
+            setEmailError(values.adminEmail);
+            errorMessage = "Email already registered";
+          }
+        } catch (parseError) {
+          console.error("Error parsing error response:", parseError);
         }
+        
+        setServerError(errorMessage);
+        toast.error(errorMessage);
         setIsLoading(false);
-        return;
       }
-
-      // Handle success
-      setRegistrationSuccess(true);
-      setVerificationEmail(values.adminEmail);
-      toast.success("School registration successful!", {
-        description: "Please check your email to verify your account.",
-      });
-      
     } catch (error: any) {
       console.error("Registration error:", error);
       const errorMsg = error.message || "An unexpected error occurred";
@@ -207,6 +234,7 @@ const SchoolRegistrationForm = () => {
       toast.error("Registration failed", {
         description: errorMsg
       });
+      setIsLoading(false);
     } finally {
       setIsLoading(false);
     }
@@ -242,6 +270,22 @@ const SchoolRegistrationForm = () => {
             }}
           >
             Register Another School
+          </Button>
+        </div>
+        <div className="mt-6">
+          <Button
+            variant="link"
+            onClick={() => resendVerificationEmail(verificationEmail)}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Sending...
+              </>
+            ) : (
+              "Didn't receive an email? Send again"
+            )}
           </Button>
         </div>
       </CardContent>
