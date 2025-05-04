@@ -5,72 +5,35 @@ project_id = "ldlgckwkdsvrfuymidrr"
 enabled = true
 port = 54321
 schemas = ["public", "storage"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
 
 [db]
 port = 54322
+shadow_port = 54320
+major_version = 15
 
 [studio]
 enabled = true
 port = 54323
+api_url = "http://localhost"
+
+[inbucket]
+enabled = true
+port = 54324
+
+[storage]
+enabled = true
+port = 54325
+
+[functions]
+[functions.register-school]
+verify_jwt = false
+[functions.resend-verification]
+verify_jwt = false
+[functions.create-school-admin]
+verify_jwt = false
 
 [auth]
 enabled = true
-hook_timeout_ms = 10000
-
-[auth.email]
-enable_signup = true 
-enable_confirmations = true
-double_confirm_changes = true
-template_create_user = "Your sign-up to Learnable was successful! Please verify your email."
-
-[[edge_functions]]
-name = "ask-ai"
-verify_jwt = true
-
-[[edge_functions]]
-name = "save-chat-message"
-verify_jwt = true
-
-[[edge_functions]]
-name = "get-chat-history"
-verify_jwt = true
-
-[[edge_functions]]
-name = "get-conversations"
-verify_jwt = true
-
-[[edge_functions]]
-name = "process-document"
-verify_jwt = true
-
-[[edge_functions]]
-name = "transcribe-audio"
-verify_jwt = true
-
-[[edge_functions]]
-name = "text-to-speech"
-verify_jwt = true
-
-[[edge_functions]]
-name = "register-school"
-verify_jwt = false
-
-[[edge_functions]]
-name = "create-test-accounts"
-verify_jwt = false
-
-[[edge_functions]]
-name = "remove-user"
-verify_jwt = true
-
-[[edge_functions]]
-name = "resend-verification"
-verify_jwt = false
-
-[[edge_functions]]
-name = "create-session-log"
-verify_jwt = true
-
-[[edge_functions]]
-name = "end-session"
-verify_jwt = true
+port = 54326
