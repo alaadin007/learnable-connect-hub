@@ -97,6 +97,17 @@ export type TeacherInvitationResult = {
   email: string;
 }
 
+// Function to generate a random school code
+export const generateRandomSchoolCode = (): string => {
+  // Use a combination of uppercase letters and numbers to create a unique code
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Removed confusing chars like 0, O, 1, I
+  let result = '';
+  for (let i = 0; i < 8; i++) {
+    result += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return result;
+};
+
 // Function to validate user role access
 export const validateRoleAccess = async (userId: string | undefined, requiredRole: string | string[] | undefined): Promise<boolean> => {
   if (!userId || !requiredRole) return false;

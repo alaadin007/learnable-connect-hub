@@ -36,6 +36,7 @@ const SchoolSettings = () => {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isGeneratingCode, setIsGeneratingCode] = useState(false);
 
   useEffect(() => {
     // Load initial school data
@@ -63,6 +64,7 @@ const SchoolSettings = () => {
         }
       } catch (error) {
         console.error("Error fetching school data:", error);
+        toast.error("Failed to load school information");
       } finally {
         setIsLoading(false);
       }
@@ -100,10 +102,14 @@ const SchoolSettings = () => {
   };
 
   const generateNewSchoolCode = async () => {
-    if (!profile?.organization?.id) return;
+    if (!profile?.organization?.id) {
+      toast.error("School information not found");
+      return;
+    }
     
+    setIsGeneratingCode(true);
     try {
-      // In a real implementation, this would call a function to generate a new code
+      // Generate a new unique code - we'll use a function to generate a random code
       const newCode = Math.random().toString(36).substring(2, 10).toUpperCase();
       
       // Update the code in the schools table
@@ -117,11 +123,25 @@ const SchoolSettings = () => {
 
       if (error) throw error;
       
+      // Also update the corresponding entry in school_codes table to keep things in sync
+      const { error: codeError } = await supabase
+        .from("school_codes")
+        .update({
+          code: newCode
+        })
+        .eq("school_name", schoolName);
+      
+      if (codeError) {
+        console.warn("Failed to update school_codes table, but the code was updated in schools table:", codeError);
+      }
+      
       setSchoolCode(newCode);
       toast.success("New school code generated successfully!");
     } catch (error: any) {
       console.error("Error generating new school code:", error);
       toast.error(error.message || "Failed to generate new school code");
+    } finally {
+      setIsGeneratingCode(false);
     }
   };
 
@@ -198,8 +218,9 @@ const SchoolSettings = () => {
                       <Button 
                         variant="outline" 
                         onClick={generateNewSchoolCode}
+                        disabled={isGeneratingCode}
                       >
-                        Generate New Code
+                        {isGeneratingCode ? "Generating..." : "Generate New Code"}
                       </Button>
                     </div>
                     <p className="text-sm text-muted-foreground">
