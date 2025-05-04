@@ -143,9 +143,11 @@ function AppRoutes() {
 
 function App() {
   return (
-    <AuthProvider>
-      <AppRoutes />
-    </AuthProvider>
+    <React.StrictMode>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
+    </React.StrictMode>
   );
 }
 
