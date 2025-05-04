@@ -27,11 +27,11 @@ const Unauthorized = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="max-w-md w-full px-6 py-8 bg-white shadow-md rounded-lg">
-        <Alert className="mb-6 border-yellow-400 bg-yellow-50">
+        <Alert className="mb-6 border-yellow-400 bg-yellow-50" role="region" aria-label="Access limited warning">
           <AlertCircle className="h-4 w-4 text-yellow-600" />
           <AlertTitle className="text-yellow-700">Access limited</AlertTitle>
           <AlertDescription className="text-yellow-700">
-            You're trying to access a page with different permission requirements
+            You're trying to access a page that requires different permissions
           </AlertDescription>
         </Alert>
         
@@ -39,13 +39,14 @@ const Unauthorized = () => {
           <h2 className="text-2xl font-bold text-gray-800 mb-4">Access Limited</h2>
           
           <p className="mb-6 text-gray-600">
-            You're currently signed in as a <span className="font-medium">{userRole}</span> user.
+            You're currently signed in as a <span className="font-medium">{userRole || "unknown"}</span> user.
+            This area requires different permissions.
           </p>
           
           {isTestUser && (
             <div className="mb-6 p-3 bg-blue-50 rounded-md text-sm text-blue-700">
               <p className="font-medium">You're using a test account as: {userRole}</p>
-              <p className="mt-1">In this update, test accounts now have full access to all pages.</p>
+              <p className="mt-1">For testing purposes, you should be able to access all pages.</p>
               <p className="mt-1 font-bold">Try refreshing the page or clicking the Home button below.</p>
             </div>
           )}
@@ -65,7 +66,7 @@ const Unauthorized = () => {
               className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
             >
               <Home className="h-4 w-4" />
-              Return to Home
+              Return to Dashboard
             </Button>
           </div>
         </div>

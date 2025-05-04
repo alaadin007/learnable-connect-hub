@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
@@ -18,6 +18,7 @@ import {
   CardDescription 
 } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { toast } from "sonner";
 
 // Mock Data for Test Accounts
 const MOCK_DATA = {
@@ -38,12 +39,40 @@ const MOCK_DATA = {
 };
 
 const Dashboard = () => {
-  const { userRole, profile, isTestUser } = useAuth();
+  const { userRole, profile, isTestUser, isLoading, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
   // Determine data source: real profile or mock
   const currentProfile = isTestUser && MOCK_DATA[userRole] ? MOCK_DATA[userRole] : profile;
+
+  useEffect(() => {
+    // Check authentication status
+    if (!isLoading && !user) {
+      toast.error("You must be logged in to view this page");
+      navigate("/login", { state: { from: location.pathname } });
+      return;
+    }
+    
+    // Debug information for profile
+    console.log("Dashboard - Auth info:", { userRole, isTestUser });
+    console.log("Profile data:", profile);
+  }, [isLoading, user, userRole, profile, navigate, location.pathname]);
+
+  if (isLoading) {
+    return (
+      <>
+        <Navbar />
+        <main className="flex min-h-screen items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-gray-600 text-lg">Loading your dashboard...</p>
+          </div>
+        </main>
+        <Footer />
+      </>
+    );
+  }
 
   if (!currentProfile) {
     return (

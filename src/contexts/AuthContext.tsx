@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, useEffect, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
@@ -116,119 +117,130 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Reset test user state when working with real users
       setIsTestUser(false);
 
-      // Modified to handle the recursive policy error
-      try {
-        const { data: profileData, error: profileError } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", userId)
-          .single();
+      // Get the user's profile from the profiles table
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .single();
 
-        if (profileError) throw profileError;
+      if (profileError) {
+        console.error("Error fetching profile:", profileError);
+        throw profileError;
+      }
 
-        let orgData = null;
-        let isUserSupervisor = false;
+      let orgData = null;
+      let isUserSupervisor = false;
 
-        if (profileData.user_type === "school" || profileData.user_type === "teacher") {
-          try {
+      // Handle school admin role
+      if (profileData.user_type === "school") {
+        try {
+          const { data: schoolData, error: schoolError } = await supabase
+            .from("schools")
+            .select("id, name, code")
+            .eq("code", profileData.school_code)
+            .single();
+            
+          if (!schoolError && schoolData) {
+            orgData = schoolData;
+            setSchoolId(orgData.id);
+            isUserSupervisor = true; // School admins are always supervisors
+          }
+        } catch (schoolError) {
+          console.error("Error fetching school data:", schoolError);
+        }
+      } 
+      // Handle teacher role
+      else if (profileData.user_type === "teacher") {
+        try {
+          // First get the school code/info
+          const { data: schoolData, error: schoolError } = await supabase
+            .from("schools")
+            .select("id, name, code")
+            .eq("code", profileData.school_code)
+            .single();
+
+          if (!schoolError && schoolData) {
+            orgData = schoolData;
+            setSchoolId(orgData.id);
+
+            // Then check if teacher is supervisor using the safe RPC function
+            const { data: supervisorStatus, error: supervisorError } = await supabase
+              .rpc('is_supervisor', { user_id: userId });
+
+            if (!supervisorError) {
+              isUserSupervisor = Boolean(supervisorStatus);
+            }
+          }
+        } catch (error) {
+          console.error("Error checking teacher data:", error);
+        }
+      }
+      // Handle student role
+      else if (profileData.user_type === "student") {
+        try {
+          // First get student record with school_id
+          const { data: studentData, error: studentError } = await supabase
+            .from("students")
+            .select("school_id")
+            .eq("id", userId)
+            .single();
+
+          if (!studentError && studentData?.school_id) {
+            // Then get school data
             const { data: schoolData, error: schoolError } = await supabase
               .from("schools")
               .select("id, name, code")
-              .eq("code", profileData.school_code)
+              .eq("id", studentData.school_id)
               .single();
               
             if (!schoolError && schoolData) {
               orgData = schoolData;
               setSchoolId(orgData.id);
             }
-          } catch (schoolError) {
-            console.error("Error fetching school data:", schoolError);
           }
-        } else if (profileData.user_type === "student") {
-          try {
-            const { data: studentData, error: studentError } = await supabase
-              .from("students")
-              .select("school_id")
-              .eq("id", userId)
-              .single();
-
-            if (!studentError && studentData?.school_id) {
-              const { data: schoolData, error: schoolError } = await supabase
-                .from("schools")
-                .select("id, name, code")
-                .eq("id", studentData.school_id)
-                .single();
-                
-              if (!schoolError && schoolData) {
-                orgData = schoolData;
-                setSchoolId(orgData.id);
-              }
-            }
-          } catch (studentError) {
-            console.error("Error fetching student data:", studentError);
-          }
+        } catch (studentError) {
+          console.error("Error fetching student data:", studentError);
         }
-
-        if (profileData.user_type === "teacher") {
-          // Use a safer approach for the teachers table to avoid recursive policy issue
-          try {
-            // Fix: Use the proper parameter name for the RPC function
-            const { data: supervisorStatus, error: supervisorError } = await supabase
-              .rpc('is_supervisor', { user_id: userId });
-
-            if (!supervisorError) {
-              // Fix TypeScript error by ensuring we store a boolean
-              isUserSupervisor = Boolean(supervisorStatus);
-            } else {
-              // Fall back to metadata if available
-              isUserSupervisor = user?.user_metadata?.is_supervisor === true;
-            }
-          } catch (teacherError) {
-            console.error("Error checking supervisor status:", teacherError);
-            // Fall back to user metadata if available
-            isUserSupervisor = user?.user_metadata?.is_supervisor === true;
-          }
-        }
-
-        setIsSupervisor(isUserSupervisor || profileData.user_type === "school");
-
-        const fullProfile: UserProfile = {
-          ...profileData,
-          email: user?.email || "",
-          organization: orgData,
-        };
-
-        setProfile(fullProfile);
-        setUserRole(profileData.user_type);
-
-        return profileData.user_type;
-      } catch (error) {
-        console.error("Error fetching user profile:", error);
-        
-        // Fallback to user metadata if available
-        if (user?.user_metadata) {
-          const metadata = user.user_metadata;
-          const userType = metadata.user_type || "student";
-          
-          // Create a basic profile from metadata
-          const basicProfile: UserProfile = {
-            id: userId,
-            user_type: userType,
-            full_name: metadata.full_name || user.email?.split('@')[0] || "User",
-            email: user.email || "",
-            school_code: metadata.school_code,
-            school_name: metadata.school_name,
-          };
-          
-          setProfile(basicProfile);
-          setUserRole(userType);
-          setIsSupervisor(userType === "school" || metadata.is_supervisor === true);
-          return userType;
-        }
-        return null;
       }
+
+      // Set supervisor status
+      setIsSupervisor(isUserSupervisor);
+
+      // Construct the complete profile with organization data
+      const fullProfile: UserProfile = {
+        ...profileData,
+        email: user?.email || "",
+        organization: orgData,
+      };
+
+      setProfile(fullProfile);
+      setUserRole(profileData.user_type);
+
+      return profileData.user_type;
     } catch (error) {
       console.error("Error in fetchUserProfile:", error);
+      
+      // Fallback to user metadata if database fetch fails
+      if (user?.user_metadata) {
+        const metadata = user.user_metadata;
+        const userType = metadata.user_type || "student";
+        
+        // Create a basic profile from metadata
+        const basicProfile: UserProfile = {
+          id: userId,
+          user_type: userType,
+          full_name: metadata.full_name || user.email?.split('@')[0] || "User",
+          email: user.email || "",
+          school_code: metadata.school_code,
+          school_name: metadata.school_name,
+        };
+        
+        setProfile(basicProfile);
+        setUserRole(userType);
+        setIsSupervisor(userType === "school" || metadata.is_supervisor === true);
+        return userType;
+      }
       return null;
     }
   }, [user]);
@@ -291,6 +303,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       // Save to local storage for persistence
       localStorage.setItem("testUser", JSON.stringify(mockUser));
+      localStorage.setItem("testUserRole", accountType);
+      localStorage.setItem("testUserIndex", index.toString());
       
       // Only show toast for non-direct test user logins
       if (showLoading) {
@@ -312,7 +326,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [navigate, getDashboardByRole]);
 
   const signIn = useCallback(async (email: string, password: string) => {
+    setIsLoading(true);
     try {
+      // Handle test accounts
       if (isTestAccount(email)) {
         let accountType = "student";
         if (email.startsWith("school")) accountType = "school";
@@ -324,24 +340,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           : 0;
 
         await setTestUser(accountType, index, false);
+        setIsLoading(false);
         return;
       }
 
       // Reset test user state for real logins
       setIsTestUser(false);
+      localStorage.removeItem("testUser");
+      localStorage.removeItem("testUserRole");
+      localStorage.removeItem("testUserIndex");
 
-      // Don't set loading state for real users to avoid flicker
+      // Sign in with Supabase
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-      if (!data.user) throw new Error("No user returned from login");
+      if (error) {
+        toast.error(`Login failed: ${error.message}`);
+        setIsLoading(false);
+        throw error;
+      }
+      
+      if (!data.user) {
+        toast.error("No user returned from login");
+        setIsLoading(false);
+        throw new Error("No user returned from login");
+      }
 
+      // Set the user state
       setUser(data.user);
+      
+      // Fetch user profile and role
       const role = await fetchUserProfile(data.user.id);
+      
+      // Navigate to appropriate dashboard
       handleAuthenticatedNavigation(role);
       toast.success("Logged in successfully");
     } catch (error) {
-      toast.error(`Login failed: ${(error as Error).message}`);
-      throw error;
+      console.error("Login error:", error);
+      // Toast error already handled above
+    } finally {
+      setIsLoading(false);
     }
   }, [fetchUserProfile, handleAuthenticatedNavigation, setTestUser]);
 
@@ -353,8 +389,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         password,
         options: { data: userData }
       });
-      if (response.error) throw response.error;
+      if (response.error) {
+        toast.error(`Signup failed: ${response.error.message}`);
+        throw response.error;
+      }
+      
+      if (response.data.user) {
+        toast.success("Signup successful! Check your email for verification");
+      }
+      
       return response;
+    } catch (error) {
+      console.error("Signup error:", error);
+      // Toast already handled above
+      throw error;
     } finally {
       setIsLoading(false);
     }
@@ -363,10 +411,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = useCallback(async () => {
     setIsLoading(true);
     try {
+      // Clear test user data
       localStorage.removeItem("testUser");
       localStorage.removeItem("testUserRole");
       localStorage.removeItem("testUserIndex");
 
+      // Sign out from Supabase
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
 
@@ -381,10 +431,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Use a small timeout to ensure state is updated before navigation
       setTimeout(() => {
         navigate("/login");
-        setIsLoading(false);
+        toast.success("Logged out successfully");
       }, 10);
     } catch (error) {
       toast.error(`Logout failed: ${(error as Error).message}`);
+    } finally {
       setIsLoading(false);
     }
   }, [navigate]);
@@ -394,14 +445,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     try {
       await fetchUserProfile(user.id);
+      toast.success("Profile refreshed successfully");
+    } catch (error) {
+      toast.error(`Failed to refresh profile: ${(error as Error).message}`);
     } finally {
       setIsLoading(false);
     }
   }, [user, fetchUserProfile]);
 
+  // Initialize auth state
   useEffect(() => {
     const initAuth = async () => {
       try {
+        // Check for test user first
         const storedTestUser = localStorage.getItem("testUser");
         const storedTestRole = localStorage.getItem("testUserRole");
         const storedTestIndex = localStorage.getItem("testUserIndex") ?? "0";
@@ -444,9 +500,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.log("No test user found, checking for real user session");
           setIsTestUser(false);
           
+          // Set up auth state listener FIRST
+          const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+            console.log("Auth state changed:", event);
+            
+            if (event === "SIGNED_IN" && session?.user) {
+              setUser(session.user);
+              // Use setTimeout to avoid potential recursion issues with Supabase client
+              setTimeout(async () => {
+                try {
+                  await fetchUserProfile(session.user.id);
+                } catch (error) {
+                  console.error("Error fetching profile after sign in:", error);
+                }
+              }, 0);
+            } else if (event === "SIGNED_OUT") {
+              setUser(null);
+              setProfile(null);
+              setUserRole(null);
+              setSchoolId(null);
+              setIsSupervisor(false);
+              setIsTestUser(false);
+            }
+          });
+
+          // THEN check for existing session
           const { data: sessionData } = await supabase.auth.getSession();
           if (sessionData?.session?.user) {
-            console.log("Found real user session:", sessionData.session.user.id);
+            console.log("Found existing session:", sessionData.session.user.id);
             setUser(sessionData.session.user);
             
             try {
@@ -471,37 +552,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     initAuth();
-
-    // Subscribe to auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("Auth state changed:", event);
-      
-      if (event === "SIGNED_IN" && session?.user) {
-        setUser(session.user);
-        // Use setTimeout to avoid potential recursion issues with Supabase client
-        setTimeout(async () => {
-          try {
-            await fetchUserProfile(session.user.id);
-          } catch (error) {
-            console.error("Error fetching profile after sign in:", error);
-          }
-        }, 0);
-      } else if (event === "SIGNED_OUT" && !localStorage.getItem("testUser")) {
-        setUser(null);
-        setProfile(null);
-        setUserRole(null);
-        setSchoolId(null);
-        setIsSupervisor(false);
-        setIsTestUser(false);
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
   }, [fetchUserProfile, initAttempts]);
-
-  // Remove maximum loading time effect since we're removing loading states
 
   return (
     <AuthContext.Provider value={{

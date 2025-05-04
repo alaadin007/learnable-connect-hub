@@ -35,6 +35,7 @@ import StudentAssessments from "@/pages/StudentAssessments";
 import StudentSettings from "@/pages/StudentSettings";
 import AdminTools from "@/pages/AdminTools";
 import AdminTeacherManagement from "@/pages/AdminTeacherManagement";
+import Unauthorized from "@/pages/Unauthorized";
 
 // Define demo mode status
 const isDemoMode = import.meta.env.VITE_DEMO_MODE === "true";
@@ -75,6 +76,7 @@ function App() {
             <Route path="/register" element={<Register />} />
             <Route path="/school-registration" element={<SchoolRegistration />} />
             <Route path="/test-accounts" element={<TestAccounts />} />
+            <Route path="/unauthorized" element={<Unauthorized />} />
 
             {/* Protected routes */}
             <Route element={<ProtectedRoute />}>
@@ -84,22 +86,70 @@ function App() {
               <Route path="/documents" element={<Documents />} />
               
               {/* Admin routes */}
-              <Route path="/admin/teachers" element={<AdminTeachers />} />
-              <Route path="/admin/students" element={<AdminStudents />} />
-              <Route path="/admin/settings" element={<SchoolSettings />} />
-              <Route path="/admin/analytics" element={<AdminAnalytics />} />
-              <Route path="/admin" element={<SchoolAdmin />} />
-              <Route path="/admin/tools" element={<AdminTools />} />
-              <Route path="/admin/teacher-management" element={<AdminTeacherManagement />} />
+              <Route path="/admin/teachers" element={
+                <ProtectedRoute requiredRole="school">
+                  <AdminTeachers />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/students" element={
+                <ProtectedRoute requiredRole="school">
+                  <AdminStudents />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/settings" element={
+                <ProtectedRoute requiredRole="school">
+                  <SchoolSettings />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/analytics" element={
+                <ProtectedRoute requiredRole="school">
+                  <AdminAnalytics />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin" element={
+                <ProtectedRoute requiredRole="school">
+                  <SchoolAdmin />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/tools" element={
+                <ProtectedRoute requiredRole="school">
+                  <AdminTools />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/teacher-management" element={
+                <ProtectedRoute requiredRole="school">
+                  <AdminTeacherManagement />
+                </ProtectedRoute>
+              } />
 
               {/* Teacher routes */}
-              <Route path="/teacher/students" element={<TeacherStudents />} />
-              <Route path="/teacher/analytics" element={<TeacherAnalytics />} />
+              <Route path="/teacher/students" element={
+                <ProtectedRoute requiredRole="teacher">
+                  <TeacherStudents />
+                </ProtectedRoute>
+              } />
+              <Route path="/teacher/analytics" element={
+                <ProtectedRoute requiredRole="teacher">
+                  <TeacherAnalytics />
+                </ProtectedRoute>
+              } />
 
               {/* Student routes */}
-              <Route path="/student/progress" element={<StudentProgress />} />
-              <Route path="/student/assessments" element={<StudentAssessments />} />
-              <Route path="/student/settings" element={<StudentSettings />} />
+              <Route path="/student/progress" element={
+                <ProtectedRoute requiredRole="student">
+                  <StudentProgress />
+                </ProtectedRoute>
+              } />
+              <Route path="/student/assessments" element={
+                <ProtectedRoute requiredRole="student">
+                  <StudentAssessments />
+                </ProtectedRoute>
+              } />
+              <Route path="/student/settings" element={
+                <ProtectedRoute requiredRole="student">
+                  <StudentSettings />
+                </ProtectedRoute>
+              } />
             </Route>
 
             {/* Special invite route */}
