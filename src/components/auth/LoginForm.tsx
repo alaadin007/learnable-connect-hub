@@ -1,154 +1,148 @@
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Link, useNavigate, useLocation } from "react-router-dom";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useAuth } from "@/contexts/AuthContext";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { AlertCircle } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { useAuth } from "@/contexts/AuthContext";
-import { Loader2 } from "lucide-react";
+import { Link } from "react-router-dom";
+import { isTestAccount } from "@/integrations/supabase/client";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertCircle, ChevronRight, Loader2 } from "lucide-react";
+import { resendVerificationEmail, requestPasswordReset } from "@/utils/authHelpers";
 
-const loginSchema = z.object({
-  email: z.string().email({
-    message: "Please enter a valid email address.",
-  }),
-  password: z.string().min(1, {
-    message: "Password is required.",
-  }),
+const formSchema = z.object({
+  email: z.string().email({ message: "Please enter a valid email address" }),
+  password: z.string().min(6, { message: "Password must be at least 6 characters" }),
 });
 
-type LoginFormValues = z.infer<typeof loginSchema>;
+type FormValues = z.infer<typeof formSchema>;
 
 const LoginForm = () => {
   const { signIn } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
-  const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isEmailVerificationError, setIsEmailVerificationError] = useState(false);
-  const [pendingVerificationEmail, setPendingVerificationEmail] = useState<string | null>(null);
-
-  useEffect(() => {
-    // Check for verification success query parameter
-    const searchParams = new URLSearchParams(location.search);
-    if (searchParams.get("verified") === "true") {
-      toast.success("Email Verified Successfully", {
-        description: "Your email has been verified. You can now log in."
-      });
-    }
-  }, [location.search]);
-
-  const form = useForm<LoginFormValues>({
-    resolver: zodResolver(loginSchema),
+  const [isResendingVerification, setIsResendingVerification] = useState(false);
+  const [isRequestingReset, setIsRequestingReset] = useState(false);
+  const [showVerificationAlert, setShowVerificationAlert] = useState(false);
+  const [emailForActions, setEmailForActions] = useState("");
+  
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
     defaultValues: {
       email: "",
       password: "",
     },
   });
 
-  const onSubmit = async (values: LoginFormValues) => {
-    setError(null);
-    setIsEmailVerificationError(false);
-    setPendingVerificationEmail(null);
+  const onSubmit = async (values: FormValues) => {
     setIsLoading(true);
-
+    setEmailForActions(values.email); // Save email for verification resend
+    
     try {
       await signIn(values.email, values.password);
-      // The redirect after login is handled in AuthContext
-    } catch (error: any) {
-      console.error("Login error:", error);
       
-      // Check if error is due to email not verified
-      if (error.message?.includes("Email not confirmed") || 
-          error.message?.includes("not verified") ||
-          error.message?.includes("Email verification")) {
-        setIsEmailVerificationError(true);
-        setPendingVerificationEmail(values.email);
+      const isTest = isTestAccount(values.email);
+      
+      if (isTest) {
+        console.log("Test account detected, redirecting to dashboard");
+        navigate("/dashboard");
       } else {
-        setError(error.message || "Failed to sign in");
+        console.log("Successful login, redirecting to dashboard");
+        navigate("/dashboard");
       }
+    } catch (error: any) {
+      // Check specifically for email verification errors
+      if (error.message?.includes("Email not verified") || 
+          error.message?.includes("Email not confirmed") || 
+          error.message?.includes("not verified")) {
+        setShowVerificationAlert(true);
+        toast.error("Email address not verified. Please check your inbox for a verification link.");
+      } else {
+        toast.error(error.message || "Failed to sign in");
+      }
+      console.error("Login error:", error);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleResendVerification = async () => {
-    if (!pendingVerificationEmail) return;
+    if (!emailForActions) {
+      toast.error("Please enter your email address first");
+      return;
+    }
     
-    setIsLoading(true);
+    setIsResendingVerification(true);
     try {
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
-        email: pendingVerificationEmail,
-      });
-      
-      if (error) {
-        throw error;
+      const result = await resendVerificationEmail(emailForActions);
+      if (result.success) {
+        toast.success(result.message);
+      } else {
+        toast.error(result.message);
       }
-      
-      toast.success("Verification Email Sent", {
-        description: "Please check your inbox and verify your email before logging in."
-      });
     } catch (error: any) {
-      setError(`Failed to resend verification email: ${error.message}`);
-      toast.error("Failed to resend verification email", {
-        description: error.message
-      });
+      toast.error("Failed to resend verification email");
+      console.error("Verification resend error:", error);
     } finally {
-      setIsLoading(false);
+      setIsResendingVerification(false);
+    }
+  };
+
+  const handlePasswordReset = async () => {
+    if (!emailForActions) {
+      toast.error("Please enter your email address first");
+      return;
+    }
+    
+    setIsRequestingReset(true);
+    try {
+      const result = await requestPasswordReset(emailForActions);
+      if (result.success) {
+        toast.success(result.message);
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error: any) {
+      toast.error("Failed to send password reset email");
+      console.error("Password reset error:", error);
+    } finally {
+      setIsRequestingReset(false);
     }
   };
 
   return (
-    <Card className="w-full max-w-md mx-auto">
-      <CardHeader className="text-center">
-        <CardTitle className="text-2xl">Welcome Back</CardTitle>
+    <Card className="w-full max-w-md shadow-lg border-learnable-light">
+      <CardHeader className="space-y-1">
+        <CardTitle className="text-2xl font-bold gradient-text">Login</CardTitle>
         <CardDescription>
-          Sign in to your account to continue
+          Enter your email and password to access your account
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        {error && (
-          <Alert variant="destructive" className="mb-4">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
-        {isEmailVerificationError && (
-          <Alert variant="default" className="mb-4 bg-amber-50 border-amber-200 text-amber-800">
+      <CardContent className="space-y-4">
+        {showVerificationAlert && (
+          <Alert variant="warning" className="bg-amber-50 border-amber-200">
             <AlertCircle className="h-4 w-4 text-amber-600" />
-            <AlertTitle>Email Verification Required</AlertTitle>
-            <AlertDescription className="space-y-2">
-              <p>You need to verify your email address before logging in.</p>
+            <AlertTitle className="text-amber-800">Email not verified</AlertTitle>
+            <AlertDescription className="text-amber-700">
+              Please check your inbox for a verification link or
               <Button 
-                variant="outline" 
-                size="sm" 
-                className="mt-2 bg-amber-100 border-amber-200 text-amber-800 hover:bg-amber-200"
+                variant="link" 
+                className="px-1 text-amber-700 font-semibold underline hover:text-amber-900"
                 onClick={handleResendVerification}
-                disabled={isLoading}
+                disabled={isResendingVerification}
               >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Sending...
-                  </>
-                ) : (
-                  "Resend Verification Email"
-                )}
+                {isResendingVerification ? 'Sending...' : 'click here to resend'}
               </Button>
             </AlertDescription>
           </Alert>
         )}
-
+        
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
@@ -158,10 +152,14 @@ const LoginForm = () => {
                 <FormItem>
                   <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input
-                      placeholder="yourname@example.com"
-                      {...field}
-                      autoComplete="email"
+                    <Input 
+                      placeholder="you@example.com" 
+                      type="email" 
+                      {...field} 
+                      onChange={(e) => {
+                        field.onChange(e);
+                        setEmailForActions(e.target.value);
+                      }}
                     />
                   </FormControl>
                   <FormMessage />
@@ -175,23 +173,16 @@ const LoginForm = () => {
                 <FormItem>
                   <FormLabel>Password</FormLabel>
                   <FormControl>
-                    <Input
-                      type="password"
-                      placeholder="••••••••"
-                      {...field}
-                      autoComplete="current-password"
-                    />
+                    <Input placeholder="••••••••" type="password" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-
-            <Button
-              type="submit"
-              className="w-full gradient-bg"
+            <Button 
+              type="submit" 
+              className="w-full gradient-bg" 
               disabled={isLoading}
-              aria-busy={isLoading}
             >
               {isLoading ? (
                 <>
@@ -199,27 +190,34 @@ const LoginForm = () => {
                   Signing In...
                 </>
               ) : (
-                "Sign In"
+                <>Sign In</>
               )}
             </Button>
           </form>
         </Form>
-      </CardContent>
-      <CardFooter className="flex flex-col space-y-2 border-t pt-6">
-        <div className="text-sm text-muted-foreground text-center">
-          Don't have an account?{" "}
-          <Link
-            to="/register"
-            className="font-medium underline underline-offset-4 hover:text-primary"
+        
+        <div className="text-sm text-center space-y-2">
+          <Button 
+            variant="link" 
+            className="text-learnable-blue hover:text-learnable-purple p-0"
+            onClick={handlePasswordReset}
+            disabled={isRequestingReset}
           >
+            {isRequestingReset ? 'Sending...' : 'Forgot password?'}
+          </Button>
+        </div>
+      </CardContent>
+      <CardFooter className="flex flex-col space-y-4">
+        <div className="text-sm text-center w-full">
+          Don't have an account?{" "}
+          <Link to="/register" className="text-learnable-blue hover:text-learnable-purple font-semibold">
             Register
           </Link>
-          {" or "}
-          <Link
-            to="/school-registration"
-            className="font-medium underline underline-offset-4 hover:text-primary"
-          >
-            Register a School
+        </div>
+        <div className="text-sm text-center w-full">
+          <Link to="/school-registration" className="flex items-center justify-center text-learnable-blue hover:text-learnable-purple font-semibold">
+            <span>Register your school</span>
+            <ChevronRight className="ml-1 h-4 w-4" />
           </Link>
         </div>
       </CardFooter>

@@ -62,3 +62,7 @@ verify_jwt = false
 [[edge_functions]]
 name = "remove-user"
 verify_jwt = true
+
+[[edge_functions]]
+name = "resend-verification"
+verify_jwt = false
