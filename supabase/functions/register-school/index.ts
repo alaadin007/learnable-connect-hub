@@ -2,8 +2,8 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.32.0";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
 interface RegisterSchoolRequest {
@@ -14,14 +14,14 @@ interface RegisterSchoolRequest {
 }
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
+  if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders, status: 204 });
   }
 
   try {
-    // Setup Supabase admin client
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
     if (!supabaseUrl || !supabaseServiceKey) {
       console.error("Missing Supabase credentials");
       return new Response(
@@ -29,36 +29,54 @@ serve(async (req) => {
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
       );
     }
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, { auth: { autoRefreshToken: false, persistSession: false }});
 
-    // Parse and validate request body
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      }
+    });
+
     let requestBody: RegisterSchoolRequest;
     try {
       requestBody = await req.json();
-    } catch {
+    } catch (e) {
+      console.error("Error parsing request body:", e);
       return new Response(
         JSON.stringify({ error: "Invalid request body" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
       );
     }
+
     const { schoolName, adminEmail, adminPassword, adminFullName } = requestBody;
+
     if (!schoolName || !adminEmail || !adminPassword || !adminFullName) {
+      console.log("Missing required fields:", { 
+        hasSchoolName: !!schoolName, 
+        hasAdminEmail: !!adminEmail, 
+        hasAdminPassword: !!adminPassword, 
+        hasAdminFullName: !!adminFullName 
+      });
       return new Response(
         JSON.stringify({ error: "Missing required fields" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
       );
     }
 
-    // Check existing user by email
-    const { data: existingUsers, error: listUserError } = await supabaseAdmin.auth.admin.listUsers({ filters: { email: adminEmail } });
-    if (listUserError) {
-      console.error("Error listing users:", listUserError);
+    // Consider using `filters` option with email in listUsers if supported instead of manual find
+    const { data: existingUserData, error: userLookupError } = await supabaseAdmin.auth.admin.listUsers();
+
+    if (userLookupError) {
+      console.error("Error checking for existing user:", userLookupError);
       return new Response(
-        JSON.stringify({ error: "Error checking existing users" }),
+        JSON.stringify({ error: "Error checking existing user: " + userLookupError.message }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
       );
     }
-    if (existingUsers?.users?.some((u) => u.email === adminEmail)) {
+
+    const existingUser = existingUserData?.users?.find((user) => user.email === adminEmail);
+    if (existingUser) {
+      console.log("User already exists:", existingUser.email);
       return new Response(
         JSON.stringify({ error: "Email already registered" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 409 }
@@ -68,114 +86,135 @@ serve(async (req) => {
     // Generate a unique school code
     const schoolCode = generateSchoolCode();
 
-    // Insert school code
-    const { error: schoolCodeError } = await supabaseAdmin.from("school_codes").insert({ code: schoolCode, school_name: schoolName, active: true });
-    if (schoolCodeError) throw schoolCodeError;
-
-    // Insert school record
-    const { data: schoolData, error: schoolError } = await supabaseAdmin.from("schools").insert({ name: schoolName, code: schoolCode }).select("id").maybeSingle();
-    if (schoolError || !schoolData) {
-      await supabaseAdmin.from("school_codes").delete().eq("code", schoolCode);
-      return new Response(
-        JSON.stringify({ error: "Failed to create school record" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
-      );
-    }
-    const schoolId = schoolData.id;
-
     // Create admin user
     const { data: userData, error: userError } = await supabaseAdmin.auth.admin.createUser({
       email: adminEmail,
       password: adminPassword,
-      email_confirm: false, // send verification email later
+      email_confirm: false, // requires email confirmation
       user_metadata: {
         full_name: adminFullName,
-        user_type: "school",
-        school_code: schoolCode,
         school_name: schoolName,
-      },
-      email_confirm_redirect_url: `${new URL(req.url).origin}/login?email_confirmed=true`,
+        school_code: schoolCode,
+        user_type: "school",
+      }
     });
+
     if (userError) {
-      await supabaseAdmin.from("schools").delete().eq("id", schoolId);
-      await supabaseAdmin.from("school_codes").delete().eq("code", schoolCode);
-      if (userError.message.includes("already registered")) {
-        return new Response(
-          JSON.stringify({ error: "Email already registered" }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 409 }
-        );
-      }
+      console.error("Error creating admin user:", userError);
       return new Response(
-        JSON.stringify({ error: "Failed to create admin user", details: userError.message }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+        JSON.stringify({ error: userError.message }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
       );
     }
-    if (!userData?.user?.id) {
-      await supabaseAdmin.from("schools").delete().eq("id", schoolId);
-      await supabaseAdmin.from("school_codes").delete().eq("code", schoolCode);
-      return new Response(
-        JSON.stringify({ error: "Admin user creation failed - no user data returned" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
-      );
-    }
-    const adminUserId = userData.user.id;
 
-    // Create related records
-    await supabaseAdmin.from("teachers").insert({ id: adminUserId, school_id: schoolId, is_supervisor: true });
-    await supabaseAdmin.from("profiles").upsert({
-      id: adminUserId,
-      user_type: "school",
-      full_name: adminFullName,
-      school_code: schoolCode,
-      school_name: schoolName,
+    console.log("User created successfully:", userData.user.id);
+
+    // Create school and related records
+    const schoolId = await createSchoolRecords(
+      supabaseAdmin,
+      schoolCode,
+      schoolName,
+      userData.user.id,
+      adminFullName
+    );
+
+    if (!schoolId) {
+      console.error("Failed to create all school records.");
+    } else {
+      console.log("School records created successfully with ID:", schoolId);
+    }
+
+    // Send verification email
+    const { error: verificationError } = await supabaseAdmin.auth.admin.generateLink({
+      type: 'signup',
+      email: adminEmail
     });
 
-    // Attempt to send confirmation email multiple times
-    let emailSent = false;
-    let emailError = null;
-    const maxAttempts = 3;
-    for (let i = 0; i < maxAttempts; i++) {
-      const { error: resendError } = await supabaseAdmin.auth.admin.resendUserConfirmationEmail(adminEmail);
-      if (!resendError) {
-        emailSent = true;
-        break;
-      }
-      emailError = resendError ?? null;
-      await new Promise(res => setTimeout(res, 500)); // wait 500ms before retry
+    if (verificationError) {
+      console.error("Verification email sending failed:", verificationError);
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: "Registered successfully but failed to send verification email.",
+          userId: userData.user.id,
+          schoolCode,
+          email_verification_sent: false,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 201 }
+      );
     }
 
+    // Success response
     return new Response(
       JSON.stringify({
         success: true,
-        schoolId,
+        message: "School registered successfully. Please verify your email.",
+        userId: userData.user.id,
         schoolCode,
-        adminUserId,
-        emailSent,
-        emailError: emailError ? String(emailError) : null,
-        message: emailSent
-          ? "School registered successfully; please verify your email."
-          : "Registered, but failed to send verification email. Please use password reset to resend it.",
+        email_verification_sent: true,
       }),
-      {
-        status: 201,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 201 }
     );
+
   } catch (error) {
-    console.error("Unexpected error:", error);
+    console.error("Unhandled error:", error);
     return new Response(
-      JSON.stringify({
-        error: error instanceof Error ? error.message : "Unknown error",
-      }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({ error: error?.message ?? "Unknown error" }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
   }
 });
 
+async function createSchoolRecords(
+  supabase: any,
+  schoolCode: string,
+  schoolName: string,
+  userId: string,
+  adminFullName: string,
+): Promise<string | null> {
+  try {
+    await supabase.from("school_codes").insert({
+      code: schoolCode,
+      school_name: schoolName,
+      active: true,
+    });
+
+    const { data: schoolData, error: schoolError } = await supabase
+      .from("schools")
+      .insert({ name: schoolName, code: schoolCode })
+      .select("id")
+      .single();
+
+    if (schoolError || !schoolData) {
+      console.error("Error creating school record:", schoolError);
+      return null;
+    }
+
+    await supabase.from("teachers").insert({
+      id: userId,
+      school_id: schoolData.id,
+      is_supervisor: true,
+    });
+
+    await supabase.from("profiles").insert({
+      id: userId,
+      full_name: adminFullName,
+      user_type: "school",
+      school_name: schoolName,
+      school_code: schoolCode,
+    });
+
+    return schoolData.id;
+
+  } catch (error) {
+    console.error("Error creating school records:", error);
+    return null;
+  }
+}
 
 function generateSchoolCode(): string {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let code = "";
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
   for (let i = 0; i < 8; i++) {
     code += chars.charAt(Math.floor(Math.random() * chars.length));
   }
