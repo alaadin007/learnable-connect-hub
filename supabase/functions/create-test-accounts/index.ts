@@ -107,19 +107,14 @@ async function createOrUpdateTestAccount(
 
   console.log(`Creating/checking test ${type} account: ${email}`);
   
-  // Check if the user already exists
-  const { data: existingUser, error: userCheckError } = await supabaseAdmin.auth.admin.getUserByEmail(email);
+  // Generate a stable user ID for test accounts based on type and index
+  const userId = `test-${type}-${schoolIndex || 0}`;
+  let exists = false;
   
-  if (userCheckError && userCheckError.message !== "User not found") {
-    throw new Error(`Error checking for existing user: ${userCheckError.message}`);
-  }
-  
-  let userId = existingUser?.id;
-  let exists = !!existingUser;
-  
-  // For school type, check if we need to create a school code first
-  let schoolId = null;
-  if (type === 'school' || type === 'teacher' || type === 'student') {
+  try {
+    // For school type, check if we need to create a school code first
+    let schoolId = `test-school-${schoolIndex || 0}`;
+    
     // Check if school code exists
     const { data: existingCode } = await supabaseAdmin.from('school_codes')
       .select('*')
@@ -138,7 +133,7 @@ async function createOrUpdateTestAccount(
       console.log(`Created school code: ${schoolCode} for ${schoolName}`);
     }
     
-    // Get or create school id
+    // Check if school exists
     const { data: existingSchool } = await supabaseAdmin.from('schools')
       .select('id')
       .eq('code', schoolCode)
@@ -146,122 +141,134 @@ async function createOrUpdateTestAccount(
       
     if (existingSchool) {
       schoolId = existingSchool.id;
+      exists = true;
     } else {
-      const { data: newSchool } = await supabaseAdmin.from('schools')
+      // Create the school
+      const { data: newSchool, error: schoolError } = await supabaseAdmin.from('schools')
         .insert({ 
+          id: schoolId,
           name: schoolName,
           code: schoolCode
         })
         .select('id')
         .single();
         
+      if (schoolError) {
+        console.error("Error creating school:", schoolError);
+        throw new Error(`Failed to create school: ${schoolError.message}`);
+      }
+      
       if (newSchool) {
         schoolId = newSchool.id;
       }
     }
-  }
-  
-  // Create the user if it doesn't exist - for instant login handling
-  if (!existingUser) {
-    // For instant test accounts, we use a stable ID format
-    userId = `test-${type}-${schoolIndex}-${Date.now().toString().slice(-6)}`;
     
-    // Create user in auth system (without actually creating a real auth user)
-    console.log(`Creating test user with ID: ${userId}`);
-
-    // Create a profiles entry directly
-    await supabaseAdmin
-      .from('profiles')
-      .insert({
-        id: userId,
-        user_type: type,
-        full_name: fullName,
-        school_code: schoolCode,
-        school_name: schoolName
-      });
+    // Check if profile exists
+    const { data: existingProfile } = await supabaseAdmin.from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle();
+    
+    if (existingProfile) {
+      // Update existing profile
+      await supabaseAdmin.from('profiles')
+        .update({
+          user_type: type,
+          full_name: fullName,
+          school_code: schoolCode,
+          school_name: schoolName
+        })
+        .eq('id', userId);
       
-    console.log(`Test account created successfully. User ID: ${userId}`);
-  } else {
-    userId = existingUser.id;
-    
-    // Update existing profile data to ensure it's current
-    await supabaseAdmin
-      .from('profiles')
-      .update({
-        user_type: type,
-        full_name: fullName,
-        school_code: schoolCode,
-        school_name: schoolName
-      })
-      .eq('id', userId);
-  }
-  
-  // For teacher or student type and school exists, populate some test data
-  if ((type === 'teacher' || type === 'student') && schoolId) {
-    try {
-      // Check if the user is registered in the appropriate role table
-      if (type === 'teacher') {
-        const { data: teacherCheck } = await supabaseAdmin
-          .from('teachers')
-          .select('id')
-          .eq('id', userId)
-          .maybeSingle();
+      exists = true;
+    } else {
+      // Create a profiles entry
+      await supabaseAdmin.from('profiles')
+        .insert({
+          id: userId,
+          user_type: type,
+          full_name: fullName,
+          school_code: schoolCode,
+          school_name: schoolName
+        });
+    }
+      
+    // For teacher or student, set up role-specific data
+    if (type === 'teacher') {
+      const { data: teacherCheck } = await supabaseAdmin.from('teachers')
+        .select('id')
+        .eq('id', userId)
+        .maybeSingle();
           
-        if (!teacherCheck) {
-          await supabaseAdmin
-            .from('teachers')
-            .insert({
-              id: userId,
-              school_id: schoolId,
-              is_supervisor: false
-            });
-        }
-      } else if (type === 'student') {
-        const { data: studentCheck } = await supabaseAdmin
-          .from('students')
-          .select('id')
-          .eq('id', userId)
-          .maybeSingle();
-          
-        if (!studentCheck) {
-          await supabaseAdmin
-            .from('students')
-            .insert({
-              id: userId,
-              school_id: schoolId
-            });
-        }
-        
-        // Generate some session logs for the student
-        try {
-          await supabaseAdmin.rpc('populatetestaccountwithsessions', {
-            userid: userId,
-            schoolid: schoolId,
-            num_sessions: 5
+      if (!teacherCheck) {
+        await supabaseAdmin.from('teachers')
+          .insert({
+            id: userId,
+            school_id: schoolId,
+            is_supervisor: false
           });
-          console.log(`Generated test session data for student ${userId}`);
-        } catch (sessionError) {
-          console.error("Error generating test sessions:", sessionError);
-        }
+      }
+    } else if (type === 'student') {
+      const { data: studentCheck } = await supabaseAdmin.from('students')
+        .select('id')
+        .eq('id', userId)
+        .maybeSingle();
+          
+      if (!studentCheck) {
+        await supabaseAdmin.from('students')
+          .insert({
+            id: userId,
+            school_id: schoolId
+          });
       }
       
-      console.log(`Set up role-specific data for ${type}`);
-    } catch (setupError) {
-      console.error("Error in test data setup:", setupError);
-      // Continue anyway as this is non-critical
+      // Generate test session data
+      try {
+        await supabaseAdmin.rpc('populatetestaccountwithsessions', {
+          userid: userId,
+          schoolid: schoolId,
+          num_sessions: 5
+        });
+        console.log(`Generated test session data for student ${userId}`);
+      } catch (sessionError) {
+        console.error("Error generating test sessions:", sessionError);
+        // Continue anyway as this is non-critical
+      }
+    } else if (type === 'school') {
+      // For school admin, make sure they're set up as a supervisor teacher
+      const { data: teacherCheck } = await supabaseAdmin.from('teachers')
+        .select('id, is_supervisor')
+        .eq('id', userId)
+        .maybeSingle();
+      
+      if (!teacherCheck) {
+        await supabaseAdmin.from('teachers')
+          .insert({
+            id: userId,
+            school_id: schoolId,
+            is_supervisor: true
+          });
+      } else if (!teacherCheck.is_supervisor) {
+        await supabaseAdmin.from('teachers')
+          .update({ is_supervisor: true })
+          .eq('id', userId);
+      }
     }
-  }
 
-  // Return account details for instant login
-  return { 
-    email,
-    password,
-    type,
-    userId,
-    schoolId,
-    schoolCode,
-    schoolName,
-    fullName,
-    exists
-  };
+    // Return account details for instant login
+    return { 
+      email,
+      password,
+      type,
+      userId,
+      schoolId,
+      schoolCode,
+      schoolName,
+      fullName,
+      exists
+    };
+  } catch (error) {
+    console.error("Error in createOrUpdateTestAccount:", error);
+    throw error;
+  }
 }

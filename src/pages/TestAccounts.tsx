@@ -78,6 +78,7 @@ const TestAccounts = () => {
   const createTestAccounts = useCallback(async () => {
     try {
       setDataCreationLoading(true);
+      setErrorMessage(null);
       toast.loading("Refreshing test accounts...", {
         id: "test-accounts-status",
       });
@@ -91,10 +92,12 @@ const TestAccounts = () => {
       });
 
       if (response.error) {
-        toast.error("Failed to refresh test accounts", {
+        const errorMsg = `Failed to refresh test accounts: ${response.error.message}`;
+        toast.error(errorMsg, {
           id: "test-accounts-error",
         });
         console.error("Error creating test accounts:", response.error);
+        setErrorMessage(errorMsg);
         return false;
       }
 
@@ -102,11 +105,13 @@ const TestAccounts = () => {
         id: "test-accounts-success",
       });
       return true;
-    } catch (error) {
-      console.error("Error refreshing test accounts:", error);
-      toast.error("An error occurred while refreshing test accounts", {
+    } catch (error: any) {
+      const errorMsg = `Error refreshing test accounts: ${error.message || "Unknown error"}`;
+      console.error(errorMsg, error);
+      toast.error(errorMsg, {
         id: "test-accounts-general-error",
       });
+      setErrorMessage(errorMsg);
       return false;
     } finally {
       setDataCreationLoading(false);

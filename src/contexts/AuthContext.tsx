@@ -1,3 +1,4 @@
+
 import React, {
   createContext,
   useState,
@@ -9,6 +10,7 @@ import {
   Session,
   User,
   AuthChangeEvent,
+  AuthError,
 } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -419,7 +421,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
         throw new Error("Email not verified. Please check your inbox for a verification link or request a new one.");
       }
       
-      toast.error(error.error_description ?? error.message);
+      toast.error(error.message || "Login failed");
       throw error;
     } finally {
       // Loading state will be reset by onAuthStateChange
@@ -448,7 +450,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
         const { error } = await supabase.auth.signOut();
         if (error) {
           console.error("Sign out error:", error);
-          toast.error(error.error_description ?? error.message ?? "Failed to log out");
+          toast.error(error.message || "Failed to log out");
           return;
         }
       } else {
@@ -469,7 +471,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       toast.success(isTestUser ? "Test session ended" : "Logged out successfully");
     } catch (error: any) {
       console.error("Sign out error:", error);
-      toast.error(error.error_description ?? error.message ?? "Failed to log out");
+      toast.error(error.message || "Failed to log out");
     } finally {
       setIsLoading(false);
     }
@@ -495,7 +497,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       toast.success("Registration successful! Please check your email.");
     } catch (error: any) {
       console.error("Sign up error caught:", error);
-      toast.error(error.error_description ?? error.message);
+      toast.error(error.message || "Registration failed");
       throw error;
     } finally {
       setIsLoading(false);
@@ -697,9 +699,10 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
         sessionLogger.startSession("Test Login Session", userId)
           .catch(e => console.error("Error starting test session:", e));
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error setting test user:", error);
       setIsLoading(false);
+      toast.error(error.message || "Failed to set up test account");
       throw new Error("Failed to set up test account");
     }
   };

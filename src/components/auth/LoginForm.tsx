@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
@@ -52,7 +53,15 @@ const LoginForm = () => {
         if (email.startsWith("school")) type = "school";
         else if (email.startsWith("teacher")) type = "teacher";
         console.log(`Test account detected: ${type}. Instantly logging in...`);
-        setTestUser(type);
+        
+        try {
+          await setTestUser(type);
+        } catch (error: any) {
+          console.error("Test account setup failed:", error);
+          toast.error(error.message || "Failed to set up test account");
+          setLoginError(error.message || "Failed to set up test account");
+        }
+        
         return;
       }
 
