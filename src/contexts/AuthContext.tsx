@@ -1,4 +1,3 @@
-
 import React, {
   createContext,
   useState,
@@ -327,6 +326,12 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       
     } catch (error: any) {
       console.error("Sign in error caught:", error);
+      
+      // Check specifically for email verification errors
+      if (error.message?.includes("Email not confirmed") || error.message?.includes("not verified")) {
+        throw new Error("Email not verified. Please check your inbox for a verification link or request a new one.");
+      }
+      
       toast.error(error.error_description ?? error.message);
       throw error;
     } finally {

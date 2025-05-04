@@ -22,12 +22,19 @@ const ProtectedRoute = ({
   const { user, profile, isSuperviser, isLoading, userRole, schoolId: userSchoolId } = useAuth();
   const location = useLocation();
 
+  // Show a more informative loading state
   if (isLoading) {
-    return <div className="flex items-center justify-center h-screen">Loading...</div>;
+    return (
+      <div className="flex flex-col items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+        <p className="text-lg text-blue-600">Loading authentication data...</p>
+      </div>
+    );
   }
 
   // Not logged in
   if (!user) {
+    // Store the current location for redirect after login
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
