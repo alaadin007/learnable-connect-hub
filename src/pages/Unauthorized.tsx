@@ -27,7 +27,7 @@ const Unauthorized = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="max-w-md w-full px-6 py-8 bg-white shadow-md rounded-lg">
-        <Alert variant="warning" className="mb-6 border-yellow-400 bg-yellow-50">
+        <Alert className="mb-6 border-yellow-400 bg-yellow-50">
           <AlertCircle className="h-4 w-4 text-yellow-600" />
           <AlertTitle className="text-yellow-700">Access limited</AlertTitle>
           <AlertDescription className="text-yellow-700">
