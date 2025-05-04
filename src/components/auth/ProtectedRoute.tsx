@@ -26,21 +26,21 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const location = useLocation();
   const [forcedTimeout, setForcedTimeout] = useState(false);
 
-  // Further reduced timeout to prevent infinite loading
+  // Even shorter timeout to prevent infinite loading
   useEffect(() => {
     if (isLoading) {
       console.log("ProtectedRoute: Setting loading timeout");
       const timeoutId = setTimeout(() => {
         console.warn("ProtectedRoute: Loading timeout reached - forcing resolution");
         setForcedTimeout(true);
-      }, 300); // Reduced timeout for better UX
+      }, 250); // Further reduced timeout for better UX
 
       return () => clearTimeout(timeoutId);
     }
   }, [isLoading]);
 
   // Enhanced error handling - if loading is taking too long, show a more helpful UI
-  if ((isLoading && !forcedTimeout)) {
+  if (isLoading && !forcedTimeout) {
     console.log("ProtectedRoute: Showing loading spinner");
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -63,13 +63,19 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to={redirectTo} replace state={{ from: location.pathname }} />;
   }
 
-  // Debug logs to track what's happening
   console.log(`ProtectedRoute checks - User role: ${userRole}, Required role: ${requiredRole}, Supervisor: ${isSupervisor}, isTestUser: ${isTestUser}`);
 
   // Check role requirements if specified
   if (requiredRole && userRole !== requiredRole) {
     console.log(`ProtectedRoute: User role ${userRole} doesn't match required role ${requiredRole}`);
-    toast.error(`Access denied: This area requires ${requiredRole} permissions`);
+    
+    // For test users, provide more guidance
+    if (isTestUser) {
+      toast.error(`You need ${requiredRole} permissions to access this area. Try logging in as a ${requiredRole} test user.`);
+    } else {
+      toast.error(`Access denied: This area requires ${requiredRole} permissions`);
+    }
+    
     return <Navigate to="/unauthorized" replace />;
   }
 

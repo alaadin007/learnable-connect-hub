@@ -15,6 +15,7 @@ import About from "./pages/About";
 import Contact from "./pages/Contact";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
+import Unauthorized from "./pages/Unauthorized"; // Import the Unauthorized page
 import AdminTools from "./pages/AdminTools";
 import SchoolRegistration from "./pages/SchoolRegistration";
 import Pricing from "./pages/Pricing";
@@ -51,6 +52,7 @@ function AppRoutes() {
       <Route path="/contact" element={<Contact />} />
       <Route path="/about" element={<About />} />
       <Route path="/test-accounts" element={<TestAccounts />} />
+      <Route path="/unauthorized" element={<Unauthorized />} />
       
       {/* Add a direct route to redirect school admins */}
       <Route 

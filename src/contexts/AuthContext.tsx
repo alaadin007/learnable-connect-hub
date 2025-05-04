@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, useEffect, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
@@ -262,7 +263,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setIsLoading(false);
     }
-  }, [setTestUser, fetchUserProfile, handleAuthenticatedNavigation]);
+  }, [fetchUserProfile, handleAuthenticatedNavigation]);
 
   const signUp = useCallback(async (email: string, password: string, userData: any) => {
     setIsLoading(true);
@@ -318,6 +319,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [user, fetchUserProfile]);
 
+  // Define setTestUser before it's used to fix the TS2448 error
   const setTestUser = useCallback(async (accountType: string, index = 0) => {
     setIsLoading(true);
     try {
