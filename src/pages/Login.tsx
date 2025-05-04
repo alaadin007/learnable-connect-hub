@@ -5,7 +5,7 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
 import LoginForm from "@/components/auth/LoginForm";
 import { Button } from "@/components/ui/button";
-import { Toaster } from "sonner";
+import { Toaster, toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { 
   Dialog,
