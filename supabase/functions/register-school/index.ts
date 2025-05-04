@@ -79,18 +79,22 @@ serve(async (req) => {
     console.log("Checking if user already exists:", adminEmail);
     
     try {
-      // Check if the user already exists by email
-      const { data: userExistsData, error: userExistsError } = await supabaseAdmin.auth.admin.getUserByEmail(adminEmail);
+      // Check if the user already exists by email using listUsers
+      const { data: existingUsers, error: userLookupError } = await supabaseAdmin.auth.admin.listUsers({
+        filter: {
+          email: adminEmail,
+        },
+      });
       
-      if (userExistsError && userExistsError.message !== "User not found") {
-        console.error("Error checking if user exists:", userExistsError);
+      if (userLookupError) {
+        console.error("Error checking if user exists:", userLookupError);
         return new Response(
           JSON.stringify({ error: "Error checking for existing user" }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
         );
       }
       
-      if (userExistsData?.user) {
+      if (existingUsers && existingUsers.users && existingUsers.users.length > 0) {
         console.log("User already exists:", adminEmail);
         return new Response(
           JSON.stringify({ error: "Email already registered" }),
@@ -100,6 +104,7 @@ serve(async (req) => {
     } catch (error) {
       console.error("Exception when checking if user exists:", error);
       // Continue with registration as we couldn't confirm if user exists
+      // But log the error for debugging
     }
 
     // Generate a unique school code

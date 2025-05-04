@@ -69,19 +69,23 @@ serve(async (req) => {
 
     console.log("Checking if user exists:", email);
     
-    // Check if the user exists in a safer way without listing all users
+    // Check if the user exists using listUsers
     try {
-      const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserByEmail(email);
+      const { data: existingUsers, error: userLookupError } = await supabaseAdmin.auth.admin.listUsers({
+        filter: {
+          email: email,
+        },
+      });
       
-      if (userError) {
-        console.error("Error looking up user:", userError);
+      if (userLookupError) {
+        console.error("Error looking up user:", userLookupError);
         return new Response(
-          JSON.stringify({ error: "Error looking up user: " + userError.message }),
+          JSON.stringify({ error: "Error looking up user: " + userLookupError.message }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
         );
       }
       
-      if (!userData?.user) {
+      if (!existingUsers || !existingUsers.users || existingUsers.users.length === 0) {
         console.error("User not found:", email);
         return new Response(
           JSON.stringify({ error: "User not found with the provided email" }),
@@ -89,8 +93,10 @@ serve(async (req) => {
         );
       }
 
+      const userData = existingUsers.users[0];
+
       // Check if the user is already confirmed
-      if (userData.user.email_confirmed_at) {
+      if (userData.email_confirmed_at) {
         console.log("User already verified:", email);
         return new Response(
           JSON.stringify({ 
