@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -64,24 +65,28 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   // Check role requirements if specified
   if (requiredRole && userRole !== requiredRole) {
     console.log(`ProtectedRoute: User role ${userRole} doesn't match required role ${requiredRole}`);
+    toast.error(`Access denied: This area requires ${requiredRole} permissions`);
     return <Navigate to="/unauthorized" replace />;
   }
 
   // Check allowed roles if specified
   if (allowedRoles && allowedRoles.length > 0 && (!userRole || !allowedRoles.includes(userRole))) {
     console.log(`ProtectedRoute: User role ${userRole} not in allowed roles`);
+    toast.error("Access denied: You don't have permission to view this page");
     return <Navigate to="/unauthorized" replace />;
   }
 
   // Check supervisor requirement if specified
   if (requireSupervisor && !isSupervisor) {
     console.log("ProtectedRoute: User is not a supervisor");
+    toast.error("Access denied: This area requires supervisor permissions");
     return <Navigate to="/unauthorized" replace />;
   }
 
   // Check school requirement if specified
   if (requireSameSchool && !schoolId) {
     console.log("ProtectedRoute: User has no school ID");
+    toast.error("Access denied: This area requires school association");
     return <Navigate to="/unauthorized" replace />;
   }
 

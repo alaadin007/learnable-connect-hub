@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, useEffect, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
@@ -29,6 +28,7 @@ interface AuthContextType {
   isLoading: boolean;
   schoolId: string | null;
   isSupervisor: boolean;
+  isTestUser: boolean; // Add the missing property
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   setTestUser: (accountType: string, index?: number) => Promise<void>;
@@ -51,6 +51,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [schoolId, setSchoolId] = useState<string | null>(null);
   const [isSupervisor, setIsSupervisor] = useState<boolean>(false);
+  const [isTestUser, setIsTestUser] = useState<boolean>(false); // Add this state
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -74,6 +75,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const fetchUserProfile = useCallback(async (userId: string) => {
     try {
       if (isTestEntity(userId)) {
+        // Mark as test user when working with test entities
+        setIsTestUser(true);
+
         const parts = userId.split("-");
         const testType = parts.length > 1 ? parts[1] : "student";
         const testIndex = parts.length > 2 ? parseInt(parts[2]) : 0;
@@ -102,6 +106,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsSupervisor(testType === "school");
         return testType;
       }
+
+      // Reset test user state when working with real users
+      setIsTestUser(false);
 
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
@@ -226,6 +233,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUserRole(accountType);
       setSchoolId(mockSchoolId);
       setIsSupervisor(accountType === "school");
+      setIsTestUser(true); // Set test user flag to true
       
       // Save to local storage for persistence
       localStorage.setItem("testUser", JSON.stringify(mockUser));
@@ -262,6 +270,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await setTestUser(accountType, index);
         return;
       }
+
+      // Reset test user state for real logins
+      setIsTestUser(false);
 
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
@@ -309,6 +320,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUserRole(null);
       setSchoolId(null);
       setIsSupervisor(false);
+      setIsTestUser(false); // Reset test user flag on logout
 
       navigate("/login");
     } catch (error) {
@@ -351,6 +363,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUserRole(storedTestRole);
           setSchoolId(`test-school-${testIndex}`);
           setIsSupervisor(storedTestRole === "school");
+          setIsTestUser(true); // Set test user flag for restored sessions
           
           // Set a timeout to ensure UI updates before we continue
           setTimeout(() => {
@@ -358,6 +371,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }, 100);
         } else {
           console.log("No test user found, checking for real user session");
+          setIsTestUser(false); // Reset test user flag
           const { data } = await supabase.auth.getSession();
           if (data?.session?.user) {
             console.log("Found real user session:", data.session.user.id);
@@ -384,6 +398,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUserRole(null);
         setSchoolId(null);
         setIsSupervisor(false);
+        setIsTestUser(false); // Reset test user flag on sign out
       }
     });
 
@@ -399,7 +414,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       userRole,
       isLoading,
       schoolId,
-      isSupervisor, // Fixed the typo from isSuperviser
+      isSupervisor,
+      isTestUser, // Include the flag in the context value
       signIn,
       signOut,
       setTestUser,
