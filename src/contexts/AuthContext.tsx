@@ -229,97 +229,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [user]);
 
-  const signIn = useCallback(async (email: string, password: string) => {
-    setIsLoading(true);
-    try {
-      if (isTestAccount(email)) {
-        let accountType = "student";
-        if (email.startsWith("school")) accountType = "school";
-        else if (email.startsWith("teacher")) accountType = "teacher";
-
-        const emailParts = email.split("@")[0].split(".");
-        const index = emailParts.length > 1 && emailParts[1].startsWith("test")
-          ? parseInt(emailParts[1].replace("test", "")) ?? 0
-          : 0;
-
-        await setTestUser(accountType, index);
-        return;
-      }
-
-      // Reset test user state for real logins
-      setIsTestUser(false);
-
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-      if (!data.user) throw new Error("No user returned from login");
-
-      setUser(data.user);
-      const role = await fetchUserProfile(data.user.id);
-      handleAuthenticatedNavigation(role);
-      toast.success("Logged in successfully");
-    } catch (error) {
-      toast.error(`Login failed: ${(error as Error).message}`);
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [fetchUserProfile, handleAuthenticatedNavigation]);
-
-  const signUp = useCallback(async (email: string, password: string, userData: any) => {
-    setIsLoading(true);
-    try {
-      const response = await supabase.auth.signUp({
-        email,
-        password,
-        options: { data: userData }
-      });
-      if (response.error) throw response.error;
-      return response;
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  const signOut = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      localStorage.removeItem("testUser");
-      localStorage.removeItem("testUserRole");
-      localStorage.removeItem("testUserIndex");
-
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-
-      // Clear all state immediately
-      setUser(null);
-      setProfile(null);
-      setUserRole(null);
-      setSchoolId(null);
-      setIsSupervisor(false);
-      setIsTestUser(false);
-
-      // Use a small timeout to ensure state is updated before navigation
-      setTimeout(() => {
-        navigate("/login");
-        setIsLoading(false);
-      }, 10);
-    } catch (error) {
-      toast.error(`Logout failed: ${(error as Error).message}`);
-      setIsLoading(false);
-    }
-  }, [navigate]);
-
-  const refreshProfile = useCallback(async () => {
-    if (!user?.id) return;
-    setIsLoading(true);
-    try {
-      await fetchUserProfile(user.id);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [user, fetchUserProfile]);
-
-  // Define setTestUser before it's used to fix the TS2448 error
+  // Define setTestUser before it's used to fix the error
   const setTestUser = useCallback(async (accountType: string, index = 0) => {
     setIsLoading(true);
     try {
@@ -395,6 +305,96 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(false);
     }
   }, [navigate, getDashboardByRole]);
+
+  const signIn = useCallback(async (email: string, password: string) => {
+    setIsLoading(true);
+    try {
+      if (isTestAccount(email)) {
+        let accountType = "student";
+        if (email.startsWith("school")) accountType = "school";
+        else if (email.startsWith("teacher")) accountType = "teacher";
+
+        const emailParts = email.split("@")[0].split(".");
+        const index = emailParts.length > 1 && emailParts[1].startsWith("test")
+          ? parseInt(emailParts[1].replace("test", "")) ?? 0
+          : 0;
+
+        await setTestUser(accountType, index);
+        return;
+      }
+
+      // Reset test user state for real logins
+      setIsTestUser(false);
+
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      if (!data.user) throw new Error("No user returned from login");
+
+      setUser(data.user);
+      const role = await fetchUserProfile(data.user.id);
+      handleAuthenticatedNavigation(role);
+      toast.success("Logged in successfully");
+    } catch (error) {
+      toast.error(`Login failed: ${(error as Error).message}`);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [fetchUserProfile, handleAuthenticatedNavigation, setTestUser]);
+
+  const signUp = useCallback(async (email: string, password: string, userData: any) => {
+    setIsLoading(true);
+    try {
+      const response = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: userData }
+      });
+      if (response.error) throw response.error;
+      return response;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const signOut = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      localStorage.removeItem("testUser");
+      localStorage.removeItem("testUserRole");
+      localStorage.removeItem("testUserIndex");
+
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+
+      // Clear all state immediately
+      setUser(null);
+      setProfile(null);
+      setUserRole(null);
+      setSchoolId(null);
+      setIsSupervisor(false);
+      setIsTestUser(false);
+
+      // Use a small timeout to ensure state is updated before navigation
+      setTimeout(() => {
+        navigate("/login");
+        setIsLoading(false);
+      }, 10);
+    } catch (error) {
+      toast.error(`Logout failed: ${(error as Error).message}`);
+      setIsLoading(false);
+    }
+  }, [navigate]);
+
+  const refreshProfile = useCallback(async () => {
+    if (!user?.id) return;
+    setIsLoading(true);
+    try {
+      await fetchUserProfile(user.id);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user, fetchUserProfile]);
 
   useEffect(() => {
     const initAuth = async () => {
