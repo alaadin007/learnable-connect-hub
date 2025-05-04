@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+
+import React from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import { Button } from "@/components/ui/button";
@@ -11,61 +12,33 @@ const Dashboard = () => {
   const { user, profile, userRole, isLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [localLoading, setLocalLoading] = useState(true);
 
-  // Set a shorter timeout to prevent infinite loading state
-  useEffect(() => {
-    console.log("Dashboard: Setting up timeout for loading state");
-    const timer = setTimeout(() => {
-      console.log("Dashboard: Timeout triggered, forcing end of local loading state");
-      setLocalLoading(false);
-    }, 1500); // 1.5 seconds timeout - shorter for better UX
-    
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Force end loading state when auth state is determined
-  useEffect(() => {
-    if (!isLoading) {
-      console.log("Dashboard: Auth loading completed, ending local loading");
-      setLocalLoading(false);
-    }
-  }, [isLoading]);
-
-  // Redirect if not logged in, but only after definitive auth state is known
-  useEffect(() => {
+  // Handle redirect if not logged in
+  React.useEffect(() => {
     console.log("Dashboard: Auth state check", { 
       isLoading, 
-      localLoading,
       user: user ? "exists" : "null", 
       userRole, 
       locationState: location.state 
     });
     
-    // Only make decisions when we have definitive auth state
-    if (!isLoading) {      
-      // Handle bypassing login check for test accounts
-      if (location.state?.fromTestAccounts || location.state?.preserveContext) {
-        console.log("Dashboard: Bypassing login check due to navigation context");
-        return;
-      }
-      
-      // Handle unauthenticated users, but avoid redirect loops
-      if (!user && !location.state?.fromLogin) {
-        console.log("Dashboard: No user found, redirecting to login");
-        navigate("/login");
-      } else if (user) {
-        console.log("Dashboard: User authenticated:", user.id);
-      }
-    }
-  }, [user, navigate, location.state, isLoading]);
-
-  // Role-based redirection
-  useEffect(() => {
-    // Only redirect after loading completes and we have a valid user
-    if (isLoading || !user) {
+    // Skip redirect for specific navigation contexts
+    if (location.state?.fromTestAccounts || location.state?.preserveContext) {
+      console.log("Dashboard: Bypassing login check due to navigation context");
       return;
     }
+    
+    // Redirect unauthenticated users, but avoid redirect loops
+    if (!isLoading && !user && !location.state?.fromLogin) {
+      console.log("Dashboard: No user found, redirecting to login");
+      navigate("/login", { state: { fromLogin: true } });
+    }
+  }, [user, navigate, location, isLoading]);
+
+  // Role-based redirection
+  React.useEffect(() => {
+    // Only redirect if we have a valid user and not loading
+    if (isLoading || !user) return;
     
     // Only redirect on specific conditions
     const isDirectDashboardAccess = !location.state?.fromNavigation && 
@@ -92,21 +65,15 @@ const Dashboard = () => {
     }
   }, [userRole, navigate, location.state, profile, isLoading, user]);
 
-  // Show better loading state with more information
-  if (isLoading || localLoading) {
+  // Show loading state only during actual authentication
+  if (isLoading) {
     return (
       <>
         <Navbar />
         <main className="container mx-auto px-4 py-8 min-h-screen flex items-center justify-center">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
-            <p className="text-xl">Loading your dashboard...</p>
-            {!isLoading && localLoading && (
-              <p className="text-sm text-gray-500 mt-2">Finalizing authentication...</p>
-            )}
-            {localLoading && isLoading && (
-              <p className="text-sm text-gray-500 mt-2">Verifying your credentials...</p>
-            )}
+            <p className="text-xl">Verifying credentials...</p>
           </div>
         </main>
         <Footer />
