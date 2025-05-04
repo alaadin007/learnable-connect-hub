@@ -77,25 +77,29 @@ serve(async (req) => {
 
     // Check if user already exists by email
     console.log("Checking if user already exists:", adminEmail);
-    const { data: existingUserData, error: userLookupError } = await supabaseAdmin.auth.admin.listUsers();
     
-    if (userLookupError) {
-      console.error("Error checking for existing user:", userLookupError);
-      return new Response(
-        JSON.stringify({ error: "Error checking for existing user: " + userLookupError.message }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
-      );
-    }
-    
-    // Find user with matching email
-    const existingUser = existingUserData?.users?.find(user => user.email === adminEmail);
-    
-    if (existingUser) {
-      console.log("User already exists:", existingUser.email);
-      return new Response(
-        JSON.stringify({ error: "Email already registered" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 409 }
-      );
+    try {
+      // Check if the user already exists by email
+      const { data: userExistsData, error: userExistsError } = await supabaseAdmin.auth.admin.getUserByEmail(adminEmail);
+      
+      if (userExistsError && userExistsError.message !== "User not found") {
+        console.error("Error checking if user exists:", userExistsError);
+        return new Response(
+          JSON.stringify({ error: "Error checking for existing user" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+        );
+      }
+      
+      if (userExistsData?.user) {
+        console.log("User already exists:", adminEmail);
+        return new Response(
+          JSON.stringify({ error: "Email already registered" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 409 }
+        );
+      }
+    } catch (error) {
+      console.error("Exception when checking if user exists:", error);
+      // Continue with registration as we couldn't confirm if user exists
     }
 
     // Generate a unique school code
@@ -110,79 +114,106 @@ serve(async (req) => {
       schoolCode: schoolCode 
     });
 
-    const { data: userData, error: userError } = await supabaseAdmin.auth.admin.createUser({
-      email: adminEmail,
-      password: adminPassword,
-      email_confirm: false, // Set to false to send email confirmation
-      user_metadata: {
-        full_name: adminFullName,
-        school_name: schoolName,
-        school_code: schoolCode,
-        user_type: "school" // Mark the user as a school admin
+    try {
+      const { data: userData, error: userError } = await supabaseAdmin.auth.admin.createUser({
+        email: adminEmail,
+        password: adminPassword,
+        email_confirm: false, // Set to false to send email confirmation
+        user_metadata: {
+          full_name: adminFullName,
+          school_name: schoolName,
+          school_code: schoolCode,
+          user_type: "school" // Mark the user as a school admin
+        }
+      });
+
+      if (userError) {
+        console.error("Error creating admin user:", userError);
+        return new Response(
+          JSON.stringify({ error: userError.message }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+        );
       }
-    });
 
-    if (userError) {
-      console.error("Error creating admin user:", userError);
-      return new Response(
-        JSON.stringify({ error: userError.message }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
-      );
-    }
+      console.log("User created successfully:", userData.user.id);
 
-    console.log("User created successfully:", userData.user.id);
-
-    // Create the database entries in a transaction to ensure consistency
-    const schoolId = await createSchoolRecords(
-      supabaseAdmin,
-      schoolCode,
-      schoolName,
-      userData.user.id,
-      adminFullName
-    );
-
-    if (!schoolId) {
-      console.error("Failed to create complete school records, but user was created");
-      // Continue anyway as the user was created - they can retry the process later
-    } else {
-      console.log("School records created successfully with ID:", schoolId);
-    }
-
-    // After successful creation, send email verification separately
-    console.log("Sending verification email to:", adminEmail);
-    const { data: linkData, error: verificationError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'signup',
-      email: adminEmail,
-    });
-
-    if (verificationError) {
-      console.error("Error sending verification email:", verificationError);
-      // Still return success but note the verification issue
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          message: "School registered successfully, but there was an issue sending the verification email. Please try to login and request a new verification email.",
-          userId: userData.user.id,
+      // Create the database entries in a transaction to ensure consistency
+      try {
+        const schoolId = await createSchoolRecords(
+          supabaseAdmin,
           schoolCode,
-          email_verification_sent: false
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 201 }
+          schoolName,
+          userData.user.id,
+          adminFullName
+        );
+
+        if (!schoolId) {
+          console.error("Failed to create complete school records, but user was created");
+          // Continue anyway as the user was created - they can retry the process later
+        } else {
+          console.log("School records created successfully with ID:", schoolId);
+        }
+      } catch (schoolRecordsError) {
+        console.error("Error creating school records:", schoolRecordsError);
+        // Continue since the user is created
+      }
+
+      // After successful creation, send email verification separately
+      console.log("Sending verification email to:", adminEmail);
+      try {
+        const { data: linkData, error: verificationError } = await supabaseAdmin.auth.admin.generateLink({
+          type: 'signup',
+          email: adminEmail,
+        });
+
+        if (verificationError) {
+          console.error("Error sending verification email:", verificationError);
+          // Still return success but note the verification issue
+          return new Response(
+            JSON.stringify({ 
+              success: true, 
+              message: "School registered successfully, but there was an issue sending the verification email. Please try to login and request a new verification email.",
+              userId: userData.user.id,
+              schoolCode,
+              email_verification_sent: false
+            }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 201 }
+          );
+        }
+
+        console.log(`School registered successfully. Admin user ID: ${userData.user.id}, verification email sent`);
+
+        // Return success response
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            message: "School registered successfully. Please check your email to verify your account.",
+            userId: userData.user.id,
+            schoolCode,
+            email_verification_sent: true
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 201 }
+        );
+      } catch (verificationError) {
+        console.error("Exception while sending verification email:", verificationError);
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            message: "School registered successfully, but there was an issue sending the verification email.",
+            userId: userData.user.id,
+            schoolCode,
+            email_verification_sent: false
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 201 }
+        );
+      }
+    } catch (userCreationError) {
+      console.error("Exception in user creation:", userCreationError);
+      return new Response(
+        JSON.stringify({ error: "Failed to create user: " + (userCreationError instanceof Error ? userCreationError.message : String(userCreationError)) }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
       );
     }
-
-    console.log(`School registered successfully. Admin user ID: ${userData.user.id}, verification email sent`);
-
-    // Return success response
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: "School registered successfully. Please check your email to verify your account.",
-        userId: userData.user.id,
-        schoolCode,
-        email_verification_sent: true
-      }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 201 }
-    );
   } catch (error) {
     console.error("Error in register-school function:", error);
     return new Response(
@@ -220,6 +251,7 @@ async function createSchoolRecords(
         const newCode = generateSchoolCode();
         return createSchoolRecords(supabase, newCode, schoolName, userId, adminFullName);
       }
+      throw schoolCodeError;
     } else {
       console.log("School code created successfully");
     }
@@ -238,7 +270,7 @@ async function createSchoolRecords(
 
     if (schoolError) {
       console.error("Error creating school record:", schoolError);
-      return null;
+      throw schoolError;
     }
     
     console.log("School created successfully:", schoolData.id);
@@ -256,6 +288,7 @@ async function createSchoolRecords(
 
     if (teacherError) {
       console.error("Error creating teacher record:", teacherError);
+      throw teacherError;
     } else {
       console.log("Teacher record created successfully");
     }
@@ -291,9 +324,12 @@ async function createSchoolRecords(
           
         if (updateError) {
           console.error("Error updating profile record:", updateError);
+          throw updateError;
         } else {
           console.log("Profile record updated successfully");
         }
+      } else {
+        throw profileError;
       }
     } else {
       console.log("Profile record created successfully");
@@ -302,7 +338,7 @@ async function createSchoolRecords(
     return schoolData.id;
   } catch (error) {
     console.error("Error in createSchoolRecords:", error);
-    return null;
+    throw error;
   }
 }
 

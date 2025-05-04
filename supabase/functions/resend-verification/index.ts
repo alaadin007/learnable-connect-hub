@@ -70,52 +70,73 @@ serve(async (req) => {
     console.log("Checking if user exists:", email);
     
     // Check if the user exists in a safer way without listing all users
-    const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserByEmail(email);
-    
-    if (userError) {
-      console.error("Error looking up user:", userError);
-      return new Response(
-        JSON.stringify({ error: "Error looking up user: " + userError.message }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
-      );
-    }
-    
-    if (!userData?.user) {
-      console.error("User not found:", email);
-      return new Response(
-        JSON.stringify({ error: "User not found with the provided email" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 }
-      );
-    }
-
-    console.log("Sending verification email to:", email);
-    
     try {
-      const { data: linkData, error: verificationError } = await supabaseAdmin.auth.admin.generateLink({
-        type: 'signup',
-        email: email,
-      });
+      const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserByEmail(email);
+      
+      if (userError) {
+        console.error("Error looking up user:", userError);
+        return new Response(
+          JSON.stringify({ error: "Error looking up user: " + userError.message }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+        );
+      }
+      
+      if (!userData?.user) {
+        console.error("User not found:", email);
+        return new Response(
+          JSON.stringify({ error: "User not found with the provided email" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 }
+        );
+      }
 
-      if (verificationError) {
-        console.error("Error generating verification link:", verificationError);
+      // Check if the user is already confirmed
+      if (userData.user.email_confirmed_at) {
+        console.log("User already verified:", email);
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            already_verified: true,
+            message: "Email is already verified. You can login directly." 
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+        );
+      }
+
+      console.log("Sending verification email to:", email);
+      
+      try {
+        const { data: linkData, error: verificationError } = await supabaseAdmin.auth.admin.generateLink({
+          type: 'signup',
+          email: email,
+        });
+
+        if (verificationError) {
+          console.error("Error generating verification link:", verificationError);
+          return new Response(
+            JSON.stringify({ error: "Failed to send verification email: " + verificationError.message }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+          );
+        }
+
+        console.log("Verification email sent successfully to:", email);
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            message: "Verification email sent. Please check your inbox." 
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+        );
+      } catch (verificationError: any) {
+        console.error("Exception while sending verification email:", verificationError);
         return new Response(
           JSON.stringify({ error: "Failed to send verification email: " + verificationError.message }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
         );
       }
-
-      console.log("Verification email sent successfully to:", email);
+    } catch (error) {
+      console.error("Error checking if user exists:", error);
       return new Response(
-        JSON.stringify({ 
-          success: true, 
-          message: "Verification email sent. Please check your inbox." 
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
-      );
-    } catch (verificationError: any) {
-      console.error("Exception while sending verification email:", verificationError);
-      return new Response(
-        JSON.stringify({ error: "Failed to send verification email: " + verificationError.message }),
+        JSON.stringify({ error: "An error occurred while checking user: " + (error instanceof Error ? error.message : String(error)) }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
       );
     }

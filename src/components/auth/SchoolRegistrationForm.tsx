@@ -92,6 +92,17 @@ const SchoolRegistrationForm = () => {
         return;
       }
 
+      if (response.data && response.data.already_verified) {
+        toast.info("Email already verified", { 
+          description: "You can now login with your credentials" 
+        });
+        setResendSuccess(true);
+        setTimeout(() => {
+          navigate("/login");
+        }, 2000);
+        return;
+      }
+
       setResendSuccess(true);
       toast.success("Verification email sent", { 
         description: `A new verification email has been sent to ${email}` 
@@ -128,9 +139,8 @@ const SchoolRegistrationForm = () => {
         const errorMsg = response.error.message || "Registration failed";
         console.error("Function invoke error:", errorMsg);
         
-        // Handle known error cases from the error object
-        if (errorMsg.includes("Email already registered") || 
-            errorMsg.includes("409")) {
+        // Check if this is a 409 Conflict error (email already exists)
+        if (errorMsg.includes("409") || errorMsg.includes("already registered") || errorMsg.includes("already exists")) {
           setEmailError(values.adminEmail);
           toast.error("Email already registered", {
             description: "Please use a different email address or login."
@@ -149,7 +159,7 @@ const SchoolRegistrationForm = () => {
         const dataErrorMsg = response.data.error;
         console.error("Response data error:", dataErrorMsg);
         
-        if (dataErrorMsg.includes("Email already registered")) {
+        if (dataErrorMsg.includes("Email already registered") || dataErrorMsg.includes("already exists")) {
           setEmailError(values.adminEmail);
           toast.error("Email already registered", {
             description: "Please use a different email address or login."
