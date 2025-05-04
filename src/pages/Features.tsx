@@ -2,7 +2,7 @@
 import React from "react";
 import Navbar from "@/components/layout/Navbar";
 import Features from "@/components/landing/Features";
-import Footer from "@/components/layout/Footer";
+import Footer from "@/components/landing/Footer";
 
 const FeaturesPage = () => {
   return (

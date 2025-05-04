@@ -13,6 +13,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import About from "./pages/About";
 import Contact from "./pages/Contact";
+import Features from "./pages/Features";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import Unauthorized from "./pages/Unauthorized";
@@ -50,6 +51,7 @@ function AppRoutes() {
       <Route path="/register" element={<Register />} />
       <Route path="/school-registration" element={<SchoolRegistration />} />
       <Route path="/pricing" element={<Pricing />} />
+      <Route path="/features" element={<Features />} />
       <Route path="/contact" element={<Contact />} />
       <Route path="/about" element={<About />} />
       <Route path="/test-accounts" element={<TestAccounts />} />
