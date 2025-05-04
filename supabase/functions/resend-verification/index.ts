@@ -18,95 +18,59 @@ serve(async (req) => {
   }
 
   try {
-    // Create Supabase admin client
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-        },
-      }
-    );
-
+    console.log("Resend verification function called");
+    
     // Parse request body
-    const { email } = await req.json() as ResendVerificationRequest;
+    let requestBody;
+    try {
+      requestBody = await req.json();
+    } catch (parseError) {
+      console.error("Error parsing request body:", parseError);
+      return new Response(
+        JSON.stringify({ error: "Invalid request body" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+      );
+    }
+
+    const { email } = requestBody as ResendVerificationRequest;
 
     if (!email) {
+      console.log("Missing email in request");
       return new Response(
         JSON.stringify({ error: "Email is required" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
       );
     }
 
-    console.log(`Attempting to resend verification email to: ${email}`);
-    
-    // Check if user exists
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.listUsers({
-      page: 1,
-      perPage: 1,
-      filter: {
-        email: email,
-      },
-    });
-    
-    if (authError) {
-      console.error("Error checking for existing user:", authError);
-      return new Response(
-        JSON.stringify({ error: "Error checking for user: " + authError.message }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
-      );
-    }
-    
-    if (!authData || !authData.users || authData.users.length === 0) {
-      console.log("User not found:", email);
-      return new Response(
-        JSON.stringify({ error: "Email not registered" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 }
-      );
-    }
+    // Create Supabase client
+    const supabaseClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_ANON_KEY") ?? ""
+    );
 
-    const user = authData.users[0];
-    
-    // Check if email is already confirmed
-    if (user.email_confirmed_at) {
-      console.log("Email already verified:", email);
-      return new Response(
-        JSON.stringify({ message: "Email already verified", already_verified: true }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
-      );
-    }
-
-    // Generate a new verification link
-    const { data: linkData, error: verificationError } = await supabaseAdmin.auth.admin.generateLink({
+    const { data, error } = await supabaseClient.auth.resend({
       type: 'signup',
       email: email,
     });
 
-    if (verificationError) {
-      console.error("Error generating verification link:", verificationError);
+    if (error) {
+      console.error("Error resending verification email:", error);
       return new Response(
-        JSON.stringify({ error: verificationError.message }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+        JSON.stringify({ error: error.message }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
       );
     }
 
     console.log(`Verification email resent to: ${email}`);
-
-    // Return success response
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: "Verification email has been resent. Please check your inbox.",
-        email_verification_sent: true
-      }),
+      JSON.stringify({ success: true, message: "Verification email has been resent" }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );
+    
   } catch (error) {
     console.error("Error in resend-verification function:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: "An unexpected error occurred: " + (error instanceof Error ? error.message : String(error)) }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
   }

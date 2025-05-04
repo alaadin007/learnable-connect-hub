@@ -66,3 +66,11 @@ verify_jwt = true
 [[edge_functions]]
 name = "resend-verification"
 verify_jwt = false
+
+[[edge_functions]]
+name = "create-session-log"
+verify_jwt = true
+
+[[edge_functions]]
+name = "end-session"
+verify_jwt = true

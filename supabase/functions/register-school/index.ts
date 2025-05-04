@@ -24,9 +24,20 @@ serve(async (req) => {
     console.log("Register school function called");
     
     // Create Supabase admin client
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error("Missing Supabase credentials");
+      return new Response(
+        JSON.stringify({ error: "Server configuration error" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+      );
+    }
+    
     const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      supabaseUrl,
+      supabaseServiceKey,
       {
         auth: {
           autoRefreshToken: false,
@@ -36,8 +47,20 @@ serve(async (req) => {
     );
 
     // Parse request body
-    const { schoolName, adminEmail, adminPassword, adminFullName } = await req.json() as RegisterSchoolRequest;
+    let requestBody;
+    try {
+      requestBody = await req.json();
+    } catch (parseError) {
+      console.error("Error parsing request body:", parseError);
+      return new Response(
+        JSON.stringify({ error: "Invalid request body" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+      );
+    }
+    
+    const { schoolName, adminEmail, adminPassword, adminFullName } = requestBody as RegisterSchoolRequest;
 
+    // Validate required fields
     if (!schoolName || !adminEmail || !adminPassword) {
       console.log("Missing required fields");
       return new Response(
@@ -151,7 +174,7 @@ serve(async (req) => {
   } catch (error) {
     console.error("Error in register-school function:", error);
     return new Response(
-      JSON.stringify({ error: "An unexpected error occurred: " + error.message }),
+      JSON.stringify({ error: "An unexpected error occurred: " + (error instanceof Error ? error.message : String(error)) }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
   }

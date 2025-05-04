@@ -155,21 +155,30 @@ const SchoolRegistrationForm = () => {
 
       if (error) {
         console.error("School registration error:", error);
-        if (error.message.includes("service") || error.message.includes("unavailable")) {
+        const errorMsg = error.message || "Registration service is temporarily unavailable";
+        
+        if (errorMsg.includes("service") || errorMsg.includes("unavailable")) {
           setServerError("Registration service is temporarily unavailable. Please try again later.");
+        } else if (errorMsg.includes("already registered") || errorMsg.includes("already exists")) {
+          setEmailError(values.adminEmail);
+          toast.error("Email already registered", {
+            description: "Please use a different email address or login if this is your account."
+          });
         } else {
-          setServerError(error.message || "An error occurred during registration");
+          setServerError(errorMsg);
+          toast.error("Registration failed", {
+            description: errorMsg
+          });
         }
-        toast.error("Registration failed", {
-          description: error.message || "An error occurred during registration"
-        });
+        setIsLoading(false);
         return;
       }
 
+      // Check if the response contains an error property
       if (data?.error) {
-        console.error("School registration api error:", data.error);
+        console.error("School registration API error:", data.error);
         
-        if (data.error.includes("already registered")) {
+        if (data.error.includes("already registered") || data.error.includes("already exists")) {
           setEmailError(values.adminEmail);
           toast.error("Email already registered", {
             description: "Please use a different email address or login if this is your account."
@@ -180,6 +189,7 @@ const SchoolRegistrationForm = () => {
             description: data.error
           });
         }
+        setIsLoading(false);
         return;
       }
 
@@ -192,9 +202,10 @@ const SchoolRegistrationForm = () => {
       
     } catch (error: any) {
       console.error("Registration error:", error);
-      setServerError(error.message || "An unexpected error occurred");
+      const errorMsg = error.message || "An unexpected error occurred";
+      setServerError(errorMsg);
       toast.error("Registration failed", {
-        description: error.message || "An unexpected error occurred"
+        description: errorMsg
       });
     } finally {
       setIsLoading(false);
