@@ -108,7 +108,7 @@ function App() {
             {/* 404 route */}
             <Route path="*" element={<NotFound />} />
           </Routes>
-          <Toaster position="top-center" />
+          <Toaster position="top-center" richColors closeButton />
         </ThemeProvider>
       </AuthProvider>
     </BrowserRouter>
