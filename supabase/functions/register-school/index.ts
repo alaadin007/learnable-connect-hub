@@ -62,7 +62,7 @@ serve(async (req) => {
     const { data: userData, error: userError } = await supabaseAdmin.auth.admin.createUser({
       email: adminEmail,
       password: adminPassword,
-      email_confirm: false, // Set to false to send verification email
+      email_confirm: true, // Set to true to avoid sending password reset email
       user_metadata: {
         full_name: adminFullName,
         school_name: schoolName,
@@ -77,6 +77,17 @@ serve(async (req) => {
         JSON.stringify({ error: userError.message }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
       );
+    }
+
+    // After successful creation, send email verification separately
+    const { error: verificationError } = await supabaseAdmin.auth.admin.generateLink({
+      type: 'signup',
+      email: adminEmail,
+    });
+
+    if (verificationError) {
+      console.error("Error sending verification email:", verificationError);
+      // Don't fail the registration, just log the error
     }
 
     console.log(`School registered successfully. Admin user ID: ${userData.user.id}`);
