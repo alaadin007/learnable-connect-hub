@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Upload, FileCheck, AlertCircle } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { Card, CardContent } from '@/components/ui/card';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -20,7 +20,6 @@ const FileUpload: React.FC = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [processingStatus, setProcessingStatus] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
-  const { toast } = useToast();
   const { user } = useAuth();
 
   const validateFile = (file: File): { valid: boolean; message?: string } => {
@@ -87,8 +86,7 @@ const FileUpload: React.FC = () => {
       if (!validation.valid) {
         toast({
           title: 'Invalid File',
-          description: validation.message,
-          variant: 'destructive'
+          description: validation.message
         });
         return;
       }
@@ -111,8 +109,7 @@ const FileUpload: React.FC = () => {
         setProcessingStatus('error');
         toast({
           title: 'Processing Failed',
-          description: 'Failed to process document content. Please try again.',
-          variant: 'destructive'
+          description: 'Failed to process document content. Please try again.'
         });
       } else {
         setProcessingStatus('processing');
@@ -130,8 +127,7 @@ const FileUpload: React.FC = () => {
     if (!validation.valid) {
       toast({
         title: 'Invalid File',
-        description: validation.message,
-        variant: 'destructive'
+        description: validation.message
       });
       return;
     }
@@ -145,17 +141,6 @@ const FileUpload: React.FC = () => {
       const fileExt = file.name.split('.').pop();
       const filePath = `${user.id}/${Date.now()}_${file.name}`;
 
-      // Create a new XMLHttpRequest to track upload progress
-      const xhr = new XMLHttpRequest();
-      
-      // Setup progress tracking
-      xhr.upload.addEventListener('progress', (event) => {
-        if (event.lengthComputable) {
-          const percent = (event.loaded / event.total) * 100;
-          setUploadProgress(percent);
-        }
-      });
-
       // Upload to Supabase Storage
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('user-content')
@@ -167,6 +152,14 @@ const FileUpload: React.FC = () => {
       if (uploadError) {
         throw new Error(uploadError.message);
       }
+      
+      // Create a simulation of upload progress
+      let progress = 0;
+      const interval = setInterval(() => {
+        progress += 5;
+        setUploadProgress(Math.min(progress, 95));
+        if (progress >= 95) clearInterval(interval);
+      }, 100);
       
       // Store metadata in documents table
       const { data: metadataData, error: metadataError } = await supabase
@@ -181,6 +174,9 @@ const FileUpload: React.FC = () => {
         })
         .select()
         .single();
+      
+      clearInterval(interval);
+      setUploadProgress(100);
       
       if (metadataError) {
         // If metadata storage fails, attempt to delete the uploaded file
@@ -204,8 +200,7 @@ const FileUpload: React.FC = () => {
     } catch (error) {
       toast({
         title: 'Upload Failed',
-        description: error instanceof Error ? error.message : 'An unknown error occurred',
-        variant: 'destructive'
+        description: error instanceof Error ? error.message : 'An unknown error occurred'
       });
     } finally {
       setIsUploading(false);
