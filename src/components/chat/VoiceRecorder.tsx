@@ -6,10 +6,14 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
 interface VoiceRecorderProps {
-  onTranscriptionComplete: (text: string) => void;
+  onTranscription?: (text: string) => void;
+  onTranscriptionComplete?: (text: string) => void;
 }
 
-const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptionComplete }) => {
+const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ 
+  onTranscription, 
+  onTranscriptionComplete 
+}) => {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
@@ -97,7 +101,13 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptionComplete }
         if (error) throw error;
         
         if (data.text) {
-          onTranscriptionComplete(data.text);
+          // Call the appropriate callback function
+          if (onTranscription) {
+            onTranscription(data.text);
+          }
+          if (onTranscriptionComplete) {
+            onTranscriptionComplete(data.text);
+          }
           toast.success("Voice input processed successfully!");
         } else {
           toast.error("Could not transcribe audio. Please try again.");

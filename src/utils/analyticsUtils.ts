@@ -75,8 +75,7 @@ export const fetchSessionLogs = async (
         topic_or_content_used,
         session_start,
         session_end,
-        num_queries,
-        profiles!inner(full_name)
+        num_queries
       `)
       .eq('school_id', schoolId)
       .order('session_start', { ascending: false });
@@ -108,6 +107,24 @@ export const fetchSessionLogs = async (
     
     if (error) throw error;
     
+    // Get user profiles for mapping names
+    const userIds = [...new Set((data || []).map(session => session.user_id))];
+    let profiles: Record<string, string> = {};
+    
+    if (userIds.length > 0) {
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .in('id', userIds);
+      
+      if (!profilesError && profilesData) {
+        profiles = profilesData.reduce((acc: Record<string, string>, profile) => {
+          acc[profile.id] = profile.full_name || 'Unknown';
+          return acc;
+        }, {});
+      }
+    }
+    
     // Format the data for the frontend
     return (data || []).map(session => {
       // Calculate duration in minutes
@@ -124,7 +141,7 @@ export const fetchSessionLogs = async (
       return {
         id: session.id,
         student_id: session.user_id,
-        student_name: session.profiles?.full_name || 'Unknown',
+        student_name: profiles[session.user_id] || 'Unknown',
         session_date: session.session_start,
         duration_minutes: durationMinutes,
         topics,

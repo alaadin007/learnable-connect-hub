@@ -45,7 +45,7 @@ const PersistentChatInterface: React.FC<PersistentChatInterfaceProps> = ({
   useEffect(() => {
     const startNewSession = async () => {
       try {
-        const newSessionId = await sessionLogger.startSession(topic);
+        const newSessionId = await sessionLogger.startSession({ topic });
         if (newSessionId) {
           setSessionId(newSessionId);
         }
@@ -58,7 +58,7 @@ const PersistentChatInterface: React.FC<PersistentChatInterfaceProps> = ({
 
     return () => {
       if (sessionId) {
-        sessionLogger.endSession(sessionId);
+        sessionLogger.endSession();
       }
     };
   }, [topic]);

@@ -1,10 +1,10 @@
 
 import React from "react";
-import { Navigate, useLocation } from "react-router-dom";
+import { Navigate, useLocation, Outlet } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface ProtectedRouteProps {
-  children: React.ReactNode;
+  children?: React.ReactNode;
   requiredRole?: string;
   allowedRoles?: string[];
   requireSupervisor?: boolean;
@@ -30,7 +30,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   // For test users, bypass all permission checks and grant access to all routes
   if (hasTestUserInStorage || isTestUser) {
     console.log(`Test user with role ${userRole} accessing area. All permissions granted for testing.`);
-    return <>{children}</>;
+    return <>{children || <Outlet />}</>;
   }
   
   // No loading state - make immediate decisions
@@ -62,8 +62,8 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to="/unauthorized" replace state={{ from: location.pathname }} />;
   }
 
-  // User is authorized, render children
-  return <>{children}</>;
+  // User is authorized, render children or Outlet
+  return <>{children || <Outlet />}</>;
 };
 
 export default ProtectedRoute;
