@@ -3,38 +3,29 @@ import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
-import LoginForm from "@/components/auth/LoginForm";
 import { Button } from "@/components/ui/button";
-import { toast, Toaster } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
-import { 
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { resendVerificationEmail } from "@/utils/authHelpers";
-import { AlertCircle, Loader2 } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { toast, Toaster } from "sonner";
+import { ChevronRight, Loader2 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
+import { Link } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 
 const Login = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const [resendDialogOpen, setResendDialogOpen] = useState(false);
-  const [resendEmail, setResendEmail] = useState("");
-  const [isResending, setIsResending] = useState(false);
-  const [resendError, setResendError] = useState<string | null>(null);
+  const { signIn, isLoading: authLoading } = useAuth();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
     const registered = searchParams.get("registered");
-    const completeRegistration = searchParams.get("completeRegistration");
     const emailVerificationFailed = searchParams.get("emailVerificationFailed");
+    const completeRegistration = searchParams.get("completeRegistration");
     
     if (registered === "true") {
       toast.success("Registration successful!", {
@@ -46,22 +37,18 @@ const Login = () => {
       toast.error("Email verification failed", {
         description: "Please try again or request a new verification email."
       });
-      setResendDialogOpen(true);
     }
     
     const handleEmailConfirmation = async () => {
-      // Check if this is a callback from email verification
       if (completeRegistration === "true") {
         setProcessing(true);
         try {
           console.log("Checking session for completeRegistration");
           const { data: { session } } = await supabase.auth.getSession();
           
-          // If user is verified and logged in
           if (session?.user?.email_confirmed_at) {
             console.log("User is verified and has a session");
             
-            // Call complete-registration function with the user ID
             try {
               const userId = session.user.id;
               toast.loading("Finalizing your registration...");
@@ -87,7 +74,6 @@ const Login = () => {
                   description: "Your school has been registered successfully."
                 });
                 
-                // Redirect to dashboard or home page
                 setTimeout(() => {
                   setProcessing(false);
                   navigate("/");
@@ -112,32 +98,100 @@ const Login = () => {
     handleEmailConfirmation();
   }, [location.search, navigate]);
 
-  const handleResendSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!resendEmail || !resendEmail.trim()) {
-      setResendError("Please enter your email address");
+    if (!email || !password) {
+      toast.error("Please enter both email and password");
       return;
     }
-
-    setIsResending(true);
-    setResendError(null);
+    
+    setIsLoading(true);
     
     try {
-      const result = await resendVerificationEmail(resendEmail.trim());
-      
-      if (result.success) {
-        setResendDialogOpen(false);
-        // Toast notification is already set in the function
-      } else {
-        setResendError(result.message);
-      }
+      await signIn(email, password);
+      // No need to navigate - the auth context will handle redirection
     } catch (error: any) {
-      setResendError(`Failed to resend: ${error.message}`);
+      console.error("Login error:", error);
+      toast.error(error.message || "Failed to sign in");
     } finally {
-      setIsResending(false);
+      setIsLoading(false);
     }
   };
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      toast.error("Please enter your email address");
+      return;
+    }
+    
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      
+      if (error) throw error;
+      
+      toast.success("Password reset email sent", {
+        description: "Please check your inbox for instructions"
+      });
+    } catch (error: any) {
+      console.error("Reset password error:", error);
+      toast.error(error.message || "Failed to send reset email");
+    }
+  };
+
+  const handleResendVerification = async () => {
+    if (!email) {
+      toast.error("Please enter your email address");
+      return;
+    }
+    
+    try {
+      const toastId = toast.loading("Sending verification email...");
+      const currentUrl = window.location.origin;
+      
+      const { data, error } = await supabase.functions.invoke("resend-verification", {
+        body: { email, currentUrl }
+      });
+      
+      toast.dismiss(toastId);
+      
+      if (error || (data && data.error)) {
+        throw new Error(error?.message || data?.error || "Failed to resend verification");
+      }
+      
+      if (data && data.already_verified) {
+        toast.info("Email already verified", {
+          description: "You can now log in with your credentials."
+        });
+        return;
+      }
+      
+      toast.success("Verification email sent", {
+        description: "Please check your inbox and spam folder."
+      });
+    } catch (error: any) {
+      console.error("Resend verification error:", error);
+      toast.error(error.message || "Failed to resend verification email");
+    }
+  };
+
+  if (processing) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Navbar />
+        <main className="flex-grow bg-learnable-super-light flex flex-col items-center justify-center py-10">
+          <div className="text-center p-8">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-learnable-purple" />
+            <p>Processing your verification...</p>
+            <p className="text-sm text-gray-500 mt-2">Please wait while we complete your registration.</p>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -151,97 +205,100 @@ const Login = () => {
             </p>
           </div>
           
-          {processing ? (
-            <div className="text-center p-8">
-              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-learnable-purple" />
-              <p>Processing your verification...</p>
-              <p className="text-sm text-gray-500 mt-2">Please wait while we complete your registration.</p>
-            </div>
-          ) : (
-            <LoginForm />
-          )}
-          
-          <div className="mt-8 text-center space-y-4">
-            <p className="text-sm text-gray-600">
-              Don't have an account?{" "}
-              <Button variant="link" className="p-0" type="button" onClick={() => navigate("/register")}>
-                Sign up
-              </Button>
-            </p>
+          <Card className="w-full shadow-md border-learnable-light">
+            <CardHeader className="text-center">
+              <h2 className="text-2xl font-bold text-gray-800">Login</h2>
+              <p className="text-sm text-gray-600">Enter your email and password to access your account</p>
+            </CardHeader>
             
-            <p className="text-sm text-gray-600">
-              <Button 
-                variant="link" 
-                className="p-0" 
-                type="button"
-                onClick={() => setResendDialogOpen(true)}
-              >
-                Didn't receive verification email?
-              </Button>
-            </p>
-          </div>
+            <CardContent>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email</label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    className="w-full"
+                    required
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <label htmlFor="password" className="block text-sm font-medium text-gray-700">Password</label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full"
+                    required
+                  />
+                </div>
+                
+                <Button 
+                  type="submit" 
+                  className="w-full gradient-bg"
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Signing In...
+                    </>
+                  ) : 'Sign In'}
+                </Button>
+                
+                <div className="text-center">
+                  <Button 
+                    type="button" 
+                    variant="link" 
+                    size="sm" 
+                    className="text-learnable-blue hover:text-learnable-purple p-0"
+                    onClick={handleForgotPassword}
+                  >
+                    Forgot password?
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+            
+            <CardFooter className="flex flex-col space-y-2">
+              <div className="w-full text-center">
+                <p className="text-sm text-gray-600">
+                  Don't have an account?{" "}
+                  <Link to="/register" className="text-learnable-blue hover:text-learnable-purple font-semibold">
+                    Register
+                  </Link>
+                </p>
+              </div>
+              
+              <div className="w-full text-center">
+                <Link to="/school-registration" className="flex items-center justify-center text-learnable-blue hover:text-learnable-purple font-semibold text-sm">
+                  <span>Register your school</span>
+                  <ChevronRight className="ml-1 h-4 w-4" />
+                </Link>
+              </div>
+              
+              <div className="w-full text-center mt-2">
+                <Button 
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  className="text-gray-600 hover:text-learnable-blue p-0 text-xs"
+                  onClick={handleResendVerification}
+                >
+                  Didn't receive verification email?
+                </Button>
+              </div>
+            </CardFooter>
+          </Card>
         </div>
       </main>
       <Footer />
-      
-      <Dialog open={resendDialogOpen} onOpenChange={setResendDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Resend verification email</DialogTitle>
-            <DialogDescription>
-              Enter your email address and we'll send you a new verification link.
-            </DialogDescription>
-          </DialogHeader>
-          
-          {resendError && (
-            <Alert variant="destructive" className="mb-4">
-              <AlertCircle className="h-4 w-4 mr-2" />
-              <AlertDescription>{resendError}</AlertDescription>
-            </Alert>
-          )}
-          
-          <form onSubmit={handleResendSubmit}>
-            <div className="grid gap-4 py-2">
-              <div className="grid gap-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="email@example.com"
-                  value={resendEmail}
-                  onChange={(e) => setResendEmail(e.target.value)}
-                />
-              </div>
-            </div>
-            
-            <DialogFooter className="sm:justify-end mt-4">
-              <Button 
-                variant="secondary" 
-                onClick={() => setResendDialogOpen(false)}
-                disabled={isResending}
-                type="button"
-              >
-                Cancel
-              </Button>
-              <Button 
-                type="submit"
-                disabled={isResending}
-                className="ml-2"
-              >
-                {isResending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Sending...
-                  </>
-                ) : (
-                  "Send email"
-                )}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-      
       <Toaster position="top-center" richColors />
     </div>
   );

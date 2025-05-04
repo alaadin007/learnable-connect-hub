@@ -1,3 +1,4 @@
+
 import React, {
   createContext,
   useState,
@@ -235,9 +236,34 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
           }
         }
       }
+
+      // Handle role-based redirections immediately after profile fetch
+      handleRoleBasedRedirection(profileData.user_type);
     } catch (error) {
       console.error("Error fetching profile:", error);
       toast.error("Failed to retrieve profile. Please try again.");
+    }
+  };
+
+  // New function to handle role-based redirections
+  const handleRoleBasedRedirection = (role: string | undefined) => {
+    if (role) {
+      console.log(`AuthContext: Handling redirect for role: ${role}`);
+      
+      switch (role) {
+        case "school":
+          navigate("/admin", { state: { fromRoleRedirect: true } });
+          break;
+        case "teacher":
+          navigate("/teacher/analytics", { state: { fromRoleRedirect: true } });
+          break;
+        case "student":
+          navigate("/dashboard", { state: { fromRoleRedirect: true } });
+          break;
+        default:
+          // If unknown role, don't redirect
+          break;
+      }
     }
   };
 
@@ -313,17 +339,8 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       }
       console.log("Sign in successful:", data);
       
-      // Get user role and redirect appropriately
-      const { data: profileData } = await supabase
-        .from("profiles")
-        .select("user_type")
-        .eq("id", data.user.id)
-        .single();
-      
-      if (profileData?.user_type === "school") {
-        console.log("School admin detected, will redirect to admin dashboard");
-      }
-      
+      // Profile and redirections will be handled by the auth state change listener
+      toast.success("Login successful");
     } catch (error: any) {
       console.error("Sign in error caught:", error);
       

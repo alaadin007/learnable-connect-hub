@@ -27,31 +27,17 @@ import ChatWithAI from "./pages/ChatWithAI";
 import "./App.css";
 
 function AppRoutes() {
-  const { userRole, isLoading } = useAuth();
-  const navigate = useNavigate();
+  // We're not using redirection logic here anymore as it's handled in AuthContext
+  const { isLoading } = useAuth();
 
-  React.useEffect(() => {
-    // Only redirect if we're not in the middle of loading
-    if (!isLoading && userRole) {
-      console.log(`AppRoutes: Redirecting based on user role: ${userRole}`);
-      
-      // Redirect based on user role after login
-      switch (userRole) {
-        case "school":
-          navigate("/admin", { state: { fromRoleRedirect: true } });
-          break;
-        case "teacher":
-          navigate("/teacher/analytics", { state: { fromRoleRedirect: true } });
-          break;
-        case "student":
-          navigate("/dashboard", { state: { fromRoleRedirect: true } });
-          break;
-        default:
-          // If unknown role, stay on current page
-          break;
-      }
-    }
-  }, [userRole, navigate, isLoading]);
+  // Show loading state if auth is still loading
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
 
   return (
     <Routes>
