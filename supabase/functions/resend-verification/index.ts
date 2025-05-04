@@ -12,6 +12,7 @@ interface ResendVerificationRequest {
 }
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders, status: 204 });
   }
@@ -95,11 +96,14 @@ serve(async (req) => {
       );
     }
 
-    // Send verification email
+    // Send verification email - FIXED: Using magiclink type for email verification
     console.log("Sending verification email to:", email);
     const { error: verificationError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'signup',
-      email: email
+      type: 'magiclink', // Changed from 'signup' to 'magiclink' for proper verification
+      email: email,
+      options: {
+        redirectTo: `${new URL(req.url).origin}/login` // Add explicit redirectTo for better user experience
+      }
     });
 
     if (verificationError) {

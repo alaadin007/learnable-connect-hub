@@ -21,7 +21,15 @@ export const resendVerificationEmail = async (email: string): Promise<{ success:
       };
     }
 
-    if (data.already_verified) {
+    if (data && data.error) {
+      console.error("Error from resend-verification function:", data.error);
+      return {
+        success: false,
+        message: `Failed to resend verification email: ${data.error}`
+      };
+    }
+
+    if (data && data.already_verified) {
       return {
         success: true,
         message: "This email address has already been verified."
