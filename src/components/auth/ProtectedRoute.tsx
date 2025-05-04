@@ -31,13 +31,8 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   
   // Skip the loading state completely for test users
   if (hasTestUserInStorage && isTestUser) {
-    // For test users, only enforce that they can't access areas for different roles
-    if (requiredRole && userRole !== requiredRole) {
-      console.log(`Test user with role ${userRole} trying to access area requiring ${requiredRole}`);
-      return <Navigate to="/unauthorized" replace />;
-    }
-    
-    // Test users can skip other permission checks
+    // For test users, bypass all permission checks and grant access to all routes
+    console.log(`Test user with role ${userRole} accessing area. All permissions granted for testing.`);
     return <>{children}</>;
   }
   
@@ -89,13 +84,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   // Special handling for test users - allow them more flexibly
   if (isTestUser) {
-    // For test users, we'll only enforce that they can't access areas for different roles
-    if (requiredRole && userRole !== requiredRole) {
-      console.log(`Test user with role ${userRole} trying to access area requiring ${requiredRole}`);
-      return <Navigate to="/unauthorized" replace />;
-    }
-    
-    // Test users can skip other permission checks
+    // Grant full access to all routes for test users
     return <>{children}</>;
   }
 
