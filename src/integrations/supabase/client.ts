@@ -34,14 +34,25 @@ supabase.auth.onAuthStateChange((event, session) => {
   }
 });
 
-// Helper function to detect test accounts
-export const isTestAccount = (email: string): boolean => {
+// Enhanced helper function to detect test accounts
+export const isTestAccount = (email: string | null | undefined): boolean => {
   // Used to identify development test accounts which get special handling
   if (!email) return false;
+  
+  // Check email domains and patterns
   return email.endsWith('@testschool.edu') || 
          email.endsWith('.test@learnable.edu') || 
          email.includes('test') || 
-         email.includes('demo');
+         email.includes('demo') ||
+         email === 'school.test@learnable.edu' ||
+         email === 'teacher.test@learnable.edu' ||
+         email === 'student.test@learnable.edu';
+};
+
+// Check if a school or user ID is a test entity
+export const isTestEntity = (id: string | null | undefined): boolean => {
+  if (!id) return false;
+  return id.startsWith('test-') || id.includes('test');
 };
 
 // Default test school code - used when creating test accounts

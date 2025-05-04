@@ -2,7 +2,7 @@
 import React, { createContext, useState, useContext, useEffect, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, isTestAccount, isTestEntity } from "@/integrations/supabase/client";
 import type { User, AuthResponse } from "@supabase/supabase-js";
 
 // Define types for our context
@@ -86,6 +86,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Fetch user profile data from Supabase
   const fetchUserProfile = useCallback(async (userId: string) => {
     try {
+      // If this is a test user ID, return mock profile data
+      if (isTestEntity(userId)) {
+        console.log("Test user detected, using mock profile data");
+        
+        // Extract the type from the test ID format: test-{type}-{index}
+        const parts = userId.split('-');
+        const testType = parts.length > 1 ? parts[1] : 'student';
+        const testIndex = parts.length > 2 ? parseInt(parts[2]) : 0;
+        
+        const mockTestSchoolId = `test-school-${testIndex}`;
+        const mockSchoolName = testIndex > 0 ? `Test School ${testIndex}` : "Test School";
+        const mockSchoolCode = `TEST${testIndex}`;
+        
+        const mockProfile: UserProfile = {
+          id: userId,
+          user_type: testType,
+          full_name: `Test ${testType.charAt(0).toUpperCase()}${testType.slice(1)} User`,
+          school_code: mockSchoolCode,
+          school_name: mockSchoolName,
+          organization: {
+            id: mockTestSchoolId,
+            name: mockSchoolName,
+            code: mockSchoolCode
+          }
+        };
+        
+        setProfile(mockProfile);
+        setUserRole(testType);
+        setSchoolId(mockTestSchoolId);
+        setIsSuperviser(testType === 'school');
+        
+        return testType;
+      }
+      
       // Get user's profile
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
@@ -220,6 +254,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signIn = useCallback(async (email: string, password: string) => {
     try {
       setIsLoading(true);
+      
+      // Check if this is a test account before attempting real login
+      if (isTestAccount(email)) {
+        console.log("Test account detected, bypassing real authentication");
+        
+        // Extract the type from the email
+        let accountType = "student"; // default
+        if (email.startsWith("school.")) accountType = "school";
+        else if (email.startsWith("teacher.")) accountType = "teacher";
+        
+        // Extract index if present
+        const emailParts = email.split("@")[0].split(".");
+        const hasIndex = emailParts.length > 1 && /test\d+/.test(emailParts[1]);
+        const index = hasIndex ? parseInt(emailParts[1].replace("test", "")) : 0;
+        
+        // Use setTestUser to set up the test account
+        await setTestUser(accountType, index);
+        return;
+      }
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -251,7 +305,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setIsLoading(false);
     }
-  }, [fetchUserProfile, handleAuthenticatedNavigation]);
+  }, [fetchUserProfile, handleAuthenticatedNavigation, setTestUser]);
 
   // Sign out a user
   const signOut = useCallback(async () => {
@@ -261,6 +315,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Clear any test user data from localStorage first
       localStorage.removeItem("testUser");
       localStorage.removeItem("testUserRole");
+      localStorage.removeItem("testUserIndex");
       
       // Then sign out from Supabase
       const { error } = await supabase.auth.signOut();
@@ -285,7 +340,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [navigate]);
 
   // Setup test user (bypass authentication)
-  const setTestUser = useCallback(async (accountType: string) => {
+  const setTestUser = useCallback(async (accountType: string, index: number = 0) => {
     try {
       setIsLoading(true);
       
@@ -293,12 +348,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await supabase.auth.signOut();
       
       // Create simulated user and profile based on account type
-      const testUserId = `test-${accountType}-${Date.now()}`;
+      const testUserId = `test-${accountType}-${index}`;
+      const testSchoolId = `test-school-${index}`;
+      const testSchoolName = index > 0 ? `Test School ${index}` : "Test School";
+      const testSchoolCode = `TEST${index}`;
       
       // Create mock user data with all required User properties
       const mockUser = {
         id: testUserId,
-        email: `${accountType}.test@learnable.edu`,
+        email: `${accountType}.test${index > 0 ? index : ''}@learnable.edu`,
         user_metadata: {
           full_name: `Test ${accountType.charAt(0).toUpperCase() + accountType.slice(1)} User`,
         },
@@ -317,25 +375,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const mockProfile = {
         id: testUserId,
         user_type: accountType,
-        full_name: `Test ${accountType.charAt(0).toUpperCase() + accountType.slice(1)} User`,
-        school_code: 'TEST123',
-        school_name: 'Test School',
+        full_name: `Test ${accountType.charAt(0).toUpperCase()}${accountType.slice(1)} User${index > 0 ? ' ' + index : ''}`,
+        school_code: testSchoolCode,
+        school_name: testSchoolName,
         organization: {
-          id: 'test-school-id',
-          name: 'Test School',
-          code: 'TEST123'
+          id: testSchoolId,
+          name: testSchoolName,
+          code: testSchoolCode
         }
       };
       
       // Store test user flag in localStorage for persistence
       localStorage.setItem("testUser", JSON.stringify(mockUser));
       localStorage.setItem("testUserRole", accountType);
+      localStorage.setItem("testUserIndex", String(index));
       
       // Update states
       setUser(mockUser);
       setProfile(mockProfile);
       setUserRole(accountType);
-      setSchoolId('test-school-id');
+      setSchoolId(testSchoolId);
       setIsSuperviser(accountType === 'school');
       
       console.log(`Auth: Test ${accountType} user set up successfully`);
@@ -362,29 +421,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Check if we have a test user in localStorage first
         const storedTestUser = localStorage.getItem("testUser");
         const storedTestRole = localStorage.getItem("testUserRole");
+        const storedTestIndex = localStorage.getItem("testUserIndex") || "0";
         
         if (storedTestUser && storedTestRole) {
           // Restore test user session
           const testUser = JSON.parse(storedTestUser) as User;
+          const testIndex = parseInt(storedTestIndex);
           
           // Setup simulated test user session from localStorage
           const mockProfile = {
             id: testUser.id,
             user_type: storedTestRole,
             full_name: testUser.user_metadata.full_name,
-            school_code: 'TEST123',
-            school_name: 'Test School',
+            school_code: `TEST${testIndex}`,
+            school_name: testIndex > 0 ? `Test School ${testIndex}` : "Test School",
             organization: {
-              id: 'test-school-id',
-              name: 'Test School',
-              code: 'TEST123'
+              id: `test-school-${testIndex}`,
+              name: testIndex > 0 ? `Test School ${testIndex}` : "Test School",
+              code: `TEST${testIndex}`
             }
           };
           
           setUser(testUser);
           setProfile(mockProfile);
           setUserRole(storedTestRole);
-          setSchoolId('test-school-id');
+          setSchoolId(`test-school-${testIndex}`);
           setIsSuperviser(storedTestRole === 'school');
           console.log("Auth: Restored test user session from localStorage");
         } else {

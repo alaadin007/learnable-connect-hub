@@ -37,7 +37,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, isTestAccount } from "@/integrations/supabase/client";
 
 // Define TeacherInvitation type if not imported
 export interface TeacherInvitation {
@@ -69,6 +69,8 @@ const TeacherManagement = () => {
 
   // Get the school ID from the profile
   const schoolId = profile?.organization?.id || null;
+  // Check if this is a test account
+  const isTestSchool = schoolId ? schoolId.startsWith('test-') : false;
 
   useEffect(() => {
     if (schoolId) {
@@ -92,7 +94,8 @@ const TeacherManagement = () => {
     
     try {
       // Handle test accounts differently to prevent RLS policy issues
-      if (schoolId === 'test-school-id' || schoolId.startsWith('test-')) {
+      if (isTestSchool || isTestAccount(profile?.email || '')) {
+        console.log("Using mock data for test school:", schoolId);
         // For test accounts, return mock data instead of querying the database
         const mockInvitations: TeacherInvitation[] = [
           {
@@ -118,6 +121,7 @@ const TeacherManagement = () => {
         ];
         
         setInvitations(mockInvitations);
+        setIsLoading(false);
       } else {
         // For real accounts, query the database
         const { data, error } = await supabase
@@ -131,12 +135,12 @@ const TeacherManagement = () => {
         }
 
         setInvitations(data as TeacherInvitation[]);
+        setIsLoading(false);
       }
     } catch (error: any) {
       console.error("Error loading invitations:", error);
       setLoadingError(error.message || "Failed to load invitations");
       toast.error("Error loading teacher invitations. Please try refreshing the page.");
-    } finally {
       setIsLoading(false);
     }
   };
@@ -155,7 +159,7 @@ const TeacherManagement = () => {
     setIsCreating(true);
     try {
       // Handle test accounts differently
-      if (schoolId === 'test-school-id' || schoolId.startsWith('test-')) {
+      if (isTestSchool || isTestAccount(profile?.email || '')) {
         // For test accounts, simulate invitation creation
         const newInvitation: TeacherInvitation = {
           id: `test-invitation-${Date.now()}`,
@@ -207,7 +211,7 @@ const TeacherManagement = () => {
   const handleResendInvitation = async (invitation: TeacherInvitation) => {
     try {
       // Handle test accounts differently
-      if (schoolId === 'test-school-id' || schoolId.startsWith('test-')) {
+      if (isTestSchool || isTestAccount(profile?.email || '')) {
         // For test accounts, just show a success message
         toast.success("Test invitation resent successfully!");
       } else {
@@ -267,7 +271,7 @@ const TeacherManagement = () => {
     setIsLoading(true);
     try {
       // Handle test accounts differently
-      if (schoolId === 'test-school-id' || schoolId.startsWith('test-')) {
+      if (isTestSchool || isTestAccount(profile?.email || '')) {
         // For test accounts, filter out selected invitations from state
         setInvitations(prev => prev.filter(inv => !selectedInvitations.includes(inv.id)));
         toast.success("Selected test invitations deleted successfully!");
