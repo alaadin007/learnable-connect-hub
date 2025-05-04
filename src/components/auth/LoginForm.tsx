@@ -14,6 +14,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useToast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 const loginSchema = z.object({
   email: z.string().email({
@@ -124,7 +125,7 @@ const LoginForm = () => {
         )}
 
         {isEmailVerificationError && (
-          <Alert variant="warning" className="mb-4 bg-amber-50 border-amber-200 text-amber-800">
+          <Alert variant="default" className="mb-4 bg-amber-50 border-amber-200 text-amber-800">
             <AlertCircle className="h-4 w-4 text-amber-600" />
             <AlertTitle>Email Verification Required</AlertTitle>
             <AlertDescription className="space-y-2">
