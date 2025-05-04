@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -6,6 +5,7 @@ import { Menu, X, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { toast } from "sonner";
 
 const Navbar = () => {
   const { user, signOut, profile } = useAuth();
@@ -23,16 +23,28 @@ const Navbar = () => {
   const toggleMenu = () => setIsOpen((open) => !open);
 
   const handleLogout = useCallback(async () => {
-    console.log("Navbar: Logout requested");
-    await signOut();
-    // Navigation is handled in the signOut function
-    setIsOpen(false);
+    try {
+      console.log("Navbar: Logout requested");
+      await signOut();
+      // Navigation is handled in the signOut function
+      setIsOpen(false);
+      // Add a success toast for better UX
+      toast.success("Logged out successfully");
+    } catch (error) {
+      console.error("Logout error:", error);
+      toast.error("Failed to log out. Please try again.");
+    }
   }, [signOut]);
 
   const handleBackToTestAccounts = useCallback(async () => {
-    await signOut();
-    navigate("/test-accounts");
-    setIsOpen(false);
+    try {
+      await signOut();
+      navigate("/test-accounts");
+      setIsOpen(false);
+    } catch (error) {
+      console.error("Error returning to test accounts:", error);
+      toast.error("Failed to return to test accounts");
+    }
   }, [signOut, navigate]);
 
   const isTestAccount = user?.email?.includes(".test@learnable.edu") || user?.id?.startsWith("test-");

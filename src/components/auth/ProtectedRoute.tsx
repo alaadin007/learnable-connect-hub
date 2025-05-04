@@ -26,14 +26,14 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const location = useLocation();
   const [forcedTimeout, setForcedTimeout] = useState(false);
 
-  // Add safety timeout to prevent infinite loading - reduced to 800ms
+  // Add safety timeout to prevent infinite loading - reduced to 500ms
   useEffect(() => {
     if (isLoading) {
       console.log("ProtectedRoute: Setting loading timeout");
       const timeoutId = setTimeout(() => {
         console.warn("ProtectedRoute: Loading timeout reached - forcing resolution");
         setForcedTimeout(true);
-      }, 800); // Reduced timeout for better UX
+      }, 500); // Further reduced timeout for better UX
 
       return () => clearTimeout(timeoutId);
     }
