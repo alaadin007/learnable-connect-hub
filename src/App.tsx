@@ -25,101 +25,95 @@ import AdminTeachers from "./pages/AdminTeachers";
 import ChatWithAI from "./pages/ChatWithAI";
 import "./App.css";
 
-function AppRoutes() {
-  return (
-    <Routes>
-      {/* Public routes */}
-      <Route path="/" element={<Index />} />
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
-      <Route path="/school-registration" element={<SchoolRegistration />} />
-      <Route path="/pricing" element={<Pricing />} />
-      <Route path="/contact" element={<Contact />} />
-      <Route path="/about" element={<About />} />
-      <Route path="/test-accounts" element={<TestAccounts />} />
-
-      {/* Protected routes */}
-      <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
-        }
-      />
-      
-      {/* Chat route */}
-      <Route
-        path="/chat"
-        element={
-          <ProtectedRoute>
-            <ChatWithAI />
-          </ProtectedRoute>
-        }
-      />
-      
-      {/* School Admin Routes */}
-      <Route
-        path="/admin"
-        element={
-          <ProtectedRoute requiredRole="school">
-            <SchoolAdmin />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/settings"
-        element={
-          <ProtectedRoute requiredRole="school">
-            <SchoolSettings />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/teacher-management"
-        element={
-          <ProtectedRoute requiredRole="school">
-            <AdminTeacherManagement />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/teachers"
-        element={
-          <ProtectedRoute requiredRole="school">
-            <AdminTeachers />
-          </ProtectedRoute>
-        }
-      />
-      <Route 
-        path="/admin/tools" 
-        element={
-          <ProtectedRoute requiredRole="school">
-            <AdminTools />
-          </ProtectedRoute>
-        } 
-      />
-      
-      {/* Teacher Routes */}
-      <Route
-        path="/teacher/analytics"
-        element={
-          <ProtectedRoute requiredRole="teacher">
-            <TeacherAnalytics />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* Catch-all route for 404 errors */}
-      <Route path="*" element={<NotFound />} />
-    </Routes>
-  );
-}
-
 function App() {
   return (
     <AuthProvider>
-      <AppRoutes />
+      <Routes>
+        {/* Public routes */}
+        <Route path="/" element={<Index />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/school-registration" element={<SchoolRegistration />} />
+        <Route path="/pricing" element={<Pricing />} />
+        <Route path="/contact" element={<Contact />} />
+        <Route path="/about" element={<About />} />
+        <Route path="/test-accounts" element={<TestAccounts />} />
+
+        {/* Protected routes */}
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        
+        {/* Chat route */}
+        <Route
+          path="/chat"
+          element={
+            <ProtectedRoute>
+              <ChatWithAI />
+            </ProtectedRoute>
+          }
+        />
+        
+        {/* School Admin Routes */}
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute requiredRole="school">
+              <SchoolAdmin />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/settings"
+          element={
+            <ProtectedRoute requiredRole="school">
+              <SchoolSettings />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/teacher-management"
+          element={
+            <ProtectedRoute requiredRole="school">
+              <AdminTeacherManagement />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/teachers"
+          element={
+            <ProtectedRoute requiredRole="school">
+              <AdminTeachers />
+            </ProtectedRoute>
+          }
+        />
+        <Route 
+          path="/admin/tools" 
+          element={
+            <ProtectedRoute requiredRole="school">
+              <AdminTools />
+            </ProtectedRoute>
+          } 
+        />
+        
+        {/* Teacher Routes */}
+        <Route
+          path="/teacher/analytics"
+          element={
+            <ProtectedRoute requiredRole="teacher">
+              <TeacherAnalytics />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Catch-all route for 404 errors */}
+        <Route path="*" element={<NotFound />} />
+      </Routes>
     </AuthProvider>
   );
 }

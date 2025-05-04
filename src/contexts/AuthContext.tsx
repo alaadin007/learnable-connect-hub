@@ -72,51 +72,62 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
 
   // Improved session handling with faster initialization
   useEffect(() => {
     // Set initial loading state
     setIsLoading(true);
     
-    // Set up the auth state change listener immediately
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event: AuthChangeEvent, currentSession: Session | null) => {
-        console.log(`Auth state changed: ${event}`, currentSession);
-        
-        // Update session and user state immediately
-        setSession(currentSession);
-        setUser(currentSession?.user || null);
-        
-        // Only fetch profile if we have a user
-        if (currentSession?.user) {
-          await fetchProfile(currentSession.user.id);
-        } else {
-          // Clear user-related state if no session
-          setProfile(null);
-          setUserRole(null);
-          setIsSuperviser(false);
-          setSchoolId(null);
-        }
-        
-        // Set loading to false after handling auth state change
-        setIsLoading(false);
-      }
-    );
-
-    // Get the initial session asynchronously - this runs only once
+    // Keep track of active auth state subscription
+    let authSubscription: { unsubscribe: () => void } | null = null;
+    
+    // Get the initial session immediately to reduce loading time
     const getInitialSession = async () => {
       try {
+        console.log("Getting initial session");
         const { data: { session: initialSession } } = await supabase.auth.getSession();
-        console.log("Initial session retrieved:", initialSession);
         
-        if (!initialSession) {
-          // No session found, set loading to false
+        // Set up the auth state listener right after getting session
+        authSubscription = supabase.auth.onAuthStateChange(
+          async (event: AuthChangeEvent, currentSession: Session | null) => {
+            console.log(`Auth state changed: ${event}`, currentSession?.user?.id);
+            
+            // Update session and user state immediately
+            setSession(currentSession);
+            setUser(currentSession?.user || null);
+            
+            // Only fetch profile if we have a user
+            if (currentSession?.user) {
+              await fetchProfile(currentSession.user.id);
+            } else {
+              // Clear user-related state if no session
+              setProfile(null);
+              setUserRole(null);
+              setIsSuperviser(false);
+              setSchoolId(null);
+              setIsLoading(false);
+            }
+          }
+        ).data.subscription;
+        
+        // Process initial session if available
+        if (initialSession) {
+          console.log("Initial session found:", initialSession.user.id);
+          setSession(initialSession);
+          setUser(initialSession.user);
+          await fetchProfile(initialSession.user.id);
+        } else {
+          console.log("No initial session found");
           setIsLoading(false);
         }
-        // If session exists, the onAuthStateChange handler will update state
+        
+        // Mark initial load as complete
+        setInitialLoadComplete(true);
       } catch (error) {
         console.error("Error getting initial session:", error);
         setIsLoading(false);
+        setInitialLoadComplete(true);
       }
     };
 
@@ -124,7 +135,9 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
 
     // Clean up subscription when component unmounts
     return () => {
-      subscription.unsubscribe();
+      if (authSubscription) {
+        authSubscription.unsubscribe();
+      }
     };
   }, [navigate]);
 
@@ -151,7 +164,8 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
 
       if (profileError) {
         console.error("Error fetching profile:", profileError);
-        throw profileError;
+        setIsLoading(false);
+        return;
       }
 
       console.log("Profile data retrieved:", profileData);
@@ -169,74 +183,23 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
 
       setProfile(safeProfileData);
       setUserRole(profileData.user_type || null);
-      setIsSuperviser(profileData.user_type === "school" || await checkIsSuperviser(userId));
-      setSchoolId(safeProfileData.organization?.id || await getUserSchoolId(userId));
+      
+      // Run these checks in parallel to speed up loading
+      const [isSupervisor, userSchoolId] = await Promise.all([
+        checkIsSuperviser(userId),
+        getUserSchoolId(userId)
+      ]);
+      
+      setIsSuperviser(profileData.user_type === "school" || isSupervisor);
+      setSchoolId(safeProfileData.organization?.id || userSchoolId);
 
+      // Handle test account data preparation
       if (user && isTestAccount(user.email || '')) {
-        console.log("AuthContext: Test account detected, ensuring organization data is complete");
-        
-        // Ensure organization object has all required properties for test accounts
-        if (!safeProfileData.organization || !safeProfileData.organization.code) {
-          console.log("AuthContext: Organization data missing or incomplete, updating profile");
-          
-          // Create a complete organization object with all required properties
-          const updatedOrg = {
-            id: safeProfileData.organization?.id || `test-org-${Date.now()}`,
-            name: safeProfileData.organization?.name || "Test Organization",
-            code: TEST_SCHOOL_CODE
-          };
-          
-          await updateProfile({ 
-            organization: updatedOrg
-          });
-          
-          // Update local state immediately
-          safeProfileData.organization = updatedOrg;
-          setProfile(safeProfileData);
-          setSchoolId(updatedOrg.id);
-        }
-
-        if (profileData.user_type === "student") {
-          // Check for existing sessions or create test sessions
-          const { data: existingSessions } = await supabase
-            .from("session_logs")
-            .select("id")
-            .eq("user_id", userId)
-            .limit(1);
-
-          if (!existingSessions || existingSessions.length === 0) {
-            await sessionLogger.startSession("Test Session", userId);
-            const topics = ["Math", "Science", "History", "Literature", "Programming"];
-            const now = new Date();
-
-            for (let i = 1; i <= 5; i++) {
-              const pastDate = new Date(now);
-              pastDate.setDate(now.getDate() - i);
-              await supabase.from("session_logs").insert({
-                user_id: userId,
-                school_id: safeProfileData.organization?.id,
-                topic_or_content_used: topics[i % topics.length],
-                session_start: pastDate.toISOString(),
-                session_end: new Date(pastDate.getTime() + 45 * 60000).toISOString(),
-                num_queries: Math.floor(Math.random() * 15) + 5,
-              });
-            }
-          } else {
-            await sessionLogger.startSession("Continued Test Session", userId);
-          }
-        } else if (profileData.user_type === "teacher") {
-          const orgId = safeProfileData.organization?.id || "";
-          if (orgId) {
-            try {
-              console.log(`AuthContext: Populating test data for teacher ${userId} with orgId ${orgId}`);
-              await populateTestAccountWithSessions(userId, orgId);
-              console.log(`AuthContext: Successfully populated test data for teacher ${userId}`);
-            } catch (error) {
-              console.error("Error populating test data for teacher:", error);
-            }
-          }
-        }
+        await handleTestAccountData(userId, safeProfileData, profileData.user_type);
       }
+
+      // Turn off loading state
+      setIsLoading(false);
 
       // Handle role-based redirections if not at login/register pages and not handling special routes
       const nonRedirectPaths = ['/login', '/register', '/school-registration'];
@@ -244,12 +207,89 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
                                location.search.includes('completeRegistration=') ||
                                location.search.includes('emailVerificationFailed=');
                                
-      if (!nonRedirectPaths.includes(location.pathname) && !hasSpecialParams) {
+      if (initialLoadComplete && !nonRedirectPaths.includes(location.pathname) && !hasSpecialParams) {
         handleRoleBasedRedirection(profileData.user_type);
       }
     } catch (error) {
       console.error("Error fetching profile:", error);
       toast.error("Failed to retrieve profile. Please try again.");
+      setIsLoading(false);
+    }
+  };
+
+  // Handle test account data preparation in a separate function to avoid nesting
+  const handleTestAccountData = async (userId: string, safeProfileData: UserProfile, userType?: string) => {
+    console.log("AuthContext: Test account detected, ensuring organization data is complete");
+    
+    // Ensure organization object has all required properties for test accounts
+    if (!safeProfileData.organization || !safeProfileData.organization.code) {
+      console.log("AuthContext: Organization data missing or incomplete, updating profile");
+      
+      // Create a complete organization object with all required properties
+      const updatedOrg = {
+        id: safeProfileData.organization?.id || `test-org-${Date.now()}`,
+        name: safeProfileData.organization?.name || "Test Organization",
+        code: TEST_SCHOOL_CODE
+      };
+      
+      await updateProfile({ 
+        organization: updatedOrg
+      });
+      
+      // Update local state immediately
+      safeProfileData.organization = updatedOrg;
+      setProfile(safeProfileData);
+      setSchoolId(updatedOrg.id);
+    }
+
+    if (userType === "student") {
+      await prepareTestStudentData(userId, safeProfileData);
+    } else if (userType === "teacher") {
+      await prepareTestTeacherData(userId, safeProfileData.organization?.id || "");
+    }
+  };
+
+  // Prepare test data for student accounts
+  const prepareTestStudentData = async (userId: string, profile: UserProfile) => {
+    // Check for existing sessions or create test sessions
+    const { data: existingSessions } = await supabase
+      .from("session_logs")
+      .select("id")
+      .eq("user_id", userId)
+      .limit(1);
+
+    if (!existingSessions || existingSessions.length === 0) {
+      await sessionLogger.startSession("Test Session", userId);
+      const topics = ["Math", "Science", "History", "Literature", "Programming"];
+      const now = new Date();
+
+      for (let i = 1; i <= 5; i++) {
+        const pastDate = new Date(now);
+        pastDate.setDate(now.getDate() - i);
+        await supabase.from("session_logs").insert({
+          user_id: userId,
+          school_id: profile.organization?.id,
+          topic_or_content_used: topics[i % topics.length],
+          session_start: pastDate.toISOString(),
+          session_end: new Date(pastDate.getTime() + 45 * 60000).toISOString(),
+          num_queries: Math.floor(Math.random() * 15) + 5,
+        });
+      }
+    } else {
+      await sessionLogger.startSession("Continued Test Session", userId);
+    }
+  };
+
+  // Prepare test data for teacher accounts
+  const prepareTestTeacherData = async (userId: string, orgId: string) => {
+    if (orgId) {
+      try {
+        console.log(`AuthContext: Populating test data for teacher ${userId} with orgId ${orgId}`);
+        await populateTestAccountWithSessions(userId, orgId);
+        console.log(`AuthContext: Successfully populated test data for teacher ${userId}`);
+      } catch (error) {
+        console.error("Error populating test data for teacher:", error);
+      }
     }
   };
 
@@ -289,6 +329,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
     }
   };
 
+  // Check supervisor status - simplified for performance
   const checkIsSuperviser = async (userId: string): Promise<boolean> => {
     try {
       // Call the is_supervisor RPC function
@@ -306,6 +347,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
     }
   };
 
+  // Get user school ID - simplified for performance
   const getUserSchoolId = async (userId: string): Promise<string | null> => {
     try {
       // Try to get from teachers table first
@@ -339,6 +381,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
     }
   };
 
+  // Optimized sign-in function for faster auth
   const signIn = async (email: string, password: string) => {
     console.log(`Signing in user with email: ${email}`);
     
@@ -359,7 +402,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
         console.error("Sign in error:", error);
         throw error;
       }
-      console.log("Sign in successful:", data);
+      console.log("Sign in successful:", data.user?.id);
       
       // Show success toast
       toast.success("Login successful");

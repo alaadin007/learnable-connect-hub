@@ -23,7 +23,14 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 }) => {
   const { user, userRole, isLoading, isSuperviser, schoolId } = useAuth();
 
-  // Show a nice loading spinner while authentication is being checked
+  // Don't show loading state if we've determined user is not authenticated
+  // This prevents the "Verifying access..." screen from showing unnecessarily
+  if (isLoading && user === null) {
+    return <Navigate to={redirectTo} replace />;
+  }
+
+  // Show a brief loading spinner while authentication is being checked
+  // but only if we don't already know the user is logged out
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">

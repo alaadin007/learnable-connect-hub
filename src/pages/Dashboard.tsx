@@ -8,49 +8,12 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import Footer from "@/components/layout/Footer";
 
 const Dashboard = () => {
-  const { user, profile, userRole, isLoading } = useAuth();
+  const { user, profile, userRole } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Simplified dashboard that relies on AuthContext for redirects
-  React.useEffect(() => {
-    // If not authenticated and not in a special context, redirect to login
-    if (!isLoading && !user && !location.state?.fromTestAccounts) {
-      navigate("/login", { replace: true });
-    }
-  }, [user, navigate, location, isLoading]);
-
-  // Show loading state
-  if (isLoading) {
-    return (
-      <>
-        <Navbar />
-        <main className="container mx-auto px-4 py-8 min-h-screen flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
-            <p className="text-xl">Loading dashboard...</p>
-          </div>
-        </main>
-        <Footer />
-      </>
-    );
-  }
-
-  // Show message when not authenticated
-  if (!user) {
-    return (
-      <>
-        <Navbar />
-        <main className="container mx-auto px-4 py-8 min-h-screen flex items-center justify-center">
-          <div className="text-center">
-            <p className="text-xl mb-4">You need to be logged in to access this page</p>
-            <Button onClick={() => navigate("/login", { replace: true })}>Log In</Button>
-          </div>
-        </main>
-        <Footer />
-      </>
-    );
-  }
+  // Dashboard no longer needs to check for authentication or loading state
+  // as ProtectedRoute component now handles this properly
 
   // Keep the rest of the Dashboard component unchanged
   const renderUserDashboard = () => {
