@@ -51,10 +51,8 @@ const FileUpload: React.FC = () => {
       const validation = validateFile(selectedFile);
       
       if (!validation.valid) {
-        toast({
-          title: 'Invalid File',
-          description: validation.message,
-          variant: 'destructive'
+        toast.error("Invalid File", {
+          description: validation.message
         });
         return;
       }
@@ -84,8 +82,7 @@ const FileUpload: React.FC = () => {
       const validation = validateFile(selectedFile);
       
       if (!validation.valid) {
-        toast({
-          title: 'Invalid File',
+        toast.error("Invalid File", {
           description: validation.message
         });
         return;
@@ -107,8 +104,7 @@ const FileUpload: React.FC = () => {
       if (error) {
         console.error('Error triggering document processing:', error);
         setProcessingStatus('error');
-        toast({
-          title: 'Processing Failed',
+        toast.error("Processing Failed", {
           description: 'Failed to process document content. Please try again.'
         });
       } else {
@@ -125,8 +121,7 @@ const FileUpload: React.FC = () => {
     
     const validation = validateFile(file);
     if (!validation.valid) {
-      toast({
-        title: 'Invalid File',
+      toast.error("Invalid File", {
         description: validation.message
       });
       return;
@@ -187,8 +182,7 @@ const FileUpload: React.FC = () => {
       // Trigger content processing
       await triggerContentProcessing(metadataData.id);
       
-      toast({
-        title: 'Upload Successful',
+      toast.success("Upload Successful", {
         description: `${file.name} has been uploaded and is being processed.`
       });
       
@@ -198,8 +192,7 @@ const FileUpload: React.FC = () => {
       if (fileInput) fileInput.value = '';
       
     } catch (error) {
-      toast({
-        title: 'Upload Failed',
+      toast.error("Upload Failed", {
         description: error instanceof Error ? error.message : 'An unknown error occurred'
       });
     } finally {
