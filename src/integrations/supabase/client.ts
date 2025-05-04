@@ -23,7 +23,7 @@ export const supabase = createClient<Database>(
     global: {
       // Set reasonable timeouts for fetches
       fetch: (url, options) => {
-        const timeout = 30000; // 30 seconds (increased from 20)
+        const timeout = 15000; // 15 seconds - reduced timeout for faster feedback
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeout);
         
@@ -49,19 +49,18 @@ export const supabase = createClient<Database>(
   }
 );
 
-// Add error handling for supabase operations
+// Improved error handling for supabase operations
 supabase.auth.onAuthStateChange((event, session) => {
   if (event === 'SIGNED_OUT') {
     console.log('User signed out');
     // Clear any local session data
     localStorage.removeItem('lastActiveRole');
     localStorage.removeItem('lastActiveSchool');
+    localStorage.removeItem('testUser');
+    localStorage.removeItem('testUserRole');
+    localStorage.removeItem('testUserIndex');
   } else if (event === 'SIGNED_IN') {
     console.log('User signed in');
-  } else if (event === 'TOKEN_REFRESHED') {
-    console.log('Token refreshed');
-  } else if (event === 'USER_UPDATED') {
-    console.log('User updated');
   }
 });
 
@@ -120,7 +119,15 @@ export const validateRoleAccess = async (userId: string | undefined, requiredRol
       .eq('id', userId)
       .single();
     
-    if (error || !profile) return false;
+    if (error) {
+      console.error("Role validation error:", error.message);
+      return false;
+    }
+    
+    if (!profile) {
+      console.warn("No profile found for user:", userId);
+      return false;
+    }
     
     // Check if user has required role
     if (Array.isArray(requiredRole)) {

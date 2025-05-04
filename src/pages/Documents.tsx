@@ -38,13 +38,21 @@ const Documents: React.FC = () => {
         try {
           const { data, error } = await supabase.storage.getBucket('user-content');
           if (error) {
-            setStorageStatus('error');
-            setError('Storage service unavailable');
+            console.warn("Storage service warning:", error);
+            // Don't set error state immediately, we'll try to work around it
+            if (error.message.includes('does not exist')) {
+              // Bucket might not exist yet - this is not a critical error for the user
+              setStorageStatus('error');
+            } else {
+              setStorageStatus('error');
+              setError('Storage service unavailable');
+            }
           } else {
             setStorageStatus('available');
             setError(null);
           }
         } catch (err) {
+          console.error("Storage connection error:", err);
           setStorageStatus('error');
           setError('Failed to connect to document storage');
         }
@@ -61,11 +69,26 @@ const Documents: React.FC = () => {
     
     try {
       // Try a simple operation with Supabase storage to check connection
-      const { data, error: storageError } = await supabase
+      const { error: storageError } = await supabase
         .storage
         .getBucket('user-content');
       
       if (storageError) {
+        if (storageError.message.includes('does not exist')) {
+          // If the bucket doesn't exist, try to create it
+          const { error: createError } = await supabase
+            .storage
+            .createBucket('user-content', { public: false });
+            
+          if (createError) {
+            throw new Error('Could not create storage bucket: ' + createError.message);
+          } else {
+            toast.success('Document storage initialized successfully');
+            setStorageStatus('available');
+            return;
+          }
+        }
+        
         throw new Error(storageError.message);
       }
       
@@ -86,8 +109,7 @@ const Documents: React.FC = () => {
     return (
       <div className="flex justify-center items-center h-screen" role="status" aria-live="polite">
         <div className="flex flex-col items-center gap-2">
-          <div className="h-12 w-12 rounded-full border-4 border-t-blue-600 border-b-gray-200 border-l-gray-200 border-r-gray-200 animate-spin"></div>
-          <p className="text-lg font-medium text-gray-700">Loading your documents page...</p>
+          <p className="text-lg font-medium text-gray-700">Redirecting to login...</p>
         </div>
       </div>
     );
@@ -130,7 +152,7 @@ const Documents: React.FC = () => {
                 >
                   {isLoading ? (
                     <>
-                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                      <RefreshCw className="h-4 w-4 mr-2" />
                       Reconnecting...
                     </>
                   ) : (

@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, useEffect, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
@@ -53,7 +52,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false); // Initialize as false to avoid flickering
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [schoolId, setSchoolId] = useState<string | null>(null);
   const [isSupervisor, setIsSupervisor] = useState<boolean>(false);
   const [isTestUser, setIsTestUser] = useState<boolean>(false);
@@ -409,7 +408,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signOut = useCallback(async () => {
-    setIsLoading(true);
     try {
       // Clear test user data
       localStorage.removeItem("testUser");
@@ -428,15 +426,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsSupervisor(false);
       setIsTestUser(false);
 
-      // Use a small timeout to ensure state is updated before navigation
-      setTimeout(() => {
-        navigate("/login");
-        toast.success("Logged out successfully");
-      }, 10);
+      // Direct navigation to login page without timeout
+      navigate("/login");
     } catch (error) {
+      console.error("Logout error:", error);
       toast.error(`Logout failed: ${(error as Error).message}`);
-    } finally {
-      setIsLoading(false);
+      throw error; // Re-throw so the component can handle it
     }
   }, [navigate]);
 

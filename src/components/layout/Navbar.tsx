@@ -12,7 +12,6 @@ const Navbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
-  const [isLoaded, setIsLoaded] = useState(true);
   const isMobile = useIsMobile();
 
   const toggleMenu = () => setIsOpen((open) => !open);
@@ -20,16 +19,15 @@ const Navbar = () => {
   const handleLogout = useCallback(async () => {
     try {
       console.log("Navbar: Logout requested");
+      // Direct logout without spinners
       await signOut();
-      // Navigation is handled in the signOut function
-      setIsOpen(false);
-      // Add a success toast for better UX
       toast.success("Logged out successfully");
+      navigate("/login");
     } catch (error) {
       console.error("Logout error:", error);
       toast.error("Failed to log out. Please try again.");
     }
-  }, [signOut]);
+  }, [signOut, navigate]);
 
   const handleBackToTestAccounts = useCallback(async () => {
     try {
