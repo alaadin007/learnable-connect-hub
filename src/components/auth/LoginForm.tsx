@@ -32,6 +32,7 @@ const LoginForm = () => {
   const navigate = useNavigate();
   const { signIn, isLoading, setTestUser } = useAuth();
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [testLoginInProgress, setTestLoginInProgress] = useState<string | null>(null);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -83,6 +84,20 @@ const LoginForm = () => {
     },
     [signIn, setTestUser]
   );
+  
+  const handleTestAccountClick = async (accountType: string) => {
+    setTestLoginInProgress(accountType);
+    try {
+      console.log(`Initiating test login for ${accountType} account`);
+      await setTestUser(accountType);
+      // Navigation handled inside setTestUser
+    } catch (error: any) {
+      console.error("Test account setup failed:", error);
+      setLoginError(`Test account setup failed: ${error.message || "Unknown error"}`);
+    } finally {
+      setTestLoginInProgress(null);
+    }
+  };
 
   return (
     <Form {...form}>
@@ -126,7 +141,7 @@ const LoginForm = () => {
         <Button
           type="submit"
           className="w-full bg-learnable-blue hover:bg-learnable-blue/90"
-          disabled={isLoading}
+          disabled={isLoading || !!testLoginInProgress}
         >
           {isLoading ? (
             <>
@@ -143,6 +158,7 @@ const LoginForm = () => {
             variant="link"
             onClick={() => navigate("/test-accounts")}
             className="text-sm"
+            disabled={!!testLoginInProgress}
           >
             Try test accounts instead
           </Button>

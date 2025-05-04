@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -25,8 +26,15 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const [forcedTimeout, setForcedTimeout] = useState(false);
   const [forceDecision, setForceDecision] = useState(false);
   
+  // Check for test user in localStorage immediately to prevent flicker
+  const storedTestUser = localStorage.getItem("testUser");
+  const hasTestUserInStorage = !!storedTestUser;
+  
   // Set a short timeout to force a decision on the authentication status
   useEffect(() => {
+    // Skip the timeout if we already have a test user in storage
+    if (hasTestUserInStorage) return;
+    
     const timeoutId = setTimeout(() => {
       setForcedTimeout(true);
     }, 500);
@@ -43,7 +51,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
       clearTimeout(timeoutId);
       clearTimeout(decisionTimeoutId);
     };
-  }, [isLoading]);
+  }, [isLoading, hasTestUserInStorage]);
 
   // Debug logging to help trace auth issues
   useEffect(() => {
@@ -53,18 +61,30 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
       forceDecision, 
       userExists: !!user, 
       userRole, 
-      currentPath: location.pathname 
+      currentPath: location.pathname,
+      isTestUser,
+      hasTestUserInStorage
     });
-  }, [isLoading, forcedTimeout, forceDecision, user, userRole, location.pathname]);
+  }, [isLoading, forcedTimeout, forceDecision, user, userRole, location.pathname, isTestUser, hasTestUserInStorage]);
+  
+  // Skip loading state completely for test users
+  if (hasTestUserInStorage && isTestUser) {
+    // For test users, only enforce that they can't access areas for different roles
+    if (requiredRole && userRole !== requiredRole) {
+      console.log(`Test user with role ${userRole} trying to access area requiring ${requiredRole}`);
+      return <Navigate to="/test-accounts" replace />;
+    }
+    
+    // Test users can skip other permission checks
+    return <>{children}</>;
+  }
   
   // Force a decision if loading takes too long
   if (forceDecision && isLoading) {
     console.log("ProtectedRoute: Forcing authentication decision");
-    // Check if we have fallback data that indicates the user is logged in
-    const storedTestUser = localStorage.getItem("testUser");
     
     // If there's a test user in local storage, we'll proceed
-    if (storedTestUser) {
+    if (hasTestUserInStorage) {
       console.log("ProtectedRoute: Found stored test user, allowing access");
       return <>{children}</>;
     }
@@ -74,8 +94,8 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to={redirectTo} replace state={{ from: location.pathname }} />;
   }
 
-  // Only show loading spinner for a reasonable time
-  if (isLoading && !forcedTimeout) {
+  // Only show loading spinner for a reasonable time and not for test users
+  if (isLoading && !forcedTimeout && !hasTestUserInStorage) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
