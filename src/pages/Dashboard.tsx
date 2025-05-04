@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
@@ -41,14 +41,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Redirect school admin users to the dedicated admin dashboard
-  useEffect(() => {
-    if (!isLoading && userRole === "school" && location.pathname === "/dashboard") {
-      navigate("/admin", { replace: true });
-    }
-  }, [userRole, isLoading, navigate, location.pathname]);
-
-  // Show loading state
+  // Show loading state, but with a short timeout to avoid flashing
   if (isLoading) {
     return (
       <>
@@ -56,9 +49,10 @@ const Dashboard = () => {
         <main className="flex min-h-screen items-center justify-center">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600 mx-auto mb-4" />
-            <p className="text-gray-600">Loading dashboard...</p>
+            <p className="text-gray-600">Loading your dashboard...</p>
           </div>
         </main>
+        <Footer />
       </>
     );
   }
@@ -71,8 +65,14 @@ const Dashboard = () => {
       <>
         <Navbar />
         <main className="flex min-h-screen items-center justify-center">
-          <p className="text-gray-600 text-lg">User profile not available. Please log in again.</p>
+          <div className="text-center">
+            <p className="text-gray-600 text-lg">User profile not available. Please log in again.</p>
+            <Button onClick={() => navigate("/login")} className="mt-4">
+              Go to Login
+            </Button>
+          </div>
         </main>
+        <Footer />
       </>
     );
   }

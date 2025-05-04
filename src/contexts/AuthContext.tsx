@@ -10,7 +10,7 @@ interface UserProfile {
   id: string;
   user_type: string;
   full_name: string;
-  email: string; // Email property is required
+  email: string;
   school_code?: string;
   school_name?: string;
   organization?: {
@@ -34,6 +34,7 @@ interface AuthContextType {
   setTestUser: (accountType: string, index?: number) => Promise<void>;
   signUp: (email: string, password: string, userData: any) => Promise<AuthResponse>;
   refreshProfile: () => Promise<void>;
+  isTestUser?: boolean; // Added isTestUser property
 }
 
 // Create the auth context
@@ -52,9 +53,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false); // Start with false to avoid unnecessary loading state
+  const [isLoading, setIsLoading] = useState(true);
+  const [isInitialized, setIsInitialized] = useState(false);
   const [schoolId, setSchoolId] = useState<string | null>(null);
   const [isSuperviser, setIsSuperviser] = useState(false);
+  const [isTestUser, setIsTestUser] = useState<boolean>(false);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -92,6 +95,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // If this is a test user ID, return mock profile data
       if (isTestEntity(userId)) {
         console.log("Test user detected, using mock profile data");
+        setIsTestUser(true);
         
         // Extract the type from the test ID format: test-{type}-{index}
         const parts = userId.split('-');
@@ -101,12 +105,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const mockTestSchoolId = `test-school-${testIndex}`;
         const mockSchoolName = testIndex > 0 ? `Test School ${testIndex}` : "Test School";
         const mockSchoolCode = `TEST${testIndex}`;
+        const mockEmail = `${testType}.test${testIndex > 0 ? testIndex : ''}@learnable.edu`;
         
         const mockProfile: UserProfile = {
           id: userId,
           user_type: testType,
           full_name: `Test ${testType.charAt(0).toUpperCase()}${testType.slice(1)} User`,
-          email: `${testType}.test${testIndex > 0 ? testIndex : ''}@learnable.edu`,
+          email: mockEmail,
           school_code: mockSchoolCode,
           school_name: mockSchoolName,
           organization: {
@@ -262,6 +267,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const setTestUser = useCallback(async (accountType: string, index: number = 0) => {
     try {
       setIsLoading(true);
+      setIsTestUser(true);
       
       // Clear any existing auth first
       await supabase.auth.signOut();
@@ -400,6 +406,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.removeItem("testUser");
       localStorage.removeItem("testUserRole");
       localStorage.removeItem("testUserIndex");
+      setIsTestUser(false);
       
       // Then sign out from Supabase
       const { error } = await supabase.auth.signOut();
@@ -426,8 +433,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Initial authentication check and setup
   useEffect(() => {
     const initAuth = async () => {
-      // Only set loading true when we're actually doing something
       try {
+        setIsLoading(true);
+        console.log("Auth: Initializing authentication state");
+        
         // Check if we have a test user in localStorage first
         const storedTestUser = localStorage.getItem("testUser");
         const storedTestRole = localStorage.getItem("testUserRole");
@@ -435,7 +444,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         if (storedTestUser && storedTestRole) {
           console.log("Auth: Found test user data in localStorage");
-          setIsLoading(true);
           
           // Restore test user session
           const testUser = JSON.parse(storedTestUser) as User;
@@ -446,7 +454,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const mockProfile: UserProfile = {
             id: testUser.id,
             user_type: storedTestRole,
-            email: testEmail, // Ensure email is included
+            email: testEmail,
             full_name: testUser.user_metadata.full_name,
             school_code: `TEST${testIndex}`,
             school_name: testIndex > 0 ? `Test School ${testIndex}` : "Test School",
@@ -462,11 +470,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUserRole(storedTestRole);
           setSchoolId(`test-school-${testIndex}`);
           setIsSuperviser(storedTestRole === 'school');
+          setIsTestUser(true);
           console.log("Auth: Restored test user session from localStorage");
-          setTimeout(() => setIsLoading(false), 100); // Short timeout for UI to update
         } else {
           // Check for real authenticated session
-          setIsLoading(true);
           const { data } = await supabase.auth.getSession();
           
           if (data?.session?.user) {
@@ -475,12 +482,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             await fetchUserProfile(data.session.user.id);
             console.log("Auth: Real user session restored from Supabase");
           }
-          setTimeout(() => setIsLoading(false), 100); // Short timeout for UI to update
         }
+        
+        // Add a forced timeout to ensure loading state ends
+        setTimeout(() => {
+          setIsLoading(false);
+          setIsInitialized(true);
+        }, 1000);
         
       } catch (error) {
         console.error("Auth initialization error:", error);
-        setIsLoading(false); // Make sure to turn off loading state
+        setTimeout(() => {
+          setIsLoading(false);
+          setIsInitialized(true);
+        }, 500);
       }
     };
 
@@ -506,6 +521,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setUserRole(null);
             setSchoolId(null);
             setIsSuperviser(false);
+            setIsTestUser(false);
           }
         }
       }
@@ -515,6 +531,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       subscription.unsubscribe();
     };
   }, [fetchUserProfile]);
+
+  // Add explicit redirection for school admin users from Dashboard component
+  useEffect(() => {
+    if (isInitialized && !isLoading && userRole === "school" && location.pathname === "/dashboard") {
+      console.log("AuthContext: Redirecting school admin to admin dashboard");
+      navigate("/admin", { replace: true });
+    }
+  }, [isInitialized, isLoading, userRole, location.pathname, navigate]);
 
   return (
     <AuthContext.Provider
@@ -530,10 +554,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setTestUser,
         signUp,
         refreshProfile,
+        isTestUser,
       }}
     >
       {children}
     </AuthContext.Provider>
   );
 };
-

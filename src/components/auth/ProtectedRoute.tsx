@@ -1,5 +1,5 @@
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
@@ -23,15 +23,16 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 }) => {
   const { user, userRole, isLoading, isSuperviser, schoolId } = useAuth();
   const location = useLocation();
+  const [forcedTimeout, setForcedTimeout] = useState(false);
 
   // Add safety timeout to prevent infinite loading
   useEffect(() => {
     // Only set timeout if still loading
     if (isLoading) {
       const timeoutId = setTimeout(() => {
-        console.warn("ProtectedRoute: Loading timeout reached - may indicate an auth problem");
-        // Auth state is taking too long to resolve - could be an issue
-      }, 3000); // Reduced to 3 seconds from 5
+        console.warn("ProtectedRoute: Loading timeout reached - forcing resolution");
+        setForcedTimeout(true);
+      }, 2000); // Reduced timeout to 2 seconds
 
       return () => clearTimeout(timeoutId);
     }
@@ -43,8 +44,8 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to={redirectTo} replace state={{ from: location.pathname }} />;
   }
 
-  // Show a brief loading spinner while authentication is being checked
-  if (isLoading) {
+  // Use the forced timeout to proceed if loading takes too long
+  if (isLoading && !forcedTimeout) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
