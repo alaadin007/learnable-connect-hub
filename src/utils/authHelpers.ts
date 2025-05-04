@@ -9,12 +9,16 @@ import { toast } from "sonner";
  */
 export const resendVerificationEmail = async (email: string): Promise<{ success: boolean; message: string }> => {
   try {
+    toast.loading("Sending verification email...");
+    
     const { data, error } = await supabase.functions.invoke("resend-verification", {
       body: { email },
     });
 
     if (error) {
       console.error("Error resending verification email:", error);
+      toast.dismiss();
+      toast.error("Failed to resend verification email");
       return { 
         success: false, 
         message: `Failed to resend verification email: ${error.message}` 
@@ -23,6 +27,8 @@ export const resendVerificationEmail = async (email: string): Promise<{ success:
 
     if (data && data.error) {
       console.error("Error from resend-verification function:", data.error);
+      toast.dismiss();
+      toast.error("Failed to resend verification email");
       return {
         success: false,
         message: `Failed to resend verification email: ${data.error}`
@@ -30,18 +36,28 @@ export const resendVerificationEmail = async (email: string): Promise<{ success:
     }
 
     if (data && data.already_verified) {
+      toast.dismiss();
+      toast.info("Email already verified", {
+        description: "You can now log in with your credentials."
+      });
       return {
         success: true,
         message: "This email address has already been verified."
       };
     }
 
+    toast.dismiss();
+    toast.success("Verification email sent", {
+      description: "Please check your inbox and spam folder."
+    });
     return { 
       success: true, 
       message: "Verification email has been resent. Please check your inbox." 
     };
   } catch (error: any) {
     console.error("Error in resendVerificationEmail:", error);
+    toast.dismiss();
+    toast.error("Failed to resend verification email");
     return { 
       success: false, 
       message: `An unexpected error occurred: ${error.message}` 

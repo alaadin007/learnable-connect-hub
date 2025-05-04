@@ -96,13 +96,18 @@ serve(async (req) => {
       );
     }
 
-    // Send verification email - FIXED: Using magiclink type for email verification
+    // Get hostname for redirectTo URL
+    const originUrl = new URL(req.url).origin;
+    console.log("Origin URL for redirect:", originUrl);
+
+    // Send verification email - Using signupLink for proper email verification
     console.log("Sending verification email to:", email);
     const { error: verificationError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'magiclink', // Changed from 'signup' to 'magiclink' for proper verification
+      type: 'signup', // Use signup type for email verification
       email: email,
       options: {
-        redirectTo: `${new URL(req.url).origin}/login` // Add explicit redirectTo for better user experience
+        // Send users to the login page with completeRegistration param after verification
+        redirectTo: `${originUrl}/login?completeRegistration=true` 
       }
     });
 
