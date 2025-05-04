@@ -33,14 +33,14 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
       const timeoutId = setTimeout(() => {
         console.warn("ProtectedRoute: Loading timeout reached - forcing resolution");
         setForcedTimeout(true);
-      }, 300); // Further reduced timeout for better UX
+      }, 300); // Reduced timeout for better UX
 
       return () => clearTimeout(timeoutId);
     }
   }, [isLoading]);
 
   // Enhanced error handling - if loading is taking too long, show a more helpful UI
-  if ((isLoading && !forcedTimeout) || (!user && !forcedTimeout)) {
+  if ((isLoading && !forcedTimeout)) {
     console.log("ProtectedRoute: Showing loading spinner");
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -58,7 +58,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   // If loading is done and there's no user, redirect immediately
-  if (!isLoading && !user) {
+  if (!user) {
     console.log("ProtectedRoute: No user detected, redirecting to login");
     return <Navigate to={redirectTo} replace state={{ from: location.pathname }} />;
   }

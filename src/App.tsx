@@ -3,7 +3,8 @@ import React from "react";
 import {
   Route,
   Routes,
-  Navigate
+  Navigate,
+  useLocation
 } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
@@ -30,111 +31,120 @@ import "./App.css";
 function App() {
   return (
     <AuthProvider>
-      <Routes>
-        {/* Public routes */}
-        <Route path="/" element={<Index />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/school-registration" element={<SchoolRegistration />} />
-        <Route path="/pricing" element={<Pricing />} />
-        <Route path="/contact" element={<Contact />} />
-        <Route path="/about" element={<About />} />
-        <Route path="/test-accounts" element={<TestAccounts />} />
-        
-        {/* Add a direct route to redirect school admins */}
-        <Route 
-          path="/admin-redirect" 
-          element={
-            <ProtectedRoute requiredRole="school">
-              <Navigate to="/admin" replace />
-            </ProtectedRoute>
-          } 
-        />
-
-        {/* Protected routes */}
-        <Route
-          path="/dashboard"
-          element={
-            <ProtectedRoute>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
-        
-        {/* Chat route */}
-        <Route
-          path="/chat"
-          element={
-            <ProtectedRoute>
-              <ChatWithAI />
-            </ProtectedRoute>
-          }
-        />
-        
-        {/* School Admin Routes */}
-        <Route
-          path="/admin"
-          element={
-            <ProtectedRoute requiredRole="school">
-              <SchoolAdmin />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/admin/settings"
-          element={
-            <ProtectedRoute requiredRole="school">
-              <SchoolSettings />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/admin/teacher-management"
-          element={
-            <ProtectedRoute requiredRole="school">
-              <AdminTeacherManagement />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/admin/teachers"
-          element={
-            <ProtectedRoute requiredRole="school">
-              <AdminTeachers />
-            </ProtectedRoute>
-          }
-        />
-        <Route 
-          path="/admin/tools" 
-          element={
-            <ProtectedRoute requiredRole="school">
-              <AdminTools />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/admin/analytics" 
-          element={
-            <ProtectedRoute requiredRole="school">
-              <AdminAnalytics />
-            </ProtectedRoute>
-          } 
-        />
-        
-        {/* Teacher Routes */}
-        <Route
-          path="/teacher/analytics"
-          element={
-            <ProtectedRoute requiredRole="teacher">
-              <TeacherAnalytics />
-            </ProtectedRoute>
-          }
-        />
-
-        {/* Catch-all route for 404 errors */}
-        <Route path="*" element={<NotFound />} />
-      </Routes>
+      <AppRoutes />
     </AuthProvider>
+  );
+}
+
+// Separate the routes component to ensure it's within the AuthProvider
+function AppRoutes() {
+  const location = useLocation();
+  
+  return (
+    <Routes>
+      {/* Public routes */}
+      <Route path="/" element={<Index />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+      <Route path="/school-registration" element={<SchoolRegistration />} />
+      <Route path="/pricing" element={<Pricing />} />
+      <Route path="/contact" element={<Contact />} />
+      <Route path="/about" element={<About />} />
+      <Route path="/test-accounts" element={<TestAccounts />} />
+      
+      {/* Add a direct route to redirect school admins */}
+      <Route 
+        path="/admin-redirect" 
+        element={
+          <ProtectedRoute requiredRole="school">
+            <Navigate to="/admin" replace />
+          </ProtectedRoute>
+        } 
+      />
+
+      {/* Protected routes */}
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      
+      {/* Chat route */}
+      <Route
+        path="/chat"
+        element={
+          <ProtectedRoute>
+            <ChatWithAI />
+          </ProtectedRoute>
+        }
+      />
+      
+      {/* School Admin Routes */}
+      <Route
+        path="/admin"
+        element={
+          <ProtectedRoute requiredRole="school">
+            <SchoolAdmin />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/settings"
+        element={
+          <ProtectedRoute requiredRole="school">
+            <SchoolSettings />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/teacher-management"
+        element={
+          <ProtectedRoute requiredRole="school">
+            <AdminTeacherManagement />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/teachers"
+        element={
+          <ProtectedRoute requiredRole="school">
+            <AdminTeachers />
+          </ProtectedRoute>
+        }
+      />
+      <Route 
+        path="/admin/tools" 
+        element={
+          <ProtectedRoute requiredRole="school">
+            <AdminTools />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/admin/analytics" 
+        element={
+          <ProtectedRoute requiredRole="school">
+            <AdminAnalytics />
+          </ProtectedRoute>
+        } 
+      />
+      
+      {/* Teacher Routes */}
+      <Route
+        path="/teacher/analytics"
+        element={
+          <ProtectedRoute requiredRole="teacher">
+            <TeacherAnalytics />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Catch-all route for 404 errors */}
+      <Route path="*" element={<NotFound />} />
+    </Routes>
   );
 }
 

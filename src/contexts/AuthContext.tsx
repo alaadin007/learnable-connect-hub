@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, useEffect, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
@@ -167,11 +168,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (profileData.user_type === "teacher") {
           // Use a safer approach for the teachers table to avoid recursive policy issue
           try {
-            const { data: supervisorData, error: supervisorError } = await supabase
-              .rpc('get_teacher_supervisor_status', { teacher_id: userId });
+            // Fix TypeScript error by using proper RPC function name
+            const { data: supervisorStatus, error: supervisorError } = await supabase
+              .rpc('is_supervisor', { teacher_id: userId });
 
-            if (!supervisorError && supervisorData) {
-              isUserSupervisor = supervisorData;
+            if (!supervisorError) {
+              // Fix TypeScript error by ensuring we store a boolean
+              isUserSupervisor = Boolean(supervisorStatus);
             } else {
               // Fall back to metadata if available
               isUserSupervisor = user?.user_metadata?.is_supervisor === true;
