@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
@@ -17,7 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-// Define the basic type for teacher invitations
+// Define the extended type for teacher invitations to include error property
 export type TeacherInvitation = {
   id: string;
   email: string;
@@ -27,6 +26,7 @@ export type TeacherInvitation = {
   created_by: string;
   created_at: string;
   expires_at: string;
+  error?: any; // Add optional error property to handle potential error values
 };
 
 const SchoolAdmin = () => {
@@ -54,7 +54,7 @@ const SchoolAdmin = () => {
   const handleQuickActionSelect = (action: string) => {
     switch (action) {
       case "manage-teachers":
-        navigate("/admin/teacher-management", { 
+        navigate("/admin/teachers", { 
           state: { fromNavigation: true, preserveContext: true } 
         });
         break;
@@ -95,6 +95,11 @@ const SchoolAdmin = () => {
       });
     } else if (value === "settings") {
       navigate("/admin/settings", { 
+        state: { fromNavigation: true, preserveContext: true }
+      });
+    } else if (value === "teachers") {
+      // Add handler for the teachers tab
+      navigate("/admin/teachers", {
         state: { fromNavigation: true, preserveContext: true }
       });
     }

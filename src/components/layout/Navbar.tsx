@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -58,33 +59,17 @@ const Navbar = () => {
       ];
     }
 
-    switch (profileUserType) {
-      case "school":
-        return [
-          { name: "Dashboard", href: "/dashboard" },
-          { name: "School Admin", href: "/admin" },
-          { name: "Teachers", href: "/admin/teacher-management" },
-          { name: "Analytics", href: "/admin/analytics" },
-          { name: "Chat", href: "/chat" },
-          { name: "Documents", href: "/documents" },
-        ];
-      case "teacher":
-        return [
-          { name: "Dashboard", href: "/dashboard" },
-          { name: "Students", href: "/teacher/students" },
-          { name: "Analytics", href: "/teacher/analytics" },
-          { name: "Chat", href: "/chat" },
-          { name: "Documents", href: "/documents" },
-        ];
-      default:
-        // student or other user types
-        return [
-          { name: "Dashboard", href: "/dashboard" },
-          { name: "Chat", href: "/chat" },
-          { name: "Documents", href: "/documents" },
-        ];
-    }
-  }, [profileUserType, isLoggedIn, isTestAccountsPage]);
+    // Updated navigation links based on the image
+    // Showing consistent navigation links regardless of user role
+    return [
+      { name: "Dashboard", href: "/dashboard" },
+      { name: "School Admin", href: "/admin" },
+      { name: "Teachers", href: "/admin/teachers" },
+      { name: "Analytics", href: "/admin/analytics" },
+      { name: "Chat", href: "/chat" },
+      { name: "Documents", href: "/documents" },
+    ];
+  }, [isLoggedIn, isTestAccountsPage]);
 
   const isActiveLink = useCallback((href: string): boolean => {
     const currentPath = location.pathname;
@@ -96,6 +81,7 @@ const Navbar = () => {
         // Active for /admin exactly but not for known subpaths handled separately
         return currentPath === "/admin";
       case "/admin/teacher-management":
+      case "/admin/teachers":
       case "/admin/analytics":
       case "/admin/students":
       case "/teacher/students":
