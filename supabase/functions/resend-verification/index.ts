@@ -83,6 +83,7 @@ serve(async (req) => {
     }
 
     const user = users.users[0];
+    console.log("User found:", user.id, "Email confirmed:", !!user.email_confirmed_at);
 
     // Check if user is already confirmed
     if (user.email_confirmed_at) {
@@ -101,19 +102,29 @@ serve(async (req) => {
     const originUrl = url.origin;
     console.log("Origin URL for redirect:", originUrl);
 
-    // Since we're sending from edge function, we need a safety fallback if origin is not accessible
-    // Let's use the absolute Supabase URL for the redirect
-    let redirectUrl = `${supabaseUrl}/auth/v1/verify`;
+    // Create an appropriate redirect URL based on environment
+    let redirectUrl = `${originUrl}/login?completeRegistration=true`;
     
-    if (!originUrl.includes('localhost') && !originUrl.includes('127.0.0.1')) {
-      redirectUrl = `${originUrl}/login?completeRegistration=true`;
+    // For localhost or development environments, use the site URL from Supabase
+    if (originUrl.includes('localhost') || originUrl.includes('127.0.0.1')) {
+      // Try to generate an absolute URL with the Supabase site URL
+      const { data: settings } = await supabaseAdmin.auth.getSettings();
+      if (settings && settings.url) {
+        // Use the configured site URL if available
+        redirectUrl = `${settings.url}/login?completeRegistration=true`;
+        console.log("Using Supabase site URL for redirect:", redirectUrl);
+      } else {
+        // Fallback to a relative URL
+        redirectUrl = "/login?completeRegistration=true";
+        console.log("Using relative URL for redirect:", redirectUrl);
+      }
     }
       
-    console.log("Redirect URL:", redirectUrl);
+    console.log("Final redirect URL:", redirectUrl);
 
-    // Send verification email using email OTP (more reliable than magicLink for verification)
+    // Send verification email via a confirmation email
     console.log("Sending verification email to:", email);
-    const { error: verificationError } = await supabaseAdmin.auth.admin.generateLink({
+    const { data, error: verificationError } = await supabaseAdmin.auth.admin.generateLink({
       type: 'signup',  // Use signup for email verification
       email: email,
       options: {
@@ -129,7 +140,7 @@ serve(async (req) => {
       );
     }
 
-    console.log("Verification email sent successfully to:", email);
+    console.log("Verification email sent successfully to:", email, "Response:", data);
 
     return new Response(
       JSON.stringify({ 

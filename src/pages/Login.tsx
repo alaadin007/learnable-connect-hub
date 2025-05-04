@@ -45,6 +45,7 @@ const Login = () => {
       toast.error("Email verification failed", {
         description: "Please try again or request a new verification email."
       });
+      setResendDialogOpen(true);
     }
     
     const handleEmailConfirmation = async () => {
@@ -136,7 +137,7 @@ const Login = () => {
           <div className="mt-8 text-center space-y-4">
             <p className="text-sm text-gray-600">
               Don't have an account?{" "}
-              <Button variant="link" className="p-0" onClick={() => navigate("/register")}>
+              <Button variant="link" className="p-0" type="button" onClick={() => navigate("/register")}>
                 Sign up
               </Button>
             </p>
