@@ -1,5 +1,6 @@
+
 import React, { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, Link } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
 import { Button } from "@/components/ui/button";
@@ -8,7 +9,6 @@ import { toast, Toaster } from "sonner";
 import { ChevronRight, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
-import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
 const Login = () => {
@@ -19,6 +19,7 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -119,6 +120,7 @@ const Login = () => {
     }
     
     setIsLoading(true);
+    setErrorMessage(null);
     
     try {
       console.log("Login: Attempting to sign in");
@@ -126,6 +128,7 @@ const Login = () => {
       // Auth context will handle redirection based on user role
     } catch (error: any) {
       console.error("Login error:", error);
+      setErrorMessage(error.message || "Failed to sign in");
       toast.error(error.message || "Failed to sign in");
     } finally {
       setIsLoading(false);
@@ -227,15 +230,28 @@ const Login = () => {
       <main className="flex-grow bg-learnable-super-light flex flex-col items-center justify-center py-10">
         <div className="max-w-md w-full mx-auto px-4">
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold mb-2 gradient-text">Log in</h1>
+            <h1 className="text-3xl font-bold mb-2 text-gray-800">Log in</h1>
             <p className="text-gray-600">
               Welcome back to LearnAble. Log in to continue helping students learn.
             </p>
           </div>
           
+          {errorMessage && (
+            <div className="mb-4 p-4 bg-red-50 border border-red-200 text-red-600 rounded-md">
+              <p className="text-sm">
+                <strong>Error:</strong> {errorMessage}
+                {errorMessage.includes("infinite recursion") && (
+                  <span className="block mt-1">
+                    There's a database policy issue. Please contact support.
+                  </span>
+                )}
+              </p>
+            </div>
+          )}
+          
           <Card className="w-full shadow-md border-learnable-light">
             <CardHeader className="text-center">
-              <h2 className="text-2xl font-bold text-gray-800">Login</h2>
+              <h2 className="text-xl font-bold text-gray-800">Login</h2>
               <p className="text-sm text-gray-600">Enter your email and password to access your account</p>
             </CardHeader>
             
@@ -269,7 +285,7 @@ const Login = () => {
                 
                 <Button 
                   type="submit" 
-                  className="w-full gradient-bg"
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                   disabled={isLoading}
                 >
                   {isLoading ? (
@@ -285,7 +301,7 @@ const Login = () => {
                     type="button" 
                     variant="link" 
                     size="sm" 
-                    className="text-learnable-blue hover:text-learnable-purple p-0"
+                    className="text-blue-600 hover:text-blue-800 p-0"
                     onClick={handleForgotPassword}
                   >
                     Forgot password?
@@ -298,14 +314,14 @@ const Login = () => {
               <div className="w-full text-center">
                 <p className="text-sm text-gray-600">
                   Don't have an account?{" "}
-                  <Link to="/register" className="text-learnable-blue hover:text-learnable-purple font-semibold">
+                  <Link to="/register" className="text-blue-600 hover:text-blue-800 font-semibold">
                     Register
                   </Link>
                 </p>
               </div>
               
               <div className="w-full text-center">
-                <Link to="/school-registration" className="flex items-center justify-center text-learnable-blue hover:text-learnable-purple font-semibold text-sm">
+                <Link to="/school-registration" className="flex items-center justify-center text-blue-600 hover:text-blue-700 font-semibold text-sm">
                   <span>Register your school</span>
                   <ChevronRight className="ml-1 h-4 w-4" />
                 </Link>
@@ -316,7 +332,7 @@ const Login = () => {
                   type="button"
                   variant="link"
                   size="sm"
-                  className="text-gray-600 hover:text-learnable-blue p-0 text-xs"
+                  className="text-gray-600 hover:text-blue-600 p-0 text-xs"
                   onClick={handleResendVerification}
                 >
                   Didn't receive verification email?
