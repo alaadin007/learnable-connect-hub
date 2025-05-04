@@ -29,6 +29,7 @@ import AdminTeachers from "./pages/AdminTeachers";
 import AdminAnalytics from "./pages/AdminAnalytics";
 import ChatWithAI from "./pages/ChatWithAI";
 import AdminStudents from "./pages/AdminStudents";
+import Documents from "./pages/Documents";
 import "./App.css";
 
 function App() {
@@ -83,6 +84,16 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <ChatWithAI />
+          </ProtectedRoute>
+        }
+      />
+      
+      {/* Documents route */}
+      <Route
+        path="/documents"
+        element={
+          <ProtectedRoute>
+            <Documents />
           </ProtectedRoute>
         }
       />

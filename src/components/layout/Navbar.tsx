@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -72,7 +73,6 @@ const Navbar = () => {
     }
 
     // Updated navigation links based on the image
-    // Showing consistent navigation links regardless of user role
     return [
       { name: "Dashboard", href: "/dashboard" },
       { name: "School Admin", href: "/admin" },
@@ -114,19 +114,17 @@ const Navbar = () => {
       return;
     }
     
-    // Add state to prevent redirection loops and preserve navigation context
     navigate(path, { 
       state: { 
         fromNavigation: true,
         preserveContext: true,
-        timestamp: Date.now() // Add timestamp to ensure state is unique
+        timestamp: Date.now()
       } 
     });
     setIsOpen(false);
   }, [location.pathname, navigate]);
 
   if (isTestAccountsPage) {
-    // optionally hide navbar entirely on test accounts page:
     return null;
   }
 
@@ -136,7 +134,6 @@ const Navbar = () => {
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="container mx-auto px-4 sm:px-6">
           <div className="flex justify-between items-center h-16">
-            {/* Minimal placeholder during initial load */}
             <div className="flex-shrink-0">
               <span className="ml-2 text-xl font-bold gradient-text">LearnAble</span>
             </div>
