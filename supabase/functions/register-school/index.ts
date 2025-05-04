@@ -97,17 +97,19 @@ serve(async (req) => {
     const schoolCode = generateSchoolCode();
     console.log(`Generated school code: ${schoolCode} for school: ${schoolName}`);
 
-    // Create admin user
-    console.log("Creating admin user:", adminEmail);
+    // Create admin user with email confirmation required (false to true)
+    // Setting email_confirm to false so the user must verify their email
+    console.log("Creating admin user with verification required:", adminEmail);
     const { data: userData, error: userError } = await supabaseAdmin.auth.admin.createUser({
       email: adminEmail,
       password: adminPassword,
-      email_confirm: true, // Set to true to avoid email verification issues during testing
+      email_confirm: false, // Changed to false to require email verification
       user_metadata: {
         full_name: adminFullName,
         school_name: schoolName,
         school_code: schoolCode,
         user_type: "school",
+        registration_complete: false // Add flag to track registration status
       }
     });
 
@@ -119,44 +121,34 @@ serve(async (req) => {
       );
     }
 
-    console.log("User created successfully:", userData.user.id);
+    console.log("User created successfully, awaiting email verification:", userData.user.id);
 
-    // Create school and related records
-    try {
-      console.log("Creating school records...");
-      const schoolId = await createSchoolRecords(
-        supabaseAdmin,
-        schoolCode,
-        schoolName,
-        userData.user.id,
-        adminFullName
-      );
-
-      if (!schoolId) {
-        console.error("Failed to create all school records.");
-        return new Response(
-          JSON.stringify({ error: "Failed to create school records" }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
-        );
+    // Send verification email explicitly to make sure it's sent
+    const { error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+      type: 'signup',
+      email: adminEmail,
+      options: {
+        redirectTo: `${new URL(req.url).origin}/login?completeRegistration=true`
       }
-      console.log("School records created successfully with ID:", schoolId);
-    } catch (error) {
-      console.error("Error in createSchoolRecords:", error);
+    });
+
+    if (linkError) {
+      console.error("Error sending verification email:", linkError);
       return new Response(
-        JSON.stringify({ error: "Failed to create school records: " + error.message }),
+        JSON.stringify({ error: "Failed to send verification email: " + linkError.message }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
       );
     }
 
     // Success response
-    console.log("School registration successful for:", adminEmail);
+    console.log("School registration initiated for:", adminEmail);
     return new Response(
       JSON.stringify({
         success: true,
-        message: "School registered successfully.",
+        message: "Registration initiated. Please check your email to verify your account.",
         userId: userData.user.id,
         schoolCode,
-        email_verification_sent: false,
+        email_verification_sent: true,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 201 }
     );
@@ -172,82 +164,6 @@ serve(async (req) => {
     );
   }
 });
-
-async function createSchoolRecords(
-  supabase: any,
-  schoolCode: string,
-  schoolName: string,
-  userId: string,
-  adminFullName: string,
-): Promise<string | null> {
-  try {
-    console.log("Creating school_codes entry for:", schoolCode, schoolName);
-    const { error: codeError } = await supabase
-      .from("school_codes")
-      .insert({
-        code: schoolCode,
-        school_name: schoolName,
-        active: true,
-      });
-
-    if (codeError) {
-      console.error("Error inserting school code:", codeError);
-      throw codeError;
-    }
-
-    console.log("Creating school entry for:", schoolName, schoolCode);
-    const { data: schoolData, error: schoolError } = await supabase
-      .from("schools")
-      .insert({ name: schoolName, code: schoolCode })
-      .select("id")
-      .single();
-
-    if (schoolError) {
-      console.error("Error creating school record:", schoolError);
-      throw schoolError;
-    }
-
-    if (!schoolData) {
-      console.error("No school data returned from insert");
-      throw new Error("Failed to get school ID after insert");
-    }
-
-    console.log("Creating teacher entry for admin:", userId, schoolData.id);
-    const { error: teacherError } = await supabase
-      .from("teachers")
-      .insert({
-        id: userId,
-        school_id: schoolData.id,
-        is_supervisor: true,
-      });
-
-    if (teacherError) {
-      console.error("Error creating teacher record:", teacherError);
-      throw teacherError;
-    }
-
-    console.log("Creating profile entry for:", userId, adminFullName);
-    const { error: profileError } = await supabase
-      .from("profiles")
-      .insert({
-        id: userId,
-        full_name: adminFullName,
-        user_type: "school",
-        school_name: schoolName,
-        school_code: schoolCode,
-      });
-
-    if (profileError) {
-      console.error("Error creating profile record:", profileError);
-      throw profileError;
-    }
-
-    return schoolData.id;
-  } catch (error) {
-    console.error("Error in createSchoolRecords:", error);
-    throw error;
-  }
-}
 
 function generateSchoolCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';

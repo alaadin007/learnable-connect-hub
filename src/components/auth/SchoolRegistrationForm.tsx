@@ -1,9 +1,10 @@
-import React, { useState } from "react";
+
+import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -19,6 +20,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, AlertCircle, Mail, CheckCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { resendVerificationEmail } from "@/utils/authHelpers";
 
 const schoolFormSchema = z
   .object({
@@ -36,15 +38,29 @@ const schoolFormSchema = z
 type SchoolFormValues = z.infer<typeof schoolFormSchema>;
 
 const SchoolRegistrationForm = () => {
+  const location = useLocation();
   const [isLoading, setIsLoading] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [existingRole, setExistingRole] = useState<string | null>(null);
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
   const [verificationEmail, setVerificationEmail] = useState("");
+  const [registeredUserId, setRegisteredUserId] = useState<string | null>(null);
   const [resendingEmail, setResendingEmail] = useState(false);
   const [resendSuccess, setResendSuccess] = useState(false);
+  const [completingRegistration, setCompletingRegistration] = useState(false);
   const navigate = useNavigate();
+
+  // Parse URL parameters for registration completion
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const completeReg = searchParams.get("completeRegistration");
+    const userId = searchParams.get("userId");
+    
+    if (completeReg === "true" && userId) {
+      handleCompleteRegistration(userId);
+    }
+  }, [location.search]);
 
   const form = useForm<SchoolFormValues>({
     resolver: zodResolver(schoolFormSchema),
@@ -61,6 +77,51 @@ const SchoolRegistrationForm = () => {
     setServerError(null);
     setEmailError(null);
     setExistingRole(null);
+  };
+
+  const handleCompleteRegistration = async (userId: string) => {
+    setCompletingRegistration(true);
+    try {
+      console.log("Completing registration for user:", userId);
+      
+      const response = await supabase.functions.invoke('complete-registration', {
+        body: { userId }
+      });
+
+      console.log("Response from complete-registration:", response);
+
+      if (response.error) {
+        console.error("Error from complete-registration function:", response.error);
+        toast.error("Failed to complete registration", { 
+          description: response.error.message || "Please try again later" 
+        });
+        return;
+      }
+
+      if (response.data && response.data.error) {
+        console.error("Error from response data:", response.data.error);
+        toast.error("Failed to complete registration", { 
+          description: response.data.error || "Please try again later" 
+        });
+        return;
+      }
+
+      toast.success("Registration completed successfully", { 
+        description: "Your school has been registered. You can now log in." 
+      });
+      
+      setTimeout(() => {
+        navigate("/login");
+      }, 1500);
+      
+    } catch (err: any) {
+      console.error("Exception in handleCompleteRegistration:", err);
+      toast.error("Failed to complete registration", { 
+        description: err?.message || "An unexpected error occurred" 
+      });
+    } finally {
+      setCompletingRegistration(false);
+    }
   };
 
   const resendVerificationEmail = async (email: string) => {
@@ -93,12 +154,13 @@ const SchoolRegistrationForm = () => {
 
       if (response.data && response.data.already_verified) {
         toast.info("Email already verified", { 
-          description: "You can now login with your credentials" 
+          description: "You can now complete your registration" 
         });
         setResendSuccess(true);
-        setTimeout(() => {
-          navigate("/login");
-        }, 2000);
+        
+        if (registeredUserId) {
+          handleCompleteRegistration(registeredUserId);
+        }
         return;
       }
 
@@ -172,17 +234,13 @@ const SchoolRegistrationForm = () => {
         return;
       }
 
-      // If we got here, the registration was successful
+      // If we got here, the registration was initiated successfully
       setRegistrationSuccess(true);
       setVerificationEmail(values.adminEmail);
-      toast.success("Registration successful!", {
-        description: "You can now login with your credentials."
+      setRegisteredUserId(response.data.userId);
+      toast.success("Registration initiated!", {
+        description: "Please check your email and verify your account to complete registration."
       });
-      
-      // Redirect to login page after a brief delay
-      setTimeout(() => {
-        navigate("/login");
-      }, 3000);
       
     } catch (err: any) {
       console.error("Exception in onSubmit:", err);
@@ -202,20 +260,79 @@ const SchoolRegistrationForm = () => {
           <div className="bg-green-100 p-4 rounded-full mb-4">
             <Mail className="h-12 w-12 text-green-600" />
           </div>
-          <h2 className="text-2xl font-bold mb-2">Registration Successful</h2>
+          <h2 className="text-2xl font-bold mb-2">Check Your Email</h2>
           <p className="text-gray-600 mb-6">
-            Your school has been registered with the email <strong>{verificationEmail}</strong>
+            A verification email has been sent to <strong>{verificationEmail}</strong>
           </p>
           <p className="text-gray-500 mb-3 max-w-md">
-            You can now login with your credentials.
+            Please click the verification link in your email to complete your registration.
+            Once verified, you can log in to your school admin account.
           </p>
           
-          <div className="flex gap-4">
-            <Button onClick={() => navigate("/login")}>Go to Login</Button>
-            <Button variant="outline" onClick={() => { setRegistrationSuccess(false); form.reset(); }}>
+          <Alert className="mb-6 max-w-md">
+            <AlertTitle className="flex items-center">
+              <AlertCircle className="h-4 w-4 mr-2" />
+              Important
+            </AlertTitle>
+            <AlertDescription>
+              You must verify your email before you can access your account.
+            </AlertDescription>
+          </Alert>
+          
+          <div className="flex flex-col gap-4 w-full max-w-xs">
+            <Button 
+              variant="outline" 
+              onClick={() => resendVerificationEmail(verificationEmail)}
+              disabled={resendingEmail || resendSuccess}
+              className="w-full"
+            >
+              {resendingEmail ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Sending...
+                </>
+              ) : resendSuccess ? (
+                <>
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                  Email Sent
+                </>
+              ) : (
+                "Resend Verification Email"
+              )}
+            </Button>
+            
+            <Button 
+              onClick={() => navigate("/login")} 
+              variant="secondary"
+              className="w-full"
+            >
+              Go to Login
+            </Button>
+            
+            <Button 
+              variant="link" 
+              onClick={() => {
+                setRegistrationSuccess(false);
+                form.reset();
+              }}
+            >
               Register Another School
             </Button>
           </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (completingRegistration) {
+    return (
+      <Card className="w-full max-w-2xl mx-auto">
+        <CardContent className="pt-6 flex flex-col items-center text-center py-10">
+          <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+          <h2 className="text-2xl font-bold mb-2">Completing Registration</h2>
+          <p className="text-gray-600">
+            Please wait while we complete your registration...
+          </p>
         </CardContent>
       </Card>
     );

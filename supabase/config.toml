@@ -35,6 +35,8 @@ verify_jwt = false
 verify_jwt = false
 [functions.update-session]
 verify_jwt = false
+[functions.complete-registration]
+verify_jwt = false
 
 [auth]
 enabled = true
