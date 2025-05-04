@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { FileIcon, Trash2, ExternalLink, Download, AlertCircle, CheckCircle2, RefreshCw } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import {
   AlertDialog,
@@ -38,7 +38,7 @@ type DocumentContent = {
 }
 
 interface FileListProps {
-  onError?: (errorMessage: string) => void;
+  onError?: (errorMessage: string | null) => void;
 }
 
 const FileList: React.FC<FileListProps> = ({ onError }) => {
@@ -49,14 +49,17 @@ const FileList: React.FC<FileListProps> = ({ onError }) => {
   const [fileContent, setFileContent] = useState<DocumentContent[]>([]);
   const [activeSection, setActiveSection] = useState(1);
   const [showContent, setShowContent] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [canRetry, setCanRetry] = useState(true);
   const { user } = useAuth();
-  const { toast } = useToast();
-
+  
   const fetchFiles = async () => {
     if (!user) return;
     
     try {
       setLoading(true);
+      console.log("Fetching documents, attempt:", retryCount + 1);
+      
       const { data, error } = await supabase
         .from('documents')
         .select('*')
@@ -69,16 +72,15 @@ const FileList: React.FC<FileListProps> = ({ onError }) => {
       setFiles(data || []);
       // Clear error if successful
       if (onError) onError(null);
+      setCanRetry(true);
       
     } catch (error) {
       const errorMessage = error instanceof Error 
         ? error.message 
         : 'Failed to fetch your files';
       
-      toast({
-        title: 'Error',
-        description: errorMessage,
-        variant: 'destructive',
+      toast.error('Error retrieving files', {
+        description: 'Please try refreshing the page',
       });
       
       console.error('Error fetching files:', error);
@@ -88,6 +90,19 @@ const FileList: React.FC<FileListProps> = ({ onError }) => {
       
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Auto-retry mechanism with exponential backoff
+  const retryFetch = () => {
+    if (retryCount < 3) {
+      const backoffTime = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
+      
+      setCanRetry(false);
+      setTimeout(() => {
+        setRetryCount(prev => prev + 1);
+        fetchFiles();
+      }, backoffTime);
     }
   };
 
@@ -121,6 +136,12 @@ const FileList: React.FC<FileListProps> = ({ onError }) => {
     }
   }, [user]);
 
+  // Manual retry handler
+  const handleManualRetry = () => {
+    setRetryCount(0);
+    fetchFiles();
+  };
+
   const getFileIcon = (fileType: string) => {
     if (fileType.includes('pdf')) return 'pdf';
     if (fileType.includes('image')) return 'image';
@@ -152,10 +173,8 @@ const FileList: React.FC<FileListProps> = ({ onError }) => {
       URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (error) {
-      toast({
-        title: 'Download Failed',
-        description: error instanceof Error ? error.message : 'Failed to download file',
-        variant: 'destructive',
+      toast.error('Download Failed', {
+        description: error instanceof Error ? error.message : 'Failed to download file'
       });
     }
   };
@@ -172,10 +191,8 @@ const FileList: React.FC<FileListProps> = ({ onError }) => {
       
       window.open(signedURL.signedUrl, '_blank');
     } catch (error) {
-      toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to open file',
-        variant: 'destructive',
+      toast.error('Error', {
+        description: error instanceof Error ? error.message : 'Failed to open file'
       });
     }
   };
@@ -218,8 +235,7 @@ const FileList: React.FC<FileListProps> = ({ onError }) => {
         throw new Error(dbError.message);
       }
       
-      toast({
-        title: 'File Deleted',
+      toast.success('File Deleted', {
         description: `${fileToDelete.filename} has been deleted successfully.`
       });
       
@@ -227,10 +243,8 @@ const FileList: React.FC<FileListProps> = ({ onError }) => {
       setFiles(files.filter(f => f.id !== fileToDelete.id));
       
     } catch (error) {
-      toast({
-        title: 'Delete Failed',
-        description: error instanceof Error ? error.message : 'Failed to delete file',
-        variant: 'destructive',
+      toast.error('Delete Failed', {
+        description: error instanceof Error ? error.message : 'Failed to delete file'
       });
     } finally {
       setFileToDelete(null);
@@ -258,24 +272,18 @@ const FileList: React.FC<FileListProps> = ({ onError }) => {
           setActiveSection(1);
           setShowContent(true);
         } else {
-          toast({
-            title: 'No Content Available',
+          toast.info('No Content Available', {
             description: 'No extracted content found for this document.',
-            variant: 'default',
           });
         }
       } else {
-        toast({
-          title: 'Content Not Available',
+        toast.info('Content Not Available', {
           description: 'The document content is still being processed.',
-          variant: 'default',
         });
       }
     } catch (error) {
-      toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to fetch document content',
-        variant: 'destructive',
+      toast.error('Error', {
+        description: error instanceof Error ? error.message : 'Failed to fetch document content'
       });
     }
   };
@@ -297,7 +305,6 @@ const FileList: React.FC<FileListProps> = ({ onError }) => {
     }
   };
 
-  // Function to retrigger processing for failed documents
   const retryProcessing = async (file: FileItem) => {
     try {
       // Update processing status back to pending
@@ -319,8 +326,7 @@ const FileList: React.FC<FileListProps> = ({ onError }) => {
         throw new Error(error.message);
       }
       
-      toast({
-        title: 'Processing Restarted',
+      toast.success('Processing Restarted', {
         description: 'Document processing has been restarted.'
       });
       
@@ -332,10 +338,8 @@ const FileList: React.FC<FileListProps> = ({ onError }) => {
       );
       
     } catch (error) {
-      toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to restart processing',
-        variant: 'destructive',
+      toast.error('Error', {
+        description: error instanceof Error ? error.message : 'Failed to restart processing'
       });
     }
   };
@@ -347,15 +351,19 @@ const FileList: React.FC<FileListProps> = ({ onError }) => {
         <Button 
           variant="outline" 
           size="sm"
-          onClick={fetchFiles}
+          onClick={handleManualRetry}
           disabled={loading}
           className="text-xs"
         >
           {loading ? (
-            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+            <>
+              <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1" />
+              Refreshing...
+            </>
           ) : (
             <>
-              <RefreshCw className="h-3.5 w-3.5 mr-1" /> Refresh
+              <RefreshCw className="h-3.5 w-3.5 mr-1" />
+              Refresh
             </>
           )}
         </Button>

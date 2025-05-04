@@ -19,6 +19,19 @@ export const supabase = createClient<Database>(
       detectSessionInUrl: true,
       flowType: 'pkce', // Use PKCE flow for more security but better compatibility
       debug: process.env.NODE_ENV === 'development', // Enable debug mode in development
+    },
+    global: {
+      // Set reasonable timeouts for fetches
+      fetch: (url, options) => {
+        const timeout = 20000; // 20 seconds
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+        
+        return fetch(url, {
+          ...options,
+          signal: controller.signal,
+        }).finally(() => clearTimeout(timeoutId));
+      }
     }
   }
 );

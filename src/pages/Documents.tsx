@@ -15,12 +15,13 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
 const Documents: React.FC = () => {
-  const { user, signOut } = useAuth();
+  const { user, userRole } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('upload');
   const [redirecting, setRedirecting] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [storageStatus, setStorageStatus] = useState<'unknown' | 'available' | 'error'>('unknown');
 
   // Redirect if not logged in
   useEffect(() => {
@@ -29,6 +30,29 @@ const Documents: React.FC = () => {
       navigate('/login', { state: { from: '/documents' } });
     }
   }, [user, navigate, redirecting]);
+
+  // Check storage status on component mount
+  useEffect(() => {
+    const checkStorage = async () => {
+      if (user) {
+        try {
+          const { data, error } = await supabase.storage.getBucket('user-content');
+          if (error) {
+            setStorageStatus('error');
+            setError('Storage service unavailable');
+          } else {
+            setStorageStatus('available');
+            setError(null);
+          }
+        } catch (err) {
+          setStorageStatus('error');
+          setError('Failed to connect to document storage');
+        }
+      }
+    };
+    
+    checkStorage();
+  }, [user]);
 
   // Function to check storage bucket connection
   const checkStorageConnection = async () => {
@@ -47,9 +71,11 @@ const Documents: React.FC = () => {
       
       // Connection is good
       toast.success('Document storage connection restored');
+      setStorageStatus('available');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to connect to document storage';
       setError(errorMessage);
+      setStorageStatus('error');
       toast.error('Could not connect to document storage');
     } finally {
       setIsLoading(false);
