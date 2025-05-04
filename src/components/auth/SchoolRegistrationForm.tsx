@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -87,11 +86,11 @@ const SchoolRegistrationForm = () => {
         const { data, error: roleError } = await supabase
           .from('profiles')
           .select('user_type')
-          .ilike('id', `%${email}%`)
-          .limit(1);
+          .eq('id', email)
+          .maybeSingle();
         
-        if (!roleError && data && data.length > 0 && data[0].user_type) {
-          const role = data[0].user_type;
+        if (!roleError && data && data.user_type) {
+          const role = data.user_type;
           let formattedRole = role;
           
           switch (role) {
@@ -191,9 +190,6 @@ const SchoolRegistrationForm = () => {
         description: "Please check your email to verify your account.",
       });
       
-      // Don't navigate immediately, show the verification message
-      // navigate("/login?registered=true");
-      
     } catch (error: any) {
       console.error("Registration error:", error);
       setServerError(error.message || "An unexpected error occurred");
@@ -205,45 +201,41 @@ const SchoolRegistrationForm = () => {
     }
   };
 
-  if (registrationSuccess) {
-    return (
-      <Card className="w-full max-w-2xl mx-auto">
-        <CardContent className="pt-6 flex flex-col items-center text-center py-10">
-          <div className="bg-green-100 p-4 rounded-full mb-4">
-            <Mail className="h-12 w-12 text-green-600" />
-          </div>
-          <h2 className="text-2xl font-bold mb-2">Verify Your Email</h2>
-          <p className="text-gray-600 mb-6">
-            We've sent a verification email to <strong>{verificationEmail}</strong>
-          </p>
-          <p className="text-gray-500 mb-3 max-w-md">
-            Please check your inbox and click on the verification link to activate your school admin account.
-          </p>
-          <p className="text-amber-600 mb-8 max-w-md font-medium">
-            You must verify your email before you can log in. If you don't see the email, please check your spam folder.
-          </p>
-          <div className="flex gap-4">
-            <Button 
-              variant="outline" 
-              onClick={() => navigate("/login")}
-            >
-              Go to Login
-            </Button>
-            <Button
-              onClick={() => {
-                setRegistrationSuccess(false);
-                form.reset();
-              }}
-            >
-              Register Another School
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
+  return registrationSuccess ? (
+    <Card className="w-full max-w-2xl mx-auto">
+      <CardContent className="pt-6 flex flex-col items-center text-center py-10">
+        <div className="bg-green-100 p-4 rounded-full mb-4">
+          <Mail className="h-12 w-12 text-green-600" />
+        </div>
+        <h2 className="text-2xl font-bold mb-2">Verify Your Email</h2>
+        <p className="text-gray-600 mb-6">
+          We've sent a verification email to <strong>{verificationEmail}</strong>
+        </p>
+        <p className="text-gray-500 mb-3 max-w-md">
+          Please check your inbox and click on the verification link to activate your school admin account.
+        </p>
+        <p className="text-amber-600 mb-8 max-w-md font-medium">
+          You must verify your email before you can log in. If you don't see the email, please check your spam folder.
+        </p>
+        <div className="flex gap-4">
+          <Button 
+            variant="outline" 
+            onClick={() => navigate("/login")}
+          >
+            Go to Login
+          </Button>
+          <Button
+            onClick={() => {
+              setRegistrationSuccess(false);
+              form.reset();
+            }}
+          >
+            Register Another School
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  ) : (
     <Card className="w-full max-w-2xl mx-auto">
       <CardContent className="pt-6">
         {serverError && (

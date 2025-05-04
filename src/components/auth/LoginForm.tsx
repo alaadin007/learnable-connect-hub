@@ -12,8 +12,7 @@ import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
 const loginSchema = z.object({
@@ -31,7 +30,6 @@ const LoginForm = () => {
   const { signIn } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const { toast } = useToast();
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isEmailVerificationError, setIsEmailVerificationError] = useState(false);
@@ -41,13 +39,11 @@ const LoginForm = () => {
     // Check for verification success query parameter
     const searchParams = new URLSearchParams(location.search);
     if (searchParams.get("verified") === "true") {
-      toast({
-        title: "Email Verified Successfully",
-        description: "Your email has been verified. You can now log in.",
-        variant: "default",
+      toast.success("Email Verified Successfully", {
+        description: "Your email has been verified. You can now log in."
       });
     }
-  }, [location.search, toast]);
+  }, [location.search]);
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -71,7 +67,8 @@ const LoginForm = () => {
       
       // Check if error is due to email not verified
       if (error.message?.includes("Email not confirmed") || 
-          error.message?.includes("Email not verified")) {
+          error.message?.includes("not verified") ||
+          error.message?.includes("Email verification")) {
         setIsEmailVerificationError(true);
         setPendingVerificationEmail(values.email);
       } else {
@@ -96,12 +93,14 @@ const LoginForm = () => {
         throw error;
       }
       
-      toast({
-        title: "Verification Email Sent",
-        description: "Please check your inbox and verify your email before logging in.",
+      toast.success("Verification Email Sent", {
+        description: "Please check your inbox and verify your email before logging in."
       });
     } catch (error: any) {
       setError(`Failed to resend verification email: ${error.message}`);
+      toast.error("Failed to resend verification email", {
+        description: error.message
+      });
     } finally {
       setIsLoading(false);
     }
@@ -209,6 +208,13 @@ const LoginForm = () => {
       <CardFooter className="flex flex-col space-y-2 border-t pt-6">
         <div className="text-sm text-muted-foreground text-center">
           Don't have an account?{" "}
+          <Link
+            to="/register"
+            className="font-medium underline underline-offset-4 hover:text-primary"
+          >
+            Register
+          </Link>
+          {" or "}
           <Link
             to="/school-registration"
             className="font-medium underline underline-offset-4 hover:text-primary"

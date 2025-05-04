@@ -5,7 +5,7 @@ import LoginForm from "@/components/auth/LoginForm";
 import Footer from "@/components/landing/Footer";
 import { Link } from "react-router-dom";
 import { AlertCircle } from "lucide-react";
-import { Toaster } from "@/components/ui/toaster";
+import { Toaster } from "sonner";
 
 const Login = () => {
   return (

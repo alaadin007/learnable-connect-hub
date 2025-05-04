@@ -49,16 +49,24 @@ serve(async (req) => {
     console.log(`Registering school: ${schoolName} with admin: ${adminEmail}`);
     
     // Check if user already exists
-    const { data: existingUser, error: checkError } = await supabaseAdmin.auth.admin.getUserByEmail(adminEmail);
+    const { data: existingUserData, error: checkError } = await supabaseAdmin.auth.admin.getUserByEmail(adminEmail);
     
-    if (existingUser) {
+    if (existingUserData) {
       return new Response(
         JSON.stringify({ error: "Email already registered" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
       );
     }
     
-    // Create the user with appropriate metadata and enable email confirmation
+    if (checkError && !checkError.message.includes("User not found")) {
+      console.error("Error checking existing user:", checkError);
+      return new Response(
+        JSON.stringify({ error: "Error checking existing user" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+      );
+    }
+    
+    // Create the user with appropriate metadata
     const { data: userData, error: userError } = await supabaseAdmin.auth.admin.createUser({
       email: adminEmail,
       password: adminPassword,
@@ -80,17 +88,27 @@ serve(async (req) => {
     }
 
     // After successful creation, send email verification separately
-    const { error: verificationError } = await supabaseAdmin.auth.admin.generateLink({
+    const { data: linkData, error: verificationError } = await supabaseAdmin.auth.admin.generateLink({
       type: 'signup',
       email: adminEmail,
     });
 
     if (verificationError) {
       console.error("Error sending verification email:", verificationError);
-      // Don't fail the registration, just log the error
+      // Still return success but note the verification issue
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: "School registered successfully, but there was an issue sending the verification email. Please try to login and request a new verification email.",
+          userId: userData.user.id,
+          schoolCode,
+          email_verification_sent: false
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 201 }
+      );
     }
 
-    console.log(`School registered successfully. Admin user ID: ${userData.user.id}`);
+    console.log(`School registered successfully. Admin user ID: ${userData.user.id}, verification email sent`);
 
     // Return success response
     return new Response(
