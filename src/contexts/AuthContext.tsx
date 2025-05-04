@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, useEffect, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
@@ -53,6 +52,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [schoolId, setSchoolId] = useState<string | null>(null);
   const [isSupervisor, setIsSupervisor] = useState<boolean>(false);
   const [isTestUser, setIsTestUser] = useState<boolean>(false);
+  const [initAttempts, setInitAttempts] = useState<number>(0);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -111,64 +111,117 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Reset test user state when working with real users
       setIsTestUser(false);
 
-      const { data: profileData, error: profileError } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", userId)
-        .single();
-
-      if (profileError) throw profileError;
-
-      let orgData = null;
-
-      if (profileData.user_type === "school" || profileData.user_type === "teacher") {
-        const { data: schoolData } = await supabase
-          .from("schools")
-          .select("id, name, code")
-          .eq("code", profileData.school_code)
-          .single();
-        orgData = schoolData ?? null;
-        if (orgData) setSchoolId(orgData.id);
-      } else if (profileData.user_type === "student") {
-        const { data: studentData } = await supabase
-          .from("students")
-          .select("school_id")
+      // Modified to handle the recursive policy error
+      try {
+        const { data: profileData, error: profileError } = await supabase
+          .from("profiles")
+          .select("*")
           .eq("id", userId)
           .single();
 
-        if (studentData?.school_id) {
-          const { data: schoolData } = await supabase
-            .from("schools")
-            .select("id, name, code")
-            .eq("id", studentData.school_id)
-            .single();
-          orgData = schoolData ?? null;
-          if (orgData) setSchoolId(orgData.id);
+        if (profileError) throw profileError;
+
+        let orgData = null;
+        let isUserSupervisor = false;
+
+        if (profileData.user_type === "school" || profileData.user_type === "teacher") {
+          try {
+            const { data: schoolData, error: schoolError } = await supabase
+              .from("schools")
+              .select("id, name, code")
+              .eq("code", profileData.school_code)
+              .single();
+              
+            if (!schoolError && schoolData) {
+              orgData = schoolData;
+              setSchoolId(orgData.id);
+            }
+          } catch (schoolError) {
+            console.error("Error fetching school data:", schoolError);
+          }
+        } else if (profileData.user_type === "student") {
+          try {
+            const { data: studentData, error: studentError } = await supabase
+              .from("students")
+              .select("school_id")
+              .eq("id", userId)
+              .single();
+
+            if (!studentError && studentData?.school_id) {
+              const { data: schoolData, error: schoolError } = await supabase
+                .from("schools")
+                .select("id, name, code")
+                .eq("id", studentData.school_id)
+                .single();
+                
+              if (!schoolError && schoolData) {
+                orgData = schoolData;
+                setSchoolId(orgData.id);
+              }
+            }
+          } catch (studentError) {
+            console.error("Error fetching student data:", studentError);
+          }
         }
+
+        if (profileData.user_type === "teacher") {
+          // Use a safer approach for the teachers table to avoid recursive policy issue
+          try {
+            const { data: supervisorData, error: supervisorError } = await supabase
+              .rpc('get_teacher_supervisor_status', { teacher_id: userId });
+
+            if (!supervisorError && supervisorData) {
+              isUserSupervisor = supervisorData;
+            } else {
+              // Fall back to metadata if available
+              isUserSupervisor = user?.user_metadata?.is_supervisor === true;
+            }
+          } catch (teacherError) {
+            console.error("Error checking supervisor status:", teacherError);
+            // Fall back to user metadata if available
+            isUserSupervisor = user?.user_metadata?.is_supervisor === true;
+          }
+        }
+
+        setIsSupervisor(isUserSupervisor || profileData.user_type === "school");
+
+        const fullProfile: UserProfile = {
+          ...profileData,
+          email: user?.email || "",
+          organization: orgData,
+        };
+
+        setProfile(fullProfile);
+        setUserRole(profileData.user_type);
+
+        return profileData.user_type;
+      } catch (error) {
+        console.error("Error fetching user profile:", error);
+        
+        // Fallback to user metadata if available
+        if (user?.user_metadata) {
+          const metadata = user.user_metadata;
+          const userType = metadata.user_type || "student";
+          
+          // Create a basic profile from metadata
+          const basicProfile: UserProfile = {
+            id: userId,
+            user_type: userType,
+            full_name: metadata.full_name || user.email?.split('@')[0] || "User",
+            email: user.email || "",
+            school_code: metadata.school_code,
+            school_name: metadata.school_name,
+          };
+          
+          setProfile(basicProfile);
+          setUserRole(userType);
+          setIsSupervisor(userType === "school" || metadata.is_supervisor === true);
+          return userType;
+        }
+        return null;
       }
-
-      if (profileData.user_type === "teacher") {
-        const { data: teacherData } = await supabase
-          .from("teachers")
-          .select("is_supervisor")
-          .eq("id", userId)
-          .single();
-
-        setIsSupervisor(!!teacherData?.is_supervisor);
-      }
-
-      const fullProfile: UserProfile = {
-        ...profileData,
-        email: user?.email || "",
-        organization: orgData,
-      };
-
-      setProfile(fullProfile);
-      setUserRole(profileData.user_type);
-
-      return profileData.user_type;
     } catch (error) {
-      console.error("Error fetching user profile:", error);
+      console.error("Error in fetchUserProfile:", error);
       return null;
     }
   }, [user]);
@@ -203,6 +256,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email: mockEmail,
         user_metadata: {
           full_name: `Test ${accountType.charAt(0).toUpperCase() + accountType.slice(1)} User`,
+          user_type: accountType,
+          is_supervisor: accountType === "school",
+          school_code: mockSchoolCode,
+          school_name: mockSchoolName
         },
         app_metadata: {},
         aud: "authenticated",
@@ -316,6 +373,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
 
+      // Clear all state immediately
       setUser(null);
       setProfile(null);
       setUserRole(null);
@@ -323,10 +381,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsSupervisor(false);
       setIsTestUser(false);
 
-      navigate("/login");
+      // Use a small timeout to ensure state is updated before navigation
+      setTimeout(() => {
+        navigate("/login");
+        setIsLoading(false);
+      }, 10);
     } catch (error) {
       toast.error(`Logout failed: ${(error as Error).message}`);
-    } finally {
       setIsLoading(false);
     }
   }, [navigate]);
@@ -334,6 +395,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const initAuth = async () => {
       setIsLoading(true);
+      
       try {
         const storedTestUser = localStorage.getItem("testUser");
         const storedTestRole = localStorage.getItem("testUserRole");
@@ -341,62 +403,90 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (storedTestUser && storedTestRole) {
           console.log("Restoring test user session from localStorage");
-          const testUser = JSON.parse(storedTestUser) as User;
-          const testIndex = Number(storedTestIndex);
-          const testEmail = testUser.email ?? `${storedTestRole}.test${testIndex}@learnable.edu`;
-
-          const mockProfile: UserProfile = {
-            id: testUser.id,
-            user_type: storedTestRole,
-            email: testEmail,
-            full_name: testUser.user_metadata?.full_name ?? "",
-            school_code: `TEST${testIndex}`,
-            school_name: testIndex > 0 ? `Test School ${testIndex}` : "Test School",
-            organization: {
-              id: `test-school-${testIndex}`,
-              name: testIndex > 0 ? `Test School ${testIndex}` : "Test School",
-              code: `TEST${testIndex}`,
-            }
-          };
-
-          setUser(testUser);
-          setProfile(mockProfile);
-          setUserRole(storedTestRole);
-          setSchoolId(`test-school-${testIndex}`);
-          setIsSupervisor(storedTestRole === "school");
-          setIsTestUser(true);
           
-          // Set a small timeout to ensure UI updates before continuing
-          setTimeout(() => {
-            setIsLoading(false);
-          }, 50); // Very small timeout just to let React update
-          
-          return; // Exit early to avoid double-setting isLoading
+          try {
+            const testUser = JSON.parse(storedTestUser) as User;
+            const testIndex = Number(storedTestIndex);
+            const testEmail = testUser.email ?? `${storedTestRole}.test${testIndex}@learnable.edu`;
+
+            const mockProfile: UserProfile = {
+              id: testUser.id,
+              user_type: storedTestRole,
+              email: testEmail,
+              full_name: testUser.user_metadata?.full_name ?? "",
+              school_code: `TEST${testIndex}`,
+              school_name: testIndex > 0 ? `Test School ${testIndex}` : "Test School",
+              organization: {
+                id: `test-school-${testIndex}`,
+                name: testIndex > 0 ? `Test School ${testIndex}` : "Test School",
+                code: `TEST${testIndex}`,
+              }
+            };
+
+            setUser(testUser);
+            setProfile(mockProfile);
+            setUserRole(storedTestRole);
+            setSchoolId(`test-school-${testIndex}`);
+            setIsSupervisor(storedTestRole === "school");
+            setIsTestUser(true);
+          } catch (parseError) {
+            console.error("Error parsing stored test user:", parseError);
+            localStorage.removeItem("testUser");
+            localStorage.removeItem("testUserRole");
+            localStorage.removeItem("testUserIndex");
+          }
         } else {
           console.log("No test user found, checking for real user session");
           setIsTestUser(false);
-          const { data } = await supabase.auth.getSession();
-          if (data?.session?.user) {
-            console.log("Found real user session:", data.session.user.id);
-            setUser(data.session.user);
-            await fetchUserProfile(data.session.user.id);
+          
+          const { data: sessionData } = await supabase.auth.getSession();
+          if (sessionData?.session?.user) {
+            console.log("Found real user session:", sessionData.session.user.id);
+            setUser(sessionData.session.user);
+            
+            try {
+              await fetchUserProfile(sessionData.session.user.id);
+            } catch (profileError) {
+              console.error("Error fetching profile during init:", profileError);
+              // Continue with basic user data even if profile fetch fails
+              setUserRole(sessionData.session.user.user_metadata?.user_type || null);
+            }
           }
         }
       } catch (error) {
         console.error("Auth initialization error:", error);
+        setInitAttempts(prev => prev + 1);
       } finally {
-        setIsLoading(false); // Ensure loading state is turned off
+        // Always turn off loading after a reasonable timeout
+        setTimeout(() => {
+          setIsLoading(false);
+        }, 100);
       }
     };
+
+    // If multiple init attempts fail, ensure we don't get stuck loading
+    if (initAttempts > 3) {
+      setIsLoading(false);
+      return;
+    }
 
     initAuth();
 
     // Subscribe to auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log("Auth state changed:", event);
+      
+      // Avoid doing async operations directly in the callback
       if (event === "SIGNED_IN" && session?.user) {
         setUser(session.user);
-        await fetchUserProfile(session.user.id);
+        // Use setTimeout to avoid potential recursion issues with Supabase client
+        setTimeout(async () => {
+          try {
+            await fetchUserProfile(session.user.id);
+          } catch (error) {
+            console.error("Error fetching profile after sign in:", error);
+          }
+        }, 0);
       } else if (event === "SIGNED_OUT" && !localStorage.getItem("testUser")) {
         setUser(null);
         setProfile(null);
@@ -410,7 +500,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       subscription.unsubscribe();
     };
-  }, [fetchUserProfile]);
+  }, [fetchUserProfile, initAttempts]);
+
+  // Force reset of loading state after a maximum time to prevent infinite loading
+  useEffect(() => {
+    if (isLoading) {
+      const timeoutId = setTimeout(() => {
+        console.warn("Auth context: Maximum loading time reached, forcing resolution");
+        setIsLoading(false);
+      }, 3000);
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [isLoading]);
 
   return (
     <AuthContext.Provider value={{

@@ -26,36 +26,41 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const location = useLocation();
   const [forcedTimeout, setForcedTimeout] = useState(false);
 
-  // Add safety timeout to prevent infinite loading - reduced to 500ms
+  // Further reduced timeout to prevent infinite loading
   useEffect(() => {
     if (isLoading) {
       console.log("ProtectedRoute: Setting loading timeout");
       const timeoutId = setTimeout(() => {
         console.warn("ProtectedRoute: Loading timeout reached - forcing resolution");
         setForcedTimeout(true);
-      }, 500); // Further reduced timeout for better UX
+      }, 300); // Further reduced timeout for better UX
 
       return () => clearTimeout(timeoutId);
     }
   }, [isLoading]);
 
-  // If loading is done and there's no user, redirect immediately
-  if (!isLoading && !user) {
-    console.log("ProtectedRoute: No user detected, redirecting to login");
-    return <Navigate to={redirectTo} replace state={{ from: location.pathname }} />;
-  }
-
-  // Use the forced timeout to proceed if loading takes too long
-  if (isLoading && !forcedTimeout) {
+  // Enhanced error handling - if loading is taking too long, show a more helpful UI
+  if ((isLoading && !forcedTimeout) || (!user && !forcedTimeout)) {
     console.log("ProtectedRoute: Showing loading spinner");
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4 text-learnable-purple" />
           <p className="text-gray-600">Verifying access...</p>
+          {forcedTimeout && (
+            <p className="text-sm text-amber-600 mt-2">
+              Taking longer than expected. Please refresh if this persists.
+            </p>
+          )}
         </div>
       </div>
     );
+  }
+
+  // If loading is done and there's no user, redirect immediately
+  if (!isLoading && !user) {
+    console.log("ProtectedRoute: No user detected, redirecting to login");
+    return <Navigate to={redirectTo} replace state={{ from: location.pathname }} />;
   }
 
   // Debug logs to track what's happening
