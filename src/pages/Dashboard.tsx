@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -14,18 +13,26 @@ const Dashboard = () => {
   const location = useLocation();
   const [localLoading, setLocalLoading] = useState(true);
 
-  // Set a timeout to prevent infinite loading state - shorten it for better UX
+  // Set a shorter timeout to prevent infinite loading state
   useEffect(() => {
     console.log("Dashboard: Setting up timeout for loading state");
     const timer = setTimeout(() => {
-      console.log("Dashboard: Timeout triggered, ending local loading state");
+      console.log("Dashboard: Timeout triggered, forcing end of local loading state");
       setLocalLoading(false);
-    }, 2000); // 2 seconds timeout instead of 3
+    }, 1500); // 1.5 seconds timeout - shorter for better UX
     
     return () => clearTimeout(timer);
   }, []);
 
-  // Redirect if not logged in, but only after loading completes
+  // Force end loading state when auth state is determined
+  useEffect(() => {
+    if (!isLoading) {
+      console.log("Dashboard: Auth loading completed, ending local loading");
+      setLocalLoading(false);
+    }
+  }, [isLoading]);
+
+  // Redirect if not logged in, but only after definitive auth state is known
   useEffect(() => {
     console.log("Dashboard: Auth state check", { 
       isLoading, 
@@ -35,33 +42,25 @@ const Dashboard = () => {
       locationState: location.state 
     });
     
-    // Handle forced end of loading state
-    if (!localLoading && isLoading) {
-      console.log("Dashboard: Local loading ended before auth loading, still waiting for auth");
-    }
-    
     // Only make decisions when we have definitive auth state
-    if (!isLoading) {
-      console.log("Dashboard: Auth loading completed");
-      setLocalLoading(false);
-      
+    if (!isLoading) {      
       // Handle bypassing login check for test accounts
       if (location.state?.fromTestAccounts || location.state?.preserveContext) {
         console.log("Dashboard: Bypassing login check due to navigation context");
         return;
       }
       
-      // Handle unauthenticated users
-      if (!user) {
+      // Handle unauthenticated users, but avoid redirect loops
+      if (!user && !location.state?.fromLogin) {
         console.log("Dashboard: No user found, redirecting to login");
         navigate("/login");
-      } else {
+      } else if (user) {
         console.log("Dashboard: User authenticated:", user.id);
       }
     }
-  }, [user, navigate, location.state, isLoading, localLoading]);
+  }, [user, navigate, location.state, isLoading]);
 
-  // More targeted approach to role-based redirection
+  // Role-based redirection
   useEffect(() => {
     // Only redirect after loading completes and we have a valid user
     if (isLoading || !user) {
@@ -73,7 +72,8 @@ const Dashboard = () => {
                                    !location.state?.fromTestAccounts &&
                                    !location.state?.preserveContext &&
                                    !location.state?.fromDashboard &&
-                                   !location.state?.fromRoleRedirect;
+                                   !location.state?.fromRoleRedirect &&
+                                   !location.state?.fromLogin;
     
     // Only redirect if we know the role and it's a direct access
     if (userRole && isDirectDashboardAccess) {
@@ -122,7 +122,7 @@ const Dashboard = () => {
         <main className="container mx-auto px-4 py-8 min-h-screen flex items-center justify-center">
           <div className="text-center">
             <p className="text-xl mb-4">You need to be logged in to access this page</p>
-            <Button onClick={() => navigate("/login")}>Log In</Button>
+            <Button onClick={() => navigate("/login", { state: { fromLogin: true } })}>Log In</Button>
           </div>
         </main>
         <Footer />
