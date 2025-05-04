@@ -48,20 +48,28 @@ serve(async (req) => {
 
     console.log(`Registering school: ${schoolName} with admin: ${adminEmail}`);
     
-    // Check if user already exists
-    const { data: existingUserData, error: checkError } = await supabaseAdmin.auth.admin.getUserByEmail(adminEmail);
+    // Check if user already exists - using the correct method
+    const { data: existingUsers, error: checkError } = await supabaseAdmin
+      .from('profiles')
+      .select('id, user_type')
+      .eq('id', adminEmail)
+      .maybeSingle();
     
-    if (existingUserData) {
+    // Using auth API to check email existence
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.listUsers();
+    const existingUser = authData?.users.find(user => user.email === adminEmail);
+    
+    if (existingUser) {
       return new Response(
         JSON.stringify({ error: "Email already registered" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
       );
     }
     
-    if (checkError && !checkError.message.includes("User not found")) {
-      console.error("Error checking existing user:", checkError);
+    if (authError) {
+      console.error("Error checking existing user:", authError);
       return new Response(
-        JSON.stringify({ error: "Error checking existing user" }),
+        JSON.stringify({ error: "Error checking existing user: " + authError.message }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
       );
     }
