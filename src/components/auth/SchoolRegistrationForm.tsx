@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -140,7 +139,7 @@ const SchoolRegistrationForm = () => {
         console.error("Function invoke error:", errorMsg);
         
         // Check if this is a 409 Conflict error (email already exists)
-        if (errorMsg.includes("409") || errorMsg.includes("already registered") || errorMsg.includes("already exists")) {
+        if (errorMsg.includes("409") || errorMsg.toLowerCase().includes("already registered") || errorMsg.toLowerCase().includes("already exists")) {
           setEmailError(values.adminEmail);
           toast.error("Email already registered", {
             description: "Please use a different email address or login."
@@ -159,7 +158,7 @@ const SchoolRegistrationForm = () => {
         const dataErrorMsg = response.data.error;
         console.error("Response data error:", dataErrorMsg);
         
-        if (dataErrorMsg.includes("Email already registered") || dataErrorMsg.includes("already exists")) {
+        if (dataErrorMsg.toLowerCase().includes("email already registered") || dataErrorMsg.toLowerCase().includes("already exists")) {
           setEmailError(values.adminEmail);
           toast.error("Email already registered", {
             description: "Please use a different email address or login."
@@ -177,8 +176,14 @@ const SchoolRegistrationForm = () => {
       setRegistrationSuccess(true);
       setVerificationEmail(values.adminEmail);
       toast.success("Registration successful!", {
-        description: "Please check your email to verify your account."
+        description: "You can now login with your credentials."
       });
+      
+      // Redirect to login page after a brief delay
+      setTimeout(() => {
+        navigate("/login");
+      }, 3000);
+      
     } catch (err: any) {
       console.error("Exception in onSubmit:", err);
       setServerError(err.message || "An unexpected error occurred");
@@ -197,45 +202,18 @@ const SchoolRegistrationForm = () => {
           <div className="bg-green-100 p-4 rounded-full mb-4">
             <Mail className="h-12 w-12 text-green-600" />
           </div>
-          <h2 className="text-2xl font-bold mb-2">Verify Your Email</h2>
+          <h2 className="text-2xl font-bold mb-2">Registration Successful</h2>
           <p className="text-gray-600 mb-6">
-            We've sent a verification email to <strong>{verificationEmail}</strong>
+            Your school has been registered with the email <strong>{verificationEmail}</strong>
           </p>
           <p className="text-gray-500 mb-3 max-w-md">
-            Please check your inbox and click the verification link to activate your account.
+            You can now login with your credentials.
           </p>
-          <p className="text-amber-600 mb-8 max-w-md font-medium">
-            You must verify your email before logging in. Check your spam folder if necessary.
-          </p>
-          
-          {resendSuccess && (
-            <Alert className="mb-6 bg-green-50 border-green-200">
-              <CheckCircle className="h-4 w-4 text-green-600" />
-              <AlertTitle className="text-green-800">Email Sent Successfully</AlertTitle>
-              <AlertDescription className="text-green-700">
-                A new verification email has been sent. Please check your inbox.
-              </AlertDescription>
-            </Alert>
-          )}
           
           <div className="flex gap-4">
-            <Button variant="outline" onClick={() => navigate("/login")}>Go to Login</Button>
-            <Button onClick={() => { setRegistrationSuccess(false); form.reset(); }}>
+            <Button onClick={() => navigate("/login")}>Go to Login</Button>
+            <Button variant="outline" onClick={() => { setRegistrationSuccess(false); form.reset(); }}>
               Register Another School
-            </Button>
-          </div>
-          <div className="mt-6">
-            <Button 
-              variant="link" 
-              onClick={() => resendVerificationEmail(verificationEmail)} 
-              disabled={isLoading || resendingEmail}
-            >
-              {resendingEmail ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Sending...
-                </>
-              ) : "Didn't receive an email? Send again"}
             </Button>
           </div>
         </CardContent>
