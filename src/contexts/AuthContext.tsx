@@ -46,8 +46,8 @@ interface AuthContextType {
   loading: boolean;
   isSuperviser: boolean;
   schoolId: string | null;
-  signIn: (email: string, password?: string) => Promise<void>;
-  signUp: (email: string, password: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, metadata?: object) => Promise<void>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -168,8 +168,8 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
 
       setProfile(safeProfileData);
       setUserRole(profileData.user_type || null);
-      setIsSuperviser(profileData.user_type === "superviser");
-      setSchoolId(safeProfileData.organization?.id || null);
+      setIsSuperviser(profileData.user_type === "school" || await checkIsSuperviser(userId));
+      setSchoolId(safeProfileData.organization?.id || await getUserSchoolId(userId));
 
       if (user && isTestAccount(user.email || '')) {
         console.log("AuthContext: Test account detected, ensuring organization data is complete");
@@ -242,13 +242,57 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
     }
   };
 
+  const checkIsSuperviser = async (userId: string): Promise<boolean> => {
+    try {
+      // Call the is_supervisor RPC function
+      const { data, error } = await supabase.rpc('is_supervisor', { user_id: userId });
+      
+      if (error) {
+        console.error('Error checking supervisor status:', error);
+        return false;
+      }
+      
+      return data || false;
+    } catch (error) {
+      console.error('Error in checkIsSuperviser:', error);
+      return false;
+    }
+  };
+
+  const getUserSchoolId = async (userId: string): Promise<string | null> => {
+    try {
+      // Try to get from teachers table first
+      const { data: teacherData } = await supabase
+        .from('teachers')
+        .select('school_id')
+        .eq('id', userId)
+        .single();
+      
+      if (teacherData?.school_id) {
+        return teacherData.school_id;
+      }
+      
+      // If not found, try students table
+      const { data: studentData } = await supabase
+        .from('students')
+        .select('school_id')
+        .eq('id', userId)
+        .single();
+      
+      return studentData?.school_id || null;
+    } catch (error) {
+      console.error('Error in getUserSchoolId:', error);
+      return null;
+    }
+  };
+
   const refreshProfile = async () => {
     if (user) {
       await fetchProfile(user.id);
     }
   };
 
-  const signIn = async (email: string, password?: string) => {
+  const signIn = async (email: string, password: string) => {
     console.log(`Signing in user with email: ${email}`);
     
     // If this is a test account email, handle it directly through setTestUser
@@ -262,20 +306,13 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
 
     setIsLoading(true);
     try {
-      if (password) {
-        console.log("Attempting password-based authentication");
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) {
-          console.error("Sign in error:", error);
-          throw error;
-        }
-        console.log("Sign in successful:", data);
-      } else {
-        console.log("Attempting OTP-based authentication");
-        const { error } = await supabase.auth.signInWithOtp({ email });
-        if (error) throw error;
-        toast.success("Check your email to verify your login");
+      console.log("Attempting password-based authentication");
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        console.error("Sign in error:", error);
+        throw error;
       }
+      console.log("Sign in successful:", data);
     } catch (error: any) {
       console.error("Sign in error caught:", error);
       toast.error(error.error_description ?? error.message);
@@ -285,11 +322,18 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
     }
   };
 
-  const signUp = async (email: string, password: string) => {
+  const signUp = async (email: string, password: string, metadata: object = {}) => {
     setIsLoading(true);
     try {
-      console.log("Signing up new user");
-      const { data, error } = await supabase.auth.signUp({ email, password });
+      console.log("Signing up new user with metadata:", metadata);
+      const { data, error } = await supabase.auth.signUp({ 
+        email, 
+        password,
+        options: {
+          data: metadata
+        }
+      });
+      
       if (error) {
         console.error("Sign up error:", error);
         throw error;
@@ -477,7 +521,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       setUser(mockUser);
       setProfile(mockProfile);
       setUserRole(type);
-      setIsSuperviser(false);
+      setIsSuperviser(type === "school");
       setSchoolId(mockProfile.organization?.id || null);
       
       // Keep session null for test users - no authentication needed

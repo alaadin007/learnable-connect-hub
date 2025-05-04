@@ -1,131 +1,166 @@
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.32.0";
 
-// Set up CORS headers
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface RequestBody {
+interface RemoveUserRequest {
   email: string;
 }
 
 serve(async (req) => {
   // Handle CORS preflight requests
-  if (req.method === "OPTIONS") {
-    return new Response(null, {
-      headers: corsHeaders,
-      status: 204,
-    });
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders, status: 204 });
+  }
+
+  // Get authentication info
+  const authHeader = req.headers.get('Authorization');
+  if (!authHeader) {
+    return new Response(
+      JSON.stringify({ error: 'Authorization header is missing' }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
+    );
   }
 
   try {
-    // Create admin client with service role key
-    const supabaseAdmin = createClient(
+    // Create Supabase client with the user's token
+    const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+        global: {
+          headers: {
+            Authorization: authHeader,
+          },
+        },
+      }
     );
 
-    // Parse the request body
-    const { email }: RequestBody = await req.json();
+    // Create admin client for admin operations
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      }
+    );
+
+    // Verify the caller is authorized (must be a school admin)
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
     
+    if (userError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
+      );
+    }
+
+    // Check if the caller is a school admin (supervisor)
+    const { data: callerData, error: callerError } = await supabaseClient
+      .from('teachers')
+      .select('is_supervisor')
+      .eq('id', user.id)
+      .single();
+
+    if (callerError || !callerData || !callerData.is_supervisor) {
+      return new Response(
+        JSON.stringify({ error: 'Only school admins can remove users' }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 403 }
+      );
+    }
+
+    // Parse request body
+    const { email } = await req.json() as RemoveUserRequest;
+
     if (!email) {
       return new Response(
         JSON.stringify({ error: "Email is required" }),
-        { 
-          status: 400,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        }
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
       );
     }
 
-    // First, we need to find the user's ID by email
-    const { data: userData, error: userError } = await supabaseAdmin
-      .from("auth.users")
-      .select("id")
-      .eq("email", email)
-      .single();
+    // Get the user ID from the email
+    const { data: userData, error: getUserError } = await supabaseAdmin.auth.admin.getUserByEmail(email);
 
-    // If using the direct query doesn't work (likely due to auth restrictions), try auth API
-    let userId: string | undefined;
-    
-    if (userError || !userData) {
-      const { data: authUsers, error: authError } = await supabaseAdmin.auth.admin.listUsers();
-      
-      if (authError) {
-        return new Response(
-          JSON.stringify({ error: "Failed to find user" }),
-          { 
-            status: 500,
-            headers: { "Content-Type": "application/json", ...corsHeaders },
-          }
-        );
-      }
-
-      const foundUser = authUsers.users.find(u => u.email === email);
-      if (foundUser) {
-        userId = foundUser.id;
-      } else {
-        return new Response(
-          JSON.stringify({ error: "User not found with email: " + email }),
-          { 
-            status: 404,
-            headers: { "Content-Type": "application/json", ...corsHeaders },
-          }
-        );
-      }
-    } else {
-      userId = userData.id;
+    if (getUserError || !userData) {
+      return new Response(
+        JSON.stringify({ error: "User not found" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 }
+      );
     }
 
-    // Delete from profiles table
-    const { error: profilesError } = await supabaseAdmin
-      .from("profiles")
-      .delete()
-      .eq("id", userId);
+    const userId = userData.id;
 
-    // Delete from students table if exists
-    await supabaseAdmin
-      .from("students")
-      .delete()
-      .eq("id", userId);
+    // Get the school ID of the target user
+    const { data: targetTeacher } = await supabaseAdmin
+      .from('teachers')
+      .select('school_id')
+      .eq('id', userId)
+      .maybeSingle();
+      
+    const { data: targetStudent } = await supabaseAdmin
+      .from('students')
+      .select('school_id')
+      .eq('id', userId)
+      .maybeSingle();
+      
+    // Get the caller's school ID
+    const { data: callerTeacher } = await supabaseAdmin
+      .from('teachers')
+      .select('school_id')
+      .eq('id', user.id)
+      .single();
+      
+    const targetSchoolId = targetTeacher?.school_id || targetStudent?.school_id;
+    const callerSchoolId = callerTeacher?.school_id;
+    
+    // Ensure the caller can only remove users from their own school
+    if (targetSchoolId && callerSchoolId && targetSchoolId !== callerSchoolId) {
+      return new Response(
+        JSON.stringify({ error: "You can only remove users from your own school" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 403 }
+      );
+    }
 
-    // Delete from teachers table if exists
-    await supabaseAdmin
-      .from("teachers")
-      .delete()
-      .eq("id", userId);
-
-    // Delete the user from auth.users using the admin API
+    console.log(`Removing user: ${email} (${userId})`);
+    
+    // Delete the user and all related data will cascade due to foreign key constraints
     const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId);
 
     if (deleteError) {
+      console.error("Error removing user:", deleteError);
       return new Response(
-        JSON.stringify({ error: "Failed to delete user: " + deleteError.message }),
-        { 
-          status: 500,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        }
+        JSON.stringify({ error: deleteError.message }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
       );
     }
 
+    console.log(`User ${email} removed successfully`);
+
+    // Return success response
     return new Response(
-      JSON.stringify({ message: "User completely removed from the database", email }),
-      { 
-        status: 200,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      }
+      JSON.stringify({ 
+        success: true, 
+        message: `User ${email} has been completely removed from the system.` 
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );
   } catch (error) {
-    console.error("Error processing request:", error);
+    console.error("Error in remove-user function:", error);
     return new Response(
-      JSON.stringify({ error: "Internal server error" }),
-      { 
-        status: 500,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      }
+      JSON.stringify({ error: error.message }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
   }
 });

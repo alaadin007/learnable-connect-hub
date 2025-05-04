@@ -48,3 +48,7 @@ verify_jwt = false
 [[edge_functions]]
 name = "create-test-accounts"
 verify_jwt = false
+
+[[edge_functions]]
+name = "remove-user"
+verify_jwt = true

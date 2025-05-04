@@ -1,96 +1,149 @@
 
-import React, { useState } from "react";
+import React, { useState } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
-import { removeUserByEmail } from "@/utils/userManagement";
+import { AlertCircle, Trash2 } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { removeUserByEmail } from '@/utils/userManagement';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogClose,
+} from "@/components/ui/dialog";
 
 const UserRemovalTool = () => {
-  const [email, setEmail] = useState<string>("");
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [email, setEmail] = useState("");
+  const [confirmEmail, setConfirmEmail] = useState("");
+  const [isRemoving, setIsRemoving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleRemoveUser = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!email.trim()) {
-      toast.error("Please enter an email address");
+  const handleRemove = async () => {
+    if (!email || email !== confirmEmail) {
+      setError("Email addresses must match");
       return;
     }
-    
-    if (!confirm(`Are you sure you want to completely remove the user ${email} from the database? This action cannot be undone.`)) {
-      return;
-    }
-    
-    setIsLoading(true);
-    
+
+    setIsRemoving(true);
+    setError(null);
+
     try {
       const result = await removeUserByEmail(email);
       
       if (result.success) {
-        toast.success(result.message);
+        toast.success("User removed successfully", {
+          description: result.message
+        });
         setEmail("");
+        setConfirmEmail("");
       } else {
-        toast.error(result.message);
+        setError(result.message);
       }
-    } catch (error: any) {
-      toast.error(`Failed to remove user: ${error.message}`);
+    } catch (err: any) {
+      setError(`An unexpected error occurred: ${err.message}`);
     } finally {
-      setIsLoading(false);
+      setIsRemoving(false);
     }
   };
-  
+
   return (
-    <Card className="w-full max-w-md mx-auto">
+    <Card>
       <CardHeader>
-        <CardTitle>Remove User</CardTitle>
+        <CardTitle className="text-destructive flex items-center">
+          <Trash2 className="h-5 w-5 mr-2" />
+          Remove User
+        </CardTitle>
         <CardDescription>
-          Completely remove a user from the database including all associated data.
+          Permanently delete a user and all associated data
         </CardDescription>
       </CardHeader>
-      <form onSubmit={handleRemoveUser}>
-        <CardContent>
-          <div className="grid w-full items-center gap-4">
-            <div className="flex flex-col space-y-1.5">
-              <Label htmlFor="email">Email Address</Label>
-              <Input
-                id="email"
-                placeholder="user@example.com"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
+      <CardContent>
+        {error && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="email">User Email</Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="Enter email to remove"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
           </div>
-        </CardContent>
-        <CardFooter className="flex justify-between">
-          <Button 
-            variant="outline" 
-            onClick={() => setEmail("")}
-            type="button"
-            disabled={isLoading}
-          >
-            Cancel
-          </Button>
-          <Button 
-            variant="destructive"
-            type="submit"
-            disabled={isLoading || !email.trim()}
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Removing...
-              </>
-            ) : (
-              "Remove User"
+          
+          <div className="space-y-2">
+            <Label htmlFor="confirmEmail">Confirm Email</Label>
+            <Input
+              id="confirmEmail"
+              type="email"
+              placeholder="Re-enter email to confirm"
+              value={confirmEmail}
+              onChange={(e) => setConfirmEmail(e.target.value)}
+              className={email !== confirmEmail && confirmEmail ? "border-red-500" : ""}
+            />
+            {email !== confirmEmail && confirmEmail && (
+              <p className="text-xs text-destructive mt-1">Email addresses must match</p>
             )}
-          </Button>
-        </CardFooter>
-      </form>
+          </div>
+          
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button 
+                variant="destructive" 
+                className="w-full"
+                disabled={!email || email !== confirmEmail || isRemoving}
+              >
+                {isRemoving ? "Removing..." : "Remove User"}
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Confirm User Removal</DialogTitle>
+                <DialogDescription>
+                  This action cannot be undone. The user <span className="font-semibold">{email}</span> and 
+                  all associated data will be permanently deleted from the system.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-4">
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Warning</AlertTitle>
+                  <AlertDescription>
+                    This is a destructive operation that will remove all user data including chats,
+                    assessments, and other content.
+                  </AlertDescription>
+                </Alert>
+              </div>
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button variant="outline">Cancel</Button>
+                </DialogClose>
+                <Button 
+                  variant="destructive" 
+                  onClick={handleRemove}
+                  disabled={isRemoving}
+                >
+                  {isRemoving ? "Removing..." : "Confirm Removal"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </CardContent>
     </Card>
   );
 };
