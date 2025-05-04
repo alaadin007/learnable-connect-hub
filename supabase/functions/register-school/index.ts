@@ -81,11 +81,7 @@ serve(async (req) => {
     console.log(`Registering school: ${schoolName} with admin: ${adminEmail}`);
     
     // Check if user already exists by email
-    const { data: existingUserData, error: userLookupError } = await supabaseAdmin.auth.admin.listUsers({
-      filter: {
-        email: adminEmail,
-      },
-    });
+    const { data: existingUserData, error: userLookupError } = await supabaseAdmin.auth.admin.listUsers();
     
     if (userLookupError) {
       console.error("Error checking for existing user:", userLookupError);
@@ -95,8 +91,11 @@ serve(async (req) => {
       );
     }
     
-    if (existingUserData && existingUserData.users && existingUserData.users.length > 0) {
-      console.log("User already exists:", existingUserData.users[0].email);
+    // Find user with matching email
+    const existingUser = existingUserData?.users?.find(user => user.email === adminEmail);
+    
+    if (existingUser) {
+      console.log("User already exists:", existingUser.email);
       return new Response(
         JSON.stringify({ error: "Email already registered" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 409 }
@@ -133,6 +132,29 @@ serve(async (req) => {
 
     console.log("User created successfully:", userData.user.id);
 
+    // First create the entry in school_codes table
+    try {
+      const { error: schoolCodeError } = await supabaseAdmin
+        .from('school_codes')
+        .insert([
+          { 
+            code: schoolCode,
+            school_name: schoolName,
+            active: true 
+          }
+        ]);
+
+      if (schoolCodeError) {
+        console.error("Error creating school code record:", schoolCodeError);
+        // Continue with the process, we'll create the remaining records
+      } else {
+        console.log("School code created successfully");
+      }
+    } catch (dbError) {
+      console.error("Error creating school code:", dbError);
+      // Continue with the process
+    }
+
     // Create the school in database
     try {
       const { data: schoolData, error: schoolError } = await supabaseAdmin
@@ -148,7 +170,7 @@ serve(async (req) => {
 
       if (schoolError) {
         console.error("Error creating school record:", schoolError);
-        // Continue the process, we'll return a warning later
+        // Continue the process, we'll try to create profiles record
       } else {
         console.log("School created successfully:", schoolData.id);
         
@@ -165,14 +187,35 @@ serve(async (req) => {
 
         if (teacherError) {
           console.error("Error creating teacher record:", teacherError);
-          // Continue the process, we'll return a warning later
         } else {
           console.log("Teacher record created successfully");
         }
       }
     } catch (dbError) {
       console.error("Error in database operations:", dbError);
-      // Continue the process, we'll return a warning later
+    }
+
+    // Create the profile record
+    try {
+      const { error: profileError } = await supabaseAdmin
+        .from('profiles')
+        .insert([
+          { 
+            id: userData.user.id,
+            full_name: adminFullName,
+            user_type: "school",
+            school_name: schoolName,
+            school_code: schoolCode
+          }
+        ]);
+
+      if (profileError) {
+        console.error("Error creating profile record:", profileError);
+      } else {
+        console.log("Profile record created successfully");
+      }
+    } catch (dbError) {
+      console.error("Error creating profile:", dbError);
     }
 
     // After successful creation, send email verification separately

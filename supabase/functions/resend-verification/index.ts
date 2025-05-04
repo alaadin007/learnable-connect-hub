@@ -19,28 +19,6 @@ serve(async (req) => {
 
   try {
     console.log("Resend verification function called");
-    
-    // Parse request body
-    let requestBody;
-    try {
-      requestBody = await req.json();
-    } catch (parseError) {
-      console.error("Error parsing request body:", parseError);
-      return new Response(
-        JSON.stringify({ error: "Invalid request body" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
-      );
-    }
-
-    const { email } = requestBody as ResendVerificationRequest;
-
-    if (!email) {
-      console.log("Missing email in request");
-      return new Response(
-        JSON.stringify({ error: "Email is required" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
-      );
-    }
 
     // Create Supabase admin client
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -65,12 +43,32 @@ serve(async (req) => {
       }
     );
 
-    // Check if user exists
-    const { data: existingUserData, error: userLookupError } = await supabaseAdmin.auth.admin.listUsers({
-      filter: {
-        email: email,
-      },
-    });
+    // Parse request body
+    let requestBody;
+    try {
+      requestBody = await req.json();
+      console.log("Request body:", JSON.stringify(requestBody));
+    } catch (parseError) {
+      console.error("Error parsing request body:", parseError);
+      return new Response(
+        JSON.stringify({ error: "Invalid request body" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+      );
+    }
+    
+    const { email } = requestBody as ResendVerificationRequest;
+
+    // Validate required fields
+    if (!email) {
+      console.error("Missing email in request");
+      return new Response(
+        JSON.stringify({ error: "Email is required" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+      );
+    }
+
+    // Check if the user exists
+    const { data: userData, error: userLookupError } = await supabaseAdmin.auth.admin.listUsers();
     
     if (userLookupError) {
       console.error("Error looking up user:", userLookupError);
@@ -80,34 +78,39 @@ serve(async (req) => {
       );
     }
     
-    if (!existingUserData || !existingUserData.users || existingUserData.users.length === 0) {
-      console.log("User not found:", email);
+    // Find the user with this email
+    const user = userData?.users?.find(u => u.email === email);
+    
+    if (!user) {
+      console.error("User not found:", email);
       return new Response(
-        JSON.stringify({ error: "No user found with this email" }),
+        JSON.stringify({ error: "User not found with the provided email" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 }
       );
     }
 
-    // Generate a signup link which will serve as our verification email
-    const { data, error } = await supabaseAdmin.auth.admin.generateLink({
+    console.log("Sending verification email to:", email);
+    const { data: linkData, error: verificationError } = await supabaseAdmin.auth.admin.generateLink({
       type: 'signup',
       email: email,
     });
 
-    if (error) {
-      console.error("Error resending verification email:", error);
+    if (verificationError) {
+      console.error("Error sending verification email:", verificationError);
       return new Response(
-        JSON.stringify({ error: error.message }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+        JSON.stringify({ error: "Failed to send verification email: " + verificationError.message }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
       );
     }
 
-    console.log(`Verification email resent to: ${email}`);
+    console.log("Verification email sent successfully to:", email);
     return new Response(
-      JSON.stringify({ success: true, message: "Verification email has been resent" }),
+      JSON.stringify({ 
+        success: true, 
+        message: "Verification email sent. Please check your inbox." 
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );
-    
   } catch (error) {
     console.error("Error in resend-verification function:", error);
     return new Response(
