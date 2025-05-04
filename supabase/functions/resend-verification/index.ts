@@ -9,6 +9,7 @@ const corsHeaders = {
 
 interface ResendVerificationRequest {
   email: string;
+  currentUrl?: string;
 }
 
 serve(async (req) => {
@@ -48,7 +49,7 @@ serve(async (req) => {
       );
     }
 
-    const { email } = requestBody;
+    const { email, currentUrl } = requestBody;
 
     if (!email) {
       return new Response(
@@ -58,6 +59,7 @@ serve(async (req) => {
     }
 
     console.log("Checking if user exists:", email);
+    console.log("Current URL provided:", currentUrl);
     
     // Check if user exists and is confirmed
     const { data: users, error: userLookupError } = await supabaseAdmin.auth.admin.listUsers({
@@ -97,63 +99,12 @@ serve(async (req) => {
       );
     }
 
-    // Determine the proper redirect URL based on the request
-    let redirectUrl;
-    const referer = req.headers.get('referer');
-    const origin = req.headers.get('origin');
-    
-    // First try to use the referer header which includes the full URL with path
-    if (referer) {
-      try {
-        const refererUrl = new URL(referer);
-        // Extract just the origin part (scheme + hostname + port)
-        const refererOrigin = `${refererUrl.protocol}//${refererUrl.host}`;
-        redirectUrl = `${refererOrigin}/login?completeRegistration=true`;
-        console.log("Using referer URL for redirect:", redirectUrl);
-      } catch (e) {
-        console.error("Invalid referer URL:", referer, e);
-      }
-    }
-    
-    // If referer didn't work, try the origin header
-    if (!redirectUrl && origin) {
-      redirectUrl = `${origin}/login?completeRegistration=true`;
-      console.log("Using origin header for redirect:", redirectUrl);
-    }
-    
-    // If we still don't have a redirectUrl, use the request URL as fallback
-    if (!redirectUrl) {
-      try {
-        const url = new URL(req.url);
-        // For production URLs, use the hostname from the request
-        if (!url.hostname.includes('localhost') && !url.hostname.includes('127.0.0.1')) {
-          redirectUrl = `${url.protocol}//${url.hostname}/login?completeRegistration=true`;
-          console.log("Using request URL for redirect:", redirectUrl);
-        } else {
-          // For localhost, try to get the site URL from Supabase settings
-          const { data: settings } = await supabaseAdmin.auth.getSettings();
-          if (settings && settings.url) {
-            // Use the configured site URL if available
-            redirectUrl = `${settings.url}/login?completeRegistration=true`;
-            console.log("Using Supabase site URL for redirect:", redirectUrl);
-          } else {
-            // Last resort, use a relative URL
-            redirectUrl = "/login?completeRegistration=true";
-            console.log("Using relative URL for redirect:", redirectUrl);
-          }
-        }
-      } catch (e) {
-        console.error("Error creating redirect URL from request:", e);
-        // Fallback to relative URL
-        redirectUrl = "/login?completeRegistration=true";
-        console.log("Using fallback relative URL for redirect:", redirectUrl);
-      }
-    }
-      
+    // Determine the proper redirect URL based on the request and available information
+    let redirectUrl = `${currentUrl || ''}/login?completeRegistration=true`;
     console.log("Final redirect URL:", redirectUrl);
 
     // Send verification email via a confirmation email
-    console.log("Sending verification email to:", email);
+    console.log("Sending verification email to:", email, "with redirect URL:", redirectUrl);
     const { data, error: verificationError } = await supabaseAdmin.auth.admin.generateLink({
       type: 'signup',  // Use signup for email verification
       email: email,

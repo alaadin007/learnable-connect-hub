@@ -1,3 +1,4 @@
+
 import React, { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -8,13 +9,13 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import Footer from "@/components/layout/Footer";
 
 const Dashboard = () => {
-  const { user, profile, userRole } = useAuth();
+  const { user, profile, userRole, isLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Redirect if not logged in
+  // Redirect if not logged in, but only after loading completes
   useEffect(() => {
-    if (!user) {
+    if (!isLoading && !user) {
       // Allow test accounts/navigation with preserved context to bypass this check
       if (location.state?.fromTestAccounts || location.state?.preserveContext) {
         console.log("Dashboard: Bypassing login check due to navigation context");
@@ -24,10 +25,13 @@ const Dashboard = () => {
       console.log("Dashboard: No user found, redirecting to login");
       navigate("/login");
     }
-  }, [user, navigate, location.state]);
+  }, [user, navigate, location.state, isLoading]);
 
   // More targeted approach to role-based redirection
   useEffect(() => {
+    // Only redirect after loading completes
+    if (isLoading) return;
+    
     // Only redirect on specific conditions
     const isDirectDashboardAccess = !location.state?.fromNavigation && 
                                    !location.state?.fromTestAccounts &&
@@ -50,16 +54,36 @@ const Dashboard = () => {
       }
       // Student stays on dashboard
     }
-  }, [userRole, navigate, location.state, profile]);
+  }, [userRole, navigate, location.state, profile, isLoading]);
 
-  // Show loading state if user or profile data is not ready
+  // Show proper loading state
+  if (isLoading) {
+    return (
+      <>
+        <Navbar />
+        <main className="container mx-auto px-4 py-8 min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
+            <p className="text-xl">Loading your dashboard...</p>
+          </div>
+        </main>
+        <Footer />
+      </>
+    );
+  }
+
+  // Show message when not authenticated and not from test accounts
   if (!user && !location.state?.fromTestAccounts) {
     return (
       <>
         <Navbar />
         <main className="container mx-auto px-4 py-8 min-h-screen flex items-center justify-center">
-          <p className="text-xl">Loading your dashboard...</p>
+          <div className="text-center">
+            <p className="text-xl mb-4">You need to be logged in to access this page</p>
+            <Button onClick={() => navigate("/login")}>Log In</Button>
+          </div>
         </main>
+        <Footer />
       </>
     );
   }

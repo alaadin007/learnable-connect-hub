@@ -85,8 +85,12 @@ export const requestPasswordReset = async (email: string): Promise<{ success: bo
   try {
     const toastId = toast.loading("Sending password reset email...");
     
+    // Include the correct redirect URL
+    const redirectUrl = `${window.location.origin}/reset-password`;
+    console.log(`Requesting password reset for ${email} with redirect URL: ${redirectUrl}`);
+    
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo: redirectUrl,
     });
 
     toast.dismiss(toastId);
