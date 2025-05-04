@@ -1,7 +1,6 @@
 
 import React, { useEffect } from "react";
 import {
-  BrowserRouter as Router,
   Route,
   Routes,
   useNavigate,
@@ -108,9 +107,7 @@ function AppRoutes() {
 function App() {
   return (
     <AuthProvider>
-      <Router>
-        <AppRoutes />
-      </Router>
+      <AppRoutes />
     </AuthProvider>
   );
 }
