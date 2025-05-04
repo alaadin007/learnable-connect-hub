@@ -34,7 +34,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     // For test users, only enforce that they can't access areas for different roles
     if (requiredRole && userRole !== requiredRole) {
       console.log(`Test user with role ${userRole} trying to access area requiring ${requiredRole}`);
-      return <Navigate to="/test-accounts" replace />;
+      return <Navigate to="/unauthorized" replace />;
     }
     
     // Test users can skip other permission checks
@@ -92,7 +92,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     // For test users, we'll only enforce that they can't access areas for different roles
     if (requiredRole && userRole !== requiredRole) {
       console.log(`Test user with role ${userRole} trying to access area requiring ${requiredRole}`);
-      return <Navigate to="/test-accounts" replace />;
+      return <Navigate to="/unauthorized" replace />;
     }
     
     // Test users can skip other permission checks

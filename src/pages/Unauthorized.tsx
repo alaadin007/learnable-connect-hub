@@ -38,15 +38,16 @@ const Unauthorized = () => {
         <div className="text-center">
           <h2 className="text-2xl font-bold text-gray-800 mb-4">Unauthorized Access</h2>
           
-          <div className="mb-6 text-gray-600">
-            <p>The page you're trying to access requires different permissions.</p>
-            {isTestUser && (
-              <div className="mt-4 p-3 bg-blue-50 rounded-md text-sm text-blue-700">
-                <p className="font-medium">You're using a test account as: {userRole}</p>
-                <p className="mt-1">Try using a different test account with appropriate permissions.</p>
-              </div>
-            )}
-          </div>
+          <p className="mb-6 text-gray-600">
+            The page you're trying to access requires different permissions.
+          </p>
+          
+          {isTestUser && (
+            <div className="mb-6 p-3 bg-blue-50 rounded-md text-sm text-blue-700">
+              <p className="font-medium">You're using a test account as: {userRole}</p>
+              <p className="mt-1">Try using a different test account with appropriate permissions.</p>
+            </div>
+          )}
           
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Button
