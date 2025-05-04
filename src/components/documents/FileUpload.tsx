@@ -69,16 +69,33 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess }) => {
       const filePath = `${user.id}/${timestamp}-${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
       
       // Upload file to Supabase Storage
+      // Since onUploadProgress is not supported in FileOptions, we'll simulate progress
+      const simulateUploadProgress = () => {
+        // Simulate progress from 0 to 95%
+        let currentProgress = 0;
+        const interval = setInterval(() => {
+          currentProgress += 5;
+          if (currentProgress >= 95) {
+            clearInterval(interval);
+          } else {
+            setProgress(currentProgress);
+          }
+        }, 100);
+        
+        return () => clearInterval(interval);
+      };
+      
+      const clearProgressSimulation = simulateUploadProgress();
+      
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('user-content')
         .upload(filePath, file, {
           cacheControl: '3600',
-          upsert: false,
-          onUploadProgress: (progress) => {
-            const percent = Math.round((progress.loaded / progress.total) * 100);
-            setProgress(percent);
-          }
+          upsert: false
         });
+      
+      clearProgressSimulation();
+      setProgress(100); // Set to 100% when complete
       
       if (uploadError) {
         throw new Error(`Upload failed: ${uploadError.message}`);
@@ -119,8 +136,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess }) => {
       }
       
       // Success
-      toast({
-        title: 'File Uploaded',
+      toast('File Uploaded', {
         description: 'Your file has been uploaded and is being processed.',
       });
 
@@ -142,8 +158,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess }) => {
       console.error('Upload error:', error);
       setError(error instanceof Error ? error.message : 'An unknown error occurred');
       
-      toast({
-        title: 'Upload Failed',
+      toast('Upload Failed', {
         description: error instanceof Error ? error.message : 'Failed to upload file',
         variant: 'destructive',
       });
