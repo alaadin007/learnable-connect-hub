@@ -3,6 +3,7 @@ import React from "react";
 import {
   Route,
   Routes,
+  Navigate
 } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
@@ -38,6 +39,16 @@ function App() {
         <Route path="/contact" element={<Contact />} />
         <Route path="/about" element={<About />} />
         <Route path="/test-accounts" element={<TestAccounts />} />
+        
+        {/* Add a direct route to redirect school admins */}
+        <Route 
+          path="/admin-redirect" 
+          element={
+            <ProtectedRoute requiredRole="school">
+              <Navigate to="/admin" replace />
+            </ProtectedRoute>
+          } 
+        />
 
         {/* Protected routes */}
         <Route

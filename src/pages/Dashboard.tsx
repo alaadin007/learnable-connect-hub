@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import { Button } from "@/components/ui/button";
@@ -8,12 +8,17 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import Footer from "@/components/layout/Footer";
 
 const Dashboard = () => {
-  const { user, profile, userRole } = useAuth();
+  const { user, profile, userRole, isLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Dashboard no longer needs to check for authentication or loading state
-  // as ProtectedRoute component now handles this properly
+  // Redirect school admin users to the dedicated admin dashboard
+  useEffect(() => {
+    if (!isLoading && profile?.user_type === "school") {
+      console.log("Dashboard: Detected school admin role, redirecting to admin panel");
+      navigate("/admin", { replace: true });
+    }
+  }, [profile, navigate, isLoading]);
 
   // Keep the rest of the Dashboard component unchanged
   const renderUserDashboard = () => {
@@ -106,6 +111,22 @@ const Dashboard = () => {
     );
   };
 
+  // Show a brief loading indicator while checking authentication
+  if (isLoading) {
+    return (
+      <>
+        <Navbar />
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading dashboard...</p>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // Render the dashboard content
   return (
     <>
       <Navbar />
