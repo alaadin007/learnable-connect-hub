@@ -1,16 +1,15 @@
-
 import React, {
   createContext,
   useState,
   useEffect,
   useContext,
   ReactNode,
+  useCallback,
 } from "react";
 import {
   Session,
   User,
   AuthChangeEvent,
-  AuthError,
 } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -75,9 +74,14 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  
+  // Keep track of whether we're using a test account
+  const [isTestUserActive, setIsTestUserActive] = useState(false);
 
   // Improved session handling with faster initialization
   useEffect(() => {
+    console.log("AuthContext: Initializing auth state");
+    
     // Set initial loading state
     setIsLoading(true);
     
@@ -87,13 +91,41 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
     // Get the initial session immediately to reduce loading time
     const getInitialSession = async () => {
       try {
-        console.log("Getting initial session");
+        console.log("AuthContext: Getting initial session");
+        
+        // Check if we have a test user in localStorage first
+        const testUserData = localStorage.getItem('testUser');
+        if (testUserData) {
+          try {
+            const testUser = JSON.parse(testUserData);
+            console.log("AuthContext: Found test user in localStorage:", testUser.userRole);
+            
+            // Restore test user state
+            setUser(testUser.user);
+            setProfile(testUser.profile);
+            setUserRole(testUser.userRole);
+            setIsSuperviser(testUser.isSuperviser);
+            setSchoolId(testUser.schoolId);
+            setSession(null); // Test users don't have sessions
+            setIsTestUserActive(true);
+            setIsLoading(false);
+            setInitialLoadComplete(true);
+            
+            console.log("AuthContext: Test user restored successfully");
+            return; // Skip the rest of initialization
+          } catch (e) {
+            console.error("AuthContext: Error restoring test user:", e);
+            localStorage.removeItem('testUser'); // Clear invalid data
+          }
+        }
+        
+        // No test user, so check for regular authentication
         const { data: { session: initialSession } } = await supabase.auth.getSession();
         
         // Set up the auth state listener right after getting session
         authSubscription = supabase.auth.onAuthStateChange(
           async (event: AuthChangeEvent, currentSession: Session | null) => {
-            console.log(`Auth state changed: ${event}`, currentSession?.user?.id);
+            console.log(`AuthContext: Auth state changed: ${event}`, currentSession?.user?.id);
             
             // Update session and user state immediately
             setSession(currentSession);
@@ -115,19 +147,19 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
         
         // Process initial session if available
         if (initialSession) {
-          console.log("Initial session found:", initialSession.user.id);
+          console.log("AuthContext: Initial session found:", initialSession.user.id);
           setSession(initialSession);
           setUser(initialSession.user);
           await fetchProfile(initialSession.user.id);
         } else {
-          console.log("No initial session found");
+          console.log("AuthContext: No initial session found");
           setIsLoading(false);
         }
         
         // Mark initial load as complete
         setInitialLoadComplete(true);
       } catch (error) {
-        console.error("Error getting initial session:", error);
+        console.error("AuthContext: Error getting initial session:", error);
         setIsLoading(false);
         setInitialLoadComplete(true);
       }
@@ -141,11 +173,11 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
         authSubscription.unsubscribe();
       }
     };
-  }, [navigate]);
+  }, []);
 
   const fetchProfile = async (userId: string) => {
     try {
-      console.log(`Fetching profile for user: ${userId}`);
+      console.log(`AuthContext: Fetching profile for user: ${userId}`);
       
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
@@ -158,19 +190,21 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
             id,
             name,
             code
-          )
+          ),
+          school_name,
+          school_code
         `
         )
         .eq("id", userId)
         .single();
 
       if (profileError) {
-        console.error("Error fetching profile:", profileError);
+        console.error("AuthContext: Error fetching profile:", profileError);
         setIsLoading(false);
         return;
       }
 
-      console.log("Profile data retrieved:", profileData);
+      console.log("AuthContext: Profile data retrieved:", profileData);
 
       let safeProfileData: UserProfile = {
         ...profileData,
@@ -181,6 +215,13 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
 
       if (isNonNullObject(org) && !("error" in org)) {
         safeProfileData.organization = org;
+      } else if (profileData.school_name || profileData.school_code) {
+        // Fallback to using school_name and school_code if organization is missing
+        safeProfileData.organization = {
+          id: profileData.id, // Use a fallback ID
+          name: profileData.school_name || 'Unknown School',
+          code: profileData.school_code
+        };
       }
 
       setProfile(safeProfileData);
@@ -204,7 +245,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       setIsLoading(false);
 
       // Handle role-based redirections if not at login/register pages and not handling special routes
-      const nonRedirectPaths = ['/login', '/register', '/school-registration'];
+      const nonRedirectPaths = ['/login', '/register', '/school-registration', '/test-accounts'];
       const hasSpecialParams = location.search.includes('registered=') || 
                                location.search.includes('completeRegistration=') ||
                                location.search.includes('emailVerificationFailed=');
@@ -213,7 +254,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
         handleRoleBasedRedirection(profileData.user_type);
       }
     } catch (error) {
-      console.error("Error fetching profile:", error);
+      console.error("AuthContext: Error fetching profile:", error);
       toast.error("Failed to retrieve profile. Please try again.");
       setIsLoading(false);
     }
@@ -259,6 +300,12 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
     
     // Avoid redirect loops by checking current path
     const currentPath = location.pathname;
+    
+    // Don't redirect from dashboard
+    if (currentPath === "/dashboard") {
+      return;
+    }
+    
     let targetPath = '';
     
     switch (role) {
@@ -268,7 +315,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
         break;
         
       case "teacher":
-        targetPath = "/teacher/analytics";
+        targetPath = "/dashboard";
         if (currentPath.startsWith("/teacher")) return;
         break;
         
@@ -358,7 +405,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
         .from('teachers')
         .select('school_id')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
       
       if (teacherData?.school_id) {
         return teacherData.school_id;
@@ -369,7 +416,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
         .from('students')
         .select('school_id')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
       
       return studentData?.school_id || null;
     } catch (error) {
@@ -385,28 +432,28 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
   };
 
   // Optimized sign-in function for faster auth
-  const signIn = async (email: string, password: string) => {
-    console.log(`Signing in user with email: ${email}`);
+  const signIn = useCallback(async (email: string, password: string) => {
+    console.log(`AuthContext: Signing in user with email: ${email}`);
     
     // If this is a test account email, handle it directly through setTestUser
     if (email.includes(".test@learnable.edu")) {
       let type: "school" | "teacher" | "student" = "student";
       if (email.startsWith("school")) type = "school";
       else if (email.startsWith("teacher")) type = "teacher";
-      console.log(`Test account detected: ${type}. Instantly logging in...`);
+      console.log(`AuthContext: Test account detected in signIn: ${type}`);
       await setTestUser(type);
       return;
     }
 
     setIsLoading(true);
     try {
-      console.log("Attempting password-based authentication for real user");
+      console.log("AuthContext: Attempting password-based authentication for real user");
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
-        console.error("Sign in error:", error);
+        console.error("AuthContext: Sign in error:", error);
         throw error;
       }
-      console.log("Sign in successful:", data.user?.id);
+      console.log("AuthContext: Sign in successful:", data.user?.id);
       
       // Show success toast
       toast.success("Login successful");
@@ -414,7 +461,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       // NOTE: Don't navigate here - onAuthStateChange will handle that
       // after setting up the user profile correctly
     } catch (error: any) {
-      console.error("Sign in error caught:", error);
+      console.error("AuthContext: Sign in error caught:", error);
       
       // Check specifically for email verification errors
       if (error.message?.includes("Email not confirmed") || error.message?.includes("not verified")) {
@@ -426,12 +473,12 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
     } finally {
       // Loading state will be reset by onAuthStateChange
     }
-  };
+  }, []);
 
   // Updated signOut function to handle test accounts differently
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     try {
-      const isTestUser = user?.email?.includes(".test@learnable.edu") || user?.id?.startsWith("test-");
+      const testUser = isTestUserActive || (user?.email?.includes(".test@learnable.edu") || user?.id?.startsWith("test-"));
       
       // For student role, try to end the session logging
       if (userRole === "student") {
@@ -442,10 +489,14 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
         }
       }
       
-      console.log(`Signing out ${isTestUser ? 'test' : 'real'} user`);
+      console.log(`AuthContext: Signing out ${testUser ? 'test' : 'real'} user`);
       
-      // For real users, we sign out from Supabase
-      if (!isTestUser) {
+      // For test users, clear localStorage
+      if (testUser) {
+        localStorage.removeItem('testUser');
+        setIsTestUserActive(false);
+      } else {
+        // For real users, sign out from Supabase
         setIsLoading(true);
         const { error } = await supabase.auth.signOut();
         if (error) {
@@ -453,9 +504,6 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
           toast.error(error.message || "Failed to log out");
           return;
         }
-      } else {
-        // For test users, just clear the state immediately without Supabase signout
-        console.log("Instantly signing out test user");
       }
 
       // Clear all auth state
@@ -468,14 +516,14 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
 
       // Redirect to homepage
       navigate("/");
-      toast.success(isTestUser ? "Test session ended" : "Logged out successfully");
+      toast.success(testUser ? "Test session ended" : "Logged out successfully");
     } catch (error: any) {
       console.error("Sign out error:", error);
       toast.error(error.message || "Failed to log out");
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [navigate, user, userRole, isTestUserActive]);
 
   const signUp = async (email: string, password: string, metadata: object = {}) => {
     setIsLoading(true);
@@ -531,52 +579,68 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       
       console.log("AuthContext: Prepared DB updates:", updatesForDb);
       
-      // Update the profile
-      const { error } = await supabase.from("profiles").upsert({
-        id: user?.id,
-        ...updatesForDb,
-      });
-      
-      if (error) throw error;
-      
-      // If we have organization updates and this is a test user, update the related organization
-      if (orgUpdates && user && isTestAccount(user.email || '')) {
-        console.log("AuthContext: Updating organization for test account:", orgUpdates);
+      // For real users, update the database
+      if (!isTestUserActive && user) {
+        // Update the profile
+        const { error } = await supabase.from("profiles").upsert({
+          id: user?.id,
+          ...updatesForDb,
+        });
         
-        // Check if the organization exists
-        const { data: existingOrg } = await supabase
-          .from("schools")
-          .select("id")
-          .eq("id", orgUpdates.id)
-          .single();
+        if (error) throw error;
         
-        if (existingOrg) {
-          // Update existing organization
-          const { error: orgError } = await supabase
+        // If we have organization updates, update the related organization
+        if (orgUpdates && orgUpdates.id) {
+          console.log("AuthContext: Updating organization:", orgUpdates);
+          
+          // Check if the organization exists
+          const { data: existingOrg } = await supabase
             .from("schools")
-            .update({
-              name: orgUpdates.name,
-              code: orgUpdates.code
-            })
-            .eq("id", orgUpdates.id);
-            
-          if (orgError) {
-            console.error("Error updating organization:", orgError);
-          }
-        } else {
-          // Create new organization
-          const { error: orgError } = await supabase
-            .from("schools")
-            .insert({
-              id: orgUpdates.id,
-              name: orgUpdates.name,
-              code: orgUpdates.code
-            });
-            
-          if (orgError) {
-            console.error("Error creating organization:", orgError);
+            .select("id")
+            .eq("id", orgUpdates.id)
+            .single();
+          
+          if (existingOrg) {
+            // Update existing organization
+            const { error: orgError } = await supabase
+              .from("schools")
+              .update({
+                name: orgUpdates.name,
+                code: orgUpdates.code
+              })
+              .eq("id", orgUpdates.id);
+              
+            if (orgError) {
+              console.error("Error updating organization:", orgError);
+            }
+          } else {
+            // Create new organization
+            const { error: orgError } = await supabase
+              .from("schools")
+              .insert({
+                id: orgUpdates.id,
+                name: orgUpdates.name,
+                code: orgUpdates.code
+              });
+              
+            if (orgError) {
+              console.error("Error creating organization:", orgError);
+            }
           }
         }
+      }
+      
+      // For test accounts, update localStorage
+      if (isTestUserActive || (user && isTestAccount(user.email || ''))) {
+        const updatedProfile = { ...profile, ...updates };
+        const testUserData = {
+          user,
+          profile: updatedProfile,
+          userRole: updatesForDb.user_type || userRole,
+          isSuperviser,
+          schoolId
+        };
+        localStorage.setItem('testUser', JSON.stringify(testUserData));
       }
 
       // Update local state with the new profile data
@@ -585,6 +649,11 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
         console.log("AuthContext: Updated local profile state:", newProfile);
         return newProfile;
       });
+      
+      // Update role if it was changed
+      if (updatesForDb.user_type && updatesForDb.user_type !== userRole) {
+        setUserRole(updatesForDb.user_type);
+      }
       
       toast.success("Profile updated successfully!");
     } catch (error: any) {
@@ -595,7 +664,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
     }
   };
 
-  const setTestUser = async (
+  const setTestUser = useCallback(async (
     type: "school" | "teacher" | "student",
     schoolIndex = 0
   ): Promise<void> => {
@@ -651,6 +720,8 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
           name: schoolName,
           code: schoolCode,
         },
+        school_name: schoolName,
+        school_code: schoolCode
       };
 
       // Set state variables synchronously for test accounts - INSTANT LOGIN
@@ -659,9 +730,20 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       setUserRole(type);
       setIsSuperviser(type === "school");
       setSchoolId(schoolId);
+      setIsTestUserActive(true);
       
       // Keep session null for test users - no authentication needed
       setSession(null);
+      
+      // Store test user data in localStorage for persistence
+      const testUserData = {
+        user: mockUser,
+        profile: mockProfile,
+        userRole: type,
+        isSuperviser: type === "school",
+        schoolId
+      };
+      localStorage.setItem('testUser', JSON.stringify(testUserData));
       
       // Finish loading
       setIsLoading(false);
@@ -677,11 +759,9 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       
       if (type === "school") {
         redirectPath = "/admin";
-      } else if (type === "teacher") {
-        redirectPath = "/teacher/analytics";
       }
 
-      console.log(`TestAccounts: Navigating to ${redirectPath} for ${type}`);
+      console.log(`AuthContext: Navigating to ${redirectPath} for ${type}`);
       
       // Navigate with proper state parameters
       navigate(redirectPath, {
@@ -705,7 +785,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       toast.error(error.message || "Failed to set up test account");
       throw new Error("Failed to set up test account");
     }
-  };
+  }, [navigate]);
 
   const value: AuthContextType = {
     session,

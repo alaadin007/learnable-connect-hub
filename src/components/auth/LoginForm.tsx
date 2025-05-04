@@ -32,6 +32,7 @@ const LoginForm = () => {
   const navigate = useNavigate();
   const { signIn, isLoading, setTestUser } = useAuth();
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [processingTestAccount, setProcessingTestAccount] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -46,28 +47,37 @@ const LoginForm = () => {
       setLoginError(null);
       const { email, password } = values;
 
-      // Add this check in the handleSubmit function or similar:
-      if (email.includes(".test@learnable.edu")) {
-        // If this is a test account email, handle it directly through setTestUser
-        let type: "school" | "teacher" | "student" = "student";
-        if (email.startsWith("school")) type = "school";
-        else if (email.startsWith("teacher")) type = "teacher";
-        console.log(`Test account detected: ${type}. Instantly logging in...`);
-        
-        try {
-          await setTestUser(type);
-        } catch (error: any) {
-          console.error("Test account setup failed:", error);
-          toast.error(error.message || "Failed to set up test account");
-          setLoginError(error.message || "Failed to set up test account");
+      try {
+        // Check if this is a test account email
+        if (email.includes(".test@learnable.edu")) {
+          // Set processing flag to show correct loading state
+          setProcessingTestAccount(true);
+          
+          // Determine the account type from email
+          let type: "school" | "teacher" | "student" = "student";
+          if (email.startsWith("school")) type = "school";
+          else if (email.startsWith("teacher")) type = "teacher";
+          
+          console.log(`Test account detected: ${type}. Processing instant login...`);
+          
+          try {
+            // Handle test account directly with setTestUser
+            await setTestUser(type);
+            // Navigation is handled inside setTestUser
+          } catch (error: any) {
+            console.error("Test account setup failed:", error);
+            toast.error(error.message || "Failed to set up test account");
+            setLoginError(error.message || "Failed to set up test account");
+          } finally {
+            setProcessingTestAccount(false);
+          }
+          
+          return;
         }
         
-        return;
-      }
-
-      try {
+        // Regular authentication for real users
         await signIn(email, password);
-        // No navigation here; AuthContext handles it on successful sign-in
+        // Navigation is handled in AuthContext on successful sign-in
       } catch (error: any) {
         console.error("Login failed:", error);
         setLoginError(
@@ -123,12 +133,12 @@ const LoginForm = () => {
         <Button
           type="submit"
           className="w-full bg-learnable-blue hover:bg-learnable-blue/90"
-          disabled={isLoading}
+          disabled={isLoading || processingTestAccount}
         >
-          {isLoading ? (
+          {isLoading || processingTestAccount ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Logging in...
+              {processingTestAccount ? "Setting up test account..." : "Logging in..."}
             </>
           ) : (
             "Login"

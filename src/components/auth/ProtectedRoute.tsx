@@ -1,6 +1,6 @@
 
-import React from "react";
-import { Navigate } from "react-router-dom";
+import React, { useEffect } from "react";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
 
@@ -22,11 +22,26 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   redirectTo = "/login",
 }) => {
   const { user, userRole, isLoading, isSuperviser, schoolId } = useAuth();
+  const location = useLocation();
+
+  // Add safety timeout to prevent infinite loading
+  useEffect(() => {
+    // Only set timeout if still loading
+    if (isLoading) {
+      const timeoutId = setTimeout(() => {
+        console.warn("ProtectedRoute: Loading timeout reached - may indicate an auth problem");
+        // Auth state is taking too long to resolve - could be an issue
+        // We don't force a redirect here to avoid breaking legitimate slow loads
+      }, 5000); // 5 second timeout
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [isLoading]);
 
   // If user is explicitly null (not just loading), redirect immediately
   if (!isLoading && !user) {
     console.log("ProtectedRoute: No user detected, redirecting to login");
-    return <Navigate to={redirectTo} replace />;
+    return <Navigate to={redirectTo} replace state={{ from: location.pathname }} />;
   }
 
   // Show a brief loading spinner while authentication is being checked
