@@ -84,7 +84,10 @@ const TestAccounts = () => {
 
       // Check if create-test-accounts function exists in Supabase
       const response = await supabase.functions.invoke("create-test-accounts", {
-        body: { type: "school", schoolIndex: 0 },
+        body: { 
+          refresh: true,
+          types: ["school", "teacher", "student"] 
+        },
       });
 
       if (response.error) {
@@ -119,49 +122,11 @@ const TestAccounts = () => {
       try {
         console.log(`TestAccounts: Setting up ${accountType} test account...`);
         
-        // First create or ensure test account exists via edge function
-        const response = await supabase.functions.invoke("create-test-accounts", {
-          body: { 
-            type: accountType,
-            schoolIndex: 0
-          },
-        });
-        
-        if (response.error) {
-          throw new Error(`Failed to set up test account: ${response.error.message}`);
-        }
-        
-        console.log(`TestAccounts: Test account created/verified`, response.data);
-        
-        // Then set test user in auth context
+        // Set test user in auth context which will handle the rest of login flow
         await setTestUser(accountType);
         
-        // Immediately show success toast so user gets feedback
-        toast.success(`Logged in as ${TEST_ACCOUNTS[accountType].role}`, {
-          id: `login-success-${accountType}`,
-        });
-
-        // Define redirect paths based on account type
-        let redirectPath = "/dashboard";
-        
-        if (accountType === "school") {
-          redirectPath = "/admin";
-        } else if (accountType === "teacher") {
-          redirectPath = "/teacher/analytics";
-        }
-
-        console.log(`TestAccounts: Navigating to ${redirectPath} for ${accountType}`);
-        
-        // Navigate with proper state parameters
-        navigate(redirectPath, {
-          replace: true,
-          state: { 
-            fromTestAccounts: true,
-            accountType,
-            preserveContext: true,
-            timestamp: Date.now()
-          }
-        });
+        // Success toast is now in setTestUser as it needs to happen after user is properly set
+        console.log(`TestAccounts: Test user set, navigation will be handled by auth context`);
       } catch (error: any) {
         console.error(`Error setting up ${accountType} test account:`, error);
         setErrorMessage(`Setup failed: ${error.message || "Unknown error"}`);
@@ -171,7 +136,7 @@ const TestAccounts = () => {
         setLoadingAccount(null);
       }
     },
-    [navigate, setTestUser]
+    [setTestUser]
   );
 
   const getAccountIcon = (accountType: AccountType) => {

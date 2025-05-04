@@ -593,11 +593,11 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
     try {
       console.log(`AuthContext: Setting up test user of type: ${type}`);
       
-      // Try to use the edge function first to ensure the test account exists
+      // Use the edge function to ensure the test account exists and get its info
       const response = await supabase.functions.invoke("create-test-accounts", {
         body: { 
-          type, 
-          schoolIndex 
+          type,
+          schoolIndex
         },
       });
       
@@ -606,39 +606,40 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
         throw new Error(`Failed to set up test account: ${response.error.message}`);
       }
       
-      console.log("Test account response:", response.data);
-      const testUserId = response.data?.userId || `test-${type}-${schoolIndex}`;
-      
-      // Generate ID for test user if not provided by the edge function
-      const mockId = testUserId;
+      console.log("Test account data:", response.data);
+      const { 
+        userId, 
+        schoolId, 
+        fullName, 
+        email, 
+        schoolCode, 
+        schoolName 
+      } = response.data;
       
       // Create mock user object with consistent properties
       const mockUser: User = {
-        id: mockId,
-        email: `${type}.test${schoolIndex > 0 ? schoolIndex : ''}@learnable.edu`,
+        id: userId,
+        email: email,
         user_metadata: {
-          full_name: `Test ${type.charAt(0).toUpperCase()}${type.slice(1)}${schoolIndex > 0 ? ' ' + schoolIndex : ''}`,
+          full_name: fullName,
           user_type: type,
+          school_name: schoolName,
+          school_code: schoolCode
         },
         app_metadata: {},
         aud: "authenticated",
         created_at: new Date().toISOString(),
       };
 
-      // Create test organization with required properties
-      const testOrgId = `test-school-${schoolIndex}`;
-      const testOrgName = schoolIndex === 0 ? "Test School" : `Test School ${schoolIndex}`;
-      const testOrgCode = `TEST${schoolIndex}`;
-      
       // Create mock profile with organization data
       const mockProfile: UserProfile = {
-        id: mockId,
+        id: userId,
         user_type: type,
-        full_name: `Test ${type.charAt(0).toUpperCase()}${type.slice(1)}${schoolIndex > 0 ? ' ' + schoolIndex : ''}`,
+        full_name: fullName,
         organization: {
-          id: testOrgId,
-          name: testOrgName,
-          code: testOrgCode,
+          id: schoolId,
+          name: schoolName,
+          code: schoolCode,
         },
       };
 
@@ -647,7 +648,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       setProfile(mockProfile);
       setUserRole(type);
       setIsSuperviser(type === "school");
-      setSchoolId(mockProfile.organization?.id || null);
+      setSchoolId(schoolId);
       
       // Keep session null for test users - no authentication needed
       setSession(null);
@@ -656,20 +657,38 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       setIsLoading(false);
 
       console.log(`AuthContext: Test user set up successfully. User role: ${type}`);
-      console.log(`AuthContext: Test user profile:`, mockProfile);
+      
+      // Show success toast
+      toast.success(`Logged in as ${type === "school" ? "School Admin" : 
+                                  type === "teacher" ? "Teacher" : "Student"}`);
 
-      // Redirect based on role will happen in the caller component
+      // Define redirect paths based on account type
+      let redirectPath = "/dashboard";
+      
+      if (type === "school") {
+        redirectPath = "/admin";
+      } else if (type === "teacher") {
+        redirectPath = "/teacher/analytics";
+      }
+
+      console.log(`TestAccounts: Navigating to ${redirectPath} for ${type}`);
+      
+      // Navigate with proper state parameters
+      navigate(redirectPath, {
+        replace: true,
+        state: { 
+          fromTestAccounts: true,
+          accountType: type,
+          preserveContext: true,
+          timestamp: Date.now()
+        }
+      });
 
       // Create mock sessions and data for different user types (in background)
-      setTimeout(() => {
-        if (type === "student") {
-          sessionLogger.startSession("Test Login Session", mockId)
-            .catch(e => console.error("Error starting test session:", e));
-        } else if (type === "teacher") {
-          populateTestAccountWithSessions(mockId, testOrgId, 5)
-            .catch(e => console.error("Error creating teacher test sessions:", e));
-        }
-      }, 0);
+      if (type === "student") {
+        sessionLogger.startSession("Test Login Session", userId)
+          .catch(e => console.error("Error starting test session:", e));
+      }
     } catch (error) {
       console.error("Error setting test user:", error);
       setIsLoading(false);

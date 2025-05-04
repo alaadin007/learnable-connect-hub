@@ -14,17 +14,53 @@ const Dashboard = () => {
 
   // Redirect school admin users to the dedicated admin dashboard
   useEffect(() => {
-    if (!isLoading && profile?.user_type === "school") {
+    if (!isLoading && userRole === "school") {
       console.log("Dashboard: Detected school admin role, redirecting to admin panel");
       navigate("/admin", { replace: true });
     }
-  }, [profile, navigate, isLoading]);
+  }, [profile, navigate, isLoading, userRole]);
 
-  // Keep the rest of the Dashboard component unchanged
-  const renderUserDashboard = () => {
-    const userType = profile?.user_type;
+  // Show a brief loading indicator while checking authentication
+  if (isLoading) {
+    return (
+      <>
+        <Navbar />
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading dashboard...</p>
+          </div>
+        </div>
+      </>
+    );
+  }
 
-    if (userType === "school") {
+  return (
+    <>
+      <Navbar />
+      <main className="container mx-auto px-4 py-8 min-h-screen">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold mb-2">Welcome, {profile?.full_name || "User"}</h1>
+          <p className="text-gray-600">
+            {userRole === "school"
+              ? "Manage your school, teachers, and view analytics"
+              : userRole === "teacher"
+              ? "Manage your students and view their progress"
+              : "Access your learning resources and complete your assessments"}
+          </p>
+          {userRole === "student" && profile?.organization && (
+            <p className="text-sm text-gray-500 mt-2">School: {profile.organization.name}</p>
+          )}
+        </div>
+
+        {renderUserDashboard()}
+      </main>
+      <Footer />
+    </>
+  );
+
+  function renderUserDashboard() {
+    if (userRole === "school") {
       return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <DashboardCard
@@ -55,7 +91,7 @@ const Dashboard = () => {
       );
     }
 
-    if (userType === "teacher") {
+    if (userRole === "teacher") {
       return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <DashboardCard
@@ -109,47 +145,7 @@ const Dashboard = () => {
         />
       </div>
     );
-  };
-
-  // Show a brief loading indicator while checking authentication
-  if (isLoading) {
-    return (
-      <>
-        <Navbar />
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading dashboard...</p>
-          </div>
-        </div>
-      </>
-    );
   }
-
-  // Render the dashboard content
-  return (
-    <>
-      <Navbar />
-      <main className="container mx-auto px-4 py-8 min-h-screen">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Welcome, {profile?.full_name || "User"}</h1>
-          <p className="text-gray-600">
-            {profile?.user_type === "school"
-              ? "Manage your school, teachers, and view analytics"
-              : profile?.user_type === "teacher"
-              ? "Manage your students and view their progress"
-              : "Access your learning resources and complete your assessments"}
-          </p>
-          {profile?.user_type === "student" && profile?.organization && (
-            <p className="text-sm text-gray-500 mt-2">School: {profile.organization.name}</p>
-          )}
-        </div>
-
-        {renderUserDashboard()}
-      </main>
-      <Footer />
-    </>
-  );
 };
 
 interface DashboardCardProps {
