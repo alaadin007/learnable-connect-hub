@@ -50,6 +50,7 @@ export interface TeacherInvitation {
   expires_at: string;
   created_by: string;
   role?: string;
+  error?: any;
 }
 
 // Update component to use TeacherInvitation type
@@ -90,10 +91,10 @@ const TeacherManagement = () => {
     setLoadingError(null);
     
     try {
-      // Use a simpler query to avoid potential RLS policy issues
+      // Modify the query to NOT include 'role' since it doesn't exist in the table
       const { data, error } = await supabase
         .from("teacher_invitations")
-        .select("id, email, status, invitation_token, school_id, created_at, expires_at, created_by, role")
+        .select("id, email, status, invitation_token, school_id, created_at, expires_at, created_by")
         .eq("school_id", schoolId)
         .order("created_at", { ascending: false });
 
@@ -101,6 +102,7 @@ const TeacherManagement = () => {
         throw error;
       }
 
+      // Safely cast the data to our TeacherInvitation type
       setInvitations(data as TeacherInvitation[]);
     } catch (error: any) {
       console.error("Error loading invitations:", error);
@@ -372,7 +374,7 @@ const TeacherManagement = () => {
                       {invitation.status === "pending" ? (
                         <Badge variant="secondary">Pending</Badge>
                       ) : invitation.status === "accepted" ? (
-                        <Badge variant="success">Accepted</Badge>
+                        <Badge variant="default">Accepted</Badge>
                       ) : (
                         <Badge variant="destructive">Rejected</Badge>
                       )}
