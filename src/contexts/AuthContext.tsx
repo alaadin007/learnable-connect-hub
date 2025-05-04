@@ -9,7 +9,7 @@ interface UserProfile {
   id: string;
   user_type: string;
   full_name: string;
-  email: string; // Explicitly defined email property
+  email: string; // Add email property to the interface
   school_code?: string;
   school_name?: string;
   organization?: {
@@ -197,7 +197,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       // Add email to the profile data
-      const userEmail = user?.email || profileData.email;
+      const userEmail = user?.email || "";
       
       // Set full profile with organization if available
       const fullProfile: UserProfile = {
