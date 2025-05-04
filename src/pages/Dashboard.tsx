@@ -1,5 +1,5 @@
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import { Button } from "@/components/ui/button";
@@ -12,25 +12,45 @@ const Dashboard = () => {
   const { user, profile, userRole, isLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [localLoading, setLocalLoading] = useState(true);
+
+  // Set a timeout to prevent infinite loading state
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setLocalLoading(false);
+    }, 3000); // 3 seconds timeout
+    
+    return () => clearTimeout(timer);
+  }, []);
 
   // Redirect if not logged in, but only after loading completes
   useEffect(() => {
-    if (!isLoading && !user) {
+    console.log("Dashboard: Auth state", { 
+      isLoading, 
+      user: user ? "exists" : "null", 
+      userRole, 
+      locationState: location.state 
+    });
+    
+    // Only act after we know auth state or timeout has occurred
+    if (!isLoading || !localLoading) {
       // Allow test accounts/navigation with preserved context to bypass this check
       if (location.state?.fromTestAccounts || location.state?.preserveContext) {
         console.log("Dashboard: Bypassing login check due to navigation context");
         return;
       }
       
-      console.log("Dashboard: No user found, redirecting to login");
-      navigate("/login");
+      if (!user) {
+        console.log("Dashboard: No user found, redirecting to login");
+        navigate("/login");
+      }
     }
-  }, [user, navigate, location.state, isLoading]);
+  }, [user, navigate, location.state, isLoading, localLoading]);
 
   // More targeted approach to role-based redirection
   useEffect(() => {
-    // Only redirect after loading completes
-    if (isLoading) return;
+    // Only redirect after loading completes and we have a valid user
+    if (isLoading || !user) return;
     
     // Only redirect on specific conditions
     const isDirectDashboardAccess = !location.state?.fromNavigation && 
@@ -54,10 +74,10 @@ const Dashboard = () => {
       }
       // Student stays on dashboard
     }
-  }, [userRole, navigate, location.state, profile, isLoading]);
+  }, [userRole, navigate, location.state, profile, isLoading, user]);
 
   // Show proper loading state
-  if (isLoading) {
+  if (isLoading && localLoading) {
     return (
       <>
         <Navbar />

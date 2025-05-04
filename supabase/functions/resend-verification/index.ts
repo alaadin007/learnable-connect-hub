@@ -99,8 +99,11 @@ serve(async (req) => {
       );
     }
 
-    // Determine the proper redirect URL based on the request and available information
-    let redirectUrl = `${currentUrl || ''}/login?completeRegistration=true`;
+    // Make sure we use the correct redirect URL
+    // Default to http://localhost:3000 if no currentUrl is provided
+    const baseUrl = currentUrl || "http://localhost:3000";
+    const redirectUrl = `${baseUrl}/login?completeRegistration=true`;
+    
     console.log("Final redirect URL:", redirectUrl);
 
     // Send verification email via a confirmation email
