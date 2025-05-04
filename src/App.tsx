@@ -23,6 +23,7 @@ import TeacherAnalytics from "./pages/TeacherAnalytics";
 import SchoolSettings from "./pages/SchoolSettings";
 import AdminTeacherManagement from "./pages/AdminTeacherManagement";
 import AdminTeachers from "./pages/AdminTeachers";
+import AdminAnalytics from "./pages/AdminAnalytics";
 import ChatWithAI from "./pages/ChatWithAI";
 import "./App.css";
 
@@ -108,6 +109,14 @@ function App() {
           element={
             <ProtectedRoute requiredRole="school">
               <AdminTools />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/admin/analytics" 
+          element={
+            <ProtectedRoute requiredRole="school">
+              <AdminAnalytics />
             </ProtectedRoute>
           } 
         />
