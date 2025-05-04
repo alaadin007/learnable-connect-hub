@@ -1,5 +1,5 @@
 
-// This Supabase Edge Function converts text to speech using Google Cloud Text-to-Speech API
+// This Supabase Edge Function converts text to speech using ElevenLabs API
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
@@ -15,7 +15,7 @@ serve(async (req) => {
   }
 
   try {
-    const { text } = await req.json();
+    const { text, voiceId = "EXAVITQu4vr4xnSDxMaL" } = await req.json();
     
     if (!text) {
       return new Response(
@@ -24,43 +24,63 @@ serve(async (req) => {
       );
     }
 
-    // Get Google Cloud API key from environment variables
-    const googleApiKey = Deno.env.get("GOOGLE_CLOUD_API_KEY");
+    // Get ElevenLabs API key from environment variables
+    const elevenLabsApiKey = Deno.env.get("ELEVENLABS_API_KEY");
     
-    if (!googleApiKey) {
-      console.error("Google Cloud API Key not configured");
+    if (!elevenLabsApiKey) {
+      console.error("ElevenLabs API Key not configured");
       return new Response(
         JSON.stringify({ error: "Text-to-speech service not properly configured" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Call Google Cloud Text-to-Speech API
+    // Use Sarah voice by default (EXAVITQu4vr4xnSDxMaL is Sarah's voice ID)
+    const voice = voiceId || "EXAVITQu4vr4xnSDxMaL";
+    
+    // Call ElevenLabs API
     const response = await fetch(
-      `https://texttospeech.googleapis.com/v1/text:synthesize?key=${googleApiKey}`,
+      `https://api.elevenlabs.io/v1/text-to-speech/${voice}`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "xi-api-key": elevenLabsApiKey,
         },
         body: JSON.stringify({
-          input: { text },
-          voice: { languageCode: "en-US", ssmlGender: "NEUTRAL" },
-          audioConfig: { audioEncoding: "MP3" },
+          text,
+          model_id: "eleven_multilingual_v2",
+          voice_settings: {
+            stability: 0.5,
+            similarity_boost: 0.75,
+          },
         }),
       }
     );
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(`Google Cloud API error: ${JSON.stringify(errorData)}`);
+      const errorText = await response.text();
+      console.error("ElevenLabs API error:", errorText);
+      
+      let errorMessage;
+      try {
+        const errorData = JSON.parse(errorText);
+        errorMessage = errorData.detail?.message || errorText;
+      } catch (e) {
+        errorMessage = errorText;
+      }
+      
+      throw new Error(`ElevenLabs API error: ${errorMessage}`);
     }
 
-    const data = await response.json();
+    // Get audio data as ArrayBuffer
+    const audioArrayBuffer = await response.arrayBuffer();
     
-    // Convert base64 audio to a URL that can be played
-    const audioContent = data.audioContent;
-    const audioUrl = `data:audio/mp3;base64,${audioContent}`;
+    // Convert ArrayBuffer to base64
+    const audioBase64 = btoa(String.fromCharCode(...new Uint8Array(audioArrayBuffer)));
+    
+    // Create data URL for audio
+    const audioUrl = `data:audio/mpeg;base64,${audioBase64}`;
 
     return new Response(
       JSON.stringify({ audioUrl }),
