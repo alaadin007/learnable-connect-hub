@@ -24,50 +24,81 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const { user, userRole, isLoading, isSupervisor, schoolId, isTestUser } = useAuth();
   const location = useLocation();
   const [forcedTimeout, setForcedTimeout] = useState(false);
-
-  // Even shorter timeout to prevent infinite loading
+  const [forceDecision, setForceDecision] = useState(false);
+  
+  // Set a short timeout to force a decision on the authentication status
   useEffect(() => {
-    if (isLoading) {
-      console.log("ProtectedRoute: Setting loading timeout");
-      const timeoutId = setTimeout(() => {
-        console.warn("ProtectedRoute: Loading timeout reached - forcing resolution");
-        setForcedTimeout(true);
-      }, 250); // Further reduced timeout for better UX
+    const timeoutId = setTimeout(() => {
+      setForcedTimeout(true);
+    }, 500);
+    
+    // After a slightly longer timeout, force a route decision regardless of auth state
+    const decisionTimeoutId = setTimeout(() => {
+      if (isLoading) {
+        console.warn("ProtectedRoute: Authentication took too long - forcing route decision");
+        setForceDecision(true);
+      }
+    }, 1000);
 
-      return () => clearTimeout(timeoutId);
-    }
+    return () => {
+      clearTimeout(timeoutId);
+      clearTimeout(decisionTimeoutId);
+    };
   }, [isLoading]);
 
-  // Enhanced error handling - if loading is taking too long, show a more helpful UI
+  // Debug logging to help trace auth issues
+  useEffect(() => {
+    console.log("ProtectedRoute state:", { 
+      isLoading, 
+      forcedTimeout, 
+      forceDecision, 
+      userExists: !!user, 
+      userRole, 
+      currentPath: location.pathname 
+    });
+  }, [isLoading, forcedTimeout, forceDecision, user, userRole, location.pathname]);
+  
+  // Force a decision if loading takes too long
+  if (forceDecision && isLoading) {
+    console.log("ProtectedRoute: Forcing authentication decision");
+    // Check if we have fallback data that indicates the user is logged in
+    const storedTestUser = localStorage.getItem("testUser");
+    
+    // If there's a test user in local storage, we'll proceed
+    if (storedTestUser) {
+      console.log("ProtectedRoute: Found stored test user, allowing access");
+      return <>{children}</>;
+    }
+    
+    // Otherwise redirect to login
+    console.log("ProtectedRoute: No fallback auth data, redirecting to login");
+    return <Navigate to={redirectTo} replace state={{ from: location.pathname }} />;
+  }
+
+  // Only show loading spinner for a reasonable time
   if (isLoading && !forcedTimeout) {
-    console.log("ProtectedRoute: Showing loading spinner");
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4 text-learnable-purple" />
           <p className="text-gray-600">Verifying access...</p>
-          {forcedTimeout && (
-            <p className="text-sm text-amber-600 mt-2">
-              Taking longer than expected. Please refresh if this persists.
-            </p>
-          )}
         </div>
       </div>
     );
   }
 
-  // If loading is done and there's no user, redirect immediately
-  if (!isLoading && !user) {
+  // After timeout, make a decision based on current auth state
+  if (!user) {
     console.log("ProtectedRoute: No user detected, redirecting to login");
     return <Navigate to={redirectTo} replace state={{ from: location.pathname }} />;
   }
 
-  console.log(`ProtectedRoute checks - User role: ${userRole}, Required role: ${requiredRole}, Supervisor: ${isSupervisor}, isTestUser: ${isTestUser}`);
+  // Log the role checks for debugging
+  console.log(`ProtectedRoute checks - User role: ${userRole}, Required role: ${requiredRole}`);
 
-  // Special handling for test users - allow them to access their designated areas without strict permission checks
+  // Special handling for test users - allow them more flexibly
   if (isTestUser) {
     // For test users, we'll only enforce that they can't access areas for different roles
-    // Otherwise, bypass most of the permission checks
     if (requiredRole && userRole !== requiredRole) {
       console.log(`Test user with role ${userRole} trying to access area requiring ${requiredRole}`);
       toast.error(`You need ${requiredRole} permissions to access this area. Try logging in as a ${requiredRole} test user.`);
@@ -75,7 +106,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     }
     
     // Test users can skip other permission checks
-    console.log("Test user authorized, rendering children");
     return <>{children}</>;
   }
 
@@ -83,34 +113,29 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   
   // Check role requirements if specified
   if (requiredRole && userRole !== requiredRole) {
-    console.log(`ProtectedRoute: User role ${userRole} doesn't match required role ${requiredRole}`);
     toast.error(`Access denied: This area requires ${requiredRole} permissions`);
     return <Navigate to="/unauthorized" replace state={{ from: location.pathname }} />;
   }
 
   // Check allowed roles if specified
   if (allowedRoles && allowedRoles.length > 0 && (!userRole || !allowedRoles.includes(userRole))) {
-    console.log(`ProtectedRoute: User role ${userRole} not in allowed roles`);
     toast.error("Access denied: You don't have permission to view this page");
     return <Navigate to="/unauthorized" replace state={{ from: location.pathname }} />;
   }
 
   // Check supervisor requirement if specified
   if (requireSupervisor && !isSupervisor) {
-    console.log("ProtectedRoute: User is not a supervisor");
     toast.error("Access denied: This area requires supervisor permissions");
     return <Navigate to="/unauthorized" replace state={{ from: location.pathname }} />;
   }
 
   // Check school requirement if specified
   if (requireSameSchool && !schoolId) {
-    console.log("ProtectedRoute: User has no school ID");
     toast.error("Access denied: This area requires school association");
     return <Navigate to="/unauthorized" replace state={{ from: location.pathname }} />;
   }
 
   // User is authorized, render children
-  console.log("ProtectedRoute: User authorized, rendering children");
   return <>{children}</>;
 };
 

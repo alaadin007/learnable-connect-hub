@@ -20,19 +20,48 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [authCheckComplete, setAuthCheckComplete] = useState(false);
 
-  // Redirect if already authenticated
+  // Redirect if already authenticated - with a delay to ensure auth check is complete
   useEffect(() => {
-    if (user) {
-      // Redirect based on user role
-      if (profile?.user_type === "school") {
-        console.log("Login: Detected school admin, redirecting to admin dashboard");
-        navigate('/admin', { replace: true });
-      } else {
-        navigate('/dashboard', { replace: true });
+    const checkAuthStatus = async () => {
+      try {
+        // Wait for auth loading to complete
+        if (!authLoading && user) {
+          // Redirect based on user role
+          if (profile?.user_type === "school") {
+            console.log("Login: Detected school admin, redirecting to admin dashboard");
+            navigate('/admin', { replace: true });
+          } else if (profile?.user_type === "teacher") {
+            console.log("Login: Detected teacher, redirecting to teacher dashboard");
+            navigate('/teacher/analytics', { replace: true });
+          } else {
+            console.log("Login: Detected regular user, redirecting to dashboard");
+            navigate('/dashboard', { replace: true });
+          }
+        }
+      } catch (error) {
+        console.error("Error checking auth status:", error);
+      } finally {
+        setAuthCheckComplete(true);
       }
+    };
+
+    // Only run the check if auth loading is complete
+    if (!authLoading) {
+      checkAuthStatus();
     }
-  }, [user, navigate, profile]);
+  }, [user, authLoading, navigate, profile]);
+
+  useEffect(() => {
+    // Debug logging for the login page
+    console.log("Login page state:", {
+      authLoading,
+      userExists: !!user,
+      profileType: profile?.user_type,
+      authCheckComplete
+    });
+  }, [authLoading, user, profile, authCheckComplete]);
 
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
@@ -125,10 +154,16 @@ const Login = () => {
     try {
       console.log("Login: Attempting to sign in");
       await signIn(email, password);
+      toast.success("Logged in successfully");
       // Auth context will handle redirection based on user role
     } catch (error: any) {
       console.error("Login error:", error);
-      setErrorMessage(error.message || "Failed to sign in");
+      // Enhanced error handling
+      if (error.message?.includes("Invalid login credentials")) {
+        setErrorMessage("Incorrect email or password. Please try again.");
+      } else {
+        setErrorMessage(error.message || "Failed to sign in");
+      }
       toast.error(error.message || "Failed to sign in");
     } finally {
       setIsLoading(false);
@@ -142,9 +177,13 @@ const Login = () => {
     }
     
     try {
+      const toastId = toast.loading("Sending password reset email...");
+      
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/reset-password`,
       });
+      
+      toast.dismiss(toastId);
       
       if (error) throw error;
       
@@ -190,6 +229,22 @@ const Login = () => {
     } catch (error: any) {
       console.error("Resend verification error:", error);
       toast.error(error.message || "Failed to resend verification email");
+    }
+  };
+
+  // Handle the test login functionality directly from the login page
+  const handleTestLogin = (accountType: string) => {
+    const { setTestUser } = useAuth();
+    
+    try {
+      setIsLoading(true);
+      setTestUser(accountType);
+      // The setTestUser function will handle navigation
+    } catch (error: any) {
+      console.error("Test login error:", error);
+      toast.error(`Failed to log in as test ${accountType}: ${error.message}`);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -308,6 +363,39 @@ const Login = () => {
                   </Button>
                 </div>
               </form>
+              
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <p className="text-center text-sm text-gray-600 mb-2">Quick access with test accounts:</p>
+                <div className="flex justify-center gap-2">
+                  <Button 
+                    type="button" 
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleTestLogin("school")}
+                    className="text-xs"
+                  >
+                    School Admin
+                  </Button>
+                  <Button 
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleTestLogin("teacher")}
+                    className="text-xs"
+                  >
+                    Teacher
+                  </Button>
+                  <Button 
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleTestLogin("student")}
+                    className="text-xs"
+                  >
+                    Student
+                  </Button>
+                </div>
+              </div>
             </CardContent>
             
             <CardFooter className="flex flex-col space-y-2">
