@@ -158,9 +158,9 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess }) => {
       console.error('Upload error:', error);
       setError(error instanceof Error ? error.message : 'An unknown error occurred');
       
-      toast('Upload Failed', {
+      // Fix: Use the correct toast API without the variant property
+      toast.error('Upload Failed', {
         description: error instanceof Error ? error.message : 'Failed to upload file',
-        variant: 'destructive',
       });
     } finally {
       setIsUploading(false);
@@ -303,3 +303,4 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess }) => {
 };
 
 export default FileUpload;
+
