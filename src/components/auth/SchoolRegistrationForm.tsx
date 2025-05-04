@@ -212,12 +212,15 @@ const SchoolRegistrationForm = () => {
           <div className="bg-green-100 p-4 rounded-full mb-4">
             <Mail className="h-12 w-12 text-green-600" />
           </div>
-          <h2 className="text-2xl font-bold mb-2">Check Your Email</h2>
+          <h2 className="text-2xl font-bold mb-2">Verify Your Email</h2>
           <p className="text-gray-600 mb-6">
             We've sent a verification email to <strong>{verificationEmail}</strong>
           </p>
-          <p className="text-gray-500 mb-8 max-w-md">
-            Please check your inbox and click on the verification link to activate your account. If you don't see it, please check your spam folder.
+          <p className="text-gray-500 mb-3 max-w-md">
+            Please check your inbox and click on the verification link to activate your school admin account.
+          </p>
+          <p className="text-amber-600 mb-8 max-w-md font-medium">
+            You must verify your email before you can log in. If you don't see the email, please check your spam folder.
           </p>
           <div className="flex gap-4">
             <Button 
