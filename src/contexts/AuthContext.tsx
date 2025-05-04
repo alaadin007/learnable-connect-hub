@@ -229,7 +229,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [user]);
 
-  // Define setTestUser before it's used to fix the error
+  // Define setTestUser before it's used in signIn
   const setTestUser = useCallback(async (accountType: string, index = 0) => {
     setIsLoading(true);
     try {

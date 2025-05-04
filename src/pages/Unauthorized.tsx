@@ -2,8 +2,9 @@
 import React from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, ArrowLeft, Home } from "lucide-react";
+import { AlertCircle, ArrowLeft, Home } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const Unauthorized = () => {
   const navigate = useNavigate();
@@ -26,15 +27,20 @@ const Unauthorized = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="max-w-md w-full px-6 py-8 bg-white shadow-md rounded-lg">
+        <Alert variant="destructive" className="mb-6">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Access denied</AlertTitle>
+          <AlertDescription>
+            This area requires school permissions
+          </AlertDescription>
+        </Alert>
+        
         <div className="text-center">
-          <div className="bg-red-100 p-3 rounded-full inline-flex items-center justify-center mb-6">
-            <AlertTriangle className="h-8 w-8 text-red-500" />
-          </div>
-          
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">Access Denied</h1>
+          <h1 className="text-4xl font-bold text-blue-600 mb-6">404</h1>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Oops! Page not found</h2>
           
           <div className="mb-6 text-gray-600">
-            <p>You don't have permission to access this page.</p>
+            <p>The page you're looking for doesn't exist or has been moved.</p>
             {isTestUser && (
               <div className="mt-4 p-3 bg-blue-50 rounded-md text-sm text-blue-700">
                 <p className="font-medium">You're using a test account as: {userRole}</p>
@@ -58,7 +64,7 @@ const Unauthorized = () => {
               className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
             >
               <Home className="h-4 w-4" />
-              Go to Dashboard
+              Return to Home
             </Button>
           </div>
         </div>

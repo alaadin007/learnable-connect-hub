@@ -15,7 +15,7 @@ import About from "./pages/About";
 import Contact from "./pages/Contact";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
-import Unauthorized from "./pages/Unauthorized"; // Import the Unauthorized page
+import Unauthorized from "./pages/Unauthorized";
 import AdminTools from "./pages/AdminTools";
 import SchoolRegistration from "./pages/SchoolRegistration";
 import Pricing from "./pages/Pricing";
@@ -27,6 +27,7 @@ import AdminTeacherManagement from "./pages/AdminTeacherManagement";
 import AdminTeachers from "./pages/AdminTeachers";
 import AdminAnalytics from "./pages/AdminAnalytics";
 import ChatWithAI from "./pages/ChatWithAI";
+import AdminStudents from "./pages/AdminStudents";
 import "./App.css";
 
 function App() {
@@ -132,6 +133,14 @@ function AppRoutes() {
             <AdminAnalytics />
           </ProtectedRoute>
         } 
+      />
+      <Route
+        path="/admin/students"
+        element={
+          <ProtectedRoute requiredRole="school">
+            <AdminStudents />
+          </ProtectedRoute>
+        }
       />
       
       {/* Teacher Routes */}

@@ -58,7 +58,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   // If loading is done and there's no user, redirect immediately
-  if (!user) {
+  if (!isLoading && !user) {
     console.log("ProtectedRoute: No user detected, redirecting to login");
     return <Navigate to={redirectTo} replace state={{ from: location.pathname }} />;
   }
@@ -76,28 +76,28 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
       toast.error(`Access denied: This area requires ${requiredRole} permissions`);
     }
     
-    return <Navigate to="/unauthorized" replace />;
+    return <Navigate to="/unauthorized" replace state={{ from: location.pathname }} />;
   }
 
   // Check allowed roles if specified
   if (allowedRoles && allowedRoles.length > 0 && (!userRole || !allowedRoles.includes(userRole))) {
     console.log(`ProtectedRoute: User role ${userRole} not in allowed roles`);
     toast.error("Access denied: You don't have permission to view this page");
-    return <Navigate to="/unauthorized" replace />;
+    return <Navigate to="/unauthorized" replace state={{ from: location.pathname }} />;
   }
 
   // Check supervisor requirement if specified
   if (requireSupervisor && !isSupervisor) {
     console.log("ProtectedRoute: User is not a supervisor");
     toast.error("Access denied: This area requires supervisor permissions");
-    return <Navigate to="/unauthorized" replace />;
+    return <Navigate to="/unauthorized" replace state={{ from: location.pathname }} />;
   }
 
   // Check school requirement if specified
   if (requireSameSchool && !schoolId) {
     console.log("ProtectedRoute: User has no school ID");
     toast.error("Access denied: This area requires school association");
-    return <Navigate to="/unauthorized" replace />;
+    return <Navigate to="/unauthorized" replace state={{ from: location.pathname }} />;
   }
 
   // User is authorized, render children
