@@ -11,9 +11,13 @@ export const resendVerificationEmail = async (email: string): Promise<{ success:
   try {
     const toastId = toast.loading("Sending verification email...");
     
+    console.log("Calling resend-verification function with email:", email);
+    
     const { data, error } = await supabase.functions.invoke("resend-verification", {
       body: { email },
     });
+
+    console.log("Response from resend-verification:", { data, error });
 
     if (error) {
       console.error("Error resending verification email:", error);

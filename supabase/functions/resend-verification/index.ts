@@ -102,19 +102,21 @@ serve(async (req) => {
     console.log("Origin URL for redirect:", originUrl);
 
     // Since we're sending from edge function, we need a safety fallback if origin is not accessible
-    const redirectUrl = originUrl.includes('localhost') || originUrl.includes('127.0.0.1') 
-      ? 'https://ldlgckwkdsvrfuymidrr.supabase.co/auth/v1/verify'
-      : `${originUrl}/login?completeRegistration=true`;
+    // Let's use the absolute Supabase URL for the redirect
+    let redirectUrl = `${supabaseUrl}/auth/v1/verify`;
+    
+    if (!originUrl.includes('localhost') && !originUrl.includes('127.0.0.1')) {
+      redirectUrl = `${originUrl}/login?completeRegistration=true`;
+    }
       
     console.log("Redirect URL:", redirectUrl);
 
-    // Send verification email - Using magicLink for email verification instead of signup
+    // Send verification email using email OTP (more reliable than magicLink for verification)
     console.log("Sending verification email to:", email);
     const { error: verificationError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'magiclink',
+      type: 'signup',  // Use signup for email verification
       email: email,
       options: {
-        // Send users to the login page with completeRegistration param after verification
         redirectTo: redirectUrl
       }
     });
@@ -126,6 +128,8 @@ serve(async (req) => {
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
       );
     }
+
+    console.log("Verification email sent successfully to:", email);
 
     return new Response(
       JSON.stringify({ 

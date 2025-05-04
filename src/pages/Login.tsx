@@ -142,7 +142,12 @@ const Login = () => {
             </p>
             
             <p className="text-sm text-gray-600">
-              <Button variant="link" className="p-0" onClick={() => setResendDialogOpen(true)}>
+              <Button 
+                variant="link" 
+                className="p-0" 
+                type="button"
+                onClick={() => setResendDialogOpen(true)}
+              >
                 Didn't receive verification email?
               </Button>
             </p>
