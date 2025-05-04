@@ -14,35 +14,49 @@ const Dashboard = () => {
   const location = useLocation();
   const [localLoading, setLocalLoading] = useState(true);
 
-  // Set a timeout to prevent infinite loading state
+  // Set a timeout to prevent infinite loading state - shorten it for better UX
   useEffect(() => {
+    console.log("Dashboard: Setting up timeout for loading state");
     const timer = setTimeout(() => {
+      console.log("Dashboard: Timeout triggered, ending local loading state");
       setLocalLoading(false);
-    }, 3000); // 3 seconds timeout
+    }, 2000); // 2 seconds timeout instead of 3
     
     return () => clearTimeout(timer);
   }, []);
 
   // Redirect if not logged in, but only after loading completes
   useEffect(() => {
-    console.log("Dashboard: Auth state", { 
+    console.log("Dashboard: Auth state check", { 
       isLoading, 
+      localLoading,
       user: user ? "exists" : "null", 
       userRole, 
       locationState: location.state 
     });
     
-    // Only act after we know auth state or timeout has occurred
-    if (!isLoading || !localLoading) {
-      // Allow test accounts/navigation with preserved context to bypass this check
+    // Handle forced end of loading state
+    if (!localLoading && isLoading) {
+      console.log("Dashboard: Local loading ended before auth loading, still waiting for auth");
+    }
+    
+    // Only make decisions when we have definitive auth state
+    if (!isLoading) {
+      console.log("Dashboard: Auth loading completed");
+      setLocalLoading(false);
+      
+      // Handle bypassing login check for test accounts
       if (location.state?.fromTestAccounts || location.state?.preserveContext) {
         console.log("Dashboard: Bypassing login check due to navigation context");
         return;
       }
       
+      // Handle unauthenticated users
       if (!user) {
         console.log("Dashboard: No user found, redirecting to login");
         navigate("/login");
+      } else {
+        console.log("Dashboard: User authenticated:", user.id);
       }
     }
   }, [user, navigate, location.state, isLoading, localLoading]);
@@ -50,7 +64,9 @@ const Dashboard = () => {
   // More targeted approach to role-based redirection
   useEffect(() => {
     // Only redirect after loading completes and we have a valid user
-    if (isLoading || !user) return;
+    if (isLoading || !user) {
+      return;
+    }
     
     // Only redirect on specific conditions
     const isDirectDashboardAccess = !location.state?.fromNavigation && 
@@ -76,8 +92,8 @@ const Dashboard = () => {
     }
   }, [userRole, navigate, location.state, profile, isLoading, user]);
 
-  // Show proper loading state
-  if (isLoading && localLoading) {
+  // Show better loading state with more information
+  if (isLoading || localLoading) {
     return (
       <>
         <Navbar />
@@ -85,6 +101,12 @@ const Dashboard = () => {
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
             <p className="text-xl">Loading your dashboard...</p>
+            {!isLoading && localLoading && (
+              <p className="text-sm text-gray-500 mt-2">Finalizing authentication...</p>
+            )}
+            {localLoading && isLoading && (
+              <p className="text-sm text-gray-500 mt-2">Verifying your credentials...</p>
+            )}
           </div>
         </main>
         <Footer />
