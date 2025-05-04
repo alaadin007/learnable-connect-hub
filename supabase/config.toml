@@ -13,6 +13,16 @@ port = 54322
 enabled = true
 port = 54323
 
+[auth]
+enabled = true
+hook_timeout_ms = 10000
+
+[auth.email]
+enable_signup = true 
+enable_confirmations = true
+double_confirm_changes = true
+template_create_user = "Your sign-up to Learnable was successful! Please verify your email."
+
 [[edge_functions]]
 name = "ask-ai"
 verify_jwt = true

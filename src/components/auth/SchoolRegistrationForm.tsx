@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/form";
 import { Card, CardContent } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle, Mail } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const schoolFormSchema = z
@@ -49,6 +49,8 @@ const SchoolRegistrationForm = () => {
   const [serverError, setServerError] = useState<string | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [existingRole, setExistingRole] = useState<string | null>(null);
+  const [registrationSuccess, setRegistrationSuccess] = useState(false);
+  const [verificationEmail, setVerificationEmail] = useState("");
   const navigate = useNavigate();
 
   const form = useForm<SchoolFormValues>({
@@ -183,10 +185,14 @@ const SchoolRegistrationForm = () => {
       }
 
       // Handle success
+      setRegistrationSuccess(true);
+      setVerificationEmail(values.adminEmail);
       toast.success("School registration successful!", {
         description: "Please check your email to verify your account.",
       });
-      navigate("/login?registered=true");
+      
+      // Don't navigate immediately, show the verification message
+      // navigate("/login?registered=true");
       
     } catch (error: any) {
       console.error("Registration error:", error);
@@ -198,6 +204,41 @@ const SchoolRegistrationForm = () => {
       setIsLoading(false);
     }
   };
+
+  if (registrationSuccess) {
+    return (
+      <Card className="w-full max-w-2xl mx-auto">
+        <CardContent className="pt-6 flex flex-col items-center text-center py-10">
+          <div className="bg-green-100 p-4 rounded-full mb-4">
+            <Mail className="h-12 w-12 text-green-600" />
+          </div>
+          <h2 className="text-2xl font-bold mb-2">Check Your Email</h2>
+          <p className="text-gray-600 mb-6">
+            We've sent a verification email to <strong>{verificationEmail}</strong>
+          </p>
+          <p className="text-gray-500 mb-8 max-w-md">
+            Please check your inbox and click on the verification link to activate your account. If you don't see it, please check your spam folder.
+          </p>
+          <div className="flex gap-4">
+            <Button 
+              variant="outline" 
+              onClick={() => navigate("/login")}
+            >
+              Go to Login
+            </Button>
+            <Button
+              onClick={() => {
+                setRegistrationSuccess(false);
+                form.reset();
+              }}
+            >
+              Register Another School
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="w-full max-w-2xl mx-auto">

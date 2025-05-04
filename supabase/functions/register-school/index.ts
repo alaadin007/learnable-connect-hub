@@ -48,11 +48,11 @@ serve(async (req) => {
 
     console.log(`Registering school: ${schoolName} with admin: ${adminEmail}`);
     
-    // Create the user with appropriate metadata
+    // Create the user with appropriate metadata and enable email confirmation
     const { data: userData, error: userError } = await supabaseAdmin.auth.admin.createUser({
       email: adminEmail,
       password: adminPassword,
-      email_confirm: true,
+      email_confirm: false, // Set to false to send verification email
       user_metadata: {
         full_name: adminFullName,
         school_name: schoolName,
@@ -75,9 +75,10 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: "School registered successfully",
+        message: "School registered successfully. Please check your email to verify your account.",
         userId: userData.user.id,
-        schoolCode 
+        schoolCode,
+        email_verification_sent: true
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 201 }
     );
