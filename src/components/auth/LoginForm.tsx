@@ -32,7 +32,7 @@ const LoginForm = () => {
   const navigate = useNavigate();
   const { signIn, isLoading, setTestUser } = useAuth();
   const [loginError, setLoginError] = useState<string | null>(null);
-  const [testLoginInProgress, setTestLoginInProgress] = useState<string | null>(null);
+  const [loginInProgress, setLoginInProgress] = useState<boolean>(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -74,6 +74,7 @@ const LoginForm = () => {
         }
         
         // Regular authentication for real users
+        setLoginInProgress(true); // Track real user login separately
         await signIn(email, password);
         // Navigation is handled in AuthContext on successful sign-in
       } catch (error: any) {
@@ -84,6 +85,8 @@ const LoginForm = () => {
         toast.error(
           error.message || "Invalid credentials. Please check your inputs."
         );
+      } finally {
+        setLoginInProgress(false);
       }
     },
     [signIn, setTestUser]
@@ -149,9 +152,9 @@ const LoginForm = () => {
         <Button
           type="submit"
           className="w-full bg-learnable-blue hover:bg-learnable-blue/90"
-          disabled={isLoading || !!testLoginInProgress}
+          disabled={loginInProgress}
         >
-          {isLoading ? (
+          {loginInProgress ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Logging in...
@@ -166,7 +169,7 @@ const LoginForm = () => {
             variant="link"
             onClick={() => navigate("/test-accounts")}
             className="text-sm"
-            disabled={!!testLoginInProgress}
+            disabled={loginInProgress}
           >
             Try test accounts instead
           </Button>
