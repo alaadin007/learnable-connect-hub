@@ -1,102 +1,91 @@
 
 import { supabase } from "@/integrations/supabase/client";
 
-interface PerformanceMetric {
-  accuracy?: number;
-  completionTime?: number;
-  score?: number;
-}
-
 export interface SessionLogOptions {
   topic?: string;
+  contentId?: string;
+}
+
+export interface PerformanceMetric {
+  score?: number;
+  completionRate?: number;
+  timeSpent?: number;
+  mistakes?: number;
+  strengths?: string[];
+  weaknesses?: string[];
+  recommendations?: string[];
 }
 
 class SessionLogger {
   private currentSessionId: string | null = null;
   private sessionActive = false;
 
-  // Start a new learning session
-  async startSession(options: SessionLogOptions = {}): Promise<string | null> {
+  /**
+   * Start a new learning session
+   */
+  async startSession(options?: SessionLogOptions): Promise<string | null> {
     try {
-      // Only start a new session if one isn't already active
-      if (this.sessionActive) {
-        console.warn("Session already active, not starting a new one.");
-        return this.currentSessionId;
-      }
-
-      // Call the edge function to create a new session log
-      const { data, error } = await supabase.functions.invoke("create-session-log", {
-        body: {
-          topic: options.topic || null,
-        }
+      // Create the session log using a Supabase function
+      const { data, error } = await supabase.functions.invoke('create-session-log', {
+        body: { topic: options?.topic || null }
       });
 
       if (error) {
-        console.error("Error creating session log:", error);
+        console.error("Error starting session:", error);
         return null;
       }
 
-      // Store the session ID for later use
-      this.currentSessionId = data.logId;
-      this.sessionActive = true;
+      if (data?.session_id) {
+        this.currentSessionId = data.session_id;
+        this.sessionActive = true;
+        return data.session_id;
+      }
       
-      console.log(`Session started with ID: ${this.currentSessionId}`);
-      return this.currentSessionId;
-    } catch (err) {
-      console.error("Unexpected error starting session:", err);
+      return null;
+    } catch (error) {
+      console.error("Failed to start session:", error);
       return null;
     }
   }
 
-  // End the current session
-  async endSession(performanceData: PerformanceMetric | null = null): Promise<boolean> {
+  /**
+   * End the current session
+   */
+  async endSession(performanceMetrics?: PerformanceMetric): Promise<boolean> {
+    if (!this.isSessionActive()) return false;
+    
     try {
-      // Only end the session if one is active
-      if (!this.sessionActive || !this.currentSessionId) {
-        console.warn("No active session to end.");
-        return false;
-      }
-
-      // Call the edge function to end the session log
-      const { error } = await supabase.functions.invoke("end-session", {
-        body: {
-          logId: this.currentSessionId,
-          performanceData: performanceData
+      const { error } = await supabase.functions.invoke('end-session', {
+        body: { 
+          sessionId: this.currentSessionId,
+          performanceMetrics
         }
       });
-
+      
       if (error) {
-        console.error("Error ending session log:", error);
+        console.error("Error ending session:", error);
         return false;
       }
-
-      console.log(`Session ${this.currentSessionId} ended successfully.`);
       
-      // Reset session state
       this.sessionActive = false;
-      this.currentSessionId = null;
-      
       return true;
-    } catch (err) {
-      console.error("Unexpected error ending session:", err);
+    } catch (error) {
+      console.error("Failed to end session:", error);
       return false;
     }
   }
 
-  // Log a query during the session
+  /**
+   * Log a query in the current session
+   */
   async logQuery(): Promise<boolean> {
-    try {
-      // Only log query if a session is active
-      if (!this.sessionActive || !this.currentSessionId) {
-        console.warn("No active session to log query.");
-        return false;
-      }
+    if (!this.isSessionActive()) return false;
 
-      // Call the edge function to increment the query count
-      const { error } = await supabase.functions.invoke("update-session", {
-        body: {
-          log_id: this.currentSessionId,
-          action: "increment_query"
+    try {
+      const { error } = await supabase.functions.invoke('update-session', {
+        body: { 
+          sessionId: this.currentSessionId,
+          incrementQuery: true
         }
       });
 
@@ -105,56 +94,53 @@ class SessionLogger {
         return false;
       }
 
-      console.log("Query logged successfully.");
       return true;
-    } catch (err) {
-      console.error("Unexpected error logging query:", err);
+    } catch (error) {
+      console.error("Failed to log query:", error);
       return false;
     }
   }
 
-  // Update the topic for an active session
+  /**
+   * Update the session topic
+   */
   async updateTopic(topic: string): Promise<boolean> {
-    try {
-      // Only update topic if a session is active
-      if (!this.sessionActive || !this.currentSessionId) {
-        console.warn("No active session to update topic.");
-        return false;
-      }
+    if (!this.isSessionActive()) return false;
 
-      // Call the edge function to update the topic
-      const { error } = await supabase.functions.invoke("update-session", {
-        body: {
-          log_id: this.currentSessionId,
-          topic: topic
+    try {
+      const { error } = await supabase.functions.invoke('update-session', {
+        body: { 
+          sessionId: this.currentSessionId,
+          topic
         }
       });
 
       if (error) {
-        console.error("Error updating session topic:", error);
+        console.error("Error updating topic:", error);
         return false;
       }
 
-      console.log(`Session topic updated to: ${topic}`);
       return true;
-    } catch (err) {
-      console.error("Unexpected error updating topic:", err);
+    } catch (error) {
+      console.error("Failed to update topic:", error);
       return false;
     }
   }
 
-  // Get current session ID
+  /**
+   * Check if a session is currently active
+   */
+  isSessionActive(): boolean {
+    return this.sessionActive && !!this.currentSessionId;
+  }
+
+  /**
+   * Get the current session ID
+   */
   getSessionId(): string | null {
     return this.currentSessionId;
   }
-
-  // Check if there is an active session
-  isSessionActive(): boolean {
-    return this.sessionActive;
-  }
 }
 
-// Export singleton instance
 export const sessionLogger = new SessionLogger();
-
 export default sessionLogger;

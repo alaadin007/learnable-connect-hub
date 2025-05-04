@@ -1,78 +1,103 @@
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import "https://deno.land/x/xhr@0.1.0/mod.ts"
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
 
 serve(async (req) => {
   // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+  if (req.method === "OPTIONS") {
+    return new Response(null, {
+      headers: corsHeaders,
+    });
   }
 
   try {
-    const { text, voice } = await req.json();
+    // Get the request body
+    const { text } = await req.json();
     
     if (!text) {
-      throw new Error('Text is required');
+      return new Response(JSON.stringify({ error: "Text is required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    console.log(`Generating speech for text of length ${text.length}`);
-    
-    // Send request to OpenAI API for text-to-speech
-    const response = await fetch('https://api.openai.com/v1/audio/speech', {
-      method: 'POST',
+    // Get OpenAI API key from environment variables
+    const openAiKey = Deno.env.get("OPENAI_API_KEY");
+    if (!openAiKey) {
+      return new Response(JSON.stringify({ error: "OpenAI API key not configured" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Call OpenAI TTS API
+    const response = await fetch("https://api.openai.com/v1/audio/speech", {
+      method: "POST",
       headers: {
-        'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
-        'Content-Type': 'application/json',
+        "Authorization": `Bearer ${openAiKey}`,
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: 'tts-1',
-        voice: voice || 'alloy',
-        input: text,
-        response_format: 'mp3',
+        model: "tts-1",
+        voice: "alloy",
+        input: text.substring(0, 4096), // OpenAI has a limit on text length
       }),
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      console.error('OpenAI API error:', errorData);
-      throw new Error(`OpenAI API error: ${errorData.error?.message || 'Unknown error'}`);
+      const error = await response.json();
+      throw new Error(`OpenAI API error: ${JSON.stringify(error)}`);
     }
 
-    // Get audio data as array buffer
-    const audioBuffer = await response.arrayBuffer();
-    console.log("Successfully generated speech audio");
-    
-    // Convert to base64
-    const uint8Array = new Uint8Array(audioBuffer);
-    const binaryString = Array.from(uint8Array)
-      .map(byte => String.fromCharCode(byte))
-      .join('');
-    const base64Audio = btoa(binaryString);
+    // Get the audio data
+    const audioData = await response.arrayBuffer();
+
+    // Create a random filename
+    const filename = `tts-${Date.now()}.mp3`;
+
+    // Get Supabase client
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Upload to Supabase Storage
+    const { data: uploadData, error: uploadError } = await supabase
+      .storage
+      .from("tts-audio")
+      .upload(filename, audioData, {
+        contentType: "audio/mpeg",
+        cacheControl: "3600",
+      });
+
+    if (uploadError) {
+      throw uploadError;
+    }
+
+    // Get the public URL
+    const { data: publicUrlData } = await supabase
+      .storage
+      .from("tts-audio")
+      .getPublicUrl(filename);
 
     return new Response(
       JSON.stringify({ 
-        audio: base64Audio 
+        audioUrl: publicUrlData.publicUrl,
+        success: true 
       }),
-      { 
-        headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json' 
-        } 
-      }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-
   } catch (error) {
-    console.error("Error in text-to-speech function:", error.message);
+    console.error("Error in text-to-speech function:", error);
     return new Response(
       JSON.stringify({ error: error.message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      { 
+        status: 500, 
+        headers: { ...corsHeaders, "Content-Type": "application/json" } 
       }
     );
   }

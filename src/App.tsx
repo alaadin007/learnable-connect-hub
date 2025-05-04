@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "@/components/theme-provider"
@@ -14,6 +15,7 @@ import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import Dashboard from "@/pages/Dashboard";
 import ChatWithAI from "@/pages/ChatWithAI";
+import ChatPage from "@/pages/ChatPage";
 import Documents from "@/pages/Documents";
 import AdminTeachers from "@/pages/AdminTeachers";
 import AdminStudents from "@/pages/AdminStudents";
@@ -78,6 +80,7 @@ function App() {
             <Route element={<ProtectedRoute />}>
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/chat" element={<ChatWithAI />} />
+              <Route path="/chat-v2" element={<ChatPage />} />
               <Route path="/documents" element={<Documents />} />
               
               {/* Admin routes */}
