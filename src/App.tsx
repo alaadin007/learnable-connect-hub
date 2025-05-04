@@ -24,25 +24,31 @@ import SchoolSettings from "./pages/SchoolSettings";
 import "./App.css";
 
 function AppRoutes() {
-  const { userRole } = useAuth();
+  const { userRole, isLoading } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Redirect based on user role after login
-    if (userRole) {
+    // Only redirect if we're not in the middle of loading
+    if (!isLoading && userRole) {
+      console.log(`AppRoutes: Redirecting based on user role: ${userRole}`);
+      
+      // Redirect based on user role after login
       switch (userRole) {
         case "school":
-          navigate("/admin");
+          navigate("/admin", { state: { fromRoleRedirect: true } });
           break;
         case "teacher":
-          navigate("/teacher/analytics");
+          navigate("/teacher/analytics", { state: { fromRoleRedirect: true } });
+          break;
+        case "student":
+          navigate("/dashboard", { state: { fromRoleRedirect: true } });
           break;
         default:
-          navigate("/dashboard");
+          // If unknown role, stay on current page
           break;
       }
     }
-  }, [userRole, navigate]);
+  }, [userRole, navigate, isLoading]);
 
   return (
     <Routes>
@@ -88,7 +94,6 @@ function AppRoutes() {
         }
       />
 
-      {/* Add the route for AdminTools inside your Routes component */}
       <Route 
         path="/admin/tools" 
         element={

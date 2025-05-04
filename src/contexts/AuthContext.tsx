@@ -313,6 +313,18 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
         throw error;
       }
       console.log("Sign in successful:", data);
+      
+      // Get user role and redirect appropriately
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("user_type")
+        .eq("id", data.user.id)
+        .single();
+      
+      if (profileData?.user_type === "school") {
+        console.log("School admin detected, will redirect to admin dashboard");
+      }
+      
     } catch (error: any) {
       console.error("Sign in error caught:", error);
       toast.error(error.error_description ?? error.message);

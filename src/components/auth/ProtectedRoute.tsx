@@ -33,10 +33,13 @@ const ProtectedRoute = ({
 
   // If we require a specific user type and the user doesn't have it
   if (requiredRole && userRole !== requiredRole) {
+    console.log(`ProtectedRoute: Access denied. Required role: ${requiredRole}, User role: ${userRole}`);
+    
     // Redirect based on user role instead of generic dashboard
     const redirectPath = userRole === 'school' ? '/admin' : 
                         userRole === 'teacher' ? '/teacher/analytics' : 
                         '/dashboard';
+    
     return <Navigate to={redirectPath} replace />;
   }
 

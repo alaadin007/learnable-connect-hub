@@ -1,4 +1,3 @@
-
 import React, { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -33,7 +32,8 @@ const Dashboard = () => {
     const isDirectDashboardAccess = !location.state?.fromNavigation && 
                                    !location.state?.fromTestAccounts &&
                                    !location.state?.preserveContext &&
-                                   !location.state?.fromDashboard;
+                                   !location.state?.fromDashboard &&
+                                   !location.state?.fromRoleRedirect;
     
     // Only redirect if we know the role and it's a direct access
     if (userRole && isDirectDashboardAccess) {
