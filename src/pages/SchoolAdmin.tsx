@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -35,20 +36,36 @@ const SchoolAdmin = () => {
   const location = useLocation();
   const [activeTab, setActiveTab] = useState("teachers");
   const [isAuthError, setIsAuthError] = useState<boolean>(false);
-
-  let authContext;
   
+  // Use a try-catch to prevent the app from crashing if auth context is undefined
+  let auth;
   try {
-    authContext = useAuth();
-    if (!authContext) {
+    auth = useAuth();
+    if (!auth) {
       console.error("Auth context is undefined");
       setIsAuthError(true);
-      throw new Error("Auth context is undefined");
     }
   } catch (error) {
     console.error("Error accessing auth context:", error);
     setIsAuthError(true);
   }
+  
+  const {
+    profile,
+    userRole,
+    isLoading,
+    isTestUser
+  } = auth || {};
+  
+  // Debug school information
+  useEffect(() => {
+    if (profile) {
+      console.log("SchoolAdmin - Profile loaded:", profile);
+      console.log("School info:", profile.organization);
+      console.log("User role:", userRole);
+      console.log("Is test user:", isTestUser);
+    }
+  }, [profile, userRole, isTestUser]);
   
   // Handle auth error state with early return
   if (isAuthError) {
@@ -80,10 +97,7 @@ const SchoolAdmin = () => {
     );
   }
   
-  // Now we can safely use the auth context
-  const { profile, userRole, isLoading } = authContext;
-  
-  // Use optional chaining for organization properties
+  // Use optional chaining for organization properties to avoid undefined errors
   const schoolId = profile?.organization?.id || null;
   const schoolName = profile?.organization?.name || "Not available";
   const schoolCode = profile?.organization?.code || "Not available";
@@ -165,6 +179,16 @@ const SchoolAdmin = () => {
         <Footer />
       </>
     );
+  }
+
+  // Add additional debug information when no organization is found
+  if (!profile?.organization) {
+    console.warn("No organization found in profile:", profile);
+    
+    // For test users, we need to ensure organization is set properly
+    if (isTestUser) {
+      console.log("Test user detected but missing organization");
+    }
   }
 
   return (
