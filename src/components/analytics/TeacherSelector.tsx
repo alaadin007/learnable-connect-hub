@@ -1,124 +1,85 @@
 
-import React, { useState, useEffect } from "react";
+import * as React from "react";
+import { Check, ChevronDown, UserCheck } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { supabase } from "@/integrations/supabase/client";
-import { Loader2 } from "lucide-react";
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Teacher } from "./types";
 
 interface TeacherSelectorProps {
-  schoolId: string;
+  teachers: Teacher[];
   selectedTeacherId?: string;
-  onTeacherChange: (teacherId: string | undefined) => void;
+  onSelect: (teacherId: string | null) => void;
+  className?: string;
 }
 
-interface Teacher {
-  id: string;
-  name: string;
-}
-
-export function TeacherSelector({
-  schoolId,
+export const TeacherSelector: React.FC<TeacherSelectorProps> = ({
+  teachers,
   selectedTeacherId,
-  onTeacherChange,
-}: TeacherSelectorProps) {
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  onSelect,
+  className,
+}) => {
+  const [open, setOpen] = React.useState(false);
 
-  useEffect(() => {
-    const fetchTeachers = async () => {
-      if (!schoolId) {
-        setTeachers([]);
-        return;
-      }
-
-      setIsLoading(true);
-      try {
-        const { data: teachersData, error } = await supabase
-          .from("teachers")
-          .select("id")
-          .eq("school_id", schoolId);
-
-        if (error) throw error;
-
-        if (!teachersData || teachersData.length === 0) {
-          setTeachers([]);
-          setIsLoading(false);
-          return;
-        }
-
-        const teacherIds = teachersData.map((t) => t.id);
-        const { data: profilesData, error: profilesError } = await supabase
-          .from("profiles")
-          .select("id, full_name")
-          .in("id", teacherIds);
-
-        if (profilesError) throw profilesError;
-
-        const formattedTeachers: Teacher[] = (profilesData ?? []).map(
-          (profile) => ({
-            id: profile.id,
-            name: profile.full_name || "Unknown Teacher",
-          })
-        );
-
-        setTeachers(formattedTeachers);
-      } catch (error) {
-        console.error("Error fetching teachers:", error);
-        setTeachers([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchTeachers();
-  }, [schoolId]);
-
-  const labelId = "teacher-selector-label";
+  const selectedTeacher = teachers.find(
+    (teacher) => teacher.id === selectedTeacherId
+  );
 
   return (
-    <div className="space-y-2">
-      <label id={labelId} className="text-sm font-medium">
-        Filter by Teacher:
-      </label>
-      <Select
-        value={selectedTeacherId ?? "all"}
-        onValueChange={(value) =>
-          onTeacherChange(value === "all" ? undefined : value)
-        }
-        disabled={isLoading}
-        aria-labelledby={labelId}
-      >
-        <SelectTrigger className="w-full">
-          <SelectValue placeholder="Select teacher..." />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All Teachers</SelectItem>
-
-          {isLoading ? (
-            <SelectItem disabled value="loading" className="cursor-default">
-              <div className="flex items-center justify-center space-x-2 py-1">
-                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">Loading...</span>
-              </div>
-            </SelectItem>
-          ) : teachers.length === 0 ? (
-            <SelectItem disabled value="none" className="cursor-default">
-              No teachers found
-            </SelectItem>
-          ) : (
-            teachers.map((teacher) => (
-              <SelectItem key={teacher.id} value={teacher.id}>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className={cn("w-[200px] justify-between", className)}
+        >
+          <div className="flex items-center gap-2">
+            <UserCheck className="h-4 w-4 text-muted-foreground" />
+            {selectedTeacher ? selectedTeacher.name : "Select teacher"}
+          </div>
+          <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[200px] p-0">
+        <Command>
+          <CommandInput placeholder="Search teacher..." />
+          <CommandEmpty>No teacher found.</CommandEmpty>
+          <CommandGroup>
+            {teachers.map((teacher) => (
+              <CommandItem
+                key={teacher.id}
+                value={teacher.name}
+                onSelect={() => {
+                  onSelect(teacher.id === selectedTeacherId ? null : teacher.id);
+                  setOpen(false);
+                }}
+              >
+                <Check
+                  className={cn(
+                    "mr-2 h-4 w-4",
+                    selectedTeacherId === teacher.id
+                      ? "opacity-100"
+                      : "opacity-0"
+                  )}
+                />
                 {teacher.name}
-              </SelectItem>
-            ))
-          )}
-        </SelectContent>
-      </Select>
-    </div>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
-}
+};

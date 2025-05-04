@@ -1,84 +1,78 @@
 
 import React from "react";
-import {
-  Table,
-  TableBody,
-  TableCaption,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-
-export interface TeacherPerformanceData {
-  teacher_id: string;
-  teacher_name: string;
-  assessments_created: number;
-  students_assessed: number;
-  avg_submissions_per_assessment: number;
-  avg_student_score: number;
-  completion_rate: number;
-}
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { TrendingUp, TrendingDown, Minus, Loader2 } from "lucide-react";
 
 interface TeacherPerformanceTableProps {
-  data: TeacherPerformanceData[];
+  data: any[];
   isLoading: boolean;
 }
 
-export function TeacherPerformanceTable({ data, isLoading }: TeacherPerformanceTableProps) {
+export const TeacherPerformanceTable: React.FC<TeacherPerformanceTableProps> = ({
+  data,
+  isLoading
+}) => {
   return (
     <Card>
       <CardHeader>
         <CardTitle>Teacher Performance</CardTitle>
-        <CardDescription>
-          Assessment creation and student performance metrics by teacher
-        </CardDescription>
+        <CardDescription>Comparative performance metrics by teacher</CardDescription>
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="space-y-2">
-            <Skeleton className="h-8 w-full" />
-            <Skeleton className="h-8 w-full" />
-            <Skeleton className="h-8 w-full" />
+          <div className="flex justify-center items-center h-40">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
         ) : (
           <Table>
-            <TableCaption>Teacher performance metrics</TableCaption>
             <TableHeader>
               <TableRow>
                 <TableHead>Teacher</TableHead>
-                <TableHead className="text-right">Assessments Created</TableHead>
-                <TableHead className="text-right">Students Assessed</TableHead>
-                <TableHead className="text-right">Avg. Submissions</TableHead>
-                <TableHead className="text-right">Avg. Score</TableHead>
-                <TableHead className="text-right">Completion Rate</TableHead>
+                <TableHead>Students</TableHead>
+                <TableHead>Average Score</TableHead>
+                <TableHead>Performance</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.length > 0 ? (
-                data.map((teacher) => (
-                  <TableRow key={teacher.teacher_id}>
-                    <TableCell className="font-medium">{teacher.teacher_name}</TableCell>
-                    <TableCell className="text-right">{teacher.assessments_created}</TableCell>
-                    <TableCell className="text-right">{teacher.students_assessed}</TableCell>
-                    <TableCell className="text-right">{teacher.avg_submissions_per_assessment.toFixed(1)}</TableCell>
-                    <TableCell className="text-right">{teacher.avg_student_score.toFixed(1)}</TableCell>
-                    <TableCell className="text-right">{teacher.completion_rate.toFixed(1)}%</TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-4 text-muted-foreground">
-                    No teacher performance data available
+              {data.map((teacher) => (
+                <TableRow key={teacher.id}>
+                  <TableCell className="font-medium">{teacher.name}</TableCell>
+                  <TableCell>{teacher.students}</TableCell>
+                  <TableCell>{teacher.avgScore}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center space-x-2">
+                      {teacher.trend === 'up' ? (
+                        <>
+                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                            Improving
+                          </Badge>
+                          <TrendingUp className="h-4 w-4 text-green-500" />
+                        </>
+                      ) : teacher.trend === 'down' ? (
+                        <>
+                          <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+                            Declining
+                          </Badge>
+                          <TrendingDown className="h-4 w-4 text-red-500" />
+                        </>
+                      ) : (
+                        <>
+                          <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">
+                            Stable
+                          </Badge>
+                          <Minus className="h-4 w-4 text-gray-500" />
+                        </>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
-              )}
+              ))}
             </TableBody>
           </Table>
         )}
       </CardContent>
     </Card>
   );
-}
+};

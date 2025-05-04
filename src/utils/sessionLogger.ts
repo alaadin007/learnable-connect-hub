@@ -1,180 +1,160 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
 
-// Log session start in Supabase
-const logSessionStart = async (topic?: string, userId?: string): Promise<string | null> => {
-  try {
-    // Don't log sessions on specific pages
-    if (window.location.pathname === '/test-accounts' || 
-        window.location.pathname === '/admin' ||
-        window.location.pathname.includes('/dashboard')) {
-      return null;
-    }
-    
-    // If not testing with a mock userId, use the edge function
-    if (!userId) {
+interface PerformanceMetric {
+  accuracy?: number;
+  completionTime?: number;
+  score?: number;
+}
+
+export interface SessionLogOptions {
+  topic?: string;
+}
+
+class SessionLogger {
+  private currentSessionId: string | null = null;
+  private sessionActive = false;
+
+  // Start a new learning session
+  async startSession(options: SessionLogOptions = {}): Promise<string | null> {
+    try {
+      // Only start a new session if one isn't already active
+      if (this.sessionActive) {
+        console.warn("Session already active, not starting a new one.");
+        return this.currentSessionId;
+      }
+
+      // Call the edge function to create a new session log
       const { data, error } = await supabase.functions.invoke("create-session-log", {
-        body: { topic: topic || "General Chat" }
+        body: {
+          topic: options.topic || null,
+        }
       });
 
       if (error) {
-        console.error("Error starting session:", error);
+        console.error("Error creating session log:", error);
         return null;
       }
 
-      return data?.logId || null;
-    } else {
-      // For test accounts, we need special handling
-      // First get the school ID for this user
-      const { data: userData } = await supabase
-        .from('students')
-        .select('school_id')
-        .eq('id', userId)
-        .single();
-        
-      if (!userData?.school_id) {
-        console.error("No school ID found for test user");
-        return null;
-      }
+      // Store the session ID for later use
+      this.currentSessionId = data.logId;
+      this.sessionActive = true;
       
-      // Then create the session log directly
-      const { data: sessionData, error: sessionError } = await supabase
-        .from('session_logs')
-        .insert({
-          user_id: userId,
-          school_id: userData.school_id,
-          topic_or_content_used: topic || "General Chat"
-        })
-        .select('id')
-        .single();
-        
-      if (sessionError) {
-        console.error("Error creating test session:", sessionError);
-        return null;
-      }
-      
-      return sessionData?.id || null;
+      console.log(`Session started with ID: ${this.currentSessionId}`);
+      return this.currentSessionId;
+    } catch (err) {
+      console.error("Unexpected error starting session:", err);
+      return null;
     }
-  } catch (error) {
-    console.error("Error starting session:", error);
-    return null;
   }
-};
 
-// Log session end in Supabase
-const logSessionEnd = async (sessionId?: string, performanceData?: any): Promise<void> => {
-  try {
-    if (!sessionId) {
-      console.warn("No session ID provided to end");
-      return;
-    }
-
-    // Call the endpoint to end the session
-    const { error } = await supabase.functions.invoke("end-session", {
-      body: { logId: sessionId, performanceData }
-    });
-
-    if (error) {
-      console.error("Error ending session:", error);
-      return;
-    }
-
-    // Clear the active session from localStorage if it matches
-    const activeSessionId = localStorage.getItem("activeSessionId");
-    if (activeSessionId === sessionId) {
-      localStorage.removeItem("activeSessionId");
-    }
-  } catch (error) {
-    console.error("Error ending session:", error);
-  }
-};
-
-// Update session topic in Supabase
-const updateSessionTopic = async (sessionId: string, topic: string): Promise<void> => {
-  try {
-    if (!sessionId) {
-      console.warn("No session ID provided to update topic");
-      return;
-    }
-
-    // Call the endpoint to update the session topic
-    const { error } = await supabase.functions.invoke("update-session", {
-      body: { logId: sessionId, topic }
-    });
-
-    if (error) {
-      console.error("Error updating session topic:", error);
-    }
-  } catch (error) {
-    console.error("Error updating session topic:", error);
-  }
-};
-
-// Increment query count for a session
-const incrementQueryCount = async (sessionId: string): Promise<void> => {
-  try {
-    if (!sessionId) {
-      console.warn("No session ID provided to increment query count");
-      return;
-    }
-
-    // Call the RPC function to increment the query count
-    const { error } = await supabase.rpc("increment_session_query_count", {
-      log_id: sessionId
-    });
-
-    if (error) {
-      console.error("Error incrementing query count:", error);
-    }
-  } catch (error) {
-    console.error("Error incrementing query count:", error);
-  }
-};
-
-// Check if there is an active session
-const hasActiveSession = (): boolean => {
-  return localStorage.getItem("activeSessionId") !== null;
-};
-
-// Create a wrapper object to match what the components expect
-const sessionLogger = {
-  startSession: async (topic?: string, userId?: string): Promise<string | null> => {
+  // End the current session
+  async endSession(performanceData: PerformanceMetric | null = null): Promise<boolean> {
     try {
-      // Don't start sessions on admin pages or dashboard
-      if (window.location.pathname === '/test-accounts' || 
-          window.location.pathname === '/admin' ||
-          window.location.pathname.startsWith('/admin/') ||
-          window.location.pathname === '/dashboard' ||
-          window.location.pathname === '/documents') {
-        return null;
+      // Only end the session if one is active
+      if (!this.sessionActive || !this.currentSessionId) {
+        console.warn("No active session to end.");
+        return false;
       }
+
+      // Call the edge function to end the session log
+      const { error } = await supabase.functions.invoke("end-session", {
+        body: {
+          logId: this.currentSessionId,
+          performanceData: performanceData
+        }
+      });
+
+      if (error) {
+        console.error("Error ending session log:", error);
+        return false;
+      }
+
+      console.log(`Session ${this.currentSessionId} ended successfully.`);
       
-      const sessionId = await logSessionStart(topic, userId);
-      if (sessionId) {
-        localStorage.setItem("activeSessionId", sessionId);
-        return sessionId;
+      // Reset session state
+      this.sessionActive = false;
+      this.currentSessionId = null;
+      
+      return true;
+    } catch (err) {
+      console.error("Unexpected error ending session:", err);
+      return false;
+    }
+  }
+
+  // Log a query during the session
+  async logQuery(): Promise<boolean> {
+    try {
+      // Only log query if a session is active
+      if (!this.sessionActive || !this.currentSessionId) {
+        console.warn("No active session to log query.");
+        return false;
       }
-      return null;
-    } catch (error) {
-      console.error("Error in startSession:", error);
-      return null;
+
+      // Call the edge function to increment the query count
+      const { error } = await supabase.functions.invoke("update-session", {
+        body: {
+          log_id: this.currentSessionId,
+          action: "increment_query"
+        }
+      });
+
+      if (error) {
+        console.error("Error logging query:", error);
+        return false;
+      }
+
+      console.log("Query logged successfully.");
+      return true;
+    } catch (err) {
+      console.error("Unexpected error logging query:", err);
+      return false;
     }
-  },
-  endSession: async (reason?: string, performanceData?: any): Promise<void> => {
-    // Don't process session events on the test-accounts page
-    if (window.location.pathname === '/test-accounts') {
-      return;
+  }
+
+  // Update the topic for an active session
+  async updateTopic(topic: string): Promise<boolean> {
+    try {
+      // Only update topic if a session is active
+      if (!this.sessionActive || !this.currentSessionId) {
+        console.warn("No active session to update topic.");
+        return false;
+      }
+
+      // Call the edge function to update the topic
+      const { error } = await supabase.functions.invoke("update-session", {
+        body: {
+          log_id: this.currentSessionId,
+          topic: topic
+        }
+      });
+
+      if (error) {
+        console.error("Error updating session topic:", error);
+        return false;
+      }
+
+      console.log(`Session topic updated to: ${topic}`);
+      return true;
+    } catch (err) {
+      console.error("Unexpected error updating topic:", err);
+      return false;
     }
-    
-    const sessionId = localStorage.getItem("activeSessionId");
-    if (sessionId) {
-      await logSessionEnd(sessionId, performanceData);
-    }
-  },
-  updateSessionTopic,
-  incrementQueryCount,
-  hasActiveSession
-};
+  }
+
+  // Get current session ID
+  getSessionId(): string | null {
+    return this.currentSessionId;
+  }
+
+  // Check if there is an active session
+  isSessionActive(): boolean {
+    return this.sessionActive;
+  }
+}
+
+// Export singleton instance
+export const sessionLogger = new SessionLogger();
 
 export default sessionLogger;

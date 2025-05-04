@@ -1,86 +1,76 @@
 
 import React from "react";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer
-} from "recharts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { StudyTimeData } from "./types";
-import { ChartContainer } from "@/components/ui/chart";
+import { Loader2 } from "lucide-react";
 
 interface StudyTimeChartProps {
   data: StudyTimeData[];
-  title?: string;
-  description?: string;
+  title: string;
+  description: string;
   isLoading?: boolean;
 }
 
-const StudyTimeChart = ({ 
-  data, 
-  title = "Weekly Study Time", 
-  description = "Hours studied per student this week",
-  isLoading = false 
-}: StudyTimeChartProps) => {
-  // Prepare data for chart - only if we have data
-  const chartData = React.useMemo(() => {
-    if (!data || data.length === 0) return [];
-    
-    return data.map(item => ({
-      name: item.student_name || item.studentName || item.name || `Student ${item.student_id || ""}`,
-      hours: item.total_minutes ? (item.total_minutes / 60) : (item.hours || 0)
-    }));
-  }, [data]);
+const StudyTimeChart: React.FC<StudyTimeChartProps> = ({
+  data,
+  title,
+  description,
+  isLoading = false
+}) => {
+  // Prepare data for the chart
+  const chartData = data.map((item) => ({
+    name: item.student_name,
+    hours: item.total_minutes / 60
+  }));
 
   return (
-    <Card className="w-full">
+    <Card className="h-full">
       <CardHeader>
         <CardTitle>{title}</CardTitle>
         <CardDescription>{description}</CardDescription>
       </CardHeader>
-      <CardContent className="pt-2">
-        <div className="h-[300px] w-full">
-          {isLoading ? (
-            <div className="flex h-full items-center justify-center">
-              <p className="text-muted-foreground">Loading chart data...</p>
-            </div>
-          ) : chartData.length > 0 ? (
-            <ChartContainer 
-              config={{
-                hours: { color: "#3b82f6" } // Blue color for bars
-              }}
-            >
-              <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 50 }}>
+      <CardContent>
+        {isLoading ? (
+          <div className="flex justify-center items-center h-80">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : chartData.length === 0 ? (
+          <div className="flex justify-center items-center h-80 text-muted-foreground">
+            No data available
+          </div>
+        ) : (
+          <div className="w-full h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={chartData}
+                margin={{
+                  top: 5,
+                  right: 30,
+                  left: 20,
+                  bottom: 60
+                }}
+              >
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis 
                   dataKey="name" 
-                  angle={-45}
+                  angle={-45} 
                   textAnchor="end"
-                  height={70}
-                  tick={{ fontSize: 12 }}
+                  height={70} 
                 />
-                <YAxis label={{ value: 'Hours', angle: -90, position: 'insideLeft' }} />
-                <Tooltip 
-                  formatter={(value) => [`${value} hours`, 'Study Time']}
+                <YAxis 
+                  label={{ value: 'Hours', angle: -90, position: 'insideLeft' }}
                 />
+                <Tooltip />
                 <Legend />
-                <Bar dataKey="hours" name="Study Hours" fill="var(--color-hours)" />
+                <Bar dataKey="hours" fill="#8884d8" name="Study Hours" />
               </BarChart>
-            </ChartContainer>
-          ) : (
-            <div className="flex h-full items-center justify-center">
-              <p className="text-muted-foreground">No data available</p>
-            </div>
-          )}
-        </div>
+            </ResponsiveContainer>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
 };
 
-export default React.memo(StudyTimeChart);
+export default StudyTimeChart;

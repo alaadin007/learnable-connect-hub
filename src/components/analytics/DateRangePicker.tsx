@@ -1,6 +1,8 @@
-import React from "react";
-import { format } from "date-fns";
-import { Calendar as CalendarIcon } from "lucide-react";
+
+import * as React from "react";
+import { CalendarIcon } from "lucide-react";
+import { addDays, format } from "date-fns";
+import { DateRange } from "react-day-picker";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -9,36 +11,39 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { DateRange } from "./types";
 
 interface DateRangePickerProps {
-  dateRange: DateRange | undefined;
-  onDateRangeChange: (range: DateRange | undefined) => void;
+  date: DateRange | undefined;
+  onDateChange: (date: DateRange) => void;
+  className?: string;
 }
 
-export function DateRangePicker({ dateRange, onDateRangeChange }: DateRangePickerProps) {
+export const DateRangePicker: React.FC<DateRangePickerProps> = ({
+  date,
+  onDateChange,
+  className,
+}) => {
   return (
-    <div className="grid gap-2">
+    <div className={cn("grid gap-2", className)}>
       <Popover>
         <PopoverTrigger asChild>
           <Button
             id="date"
-            variant="outline"
+            variant={"outline"}
             className={cn(
-              "w-full justify-start text-left font-normal",
-              !dateRange?.from && "text-muted-foreground"
+              "w-[300px] justify-start text-left font-normal",
+              !date && "text-muted-foreground"
             )}
-            aria-label="Select date range"
           >
             <CalendarIcon className="mr-2 h-4 w-4" />
-            {dateRange?.from ? (
-              dateRange.to ? (
+            {date?.from ? (
+              date.to ? (
                 <>
-                  {format(dateRange.from, "LLL dd, y")} -{" "}
-                  {format(dateRange.to, "LLL dd, y")}
+                  {format(date.from, "LLL dd, y")} -{" "}
+                  {format(date.to, "LLL dd, y")}
                 </>
               ) : (
-                format(dateRange.from, "LLL dd, y")
+                format(date.from, "LLL dd, y")
               )
             ) : (
               <span>Pick a date range</span>
@@ -49,18 +54,49 @@ export function DateRangePicker({ dateRange, onDateRangeChange }: DateRangePicke
           <Calendar
             initialFocus
             mode="range"
-            defaultMonth={dateRange?.from}
-            selected={
-              dateRange
-                ? { from: dateRange.from || undefined, to: dateRange.to }
-                : undefined
-            }
-            onSelect={onDateRangeChange}
+            defaultMonth={date?.from}
+            selected={date}
+            onSelect={(selectedDate) => onDateChange(selectedDate || { from: undefined, to: undefined })}
             numberOfMonths={2}
-            className={cn("p-3 pointer-events-auto")}
           />
+          <div className="p-3 border-t border-border flex gap-2">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="mr-auto"
+              onClick={() => onDateChange({ from: undefined, to: undefined })}
+            >
+              Clear
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                const today = new Date();
+                onDateChange({
+                  from: addDays(today, -7),
+                  to: today
+                });
+              }}
+            >
+              Last 7 days
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                const today = new Date();
+                onDateChange({
+                  from: addDays(today, -30),
+                  to: today
+                });
+              }}
+            >
+              Last 30 days
+            </Button>
+          </div>
         </PopoverContent>
       </Popover>
     </div>
   );
-}
+};

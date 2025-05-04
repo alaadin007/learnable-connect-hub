@@ -1,71 +1,80 @@
 
-import React from 'react';
+import React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
-import { format } from 'date-fns';
-import { StudentPerformanceData } from "./types";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { TrendingUp, TrendingDown, Minus, Loader2 } from "lucide-react";
 
 interface StudentPerformanceTableProps {
-  data: StudentPerformanceData[];
+  data: any[];
   isLoading: boolean;
 }
 
-export const StudentPerformanceTable = ({ data, isLoading }: StudentPerformanceTableProps) => {
-  if (isLoading) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Student Performance</CardTitle>
-          <CardDescription>Student assessment metrics</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Skeleton className="h-[300px] w-full" />
-        </CardContent>
-      </Card>
-    );
-  }
-
+export const StudentPerformanceTable: React.FC<StudentPerformanceTableProps> = ({
+  data,
+  isLoading
+}) => {
   return (
     <Card>
       <CardHeader>
         <CardTitle>Student Performance</CardTitle>
-        <CardDescription>Student assessment metrics and performance data</CardDescription>
+        <CardDescription>Individual student performance metrics</CardDescription>
       </CardHeader>
       <CardContent>
-        {data.length === 0 ? (
-          <div className="flex justify-center items-center py-10 text-muted-foreground">
-            No student performance data available
+        {isLoading ? (
+          <div className="flex justify-center items-center h-40">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <div className="overflow-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Student</TableHead>
-                  <TableHead className="text-right">Avg. Score</TableHead>
-                  <TableHead className="text-right">Assessments Taken</TableHead>
-                  <TableHead className="text-right">Completion Rate</TableHead>
-                  <TableHead>Last Active</TableHead>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Student</TableHead>
+                <TableHead>Teacher</TableHead>
+                <TableHead>Average Score</TableHead>
+                <TableHead>Subjects</TableHead>
+                <TableHead>Trend</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.map((student) => (
+                <TableRow key={student.id}>
+                  <TableCell className="font-medium">{student.name}</TableCell>
+                  <TableCell>{student.teacher}</TableCell>
+                  <TableCell>{student.avgScore}</TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1">
+                      {student.subjects.map((subject: string, i: number) => (
+                        <Badge key={i} variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                          {subject}
+                        </Badge>
+                      ))}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center space-x-2">
+                      {student.trend === 'up' ? (
+                        <TrendingUp className="h-4 w-4 text-green-500" />
+                      ) : student.trend === 'down' ? (
+                        <TrendingDown className="h-4 w-4 text-red-500" />
+                      ) : (
+                        <Minus className="h-4 w-4 text-gray-500" />
+                      )}
+                      <span className={
+                        student.trend === 'up' ? 'text-green-600' :
+                        student.trend === 'down' ? 'text-red-600' : 'text-gray-600'
+                      }>
+                        {student.trend === 'up' ? 'Improving' :
+                         student.trend === 'down' ? 'Declining' : 'Stable'}
+                      </span>
+                    </div>
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.map((student, index) => (
-                  <TableRow key={student.id || index}>
-                    <TableCell className="font-medium">{student.name}</TableCell>
-                    <TableCell className="text-right">{student.avg_score || student.average_score || 0}%</TableCell>
-                    <TableCell className="text-right">{student.assessments_taken || 0}</TableCell>
-                    <TableCell className="text-right">{student.completion_rate || 0}%</TableCell>
-                    <TableCell>{student.last_active || "Not available"}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+              ))}
+            </TableBody>
+          </Table>
         )}
       </CardContent>
     </Card>
   );
 };
-
-export default StudentPerformanceTable;

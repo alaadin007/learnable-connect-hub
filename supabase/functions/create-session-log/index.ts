@@ -9,37 +9,30 @@ const corsHeaders = {
 };
 
 serve(async (req: Request) => {
-  // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response(null, {
       headers: corsHeaders,
+      status: 204,
     });
   }
 
   try {
-    // Get the authorization token from the request
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(
         JSON.stringify({ error: "Authorization header missing" }),
-        {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
-    // Create a Supabase client with the authorization token
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_ANON_KEY") ?? "",
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    // Get request body
-    const { topic = null } = await req.json();
+    const { topic } = await req.json();
 
-    // Call the create_session_log function
     const { data, error } = await supabaseClient.rpc("create_session_log", {
       topic,
     });
@@ -52,7 +45,7 @@ serve(async (req: Request) => {
       });
     }
 
-    return new Response(JSON.stringify({ success: true, logId: data }), {
+    return new Response(JSON.stringify({ logId: data }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

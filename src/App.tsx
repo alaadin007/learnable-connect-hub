@@ -1,174 +1,114 @@
+import React, { useState, useEffect } from "react";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { ThemeProvider } from "@/components/theme-provider"
+import { Toaster } from "sonner";
 
-import React from "react";
-import {
-  Route,
-  Routes,
-  Navigate,
-  useLocation
-} from "react-router-dom";
-import { AuthProvider } from "./contexts/AuthContext";
-import ProtectedRoute from "./components/auth/ProtectedRoute";
-import Dashboard from "./pages/Dashboard";
-import Login from "./pages/Login";
-import Register from "./pages/Register";
-import About from "./pages/About";
-import Contact from "./pages/Contact";
-import Features from "./pages/Features";
-import Index from "./pages/Index";
-import NotFound from "./pages/NotFound";
-import Unauthorized from "./pages/Unauthorized";
-import AdminTools from "./pages/AdminTools";
-import SchoolRegistration from "./pages/SchoolRegistration";
-import Pricing from "./pages/Pricing";
-import TestAccounts from "./pages/TestAccounts";
-import SchoolAdmin from "./pages/SchoolAdmin";
-import TeacherAnalytics from "./pages/TeacherAnalytics";
-import SchoolSettings from "./pages/SchoolSettings";
-import AdminTeacherManagement from "./pages/AdminTeacherManagement";
-import AdminTeachers from "./pages/AdminTeachers";
-import AdminAnalytics from "./pages/AdminAnalytics";
-import ChatWithAI from "./pages/ChatWithAI";
-import AdminStudents from "./pages/AdminStudents";
-import Documents from "./pages/Documents";
-import "./App.css";
+// Import components and pages
+import Home from "@/pages/Home";
+import About from "@/pages/About";
+import Contact from "@/pages/Contact";
+import Features from "@/pages/Features";
+import Pricing from "@/pages/Pricing";
+import PrivacyPolicy from "@/pages/PrivacyPolicy";
+import Login from "@/pages/Login";
+import Register from "@/pages/Register";
+import Dashboard from "@/pages/Dashboard";
+import ChatWithAI from "@/pages/ChatWithAI";
+import Documents from "@/pages/Documents";
+import AdminTeachers from "@/pages/AdminTeachers";
+import AdminStudents from "@/pages/AdminStudents";
+import SchoolSettings from "@/pages/SchoolSettings";
+import SchoolRegistration from "@/pages/SchoolRegistration";
+import TestAccounts from "@/pages/TestAccounts";
+import TeacherInvitation from "@/pages/TeacherInvitation";
+import NotFound from "@/pages/NotFound";
+import ProtectedRoute from "@/components/auth/ProtectedRoute";
+import { AuthProvider } from "@/contexts/AuthContext";
+import SchoolAdmin from "@/pages/SchoolAdmin";
+import AdminAnalytics from "@/pages/AdminAnalytics";
+import TeacherStudents from "@/pages/TeacherStudents";
+import TeacherAnalytics from "@/pages/TeacherAnalytics";
+import StudentProgress from "@/pages/StudentProgress";
+import StudentAssessments from "@/pages/StudentAssessments";
+import StudentSettings from "@/pages/StudentSettings";
+import AdminTools from "@/pages/AdminTools";
+import AdminTeacherManagement from "@/pages/AdminTeacherManagement";
+
+// Define demo mode status
+const isDemoMode = import.meta.env.VITE_DEMO_MODE === "true";
 
 function App() {
-  return (
-    <AuthProvider>
-      <AppRoutes />
-    </AuthProvider>
+  const [demoUserType, setDemoUserType] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Check if the app is running in demo mode
+    if (isDemoMode) {
+      // Retrieve the user type from local storage
+      const userType = localStorage.getItem("demoUserType");
+      setDemoUserType(userType);
+    }
+  }, []);
+
+  // Demo notice component
+  const DemoNotice = ({ userType }: { userType: string | null }) => (
+    <div className="fixed top-0 left-0 w-full bg-yellow-500 text-yellow-900 p-2 text-center z-50">
+      This is a demo. You are logged in as a {userType}.
+    </div>
   );
-}
 
-// Separate the routes component to ensure it's within the AuthProvider
-function AppRoutes() {
-  const location = useLocation();
-  
   return (
-    <Routes>
-      {/* Public routes */}
-      <Route path="/" element={<Index />} />
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
-      <Route path="/school-registration" element={<SchoolRegistration />} />
-      <Route path="/pricing" element={<Pricing />} />
-      <Route path="/features" element={<Features />} />
-      <Route path="/contact" element={<Contact />} />
-      <Route path="/about" element={<About />} />
-      <Route path="/test-accounts" element={<TestAccounts />} />
-      <Route path="/unauthorized" element={<Unauthorized />} />
-      
-      {/* Add a direct route to redirect school admins */}
-      <Route 
-        path="/admin-redirect" 
-        element={
-          <ProtectedRoute requiredRole="school">
-            <Navigate to="/admin" replace />
-          </ProtectedRoute>
-        } 
-      />
+    <BrowserRouter>
+      <AuthProvider>
+        <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
+          {isDemoMode && <DemoNotice userType={demoUserType} />}
+          <Routes>
+            {/* Keep existing public routes */}
+            <Route path="/" element={<Home />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/contact" element={<Contact />} />
+            <Route path="/features" element={<Features />} />
+            <Route path="/pricing" element={<Pricing />} />
+            <Route path="/privacy" element={<PrivacyPolicy />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/school-registration" element={<SchoolRegistration />} />
+            <Route path="/test-accounts" element={<TestAccounts />} />
 
-      {/* Protected routes */}
-      <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
-        }
-      />
-      
-      {/* Chat route */}
-      <Route
-        path="/chat"
-        element={
-          <ProtectedRoute>
-            <ChatWithAI />
-          </ProtectedRoute>
-        }
-      />
-      
-      {/* Documents route */}
-      <Route
-        path="/documents"
-        element={
-          <ProtectedRoute>
-            <Documents />
-          </ProtectedRoute>
-        }
-      />
-      
-      {/* School Admin Routes */}
-      <Route
-        path="/admin"
-        element={
-          <ProtectedRoute requiredRole="school">
-            <SchoolAdmin />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/settings"
-        element={
-          <ProtectedRoute requiredRole="school">
-            <SchoolSettings />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/teacher-management"
-        element={
-          <ProtectedRoute requiredRole="school">
-            <AdminTeacherManagement />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/teachers"
-        element={
-          <ProtectedRoute requiredRole="school">
-            <AdminTeachers />
-          </ProtectedRoute>
-        }
-      />
-      <Route 
-        path="/admin/tools" 
-        element={
-          <ProtectedRoute requiredRole="school">
-            <AdminTools />
-          </ProtectedRoute>
-        } 
-      />
-      <Route 
-        path="/admin/analytics" 
-        element={
-          <ProtectedRoute requiredRole="school">
-            <AdminAnalytics />
-          </ProtectedRoute>
-        } 
-      />
-      <Route
-        path="/admin/students"
-        element={
-          <ProtectedRoute requiredRole="school">
-            <AdminStudents />
-          </ProtectedRoute>
-        }
-      />
-      
-      {/* Teacher Routes */}
-      <Route
-        path="/teacher/analytics"
-        element={
-          <ProtectedRoute requiredRole="teacher">
-            <TeacherAnalytics />
-          </ProtectedRoute>
-        }
-      />
+            {/* Protected routes */}
+            <Route element={<ProtectedRoute />}>
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/chat" element={<ChatWithAI />} />
+              <Route path="/documents" element={<Documents />} />
+              
+              {/* Admin routes */}
+              <Route path="/admin/teachers" element={<AdminTeachers />} />
+              <Route path="/admin/students" element={<AdminStudents />} />
+              <Route path="/admin/settings" element={<SchoolSettings />} />
+              <Route path="/admin/analytics" element={<AdminAnalytics />} />
+              <Route path="/admin" element={<SchoolAdmin />} />
+              <Route path="/admin/tools" element={<AdminTools />} />
+              <Route path="/admin/teacher-management" element={<AdminTeacherManagement />} />
 
-      {/* Catch-all route for 404 errors */}
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+              {/* Teacher routes */}
+              <Route path="/teacher/students" element={<TeacherStudents />} />
+              <Route path="/teacher/analytics" element={<TeacherAnalytics />} />
+
+              {/* Student routes */}
+              <Route path="/student/progress" element={<StudentProgress />} />
+              <Route path="/student/assessments" element={<StudentAssessments />} />
+              <Route path="/student/settings" element={<StudentSettings />} />
+            </Route>
+
+            {/* Special invite route */}
+            <Route path="/invite/teacher/:token" element={<TeacherInvitation />} />
+            
+            {/* 404 route */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+          <Toaster position="top-center" />
+        </ThemeProvider>
+      </AuthProvider>
+    </BrowserRouter>
   );
 }
 
