@@ -42,7 +42,7 @@ serve(async (req) => {
     }
 
     // Generate stable test account data
-    const email = `${type}.test${schoolIndex}@learnable.edu`;
+    const email = `${type}.test${schoolIndex > 0 ? schoolIndex : ''}@learnable.edu`;
     const password = "test123456"; // Simple password for test accounts
     const fullName = `Test ${type.charAt(0).toUpperCase()}${type.slice(1)}${schoolIndex > 0 ? ' ' + schoolIndex : ''}`;
     const schoolName = schoolIndex > 0 ? `Test School ${schoolIndex}` : "Test School";

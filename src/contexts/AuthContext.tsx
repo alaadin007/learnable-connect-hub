@@ -593,15 +593,31 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
     try {
       console.log(`AuthContext: Setting up test user of type: ${type}`);
       
-      // Generate a stable ID for the test user
-      const mockId = `test-${type}-${schoolIndex}`;
+      // Try to use the edge function first to ensure the test account exists
+      const response = await supabase.functions.invoke("create-test-accounts", {
+        body: { 
+          type, 
+          schoolIndex 
+        },
+      });
       
-      // Create mock user object
+      if (response.error) {
+        console.error("Error from create-test-accounts function:", response.error);
+        throw new Error(`Failed to set up test account: ${response.error.message}`);
+      }
+      
+      console.log("Test account response:", response.data);
+      const testUserId = response.data?.userId || `test-${type}-${schoolIndex}`;
+      
+      // Generate ID for test user if not provided by the edge function
+      const mockId = testUserId;
+      
+      // Create mock user object with consistent properties
       const mockUser: User = {
         id: mockId,
-        email: `${type}.test@learnable.edu`,
+        email: `${type}.test${schoolIndex > 0 ? schoolIndex : ''}@learnable.edu`,
         user_metadata: {
-          full_name: `Test ${type.charAt(0).toUpperCase() + type.slice(1)}`,
+          full_name: `Test ${type.charAt(0).toUpperCase()}${type.slice(1)}${schoolIndex > 0 ? ' ' + schoolIndex : ''}`,
           user_type: type,
         },
         app_metadata: {},
@@ -609,16 +625,16 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
         created_at: new Date().toISOString(),
       };
 
-      // Create test organization with complete required properties
+      // Create test organization with required properties
       const testOrgId = `test-school-${schoolIndex}`;
-      const testOrgName = schoolIndex === 0 ? "Test School" : `Test School ${schoolIndex + 1}`;
+      const testOrgName = schoolIndex === 0 ? "Test School" : `Test School ${schoolIndex}`;
       const testOrgCode = `TEST${schoolIndex}`;
       
       // Create mock profile with organization data
       const mockProfile: UserProfile = {
         id: mockId,
         user_type: type,
-        full_name: `Test ${type.charAt(0).toUpperCase() + type.slice(1)}`,
+        full_name: `Test ${type.charAt(0).toUpperCase()}${type.slice(1)}${schoolIndex > 0 ? ' ' + schoolIndex : ''}`,
         organization: {
           id: testOrgId,
           name: testOrgName,
@@ -642,8 +658,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       console.log(`AuthContext: Test user set up successfully. User role: ${type}`);
       console.log(`AuthContext: Test user profile:`, mockProfile);
 
-      // Redirect based on role
-      handleRoleBasedRedirection(type);
+      // Redirect based on role will happen in the caller component
 
       // Create mock sessions and data for different user types (in background)
       setTimeout(() => {

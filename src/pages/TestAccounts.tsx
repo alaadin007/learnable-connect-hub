@@ -13,7 +13,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 const TEST_ACCOUNTS = {
   school: {
     email: "school.test@learnable.edu",
-    password: "school123",
+    password: "test123456",
     role: "School Admin",
     description: "Access the school administrator dashboard and manage teachers",
     features: [
@@ -26,7 +26,7 @@ const TEST_ACCOUNTS = {
   },
   teacher: {
     email: "teacher.test@learnable.edu",
-    password: "teacher123",
+    password: "test123456",
     role: "Teacher",
     description: "Access teacher analytics and student management",
     features: [
@@ -39,7 +39,7 @@ const TEST_ACCOUNTS = {
   },
   student: {
     email: "student.test@learnable.edu",
-    password: "student123",
+    password: "test123456",
     role: "Student",
     description: "Access student dashboard with learning tools",
     features: [
@@ -82,9 +82,9 @@ const TestAccounts = () => {
         id: "test-accounts-status",
       });
 
-      // Check if create-test-accounts function is available in Supabase config
+      // Check if create-test-accounts function exists in Supabase
       const response = await supabase.functions.invoke("create-test-accounts", {
-        body: { createAccounts: true },
+        body: { type: "school", schoolIndex: 0 },
       });
 
       if (response.error) {
@@ -115,16 +115,29 @@ const TestAccounts = () => {
     async (accountType: AccountType) => {
       setErrorMessage(null);
       setLoadingAccount(accountType);
-      const account = TEST_ACCOUNTS[accountType];
-
+      
       try {
-        console.log(`TestAccounts: Logging in as ${accountType} test account...`);
+        console.log(`TestAccounts: Setting up ${accountType} test account...`);
         
-        // First set test user in auth context
+        // First create or ensure test account exists via edge function
+        const response = await supabase.functions.invoke("create-test-accounts", {
+          body: { 
+            type: accountType,
+            schoolIndex: 0
+          },
+        });
+        
+        if (response.error) {
+          throw new Error(`Failed to set up test account: ${response.error.message}`);
+        }
+        
+        console.log(`TestAccounts: Test account created/verified`, response.data);
+        
+        // Then set test user in auth context
         await setTestUser(accountType);
         
         // Immediately show success toast so user gets feedback
-        toast.success(`Logged in as ${account.role}`, {
+        toast.success(`Logged in as ${TEST_ACCOUNTS[accountType].role}`, {
           id: `login-success-${accountType}`,
         });
 
@@ -139,7 +152,7 @@ const TestAccounts = () => {
 
         console.log(`TestAccounts: Navigating to ${redirectPath} for ${accountType}`);
         
-        // Don't add a delay here - navigate right away with proper state parameters
+        // Navigate with proper state parameters
         navigate(redirectPath, {
           replace: true,
           state: { 
