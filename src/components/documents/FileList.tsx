@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -19,6 +18,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type FileItem = {
   id: string;
@@ -37,7 +37,11 @@ type DocumentContent = {
   section_number: number;
 }
 
-const FileList: React.FC = () => {
+interface FileListProps {
+  onError?: (errorMessage: string) => void;
+}
+
+const FileList: React.FC<FileListProps> = ({ onError }) => {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [fileToDelete, setFileToDelete] = useState<FileItem | null>(null);
@@ -63,13 +67,25 @@ const FileList: React.FC = () => {
       }
       
       setFiles(data || []);
+      // Clear error if successful
+      if (onError) onError(null);
+      
     } catch (error) {
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : 'Failed to fetch your files';
+      
       toast({
         title: 'Error',
-        description: 'Failed to fetch your files',
+        description: errorMessage,
         variant: 'destructive',
       });
+      
       console.error('Error fetching files:', error);
+      
+      // Report error to parent component
+      if (onError) onError(errorMessage);
+      
     } finally {
       setLoading(false);
     }
@@ -326,22 +342,56 @@ const FileList: React.FC = () => {
 
   return (
     <div>
-      <h3 className="text-lg font-medium mb-4">Your Files</h3>
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-lg font-medium">Your Files</h3>
+        <Button 
+          variant="outline" 
+          size="sm"
+          onClick={fetchFiles}
+          disabled={loading}
+          className="text-xs"
+        >
+          {loading ? (
+            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <>
+              <RefreshCw className="h-3.5 w-3.5 mr-1" /> Refresh
+            </>
+          )}
+        </Button>
+      </div>
       
       {loading ? (
         <div className="space-y-2">
           {Array.from({ length: 3 }).map((_, i) => (
-            <Card key={i} className="animate-pulse">
+            <Card key={i} className="overflow-hidden">
               <CardContent className="p-4">
-                <div className="h-16 bg-gray-200 rounded"></div>
+                <div className="flex items-center">
+                  <Skeleton className="h-10 w-10 mr-3" />
+                  <div className="flex-grow">
+                    <Skeleton className="h-4 w-3/4 mb-2" />
+                    <Skeleton className="h-3 w-1/2" />
+                  </div>
+                  <Skeleton className="h-8 w-8 mx-1" />
+                  <Skeleton className="h-8 w-8 mx-1" />
+                  <Skeleton className="h-8 w-8 mx-1" />
+                </div>
               </CardContent>
             </Card>
           ))}
         </div>
       ) : files.length === 0 ? (
-        <p className="text-center py-8 text-gray-500">
-          You haven't uploaded any files yet.
-        </p>
+        <div className="text-center py-8 bg-gray-50 border border-gray-100 rounded-md">
+          <div className="mb-2">
+            <AlertCircle className="h-12 w-12 mx-auto text-gray-400" />
+          </div>
+          <p className="text-gray-500 mb-1">
+            You haven't uploaded any files yet.
+          </p>
+          <p className="text-sm text-gray-400">
+            Files you upload will appear here
+          </p>
+        </div>
       ) : (
         <div className="space-y-3">
           {files.map((file) => (
