@@ -19,6 +19,7 @@ const AdminTools = () => {
     }
   }, [userRole, navigate]);
 
+  // Simple rendering decision - no loading states
   if (!userRole) {
     return (
       <div className="flex items-center justify-center min-h-screen">

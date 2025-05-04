@@ -52,7 +52,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true); // Start with loading=true
+  const [isLoading, setIsLoading] = useState<boolean>(false); // Initialize as false to avoid flickering
   const [schoolId, setSchoolId] = useState<string | null>(null);
   const [isSupervisor, setIsSupervisor] = useState<boolean>(false);
   const [isTestUser, setIsTestUser] = useState<boolean>(false);
@@ -312,7 +312,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [navigate, getDashboardByRole]);
 
   const signIn = useCallback(async (email: string, password: string) => {
-    setIsLoading(true);
     try {
       if (isTestAccount(email)) {
         let accountType = "student";
@@ -331,6 +330,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Reset test user state for real logins
       setIsTestUser(false);
 
+      // Don't set loading state for real users to avoid flicker
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       if (!data.user) throw new Error("No user returned from login");
@@ -342,8 +342,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       toast.error(`Login failed: ${(error as Error).message}`);
       throw error;
-    } finally {
-      setIsLoading(false);
     }
   }, [fetchUserProfile, handleAuthenticatedNavigation, setTestUser]);
 
@@ -403,8 +401,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const initAuth = async () => {
-      setIsLoading(true);
-      
       try {
         const storedTestUser = localStorage.getItem("testUser");
         const storedTestRole = localStorage.getItem("testUserRole");
@@ -412,7 +408,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (storedTestUser && storedTestRole) {
           console.log("Restoring test user session from localStorage");
-          setIsLoading(false); // Immediately turn off loading for test users
           
           try {
             const testUser = JSON.parse(storedTestUser) as User;
@@ -466,11 +461,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch (error) {
         console.error("Auth initialization error:", error);
         setInitAttempts(prev => prev + 1);
-      } finally {
-        // Always turn off loading after a reasonable timeout
-        setTimeout(() => {
-          setIsLoading(false);
-        }, 100);
       }
     };
 
@@ -486,7 +476,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log("Auth state changed:", event);
       
-      // Avoid doing async operations directly in the callback
       if (event === "SIGNED_IN" && session?.user) {
         setUser(session.user);
         // Use setTimeout to avoid potential recursion issues with Supabase client
@@ -512,17 +501,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [fetchUserProfile, initAttempts]);
 
-  // Force reset of loading state after a maximum time to prevent infinite loading
-  useEffect(() => {
-    if (isLoading) {
-      const timeoutId = setTimeout(() => {
-        console.warn("Auth context: Maximum loading time reached, forcing resolution");
-        setIsLoading(false);
-      }, 3000);
-      
-      return () => clearTimeout(timeoutId);
-    }
-  }, [isLoading]);
+  // Remove maximum loading time effect since we're removing loading states
 
   return (
     <AuthContext.Provider value={{
