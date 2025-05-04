@@ -158,7 +158,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess }) => {
       console.error('Upload error:', error);
       setError(error instanceof Error ? error.message : 'An unknown error occurred');
       
-      // Using the correct toast API without problematic properties
+      // Using the correct toast API for error notifications
       toast.error('Upload Failed', {
         description: error instanceof Error ? error.message : 'Failed to upload file',
       });

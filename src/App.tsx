@@ -5,7 +5,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "sonner";
 
 // Import components and pages
-import Home from "@/pages/Home";
+import Index from "@/pages/Index";
 import About from "@/pages/About";
 import Contact from "@/pages/Contact";
 import Features from "@/pages/Features";
@@ -64,8 +64,8 @@ function App() {
         <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
           {isDemoMode && <DemoNotice userType={demoUserType} />}
           <Routes>
-            {/* Keep existing public routes */}
-            <Route path="/" element={<Home />} />
+            {/* Public routes */}
+            <Route path="/" element={<Index />} />
             <Route path="/about" element={<About />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/features" element={<Features />} />
