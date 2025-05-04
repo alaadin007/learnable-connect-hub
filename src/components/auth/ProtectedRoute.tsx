@@ -4,7 +4,7 @@ import { useAuth, UserRole } from "@/contexts/AuthContext";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  requiredUserType?: UserRole;
+  requiredRole?: UserRole;
   requireSupervisor?: boolean;
   requireSameSchool?: boolean;
   schoolId?: string;
@@ -13,7 +13,7 @@ interface ProtectedRouteProps {
 
 const ProtectedRoute = ({ 
   children, 
-  requiredUserType,
+  requiredRole,
   allowedRoles, 
   requireSupervisor = false,
   requireSameSchool = false,
@@ -32,7 +32,7 @@ const ProtectedRoute = ({
   }
 
   // If we require a specific user type and the user doesn't have it
-  if (requiredUserType && userRole !== requiredUserType) {
+  if (requiredRole && userRole !== requiredRole) {
     // Redirect based on user role instead of generic dashboard
     const redirectPath = userRole === 'school' ? '/admin' : 
                         userRole === 'teacher' ? '/teacher/analytics' : 
