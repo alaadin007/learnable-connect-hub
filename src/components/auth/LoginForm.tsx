@@ -126,7 +126,7 @@ const LoginForm = () => {
       </CardHeader>
       <CardContent className="space-y-4">
         {showVerificationAlert && (
-          <Alert variant="warning" className="bg-amber-50 border-amber-200">
+          <Alert className="bg-amber-50 border-amber-200">
             <AlertCircle className="h-4 w-4 text-amber-600" />
             <AlertTitle className="text-amber-800">Email not verified</AlertTitle>
             <AlertDescription className="text-amber-700">
