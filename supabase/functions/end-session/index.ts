@@ -9,45 +9,40 @@ const corsHeaders = {
 };
 
 serve(async (req: Request) => {
-  // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response(null, {
       headers: corsHeaders,
+      status: 204,
     });
   }
 
   try {
-    // Get the authorization token from the request
+    // Get authorization token
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(
         JSON.stringify({ error: "Authorization header missing" }),
-        {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
-    // Create a Supabase client with the authorization token
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_ANON_KEY") ?? "",
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    // Get request body
-    const { logId, performanceData = null } = await req.json();
+    const requestData = await req.json();
+    const { logId, performanceData = null } = requestData;
 
     if (!logId) {
-      return new Response(JSON.stringify({ error: "Log ID is required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: "Log ID is required" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
-    // End the session
-    const { data, error } = await supabaseClient.rpc("end_session_log", {
+    const { error } = await supabaseClient.rpc("end_session_log", {
       log_id: logId,
       performance_data: performanceData,
     });
