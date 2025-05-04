@@ -8,7 +8,7 @@ import { Progress } from '@/components/ui/progress';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, isTestAccount } from '@/integrations/supabase/client';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_FILE_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
@@ -20,7 +20,7 @@ const FileUpload: React.FC = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [processingStatus, setProcessingStatus] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
-  const { user } = useAuth();
+  const { user, isTestUser } = useAuth();
 
   const validateFile = (file: File): { valid: boolean; message?: string } => {
     if (!file) return { valid: false, message: 'No file selected.' };
@@ -97,6 +97,21 @@ const FileUpload: React.FC = () => {
     try {
       setProcessingStatus('pending');
       
+      // Check if this is a test account
+      if (isTestUser || (user && user.email && isTestAccount(user.email))) {
+        console.log('Test account detected: simulating document processing');
+        // Simulate processing for test accounts
+        setTimeout(() => {
+          setProcessingStatus('processing');
+          // Simulate completion after another delay
+          setTimeout(() => {
+            setProcessingStatus(null);
+          }, 3000);
+        }, 1000);
+        return;
+      }
+      
+      // Real account - call the actual function
       const { error } = await supabase.functions.invoke('process-document', {
         body: { document_id: documentId }
       });
@@ -132,6 +147,40 @@ const FileUpload: React.FC = () => {
     setProcessingStatus(null);
     
     try {
+      // Check if this is a test account
+      if (isTestUser || (user.email && isTestAccount(user.email))) {
+        console.log('Test account detected: simulating file upload');
+        
+        // Simulate upload progress for test accounts
+        let progress = 0;
+        const interval = setInterval(() => {
+          progress += 10;
+          setUploadProgress(Math.min(progress, 100));
+          if (progress >= 100) {
+            clearInterval(interval);
+            
+            // Simulate metadata processing
+            setTimeout(() => {
+              // Mock document ID for processing simulation
+              const mockDocumentId = `test-doc-${Date.now()}`;
+              triggerContentProcessing(mockDocumentId);
+              
+              toast.success("Upload Successful", {
+                description: `${file.name} has been uploaded and is being processed.`
+              });
+              
+              setFile(null);
+              // Reset file input by clearing the form
+              const fileInput = document.getElementById('file-upload') as HTMLInputElement;
+              if (fileInput) fileInput.value = '';
+            }, 500);
+          }
+        }, 200);
+        
+        return;
+      }
+      
+      // Real account - perform actual upload
       // Create a unique file path using user ID
       const fileExt = file.name.split('.').pop();
       const filePath = `${user.id}/${Date.now()}_${file.name}`;
