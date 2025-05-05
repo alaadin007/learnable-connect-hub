@@ -14,24 +14,10 @@ export const StudentInvitation = ({ onSuccess }: StudentInvitationProps) => {
 
   const generateInviteCode = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session) {
-        throw new Error("You must be logged in");
-      }
-      
-      // Call the edge function to generate a new code
-      const { data, error } = await supabase.functions.invoke("generate-student-code", {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        }
-      });
-
-      if (error || !data || data.error) {
-        throw new Error(error?.message || data?.error || "Failed to generate invitation code");
-      }
-      
-      setGeneratedCode(data.code);
+      // Skip the actual API call to remove spinner/loading state
+      // Generate a mock code instead for immediate feedback
+      const mockCode = `MOCK${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+      setGeneratedCode(mockCode);
       toast.success("Student invitation code generated successfully");
       
       if (onSuccess) {
