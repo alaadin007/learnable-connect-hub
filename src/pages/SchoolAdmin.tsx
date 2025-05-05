@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -8,7 +7,7 @@ import TeacherManagement from "@/components/school-admin/TeacherManagement";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Users, BarChart2, ChevronDown, Settings, User } from "lucide-react";
+import { Users, BarChart2, ChevronDown, Settings, User, MessageSquare, FileText } from "lucide-react";
 import { toast } from "sonner";
 import {
   DropdownMenu,
@@ -87,6 +86,12 @@ const SchoolAdmin = () => {
       case "dashboard":
         navigate("/dashboard");
         break;
+      case "chat":
+        navigate("/chat");
+        break;
+      case "documents":
+        navigate("/documents");
+        break;
       default:
         break;
     }
@@ -122,6 +127,7 @@ const SchoolAdmin = () => {
             </p>
           </div>
           
+          {/* School Information Card */}
           <Card className="mb-6">
             <CardHeader>
               <CardTitle>School Information</CardTitle>
@@ -131,11 +137,11 @@ const SchoolAdmin = () => {
               <div className="space-y-2">
                 <div className="flex flex-col sm:flex-row sm:items-center">
                   <span className="font-medium min-w-32">School Name:</span>
-                  <span>{schoolName}</span>
+                  <span>{profile?.organization?.name || "Not available"}</span>
                 </div>
                 <div className="flex flex-col sm:flex-row sm:items-center">
                   <span className="font-medium min-w-32">School Code:</span>
-                  <span className="font-mono">{schoolCode}</span>
+                  <span className="font-mono">{profile?.organization?.code || "Not available"}</span>
                 </div>
                 <p className="text-sm text-muted-foreground mt-2">
                   Your school code is used to invite teachers and students to join your school.
@@ -144,6 +150,7 @@ const SchoolAdmin = () => {
             </CardContent>
           </Card>
           
+          {/* Quick Actions */}
           <div className="mb-6 flex flex-wrap gap-3 justify-between items-center">
             <h2 className="text-xl font-semibold">Quick Actions</h2>
             <div className="flex flex-wrap gap-3">
@@ -175,11 +182,20 @@ const SchoolAdmin = () => {
                     <User className="mr-2 h-4 w-4" />
                     <span>Student Management</span>
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleQuickActionSelect("chat")}>
+                    <MessageSquare className="mr-2 h-4 w-4" />
+                    <span>Chat</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleQuickActionSelect("documents")}>
+                    <FileText className="mr-2 h-4 w-4" />
+                    <span>Documents</span>
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
           </div>
           
+          {/* Main Content Tabs */}
           <Tabs defaultValue="teachers" value={activeTab} onValueChange={handleTabClick} className="space-y-4">
             <TabsList className="w-full border-b">
               <TabsTrigger value="teachers" className="flex-1">
@@ -262,6 +278,51 @@ const SchoolAdmin = () => {
               </Card>
             </TabsContent>
           </Tabs>
+          
+          {/* Additional Cards for Chat and Documents */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Chat with AI</CardTitle>
+                <CardDescription>Get help from our AI learning assistant</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col gap-4">
+                  <p className="text-muted-foreground mb-4">
+                    Get assistance with administrative tasks and educational questions.
+                  </p>
+                  <Button 
+                    onClick={() => navigate('/chat')}
+                    className="w-full sm:w-auto gradient-bg"
+                  >
+                    <MessageSquare className="mr-2 h-4 w-4" />
+                    Go to Chat
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader>
+                <CardTitle>Documents</CardTitle>
+                <CardDescription>Upload and manage learning materials</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col gap-4">
+                  <p className="text-muted-foreground mb-4">
+                    Manage and organize educational documents for your school.
+                  </p>
+                  <Button 
+                    onClick={() => navigate('/documents')}
+                    className="w-full sm:w-auto gradient-bg"
+                  >
+                    <FileText className="mr-2 h-4 w-4" />
+                    Go to Documents
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </main>
       <Footer />

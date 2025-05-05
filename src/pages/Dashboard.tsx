@@ -1,4 +1,3 @@
-
 import React, { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -233,6 +232,12 @@ const SchoolAdminDashboard: React.FC<{ profile: any }> = ({ profile }) => {
       case "student-management":
         navigate("/admin/students");
         break;
+      case "chat":
+        navigate("/chat");
+        break;
+      case "documents":
+        navigate("/documents");
+        break;
       case "dashboard":
         navigate("/dashboard");
         break;
@@ -305,6 +310,14 @@ const SchoolAdminDashboard: React.FC<{ profile: any }> = ({ profile }) => {
                   <DropdownMenuItem onClick={() => handleQuickActionSelect("student-management")}>
                     <User className="mr-2 h-4 w-4" />
                     Student Management
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleQuickActionSelect("chat")}>
+                    <MessageSquare className="mr-2 h-4 w-4" />
+                    Chat
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleQuickActionSelect("documents")}>
+                    <FileText className="mr-2 h-4 w-4" />
+                    Documents
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

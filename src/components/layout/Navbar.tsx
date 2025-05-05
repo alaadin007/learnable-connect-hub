@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -19,7 +18,6 @@ const Navbar = () => {
 
   const handleLogout = useCallback(async () => {
     try {
-      // Direct logout without spinners or delays
       await signOut();
       toast.success("Logged out successfully");
       navigate("/login");
@@ -46,9 +44,6 @@ const Navbar = () => {
     location.pathname === path || location.pathname.startsWith("/invitation/")
   );
   const isLoggedIn = !!user && !isPublicPage && !isAuthPage;
-
-  const profileUserType = profile?.user_type ?? null;
-
   const isTestAccountsPage = location.pathname === "/test-accounts";
 
   const getNavLinks = useCallback(() => {
@@ -64,7 +59,7 @@ const Navbar = () => {
       ];
     }
 
-    // Updated navigation links based on the image
+    // Updated navigation links to match the image
     return [
       { name: "Dashboard", href: "/dashboard" },
       { name: "School Admin", href: "/admin" },
@@ -78,26 +73,22 @@ const Navbar = () => {
   const isActiveLink = useCallback((href: string): boolean => {
     const currentPath = location.pathname;
 
-    switch (href) {
-      case "/dashboard":
-        return currentPath === "/dashboard";
-      case "/admin":
-        // Active for /admin exactly but not for known subpaths handled separately
-        return currentPath === "/admin";
-      case "/admin/teacher-management":
-      case "/admin/teachers":
-      case "/admin/analytics":
-      case "/admin/students":
-      case "/teacher/students":
-      case "/teacher/analytics":
-        return currentPath === href;
-      case "/chat":
-        return currentPath === "/chat" || currentPath.startsWith("/chat/");
-      case "/documents":
-        return currentPath === "/documents" || currentPath.startsWith("/documents/");
-      default:
-        return currentPath === href;
+    // Updated active link detection logic
+    if (href === "/dashboard") {
+      return currentPath === "/dashboard";
+    } else if (href === "/admin") {
+      return currentPath === "/admin" || currentPath.startsWith("/admin/");
+    } else if (href === "/admin/teachers") {
+      return currentPath === "/admin/teachers";
+    } else if (href === "/admin/analytics") {
+      return currentPath === "/admin/analytics";
+    } else if (href === "/chat") {
+      return currentPath === "/chat" || currentPath.startsWith("/chat/");
+    } else if (href === "/documents") {
+      return currentPath === "/documents" || currentPath.startsWith("/documents/");
     }
+    
+    return currentPath === href;
   }, [location.pathname]);
 
   const handleNavigation = useCallback((path: string) => {
