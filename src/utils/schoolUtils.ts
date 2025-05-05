@@ -154,6 +154,8 @@ export const generateStudentInviteCode = async () => {
 
 /**
  * Get information about the current school
+ * @returns Either an object with school_id, school_name, school_code or
+ * a direct school record with id, name, code
  */
 export const getCurrentSchoolInfo = async () => {
   try {

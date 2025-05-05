@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -54,11 +55,22 @@ const SchoolAdmin = () => {
       const schoolData = await getCurrentSchoolInfo();
       
       if (schoolData) {
-        setSchoolInfo({
-          id: schoolData.school_id || '',
-          name: schoolData.school_name || "Not available",
-          code: schoolData.school_code || "Not available"
-        });
+        // Handle both return types from getCurrentSchoolInfo
+        if ('school_id' in schoolData) {
+          // This is the response from the RPC function
+          setSchoolInfo({
+            id: schoolData.school_id || '',
+            name: schoolData.school_name || "Not available",
+            code: schoolData.school_code || "Not available"
+          });
+        } else {
+          // This is the direct schools table response
+          setSchoolInfo({
+            id: schoolData.id || '',
+            name: schoolData.name || "Not available",
+            code: schoolData.code || "Not available"
+          });
+        }
       } else {
         toast.error("Could not fetch school information");
       }
