@@ -1,3 +1,4 @@
+
 import React, {
   createContext,
   useState,
@@ -57,11 +58,11 @@ const AuthContext = createContext<AuthContextType>({
   profile: null,
   userRole: null,
   loading: true,
-  isLoading: true, // Add isLoading property with default value
+  isLoading: true, 
   isSuperviser: false,
   schoolId: null,
-  signIn: async () => ({data: null, error: null}), // Default return value updated
-  signUp: async () => ({user: null, session: null}), // Default return value updated
+  signIn: async () => ({data: null, error: null}),
+  signUp: async () => ({user: null, session: null}),
   signOut: async () => {},
   updateProfile: async () => {},
   refreshProfile: async () => {},
@@ -619,6 +620,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
           // Don't throw here, we want to continue even if this fails
         }
       }
+      
+      return mockUser;
     } catch (error) {
       console.error("Error setting test user:", error);
       throw error;

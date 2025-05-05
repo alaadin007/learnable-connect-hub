@@ -139,6 +139,14 @@ const TestAccounts = () => {
           redirectPath = "/teacher/analytics";
         }
 
+        toast.success(`Logged in as ${
+          accountType === "school" 
+            ? "School Admin" 
+            : accountType === "teacher" 
+            ? "Teacher" 
+            : "Student"
+        }`);
+        
         console.log(`TestAccounts: Navigating to ${redirectPath} for ${accountType}`);
         
         // Navigate with important state parameters for persistence

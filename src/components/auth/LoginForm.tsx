@@ -126,6 +126,16 @@ const LoginForm = () => {
     console.log(`LoginForm: Attempting login for ${email}`);
 
     try {
+      // Special handling for test accounts
+      if (email.includes(".test@learnable.edu")) {
+        let type: "school" | "teacher" | "student" = "student";
+        if (email.startsWith("school")) type = "school";
+        else if (email.startsWith("teacher")) type = "teacher";
+        
+        await handleQuickLogin(type);
+        return;
+      }
+      
       // Special handling for the specific account
       if (email === "salman.k.786000@gmail.com") {
         console.log("Using special login flow for salman.k.786000@gmail.com");
@@ -143,6 +153,17 @@ const LoginForm = () => {
 
         if (data?.user) {
           console.log("Login successful for salman.k.786000@gmail.com");
+          
+          // Ensure this user has the right metadata
+          if (!data.user.user_metadata?.user_type || data.user.user_metadata?.user_type !== 'school') {
+            await supabase.auth.updateUser({
+              data: {
+                user_type: 'school',
+                full_name: 'Salman',
+                ...data.user.user_metadata
+              }
+            });
+          }
           
           // Navigate directly to admin route for this account
           toast.success("Login successful", {
