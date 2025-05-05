@@ -21,6 +21,7 @@ const Documents: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [storageStatus, setStorageStatus] = useState<'unknown' | 'available' | 'error'>('unknown');
   const [isChecking, setIsChecking] = useState(false);
+  const [hasCheckedStorage, setHasCheckedStorage] = useState(false);
 
   // Redirect if not logged in
   useEffect(() => {
@@ -29,10 +30,10 @@ const Documents: React.FC = () => {
     }
   }, [user, navigate]);
 
-  // Check storage status on component mount
+  // Check storage status on component mount - only once
   useEffect(() => {
     const checkStorage = async () => {
-      if (user) {
+      if (user && !hasCheckedStorage) {
         try {
           const { data, error } = await supabase.storage.getBucket('user-content');
           if (error) {
@@ -69,15 +70,19 @@ const Documents: React.FC = () => {
           console.error("Storage connection error:", err);
           setStorageStatus('error');
           setError('Failed to connect to document storage');
+        } finally {
+          setHasCheckedStorage(true);
         }
       }
     };
     
     checkStorage();
-  }, [user]);
+  }, [user, hasCheckedStorage]);
 
   // Function to check storage bucket connection
   const checkStorageConnection = async () => {
+    if (isChecking) return; // Prevent multiple simultaneous checks
+    
     setIsChecking(true);
     setError(null);
     
@@ -145,7 +150,7 @@ const Documents: React.FC = () => {
             </AlertDescription>
           </Alert>
 
-          {error && (
+          {error && storageStatus === 'error' && (
             <Alert className="mb-6 bg-red-50 border-red-200" variant="destructive" role="alert">
               <AlertCircle className="h-4 w-4 text-red-500" />
               <AlertTitle className="text-red-700">Connection Error</AlertTitle>
@@ -160,7 +165,7 @@ const Documents: React.FC = () => {
                 >
                   {isChecking ? (
                     <>
-                      <RefreshCw className="h-4 w-4 mr-2" />
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                       Reconnecting...
                     </>
                   ) : (
@@ -188,7 +193,15 @@ const Documents: React.FC = () => {
                   <FileUpload onSuccess={() => setActiveTab('list')} />
                 </TabsContent>
                 <TabsContent value="list" role="tabpanel" tabIndex={0}>
-                  <FileList onError={(errorMsg) => setError(errorMsg)} />
+                  <FileList onError={(errorMsg) => {
+                    // Only update error if it's different or if we're clearing it
+                    if (error !== errorMsg) {
+                      setError(errorMsg);
+                      if (errorMsg) {
+                        setStorageStatus('error');
+                      }
+                    }
+                  }} />
                 </TabsContent>
               </Tabs>
             </CardContent>

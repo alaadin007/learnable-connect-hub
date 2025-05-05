@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+
+import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { FileIcon, Trash2, ExternalLink, Download, AlertCircle, CheckCircle2, RefreshCw } from 'lucide-react';
@@ -50,10 +51,11 @@ const FileList: React.FC<FileListProps> = ({ onError }) => {
   const [activeSection, setActiveSection] = useState(1);
   const [showContent, setShowContent] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
-  const [canRetry, setCanRetry] = useState(true);
+  const [hasErrored, setHasErrored] = useState(false);
   const { user } = useAuth();
   
-  const fetchFiles = async () => {
+  // Memoized fetch function to prevent recreating on each render
+  const fetchFiles = useCallback(async () => {
     if (!user) return;
     
     try {
@@ -72,16 +74,21 @@ const FileList: React.FC<FileListProps> = ({ onError }) => {
       setFiles(data || []);
       // Clear error if successful
       if (onError) onError(null);
-      setCanRetry(true);
+      setHasErrored(false);
       
     } catch (error) {
       const errorMessage = error instanceof Error 
         ? error.message 
         : 'Failed to fetch your files';
       
-      toast.error('Error retrieving files', {
-        description: 'Please try refreshing the page',
-      });
+      // Only show toast once per error session
+      if (!hasErrored) {
+        toast.error('Error retrieving files', {
+          description: 'Please try refreshing the page',
+          id: 'file-fetch-error', // Use ID to prevent duplicates
+        });
+        setHasErrored(true);
+      }
       
       console.error('Error fetching files:', error);
       
@@ -91,27 +98,16 @@ const FileList: React.FC<FileListProps> = ({ onError }) => {
     } finally {
       setLoading(false);
     }
-  };
-
-  // Auto-retry mechanism with exponential backoff
-  const retryFetch = () => {
-    if (retryCount < 3) {
-      const backoffTime = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
-      
-      setCanRetry(false);
-      setTimeout(() => {
-        setRetryCount(prev => prev + 1);
-        fetchFiles();
-      }, backoffTime);
-    }
-  };
+  }, [user, retryCount, onError, hasErrored]);
 
   useEffect(() => {
     fetchFiles();
 
     // Set up a real-time subscription to detect changes to documents
+    let channel: any;
+    
     if (user) {
-      const channel = supabase
+      channel = supabase
         .channel('public:documents')
         .on('postgres_changes', 
           { 
@@ -129,16 +125,19 @@ const FileList: React.FC<FileListProps> = ({ onError }) => {
           }
         )
         .subscribe();
-
-      return () => {
-        supabase.removeChannel(channel);
-      };
     }
-  }, [user]);
+
+    return () => {
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, [user, fetchFiles]);
 
   // Manual retry handler
   const handleManualRetry = () => {
     setRetryCount(0);
+    setHasErrored(false);
     fetchFiles();
   };
 
@@ -174,7 +173,8 @@ const FileList: React.FC<FileListProps> = ({ onError }) => {
       document.body.removeChild(a);
     } catch (error) {
       toast.error('Download Failed', {
-        description: error instanceof Error ? error.message : 'Failed to download file'
+        description: error instanceof Error ? error.message : 'Failed to download file',
+        id: 'download-error-' + file.id, // Use ID to prevent duplicates
       });
     }
   };
@@ -192,7 +192,8 @@ const FileList: React.FC<FileListProps> = ({ onError }) => {
       window.open(signedURL.signedUrl, '_blank');
     } catch (error) {
       toast.error('Error', {
-        description: error instanceof Error ? error.message : 'Failed to open file'
+        description: error instanceof Error ? error.message : 'Failed to open file',
+        id: 'open-error-' + file.id, // Use ID to prevent duplicates
       });
     }
   };
@@ -236,7 +237,8 @@ const FileList: React.FC<FileListProps> = ({ onError }) => {
       }
       
       toast.success('File Deleted', {
-        description: `${fileToDelete.filename} has been deleted successfully.`
+        description: `${fileToDelete.filename} has been deleted successfully.`,
+        id: 'delete-success-' + fileToDelete.id, // Use ID to prevent duplicates
       });
       
       // Refresh file list
@@ -244,7 +246,8 @@ const FileList: React.FC<FileListProps> = ({ onError }) => {
       
     } catch (error) {
       toast.error('Delete Failed', {
-        description: error instanceof Error ? error.message : 'Failed to delete file'
+        description: error instanceof Error ? error.message : 'Failed to delete file',
+        id: 'delete-error-' + fileToDelete.id, // Use ID to prevent duplicates
       });
     } finally {
       setFileToDelete(null);
@@ -274,16 +277,19 @@ const FileList: React.FC<FileListProps> = ({ onError }) => {
         } else {
           toast.info('No Content Available', {
             description: 'No extracted content found for this document.',
+            id: 'no-content-' + file.id, // Use ID to prevent duplicates
           });
         }
       } else {
         toast.info('Content Not Available', {
           description: 'The document content is still being processed.',
+          id: 'processing-content-' + file.id, // Use ID to prevent duplicates
         });
       }
     } catch (error) {
       toast.error('Error', {
-        description: error instanceof Error ? error.message : 'Failed to fetch document content'
+        description: error instanceof Error ? error.message : 'Failed to fetch document content',
+        id: 'content-error-' + file.id, // Use ID to prevent duplicates
       });
     }
   };
@@ -327,7 +333,8 @@ const FileList: React.FC<FileListProps> = ({ onError }) => {
       }
       
       toast.success('Processing Restarted', {
-        description: 'Document processing has been restarted.'
+        description: 'Document processing has been restarted.',
+        id: 'processing-restarted-' + file.id, // Use ID to prevent duplicates
       });
       
       // Update the file in state
@@ -339,7 +346,8 @@ const FileList: React.FC<FileListProps> = ({ onError }) => {
       
     } catch (error) {
       toast.error('Error', {
-        description: error instanceof Error ? error.message : 'Failed to restart processing'
+        description: error instanceof Error ? error.message : 'Failed to restart processing',
+        id: 'retry-error-' + file.id, // Use ID to prevent duplicates
       });
     }
   };
