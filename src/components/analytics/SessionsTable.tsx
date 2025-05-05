@@ -3,7 +3,6 @@ import React from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { SessionData } from "./types";
 import { format, parseISO } from "date-fns";
-import { Loader2 } from "lucide-react";
 
 interface SessionsTableProps {
   sessions: SessionData[];
@@ -13,16 +12,11 @@ interface SessionsTableProps {
 }
 
 const SessionsTable: React.FC<SessionsTableProps> = ({
-  sessions,
-  isLoading = false
+  sessions
 }) => {
   return (
     <>
-      {isLoading ? (
-        <div className="flex justify-center items-center p-6">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
-      ) : sessions.length === 0 ? (
+      {sessions.length === 0 ? (
         <div className="text-center p-6 text-muted-foreground">
           No sessions found
         </div>

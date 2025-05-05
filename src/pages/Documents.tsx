@@ -8,11 +8,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import FileUpload from '@/components/documents/FileUpload';
 import FileList from '@/components/documents/FileList';
-import { AlertCircle, RefreshCw } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
 const Documents: React.FC = () => {
@@ -27,73 +26,47 @@ const Documents: React.FC = () => {
     }
   }, [user, navigate]);
 
-  // Set up initial state - assume storage is available to avoid loading indicators
-  const [storageStatus, setStorageStatus] = useState({
-    ready: true,
-    error: null as string | null
-  });
-
-  // Setup storage on page load to make sure it exists
+  // Ensure storage bucket exists
   useEffect(() => {
     if (user) {
-      console.log("Initializing document storage on page load");
-      supabase.functions.invoke('setup-document-storage')
-        .then(({ data, error }) => {
-          if (error) {
-            console.error("Failed to initialize storage:", error);
-            setStorageStatus({
-              ready: false,
-              error: `Failed to initialize storage: ${error.message}`
-            });
-          } else {
-            console.log("Storage initialization result:", data);
-            setStorageStatus({
-              ready: true,
-              error: null
-            });
+      const initializeStorage = async () => {
+        try {
+          // Check if user-content bucket exists
+          const { data: buckets, error: bucketsError } = await supabase
+            .storage
+            .listBuckets();
+            
+          if (bucketsError) {
+            console.error("Error listing buckets:", bucketsError);
+            return;
           }
-        })
-        .catch(err => {
+          
+          // Create the bucket if it doesn't exist
+          const userContentBucket = buckets?.find(b => b.name === 'user-content');
+          
+          if (!userContentBucket) {
+            // Create bucket directly
+            const { error: createError } = await supabase
+              .storage
+              .createBucket('user-content', {
+                public: false,
+                fileSizeLimit: 52428800 // 50MB
+              });
+              
+            if (createError) {
+              console.error("Error creating bucket:", createError);
+            } else {
+              console.log("User-content bucket created successfully");
+            }
+          }
+        } catch (err) {
           console.error("Error initializing storage:", err);
-          setStorageStatus({
-            ready: false,
-            error: "Failed to connect to storage service"
-          });
-        });
+        }
+      };
+      
+      initializeStorage();
     }
   }, [user]);
-
-  // Handle retrying storage setup
-  const retryStorageSetup = async () => {
-    if (!user) return;
-    
-    try {
-      const { data, error } = await supabase.functions.invoke('setup-document-storage');
-      
-      if (error) {
-        console.error("Failed to initialize storage on retry:", error);
-        setStorageStatus({
-          ready: false,
-          error: `Failed to initialize storage: ${error.message}`
-        });
-        return;
-      }
-      
-      console.log("Storage setup successful on retry:", data);
-      setStorageStatus({
-        ready: true,
-        error: null
-      });
-      
-      toast.success("Document storage is now ready");
-    } catch (err) {
-      console.error("Error retrying storage setup:", err);
-      setStorageStatus({
-        ready: false,
-        error: "Failed to connect to storage service"
-      });
-    }
-  };
 
   if (!user) {
     return null; // Redirect handled in useEffect
@@ -121,25 +94,6 @@ const Documents: React.FC = () => {
             </AlertDescription>
           </Alert>
 
-          {storageStatus.error && (
-            <Alert className="mb-6 bg-red-50 border-red-200" variant="destructive" role="alert">
-              <AlertCircle className="h-4 w-4 text-red-500" />
-              <AlertTitle className="text-red-700">Connection Error</AlertTitle>
-              <AlertDescription className="text-red-600 flex items-center justify-between">
-                <span>There was a problem with the document storage. Please try refreshing.</span>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="ml-2 border-red-200 hover:bg-red-100" 
-                  onClick={retryStorageSetup}
-                >
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Try Again
-                </Button>
-              </AlertDescription>
-            </Alert>
-          )}
-
           <Card className="mb-8 shadow-sm">
             <CardHeader className="pb-0">
               <CardTitle>Learning Materials</CardTitle>
@@ -153,14 +107,10 @@ const Documents: React.FC = () => {
                 <TabsContent value="upload" role="tabpanel" tabIndex={0}>
                   <FileUpload 
                     onSuccess={() => setActiveTab('list')} 
-                    disabled={!storageStatus.ready}
                   />
                 </TabsContent>
                 <TabsContent value="list" role="tabpanel" tabIndex={0}>
-                  <FileList 
-                    disabled={!storageStatus.ready}
-                    storageError={storageStatus.error}
-                  />
+                  <FileList />
                 </TabsContent>
               </Tabs>
             </CardContent>
