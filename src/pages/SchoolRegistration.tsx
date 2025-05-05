@@ -1,4 +1,3 @@
-
 import React from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
@@ -18,12 +17,14 @@ const SchoolRegistration = () => {
               You'll be set up as the school administrator with full access to manage teachers and students.
             </p>
           </div>
-          
+
           <SchoolRegistrationForm />
-          
+
           <div className="mt-8 text-center text-sm text-gray-500">
             <p>
-              By registering, you agree to our Terms of Service and Privacy Policy.
+              By registering, you agree to our{" "}
+              <a href="/terms" className="underline hover:text-learnable-blue">Terms of Service</a> and{" "}
+              <a href="/privacy" className="underline hover:text-learnable-blue">Privacy Policy</a>.
             </p>
           </div>
         </div>
