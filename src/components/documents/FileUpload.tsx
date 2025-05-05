@@ -67,6 +67,17 @@ const FileUpload: React.FC<FileUploadProps> = ({
       if (!validateFile(file)) {
         throw new Error("File validation failed");
       }
+
+      // First ensure the storage bucket exists
+      try {
+        const setupResponse = await supabase.functions.invoke('setup-document-storage');
+        if (!setupResponse.data?.success) {
+          throw new Error("Failed to set up document storage");
+        }
+      } catch (err) {
+        console.error("Error setting up storage:", err);
+        // Continue anyway - the bucket might still exist
+      }
       
       // Create a unique file path
       const timestamp = new Date().getTime();
@@ -82,6 +93,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
         });
       
       if (uploadError) {
+        console.error("Upload error:", uploadError);
         throw new Error(`Upload failed: ${uploadError.message}`);
       }
 
@@ -106,17 +118,23 @@ const FileUpload: React.FC<FileUploadProps> = ({
         .single();
       
       if (dbError) {
+        console.error("Database error:", dbError);
         throw new Error(`Database error: ${dbError.message}`);
       }
       
       // Call processing function to extract text
-      const { error: processingError } = await supabase.functions.invoke('process-document', {
-        body: { document_id: data.id }
-      });
-      
-      if (processingError) {
-        console.error('Processing error:', processingError);
-        // Continue anyway - processing can be retried later
+      try {
+        const { error: processingError } = await supabase.functions.invoke('process-document', {
+          body: { document_id: data.id }
+        });
+        
+        if (processingError) {
+          console.warn('Processing error:', processingError);
+          // Continue anyway - processing can be retried later
+        }
+      } catch (err) {
+        console.warn("Error invoking process function:", err);
+        // Processing can be retried later, so continue
       }
       
       return data;
@@ -141,7 +159,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
       setProgress(100);
       
       // Success message
-      toast('File Uploaded', {
+      toast.success('File Uploaded', {
         description: 'Your file has been uploaded and is being processed.',
       });
 

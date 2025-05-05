@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/landing/Footer';
@@ -39,31 +40,42 @@ const Documents: React.FC = () => {
       if (!user) return { status: 'unknown', error: null };
       
       try {
-        // Try to get bucket info
-        const { data, error } = await supabase.storage.getBucket('user-content');
+        // First check if the bucket exists
+        const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
         
-        if (error) {
-          if (error.message.includes('does not exist')) {
-            // Try to create the bucket automatically
-            try {
-              const { error: createError } = await supabase
-                .storage
-                .createBucket('user-content', { public: false });
-                
-              if (createError) {
-                return { status: 'error', error: 'Could not initialize document storage: ' + createError.message };
-              } else {
-                console.log('Successfully created user-content bucket');
-                return { status: 'available', error: null };
-              }
-            } catch (createErr) {
-              return { status: 'error', error: 'Failed to initialize document storage' };
+        if (bucketsError) {
+          console.error("Error checking buckets:", bucketsError);
+          return { status: 'error', error: 'Storage service unavailable: ' + bucketsError.message };
+        }
+        
+        const hasUserContentBucket = buckets.some(b => b.name === 'user-content');
+        
+        if (!hasUserContentBucket) {
+          console.log("user-content bucket does not exist, attempting to create");
+          // Try to create the bucket
+          try {
+            const { error: createError } = await supabase
+              .storage
+              .createBucket('user-content', { 
+                public: false,
+                fileSizeLimit: 52428800 // 50MB in bytes
+              });
+              
+            if (createError) {
+              console.error("Failed to create bucket:", createError);
+              return { status: 'error', error: 'Could not initialize document storage: ' + createError.message };
             }
-          } else {
-            return { status: 'error', error: 'Storage service unavailable' };
+            
+            console.log("Successfully created user-content bucket");
+            return { status: 'available', error: null };
+          } catch (e) {
+            console.error("Exception creating bucket:", e);
+            return { status: 'error', error: 'Failed to setup document storage' };
           }
         }
         
+        // If we get here, the bucket exists
+        console.log("user-content bucket exists");
         return { status: 'available', error: null };
       } catch (err) {
         console.error("Storage connection error:", err);
@@ -72,7 +84,7 @@ const Documents: React.FC = () => {
     },
     enabled: !!user,
     staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
-    retry: false,
+    retry: 1,
     refetchOnWindowFocus: false // Prevent refetches when window regains focus
   });
 
@@ -115,7 +127,7 @@ const Documents: React.FC = () => {
               <AlertCircle className="h-4 w-4 text-red-500" />
               <AlertTitle className="text-red-700">Connection Error</AlertTitle>
               <AlertDescription className="text-red-600 flex items-center justify-between">
-                <span>There was a problem retrieving your files. Please try refreshing.</span>
+                <span>There was a problem with the document storage. Please try refreshing.</span>
                 <Button 
                   variant="outline" 
                   size="sm" 

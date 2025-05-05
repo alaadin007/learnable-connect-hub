@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { getCurrentUserSchoolId } from '@/utils/schoolUtils';
 
 type FileItem = {
   id: string;
@@ -62,6 +63,7 @@ const FileList: React.FC<FileListProps> = ({
     data: files,
     isLoading,
     isError,
+    error,
     refetch
   } = useQuery({
     queryKey: ['documents'],
@@ -70,21 +72,55 @@ const FileList: React.FC<FileListProps> = ({
         return [];
       }
       
-      const { data, error } = await supabase
-        .from('documents')
-        .select('*')
-        .order('created_at', { ascending: false });
+      try {
+        // Check if user-content bucket exists first
+        const { data: bucketData, error: bucketError } = await supabase
+          .storage
+          .listBuckets();
+          
+        const bucketExists = bucketData?.some(bucket => bucket.name === 'user-content');
+        
+        if (bucketError || !bucketExists) {
+          console.error('Storage bucket not available:', bucketError || 'Bucket not found');
+          // Create the bucket if it doesn't exist (this would require admin privileges)
+          if (!bucketExists) {
+            try {
+              const { error: createError } = await supabase.storage.createBucket('user-content', {
+                public: false,
+              });
+              
+              if (createError) {
+                console.error('Error creating bucket:', createError);
+                throw new Error('Could not create documents storage');
+              }
+            } catch (e) {
+              console.error('Error setting up storage:', e);
+              throw new Error('Storage service unavailable');
+            }
+          }
+        }
       
-      if (error) {
-        throw new Error(error.message);
+        const { data, error } = await supabase
+          .from('documents')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+        
+        if (error) {
+          console.error('Error fetching documents:', error);
+          throw new Error(error.message);
+        }
+        
+        return data || [];
+      } catch (err) {
+        console.error('Error loading documents:', err);
+        throw err;
       }
-      
-      return data || [];
     },
     enabled: !!user && !disabled,
     refetchOnWindowFocus: false,
     staleTime: 30000, // 30 seconds
-    retry: 1,
+    retry: 2,
   });
 
   // Query for file content (only executed when needed)
@@ -121,23 +157,33 @@ const FileList: React.FC<FileListProps> = ({
       if (!fileToDelete) return;
       
       // Delete from storage first
-      const { error: storageError } = await supabase.storage
-        .from('user-content')
-        .remove([fileToDelete.storage_path]);
-      
-      if (storageError) {
-        throw new Error(storageError.message);
+      try {
+        const { error: storageError } = await supabase.storage
+          .from('user-content')
+          .remove([fileToDelete.storage_path]);
+        
+        if (storageError) {
+          console.error('Error deleting file from storage:', storageError);
+          // Continue anyway - we want to clean up the database entry
+        }
+      } catch (e) {
+        console.error('Storage delete operation failed:', e);
+        // Continue with database deletion regardless
       }
       
       // Delete content from document_content table
-      const { error: contentError } = await supabase
-        .from('document_content')
-        .delete()
-        .eq('document_id', fileToDelete.id);
-        
-      if (contentError) {
-        console.error('Error deleting document content:', contentError);
-        // Continue with deletion even if content deletion fails
+      try {
+        const { error: contentError } = await supabase
+          .from('document_content')
+          .delete()
+          .eq('document_id', fileToDelete.id);
+          
+        if (contentError) {
+          console.error('Error deleting document content:', contentError);
+          // Continue with deletion even if content deletion fails
+        }
+      } catch (e) {
+        console.error('Content delete operation failed:', e);
       }
       
       // Delete metadata from database
@@ -186,12 +232,23 @@ const FileList: React.FC<FileListProps> = ({
       }
       
       // Trigger processing function
-      const { error } = await supabase.functions.invoke('process-document', {
-        body: { document_id: file.id }
-      });
-      
-      if (error) {
-        throw new Error(error.message);
+      try {
+        const { error } = await supabase.functions.invoke('process-document', {
+          body: { document_id: file.id }
+        });
+        
+        if (error) {
+          throw new Error(error.message);
+        }
+      } catch (e) {
+        console.error('Error invoking process-document function:', e);
+        // Update status to error if function invocation fails
+        await supabase
+          .from('documents')
+          .update({ processing_status: 'error' })
+          .eq('id', file.id);
+          
+        throw new Error('Failed to start document processing');
       }
       
       return file.id;
@@ -262,6 +319,7 @@ const FileList: React.FC<FileListProps> = ({
         .download(file.storage_path);
       
       if (error) {
+        console.error('Download error:', error);
         throw new Error(error.message);
       }
       
@@ -274,6 +332,7 @@ const FileList: React.FC<FileListProps> = ({
       URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (error) {
+      console.error('Download failed:', error);
       toast.error('Download Failed', {
         description: error instanceof Error ? error.message : 'Failed to download file',
       });
@@ -287,11 +346,13 @@ const FileList: React.FC<FileListProps> = ({
         .createSignedUrl(file.storage_path, 60); // URL expires in 60 seconds
       
       if (error) {
+        console.error('Signed URL error:', error);
         throw new Error(error.message);
       }
       
       window.open(signedURL.signedUrl, '_blank');
     } catch (error) {
+      console.error('Error opening file:', error);
       toast.error('Error', {
         description: error instanceof Error ? error.message : 'Failed to open file',
       });
@@ -333,8 +394,9 @@ const FileList: React.FC<FileListProps> = ({
     }
   };
 
-  // Error state directly from the props
+  // Error state directly from the props or from the query
   const hasError = !!storageError || isError;
+  const errorMessage = storageError || (error instanceof Error ? error.message : 'Error loading documents');
   
   return (
     <div>
@@ -389,7 +451,7 @@ const FileList: React.FC<FileListProps> = ({
             Unable to load your files.
           </p>
           <p className="text-sm text-gray-400 mb-3">
-            Please try refreshing the page
+            {errorMessage || "Please try refreshing the page"}
           </p>
           <Button 
             variant="outline" 
