@@ -25,20 +25,45 @@ class SessionLogger {
    */
   async startSession(options?: SessionLogOptions): Promise<string | null> {
     try {
-      // Create the session log using a Supabase function
-      const { data, error } = await supabase.functions.invoke('create-session-log', {
-        body: { topic: options?.topic || null }
-      });
+      // Get the current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.error("No authenticated user found");
+        return null;
+      }
+      
+      // Get the school ID for this user
+      const { data: userData } = await supabase
+        .from('students')
+        .select('school_id')
+        .eq('id', user.id)
+        .single();
+        
+      if (!userData?.school_id) {
+        console.error("No school ID found for user");
+        return null;
+      }
+      
+      // Create the session log
+      const { data, error } = await supabase
+        .from('session_logs')
+        .insert({
+          user_id: user.id,
+          school_id: userData.school_id,
+          topic_or_content_used: options?.topic || null
+        })
+        .select('id')
+        .single();
 
       if (error) {
         console.error("Error starting session:", error);
         return null;
       }
 
-      if (data?.session_id) {
-        this.currentSessionId = data.session_id;
+      if (data?.id) {
+        this.currentSessionId = data.id;
         this.sessionActive = true;
-        return data.session_id;
+        return data.id;
       }
       
       return null;
@@ -55,12 +80,13 @@ class SessionLogger {
     if (!this.isSessionActive()) return false;
     
     try {
-      const { error } = await supabase.functions.invoke('end-session', {
-        body: { 
-          sessionId: this.currentSessionId,
-          performanceMetrics
-        }
-      });
+      const { error } = await supabase
+        .from('session_logs')
+        .update({
+          session_end: new Date(),
+          performance_metric: performanceMetrics
+        })
+        .eq('id', this.currentSessionId);
       
       if (error) {
         console.error("Error ending session:", error);
@@ -82,15 +108,28 @@ class SessionLogger {
     if (!this.isSessionActive()) return false;
 
     try {
-      const { error } = await supabase.functions.invoke('update-session', {
-        body: { 
-          sessionId: this.currentSessionId,
-          incrementQuery: true
-        }
-      });
+      // First get current query count
+      const { data, error: fetchError } = await supabase
+        .from('session_logs')
+        .select('num_queries')
+        .eq('id', this.currentSessionId)
+        .single();
+        
+      if (fetchError) {
+        console.error("Error fetching session data:", fetchError);
+        return false;
+      }
+      
+      // Then increment it
+      const { error: updateError } = await supabase
+        .from('session_logs')
+        .update({
+          num_queries: (data?.num_queries || 0) + 1
+        })
+        .eq('id', this.currentSessionId);
 
-      if (error) {
-        console.error("Error logging query:", error);
+      if (updateError) {
+        console.error("Error logging query:", updateError);
         return false;
       }
 
@@ -108,12 +147,12 @@ class SessionLogger {
     if (!this.isSessionActive()) return false;
 
     try {
-      const { error } = await supabase.functions.invoke('update-session', {
-        body: { 
-          sessionId: this.currentSessionId,
-          topic
-        }
-      });
+      const { error } = await supabase
+        .from('session_logs')
+        .update({
+          topic_or_content_used: topic
+        })
+        .eq('id', this.currentSessionId);
 
       if (error) {
         console.error("Error updating topic:", error);
