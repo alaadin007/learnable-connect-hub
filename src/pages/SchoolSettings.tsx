@@ -10,10 +10,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, RefreshCw } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { getCurrentUserSchoolId } from "@/utils/schoolUtils";
+import { getCurrentUserSchoolId, generateNewSchoolCode } from "@/utils/schoolUtils";
 
 // Interface for school data
 interface SchoolData {
@@ -118,7 +118,7 @@ const SchoolSettings = () => {
     }
   };
 
-  const generateNewSchoolCode = async () => {
+  const handleGenerateNewSchoolCode = async () => {
     if (!schoolId) {
       toast.error("School information not found");
       return;
@@ -126,26 +126,18 @@ const SchoolSettings = () => {
     
     setIsGeneratingCode(true);
     try {
-      // Generate a random 8-character code
-      const characters = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-      let newCode = '';
-      for (let i = 0; i < 8; i++) {
-        newCode += characters.charAt(Math.floor(Math.random() * characters.length));
+      // Call the function to generate a new school code
+      const result = await generateNewSchoolCode(schoolId);
+      
+      if (result.error) {
+        throw new Error(result.error);
       }
       
-      // Update the code in the database
-      const { error } = await supabase
-        .from("schools")
-        .update({
-          code: newCode
-        })
-        .eq("id", schoolId);
-        
-      if (error) throw error;
-      
-      // Update the local state
-      setSchoolCode(newCode);
-      toast.success("New school code generated successfully!");
+      if (result.code) {
+        // Update the local state
+        setSchoolCode(result.code);
+        toast.success("New school code generated successfully!");
+      }
     } catch (error: any) {
       console.error("Error generating new school code:", error);
       toast.error(error.message || "Failed to generate new school code");
@@ -223,10 +215,17 @@ const SchoolSettings = () => {
                     </code>
                     <Button 
                       variant="outline" 
-                      onClick={generateNewSchoolCode}
+                      onClick={handleGenerateNewSchoolCode}
                       disabled={isGeneratingCode}
                     >
-                      Generate New Code
+                      {isGeneratingCode ? (
+                        <>
+                          <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        "Generate New Code"
+                      )}
                     </Button>
                   </div>
                   <p className="text-sm text-muted-foreground">
@@ -249,7 +248,14 @@ const SchoolSettings = () => {
                   disabled={isSaving}
                   className="gradient-bg"
                 >
-                  Save Settings
+                  {isSaving ? (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Settings"
+                  )}
                 </Button>
               </div>
             </CardContent>

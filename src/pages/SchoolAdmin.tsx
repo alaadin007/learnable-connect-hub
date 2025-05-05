@@ -9,7 +9,7 @@ import StudentInvitation from "@/components/school-admin/StudentInvitation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Users, BarChart2, ChevronDown, Settings, User, MessageSquare, FileText } from "lucide-react";
+import { Users, BarChart2, ChevronDown, Settings, User, MessageSquare, FileText, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import {
   DropdownMenu,
@@ -45,75 +45,78 @@ const SchoolAdmin = () => {
   });
   
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Fetch school info directly from the database
-  useEffect(() => {
-    const fetchSchoolInfo = async () => {
-      try {
-        setIsLoading(true);
+  const fetchSchoolInfo = async () => {
+    try {
+      const loadingState = isRefreshing ? setIsRefreshing : setIsLoading;
+      loadingState(true);
+      
+      // Try to get school ID from various sources
+      const schoolId = await getCurrentUserSchoolId();
+      
+      if (schoolId) {
+        const schoolData = await getSchoolInfo(schoolId);
         
-        // Try to get school ID from various sources
-        const schoolId = await getCurrentUserSchoolId();
-        
-        if (schoolId) {
-          const schoolData = await getSchoolInfo(schoolId);
-          
-          if (schoolData) {
+        if (schoolData) {
+          setSchoolInfo({
+            id: schoolData.id,
+            name: schoolData.name || "Not available",
+            code: schoolData.code || "Not available"
+          });
+        } else {
+          // Fallback to profile data
+          if (profile?.organization?.name && profile?.organization?.code) {
             setSchoolInfo({
-              id: schoolData.id,
-              name: schoolData.name || "Not available",
-              code: schoolData.code || "Not available"
+              id: profile.organization.id || '',
+              name: profile.organization.name,
+              code: profile.organization.code
+            });
+          } else if (user?.user_metadata?.school_name && user?.user_metadata?.school_code) {
+            // Fallback to user metadata
+            setSchoolInfo({
+              id: '',
+              name: user.user_metadata.school_name,
+              code: user.user_metadata.school_code
             });
           } else {
-            // Fallback to profile data
-            if (profile?.organization?.name && profile?.organization?.code) {
-              setSchoolInfo({
-                id: profile.organization.id || '',
-                name: profile.organization.name,
-                code: profile.organization.code
-              });
-            } else if (user?.user_metadata?.school_name && user?.user_metadata?.school_code) {
-              // Fallback to user metadata
-              setSchoolInfo({
-                id: '',
-                name: user.user_metadata.school_name,
-                code: user.user_metadata.school_code
-              });
-            } else {
-              // Last resort - query directly from the teachers table
-              if (user?.id) {
-                const { data: teacherData } = await supabase
-                  .from('teachers')
-                  .select('school_id')
-                  .eq('id', user.id)
+            // Last resort - query directly from the teachers table
+            if (user?.id) {
+              const { data: teacherData } = await supabase
+                .from('teachers')
+                .select('school_id')
+                .eq('id', user.id)
+                .single();
+              
+              if (teacherData?.school_id) {
+                const { data: directSchoolData } = await supabase
+                  .from('schools')
+                  .select('*')
+                  .eq('id', teacherData.school_id)
                   .single();
                 
-                if (teacherData?.school_id) {
-                  const { data: directSchoolData } = await supabase
-                    .from('schools')
-                    .select('*')
-                    .eq('id', teacherData.school_id)
-                    .single();
-                  
-                  if (directSchoolData) {
-                    setSchoolInfo({
-                      id: directSchoolData.id,
-                      name: directSchoolData.name,
-                      code: directSchoolData.code
-                    });
-                  }
+                if (directSchoolData) {
+                  setSchoolInfo({
+                    id: directSchoolData.id,
+                    name: directSchoolData.name,
+                    code: directSchoolData.code
+                  });
                 }
               }
             }
           }
         }
-      } catch (error) {
-        console.error("Error fetching school info:", error);
-      } finally {
-        setIsLoading(false);
       }
-    };
-    
+    } catch (error) {
+      console.error("Error fetching school info:", error);
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  };
+  
+  useEffect(() => {
     fetchSchoolInfo();
   }, [profile, user]);
   
@@ -189,9 +192,21 @@ const SchoolAdmin = () => {
           
           {/* School Information Card */}
           <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>School Information</CardTitle>
-              <CardDescription>Your school details</CardDescription>
+            <CardHeader className="flex flex-row items-start justify-between">
+              <div>
+                <CardTitle>School Information</CardTitle>
+                <CardDescription>Your school details</CardDescription>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="p-0" 
+                onClick={fetchSchoolInfo} 
+                disabled={isRefreshing}
+              >
+                <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                <span className="sr-only">Refresh</span>
+              </Button>
             </CardHeader>
             <CardContent>
               {isLoading ? (

@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 /**
@@ -208,5 +207,41 @@ export const getStudentInvites = async () => {
   } catch (error: any) {
     console.error("Error getting student invites:", error);
     return { data: null, error: error.message || "An unexpected error occurred" };
+  }
+};
+
+/**
+ * Generate a new school code and update it in the database
+ */
+export const generateNewSchoolCode = async (schoolId: string): Promise<{ code: string | null; error: string | null }> => {
+  try {
+    if (!schoolId) {
+      return { code: null, error: "School ID is required" };
+    }
+
+    // Generate a random 8-character code
+    const characters = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Excluding confusing chars like 0, O, 1, I
+    let newCode = '';
+    for (let i = 0; i < 8; i++) {
+      newCode += characters.charAt(Math.floor(Math.random() * characters.length));
+    }
+
+    // Update the code in the database
+    const { data, error } = await supabase
+      .from("schools")
+      .update({ code: newCode })
+      .eq("id", schoolId)
+      .select("code")
+      .single();
+
+    if (error) {
+      console.error("Error generating new school code:", error);
+      return { code: null, error: error.message };
+    }
+
+    return { code: data?.code || newCode, error: null };
+  } catch (error: any) {
+    console.error("Exception generating new school code:", error);
+    return { code: null, error: error.message || "An unexpected error occurred" };
   }
 };
