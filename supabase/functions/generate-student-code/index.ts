@@ -80,23 +80,6 @@ serve(async (req) => {
     const inviteCode = generateCode();
     console.log("Generated invite code:", inviteCode);
 
-    // Check if student_invites table exists
-    const { data: tableExists, error: schemaError } = await supabaseClient
-      .from("student_invites")
-      .select("id")
-      .limit(1);
-      
-    if (schemaError && schemaError.message.includes("does not exist")) {
-      console.error("Schema error: student_invites table does not exist:", schemaError);
-      return new Response(
-        JSON.stringify({ error: "Database schema issue. Contact administrator." }),
-        { 
-          status: 500,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        }
-      );
-    }
-    
     // Create an invitation record
     const { data: inviteData, error: inviteError } = await supabaseClient
       .from("student_invites")

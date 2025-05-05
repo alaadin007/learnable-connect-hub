@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,6 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { getCurrentUserSchoolId } from "@/utils/schoolUtils";
 
 // Define the schema for student invite form
 const addStudentSchema = z.object({
