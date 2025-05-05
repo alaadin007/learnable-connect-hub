@@ -131,6 +131,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
 
       setProfile(safeProfileData);
       setUserRole(profileData.user_type || null);
+      
       // Fix the type issue by using a ternary operator to ensure boolean value
       setIsSuperviser(
         profileData.user_type === "superviser" || 
@@ -300,6 +301,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     schoolIndex = 0
   ) => {
     try {
+      // Clear any existing session before setting up test user
+      await supabase.auth.signOut();
+      
       // Created combined type+school identifier
       const testEmail = `${type}.test@learnable.edu`;
       console.log(`Setting test user with email: ${testEmail}`);
@@ -314,6 +318,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         // If login fails for test user, we'll create a mock session instead
         console.log("Test login failed, creating mock session:", error);
         
+        // Create a school ID for test accounts
+        const testSchoolId = `test-school-${schoolIndex}`;
+        
         // Mock relevant profile data
         const testProfile: UserProfile = {
           id: `test-${type}-${Date.now()}`,
@@ -322,7 +329,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
           school_code: TEST_SCHOOL_CODE,
           organization: type === "school" 
             ? {
-                id: `test-school-${schoolIndex}`,
+                id: testSchoolId,
                 name: `Test School ${schoolIndex}`,
                 code: TEST_SCHOOL_CODE
               } 
@@ -333,7 +340,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         setProfile(testProfile);
         setUserRole(type);
         setIsSuperviser(type === "school");
-        setSchoolId(type === "school" ? testProfile.organization?.id || null : `test-school-${schoolIndex}`);
+        
+        // Important: All test user types need a school ID
+        setSchoolId(type === "school" ? testSchoolId : testSchoolId);
         
         // Create a mock user (with type assertion to fix the type error)
         const mockUser = {
@@ -365,6 +374,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         // Set user role and session info
         setUserRole(type);
         
+        // Create a school ID for test accounts
+        const testSchoolId = `test-school-${schoolIndex}`;
+        
         // Mock profile specifically for test users
         const testProfile: UserProfile = {
           id: data.user.id,
@@ -373,7 +385,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
           school_code: TEST_SCHOOL_CODE,
           organization: type === "school" 
             ? {
-                id: `test-school-${schoolIndex}`,
+                id: testSchoolId,
                 name: `Test School ${schoolIndex}`,
                 code: TEST_SCHOOL_CODE
               } 
@@ -382,7 +394,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         
         setProfile(testProfile);
         setIsSuperviser(type === "school");
-        setSchoolId(type === "school" ? testProfile.organization?.id || null : `test-school-${schoolIndex}`);
+        
+        // Important: All test user types need a school ID
+        setSchoolId(type === "school" ? testSchoolId : testSchoolId);
         
         // Track session as test
         localStorage.setItem('usingTestAccount', 'true');
@@ -395,7 +409,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
           try {
             await supabase.rpc("populatetestaccountwithsessions", {
               userid: data.user.id,
-              schoolid: `test-school-${schoolIndex}`,
+              schoolid: testSchoolId,
               num_sessions: 5
             });
             console.log("Created test sessions data");

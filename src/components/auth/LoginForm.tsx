@@ -65,6 +65,11 @@ const LoginForm = () => {
         else if (email.startsWith("teacher")) type = "teacher";
 
         console.log(`LoginForm: Setting up test user of type ${type}`);
+        
+        // Make sure we're logged out first
+        await supabase.auth.signOut();
+        
+        // Set up test user
         await setTestUser(type);
         console.log(`LoginForm: Successfully set up test user of type ${type}`);
 
@@ -184,6 +189,9 @@ const LoginForm = () => {
 
     try {
       console.log(`LoginForm: Quick login as ${type}`);
+      
+      // Make sure we're logged out first
+      await supabase.auth.signOut();
       
       // Direct login for test accounts
       await setTestUser(type, schoolIndex);

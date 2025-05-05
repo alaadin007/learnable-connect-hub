@@ -120,7 +120,10 @@ const TestAccounts = () => {
       try {
         console.log(`TestAccounts: Logging in as ${accountType} test account...`);
         
-        // First set test user in auth context
+        // First make sure we're logged out
+        await supabase.auth.signOut();
+        
+        // Set test user in auth context
         await setTestUser(accountType);
         
         // Immediately show success toast so user gets feedback
@@ -139,7 +142,7 @@ const TestAccounts = () => {
 
         console.log(`TestAccounts: Navigating to ${redirectPath} for ${accountType}`);
         
-        // Don't add a delay here - navigate right away with proper state parameters
+        // Navigate with important state parameters for persistence
         navigate(redirectPath, {
           replace: true,
           state: { 
