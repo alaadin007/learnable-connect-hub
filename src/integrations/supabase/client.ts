@@ -47,7 +47,7 @@ export const isValidUUID = (id: string): boolean => {
   return uuidPattern.test(id);
 };
 
-// Helper function that returns a mock UUID for test purposes to avoid database errors
+// Helper function that returns a mock or valid UUID for test purposes to avoid database errors
 export const getMockOrValidUUID = (id?: string): string | undefined => {
   if (!id) return undefined;
   

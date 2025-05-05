@@ -29,6 +29,7 @@ import SessionsTable from "@/components/analytics/SessionsTable";
 import { AnalyticsSummaryCards } from "@/components/analytics/AnalyticsSummaryCards";
 import { DatePickerWithRange } from "@/components/ui/date-range-picker";
 import { AnalyticsExport } from "@/components/analytics/AnalyticsExport";
+import { isValidUUID } from "@/integrations/supabase/client";
 
 const TeacherAnalytics = () => {
   const { user, profile, userRole } = useAuth();
@@ -153,9 +154,16 @@ const TeacherAnalytics = () => {
     
     setDataError(false);
     try {
+      // Ensure schoolId is a valid UUID
+      if (!schoolId || !isValidUUID(schoolId)) {
+        console.warn("Invalid school ID, using mock data instead");
+        generateMockData();
+        return;
+      }
+      
       const filters: AnalyticsFilters = {
         dateRange,
-        teacherId,
+        teacherId: isValidUUID(teacherId) ? teacherId : undefined,
       };
 
       // Fetch all analytics data in parallel with individual try/catch blocks
@@ -231,9 +239,10 @@ const TeacherAnalytics = () => {
     setRetryCount(prev => prev + 1);
   }, [isTestAccount, generateMockData]);
 
+  // Fix type issue with handleExport function to properly handle DateRange
   const handleExport = useCallback(() => {
     try {
-      if (!dateRange) {
+      if (!dateRange || !dateRange.from) {
         toast.error("Please select a date range first");
         return;
       }
