@@ -6,6 +6,7 @@ import { ThemeProvider } from './components/theme-provider';
 import { AuthProvider } from './contexts/AuthContext';
 import { Toaster } from './components/ui/sonner';
 
+import AuthErrorHandler from './components/auth/AuthErrorHandler';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import Index from './pages/Index';
 import Login from './pages/Login';
@@ -55,59 +56,61 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <Router>
           <AuthProvider>
-            <Routes>
-              {/* Public routes */}
-              <Route path="/" element={<Index />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              <Route path="/school-registration" element={<SchoolRegistration />} />
-              <Route path="/teacher-invitation/:inviteId" element={<TeacherInvitation />} />
-              <Route path="/pricing" element={<Pricing />} />
-              <Route path="/features" element={<Features />} />
-              <Route path="/contact" element={<Contact />} />
-              <Route path="/about" element={<About />} />
-              <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+            <AuthErrorHandler>
+              <Routes>
+                {/* Public routes */}
+                <Route path="/" element={<Index />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
+                <Route path="/school-registration" element={<SchoolRegistration />} />
+                <Route path="/teacher-invitation/:inviteId" element={<TeacherInvitation />} />
+                <Route path="/pricing" element={<Pricing />} />
+                <Route path="/features" element={<Features />} />
+                <Route path="/contact" element={<Contact />} />
+                <Route path="/about" element={<About />} />
+                <Route path="/privacy-policy" element={<PrivacyPolicy />} />
 
-              {/* Protected routes */}
-              <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-              
-              {/* School Admin routes */}
-              <Route path="/admin" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><SchoolAdmin /></ProtectedRoute>} />
-              <Route path="/admin/teachers" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><AdminTeachers /></ProtectedRoute>} />
-              <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><SchoolSettings /></ProtectedRoute>} />
-              <Route path="/admin/students" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><AdminStudents /></ProtectedRoute>} />
-              <Route path="/admin/analytics" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><AdminAnalytics /></ProtectedRoute>} />
-              <Route path="/admin/tools" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><AdminTools /></ProtectedRoute>} />
-              <Route path="/admin/teacher-management" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><AdminTeacherManagement /></ProtectedRoute>} />
-              
-              {/* Legacy school admin routes (redirects to new structure) */}
-              <Route path="/school-admin" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><SchoolAdmin /></ProtectedRoute>} />
-              <Route path="/school-settings" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><SchoolSettings /></ProtectedRoute>} />
-              <Route path="/admin-teachers" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><AdminTeachers /></ProtectedRoute>} />
-              <Route path="/admin-students" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><AdminStudents /></ProtectedRoute>} />
-              <Route path="/admin-analytics" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><AdminAnalytics /></ProtectedRoute>} />
-              <Route path="/admin-teacher-management" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><AdminTeacherManagement /></ProtectedRoute>} />
-              <Route path="/admin-tools" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><AdminTools /></ProtectedRoute>} />
-              <Route path="/test-accounts" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><TestAccounts /></ProtectedRoute>} />
-              
-              {/* Teacher routes */}
-              <Route path="/teacher-students" element={<ProtectedRoute requiredRole="teacher"><TeacherStudents /></ProtectedRoute>} />
-              <Route path="/teacher-analytics" element={<ProtectedRoute requiredRole="teacher"><TeacherAnalytics /></ProtectedRoute>} />
-              
-              {/* Student routes */}
-              <Route path="/student-settings" element={<ProtectedRoute requiredRole="student"><StudentSettings /></ProtectedRoute>} />
-              <Route path="/student-progress" element={<ProtectedRoute requiredRole="student"><StudentProgress /></ProtectedRoute>} />
-              <Route path="/student-assessments" element={<ProtectedRoute requiredRole="student"><StudentAssessments /></ProtectedRoute>} />
-              
-              {/* Shared routes */}
-              <Route path="/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
-              <Route path="/documents" element={<ProtectedRoute><Documents /></ProtectedRoute>} />
-              <Route path="/chat-with-ai" element={<ProtectedRoute><ChatWithAI /></ProtectedRoute>} />
-              <Route path="/ai-settings" element={<ProtectedRoute><AISettings /></ProtectedRoute>} />
+                {/* Protected routes */}
+                <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                
+                {/* School Admin routes */}
+                <Route path="/admin" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><SchoolAdmin /></ProtectedRoute>} />
+                <Route path="/admin/teachers" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><AdminTeachers /></ProtectedRoute>} />
+                <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><SchoolSettings /></ProtectedRoute>} />
+                <Route path="/admin/students" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><AdminStudents /></ProtectedRoute>} />
+                <Route path="/admin/analytics" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><AdminAnalytics /></ProtectedRoute>} />
+                <Route path="/admin/tools" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><AdminTools /></ProtectedRoute>} />
+                <Route path="/admin/teacher-management" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><AdminTeacherManagement /></ProtectedRoute>} />
+                
+                {/* Legacy school admin routes (redirects to new structure) */}
+                <Route path="/school-admin" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><SchoolAdmin /></ProtectedRoute>} />
+                <Route path="/school-settings" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><SchoolSettings /></ProtectedRoute>} />
+                <Route path="/admin-teachers" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><AdminTeachers /></ProtectedRoute>} />
+                <Route path="/admin-students" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><AdminStudents /></ProtectedRoute>} />
+                <Route path="/admin-analytics" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><AdminAnalytics /></ProtectedRoute>} />
+                <Route path="/admin-teacher-management" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><AdminTeacherManagement /></ProtectedRoute>} />
+                <Route path="/admin-tools" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><AdminTools /></ProtectedRoute>} />
+                <Route path="/test-accounts" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><TestAccounts /></ProtectedRoute>} />
+                
+                {/* Teacher routes */}
+                <Route path="/teacher-students" element={<ProtectedRoute requiredRole="teacher"><TeacherStudents /></ProtectedRoute>} />
+                <Route path="/teacher-analytics" element={<ProtectedRoute requiredRole="teacher"><TeacherAnalytics /></ProtectedRoute>} />
+                
+                {/* Student routes */}
+                <Route path="/student-settings" element={<ProtectedRoute requiredRole="student"><StudentSettings /></ProtectedRoute>} />
+                <Route path="/student-progress" element={<ProtectedRoute requiredRole="student"><StudentProgress /></ProtectedRoute>} />
+                <Route path="/student-assessments" element={<ProtectedRoute requiredRole="student"><StudentAssessments /></ProtectedRoute>} />
+                
+                {/* Shared routes */}
+                <Route path="/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
+                <Route path="/documents" element={<ProtectedRoute><Documents /></ProtectedRoute>} />
+                <Route path="/chat-with-ai" element={<ProtectedRoute><ChatWithAI /></ProtectedRoute>} />
+                <Route path="/ai-settings" element={<ProtectedRoute><AISettings /></ProtectedRoute>} />
 
-              {/* Not found route */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+                {/* Not found route */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </AuthErrorHandler>
             <Toaster position="top-right" />
           </AuthProvider>
         </Router>

@@ -1,4 +1,3 @@
-
 import React, {
   createContext,
   useState,
@@ -81,19 +80,53 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       if (!user) return;
       
+      console.log("Refreshing profile for user:", user.id);
+      
       const { data, error } = await supabase
         .from("profiles")
         .select("*")
         .eq("id", user.id)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error refreshing profile:", error);
+        throw error;
+      }
 
       if (data) {
+        console.log("Profile data fetched:", data);
+        
         // First determine school ID
         let userSchoolId = null;
         
-        if (data.school_code) {
+        if (data.user_type === 'teacher' || data.user_type === 'school') {
+          // For teachers and school admins, get school ID from teachers table
+          const { data: teacherData, error: teacherError } = await supabase
+            .from("teachers")
+            .select("school_id")
+            .eq("id", user.id)
+            .single();
+
+          if (!teacherError && teacherData) {
+            userSchoolId = teacherData.school_id;
+            console.log("Found school ID from teachers table:", userSchoolId);
+          }
+        } else if (data.user_type === 'student') {
+          // For students, get school ID from students table
+          const { data: studentData, error: studentError } = await supabase
+            .from("students")
+            .select("school_id")
+            .eq("id", user.id)
+            .single();
+            
+          if (!studentError && studentData) {
+            userSchoolId = studentData.school_id;
+            console.log("Found school ID from students table:", userSchoolId);
+          }
+        }
+        
+        // If school ID not found in role-specific tables, fall back to school_code in profiles
+        if (!userSchoolId && data.school_code) {
           const { data: schoolData, error: schoolError } = await supabase
             .from("schools")
             .select("id")
@@ -102,6 +135,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
           if (!schoolError && schoolData) {
             userSchoolId = schoolData.id;
+            console.log("Found school ID from school code:", userSchoolId);
           }
         }
         
@@ -113,6 +147,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             code: data.school_code || null,
           }
         };
+        
+        console.log("Setting enhanced profile:", enhancedProfile);
         
         setProfile(enhancedProfile);
         setUserRole(data.user_type || null);
@@ -127,10 +163,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             .maybeSingle();
             
           setIsSupervisor(!!teacherData?.is_supervisor);
+          console.log("Is supervisor:", !!teacherData?.is_supervisor);
         }
+        
+        return enhancedProfile;
       }
+      return null;
     } catch (error) {
       console.error("Error refreshing profile:", error);
+      return null;
     }
   };
   
@@ -138,6 +179,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const loadSession = async () => {
       setIsLoading(true);
       try {
+        console.log("AuthContext: Starting session load process");
+        
         // Check for test user in local storage
         const storedTestUser = localStorage.getItem("testUser");
         const storedTestUserRole = localStorage.getItem("testUserRole");
@@ -164,10 +207,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
 
         // Load Supabase session
+        console.log("AuthContext: Getting current session");
         const {
           data: { session: currentSession },
+          error: sessionError
         } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.error("AuthContext: Error getting session:", sessionError);
+          throw sessionError;
+        }
 
+        console.log("AuthContext: Session fetch result:", currentSession ? "Session found" : "No session found");
         setSession(currentSession);
 
         if (currentSession) {
@@ -175,79 +226,23 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           setUser(currentSession.user);
 
           // Get user profile
-          const { data: profileData, error: profileError } = await supabase
-            .from("profiles")
-            .select("*")
-            .eq("id", currentSession.user.id)
-            .single();
-
-          if (profileError) {
-            console.error("AuthContext: Error fetching profile:", profileError);
-            throw profileError;
-          }
-
-          if (profileData) {
-            console.log("AuthContext: Profile loaded, setting role...");
-            
-            // Set school ID - fetch directly from appropriate table
-            let userSchoolId = null;
-            
-            if (profileData.user_type === 'teacher' || profileData.user_type === 'school') {
-              const { data: teacherData, error: teacherError } = await supabase
-                .from("teachers")
-                .select("school_id")
-                .eq("id", currentSession.user.id)
-                .single();
-                
-              if (!teacherError && teacherData) {
-                userSchoolId = teacherData.school_id;
-              }
-            } else if (profileData.user_type === 'student') {
-              const { data: studentData, error: studentError } = await supabase
-                .from("students")
-                .select("school_id")
-                .eq("id", currentSession.user.id)
-                .single();
-                
-              if (!studentError && studentData) {
-                userSchoolId = studentData.school_id;
-              }
-            }
-            
-            // Add the organization property to the profile
-            const enhancedProfile = {
-              ...profileData,
-              organization: {
-                id: userSchoolId,
-                name: profileData.school_name,
-                code: profileData.school_code
-              }
-            };
-            
-            setProfile(enhancedProfile);
-            setUserRole(profileData.user_type || "unknown");
-            setSchoolId(userSchoolId);
-
-            // Check if teacher is supervisor
-            if (profileData.user_type === 'teacher' || profileData.user_type === 'school') {
-              const { data: teacherData } = await supabase
-                .from("teachers")
-                .select("is_supervisor")
-                .eq("id", currentSession.user.id)
-                .maybeSingle();
-                
-              setIsSupervisor(!!teacherData?.is_supervisor);
-            }
-
-            // Store last active role
-            localStorage.setItem("lastActiveRole", profileData.user_type);
+          console.log("AuthContext: Fetching profile data");
+          const profile = await refreshProfile();
+          
+          if (!profile) {
+            console.error("AuthContext: Failed to load profile, signing out");
+            await supabase.auth.signOut();
+            setUser(null);
+            setSession(null);
+            setProfile(null);
+            toast.error("Failed to load user profile. Please log in again.");
           }
         } else {
-          console.log("AuthContext: No session found");
+          console.log("AuthContext: No session found, not authenticated");
         }
       } catch (error) {
         console.error("AuthContext: Error loading session:", error);
-        toast.error("Failed to load session");
+        toast.error("Failed to load session. Please try logging in again.");
       } finally {
         setIsLoading(false);
       }
@@ -263,71 +258,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setUser(currentSession?.user || null);
 
         if (currentSession) {
-          // Get user profile
-          const { data: profileData, error: profileError } = await supabase
-            .from("profiles")
-            .select("*")
-            .eq("id", currentSession.user.id)
-            .single();
-
-          if (profileError) {
-            console.error("AuthContext: Error fetching profile:", profileError);
-            return;
-          }
-
-          if (profileData) {
-            // Set school ID - fetch directly from appropriate table
-            let userSchoolId = null;
-            
-            if (profileData.user_type === 'teacher' || profileData.user_type === 'school') {
-              const { data: teacherData, error: teacherError } = await supabase
-                .from("teachers")
-                .select("school_id")
-                .eq("id", currentSession.user.id)
-                .single();
-                
-              if (!teacherError && teacherData) {
-                userSchoolId = teacherData.school_id;
-              }
-            } else if (profileData.user_type === 'student') {
-              const { data: studentData, error: studentError } = await supabase
-                .from("students")
-                .select("school_id")
-                .eq("id", currentSession.user.id)
-                .single();
-                
-              if (!studentError && studentData) {
-                userSchoolId = studentData.school_id;
-              }
+          // Don't fetch profile immediately - use setTimeout to avoid potential deadlocks
+          // with Supabase's internal state management
+          setTimeout(async () => {
+            try {
+              await refreshProfile();
+            } catch (profileError) {
+              console.error("Error fetching profile after auth state change:", profileError);
             }
-            
-            const enhancedProfile = {
-              ...profileData,
-              organization: {
-                id: userSchoolId,
-                name: profileData.school_name,
-                code: profileData.school_code
-              }
-            };
-            
-            setProfile(enhancedProfile);
-            setUserRole(profileData.user_type || "unknown");
-            setSchoolId(userSchoolId);
-
-            // Check if teacher is supervisor
-            if (profileData.user_type === 'teacher' || profileData.user_type === 'school') {
-              const { data: teacherData } = await supabase
-                .from("teachers")
-                .select("is_supervisor")
-                .eq("id", currentSession.user.id)
-                .maybeSingle();
-                
-              setIsSupervisor(!!teacherData?.is_supervisor);
-            }
-
-            // Store last active role
-            localStorage.setItem("lastActiveRole", profileData.user_type);
-          }
+          }, 0);
         } else {
           setProfile(null);
           setUserRole(null);
@@ -348,7 +287,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const signIn = async (email: string, password: string) => {
     setIsLoggingIn(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      console.log("Starting sign in process for:", email);
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -360,6 +300,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       console.log("AuthContext: Sign in successful");
       toast.success("Signed in successfully");
+      
+      // Force a profile refresh to ensure all data is current
+      setTimeout(async () => {
+        try {
+          await refreshProfile();
+        } catch (profileError) {
+          console.error("Error refreshing profile after signin:", profileError);
+        }
+      }, 0);
     } catch (error: any) {
       console.error("AuthContext: Sign in failed:", error.message);
       toast.error(error.message || "Sign in failed");
