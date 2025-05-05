@@ -691,261 +691,6 @@ export const populateTestAccountWithSessionsDirect = async (userId: string, scho
   }
 };
 
-// Add the CSV export functionality
-export const exportAnalyticsToCSV = (
-  summary: AnalyticsSummary,
-  sessions: SessionData[],
-  topics: TopicData[],
-  dateRangeStr: string
-): void => {
-  try {
-    // Prepare data for CSV
-    // 1. Summary data
-    const summaryData = [
-      ['Analytics Summary', ''],
-      ['Date Range', dateRangeStr],
-      ['Active Students', summary.activeStudents.toString()],
-      ['Total Sessions', summary.totalSessions.toString()],
-      ['Total Queries', summary.totalQueries.toString()],
-      ['Avg Session Minutes', summary.avgSessionMinutes.toString()],
-      ['', ''] // Empty row as separator
-    ];
-
-    // 2. Sessions data
-    const sessionsHeader = ['Student', 'Date', 'Topic', 'Duration (min)', 'Queries'];
-    const sessionsRows = sessions.map(session => [
-      session.student_name || 'Unknown',
-      new Date(session.session_date).toLocaleDateString(),
-      session.topic || 'General',
-      session.duration_minutes?.toString() || '0',
-      session.queries?.toString() || '0'
-    ]);
-
-    // 3. Topics data
-    const topicsHeader = ['Topic', 'Count', 'Percentage'];
-    const totalTopicCount = topics.reduce((sum, t) => sum + t.count, 0);
-    const topicsRows = topics.map(topic => [
-      topic.topic,
-      topic.count.toString(),
-      totalTopicCount > 0 ? `${((topic.count / totalTopicCount) * 100).toFixed(1)}%` : '0%'
-    ]);
-
-    // 4. Study time data
-    const studyTimeHeader = ['Student', 'Total Minutes', 'Hours'];
-    const studyTimeRows = studyTime.map(st => [
-      st.student_name,
-      st.total_minutes.toString(),
-      (st.total_minutes / 60).toFixed(1)
-    ]);
-
-    // Combine all data
-    const allData = [
-      ...summaryData,
-      ['Sessions', ''],
-      sessionsHeader,
-      ...sessionsRows,
-      ['', ''], // Separator
-      ['Topics', ''],
-      topicsHeader,
-      ...topicsRows,
-      ['', ''], // Separator
-      ['Study Time', ''],
-      studyTimeHeader,
-      ...studyTimeRows
-    ];
-
-    // Convert to CSV
-    const csvContent = "data:text/csv;charset=utf-8," + 
-      allData.map(row => row.join(',')).join('\n');
-    
-    // Download file
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `analytics-${dateRangeStr.replace(/\s+/g, '-')}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  } catch (error) {
-    console.error("Error exporting CSV:", error);
-    throw new Error("Failed to export data to CSV");
-  }
-};
-
-// Fix the direct database query issues - add proper awaits and type handling
-export const fetchAnalyticsSummary = async (
-  schoolId: string | undefined,
-  filters: AnalyticsFilters
-): Promise<AnalyticsSummary> => {
-  try {
-    // Validate school ID
-    if (!schoolId || !isValidUUID(schoolId)) {
-      console.warn("Invalid school ID for analytics summary, using demo data");
-      return getMockSummaryData();
-    }
-
-    // Get date range filter
-    const { dateRange } = filters;
-    const dateFilter = getDateFilterSQL(dateRange);
-
-    // Build the query with proper await
-    const { data, error } = await supabase
-      .from('session_logs')
-      .select(`
-        id,
-        user_id,
-        school_id,
-        topic_or_content_used,
-        session_start,
-        session_end,
-        num_queries
-      `)
-      .eq('school_id', schoolId)
-      .gte('session_start', dateFilter.startDate)
-      .lte('session_start', dateFilter.endDate);
-
-    if (error) {
-      console.error("Error fetching analytics summary:", error);
-      return getMockSummaryData();
-    }
-
-    // Process the data
-    const sessions = data || [];
-    const uniqueStudents = new Set(sessions.map(s => s.user_id));
-    const totalQueries = sessions.reduce((sum, s) => sum + (s.num_queries || 0), 0);
-    
-    // Calculate average session duration
-    let totalMinutes = 0;
-    let sessionsWithDuration = 0;
-    
-    sessions.forEach(session => {
-      if (session.session_start && session.session_end) {
-        const start = new Date(session.session_start);
-        const end = new Date(session.session_end);
-        const durationMinutes = (end.getTime() - start.getTime()) / (1000 * 60);
-        
-        if (durationMinutes > 0 && durationMinutes < 240) { // Filter out sessions longer than 4 hours
-          totalMinutes += durationMinutes;
-          sessionsWithDuration++;
-        }
-      }
-    });
-    
-    const avgSessionMinutes = sessionsWithDuration > 0 
-      ? Math.round(totalMinutes / sessionsWithDuration) 
-      : 0;
-
-    return {
-      activeStudents: uniqueStudents.size,
-      totalSessions: sessions.length,
-      totalQueries,
-      avgSessionMinutes
-    };
-  } catch (error) {
-    console.error("Error in fetchAnalyticsSummary:", error);
-    return getMockSummaryData();
-  }
-};
-
-// Helper function for mock summary data
-const getMockSummaryData = (): AnalyticsSummary => {
-  return {
-    activeStudents: 12,
-    totalSessions: 35,
-    totalQueries: 105,
-    avgSessionMinutes: 22
-  };
-};
-
-// Check if string is a valid UUID
-export const isValidUUID = (str: string): boolean => {
-  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-  return uuidPattern.test(str);
-};
-
-// Fix the session logs query with proper type handling
-export const fetchSessionLogs = async (
-  schoolId: string | undefined,
-  filters: AnalyticsFilters
-): Promise<SessionData[]> => {
-  try {
-    // Validate school ID
-    if (!schoolId || !isValidUUID(schoolId)) {
-      console.warn("Invalid school ID for session logs, using demo data");
-      return getMockSessionData();
-    }
-
-    // Get date range filter
-    const { dateRange, teacherId, studentId } = filters;
-    const dateFilter = getDateFilterSQL(dateRange);
-
-    // Build query
-    let query = supabase
-      .from('session_logs')
-      .select(`
-        id,
-        user_id,
-        school_id,
-        topic_or_content_used,
-        session_start,
-        session_end,
-        num_queries,
-        profiles!inner(full_name)
-      `)
-      .eq('school_id', schoolId)
-      .gte('session_start', dateFilter.startDate)
-      .lte('session_start', dateFilter.endDate)
-      .order('session_start', { ascending: false });
-
-    // Add student filter if provided
-    if (studentId && isValidUUID(studentId)) {
-      query = query.eq('user_id', studentId);
-    }
-
-    // Execute the query with proper await
-    const { data, error } = await query;
-
-    if (error) {
-      console.error("Error fetching session logs:", error);
-      return getMockSessionData();
-    }
-
-    // Transform the data into the expected format
-    const sessions: SessionData[] = (data || []).map(session => {
-      // Calculate session duration in minutes
-      let durationMinutes = 0;
-      if (session.session_start && session.session_end) {
-        const start = new Date(session.session_start);
-        const end = new Date(session.session_end);
-        durationMinutes = Math.round((end.getTime() - start.getTime()) / (1000 * 60));
-      }
-
-      // Get the student name from the profiles relation
-      const studentName = session.profiles?.full_name || 'Unknown Student';
-
-      return {
-        id: session.id,
-        student_id: session.user_id,
-        student_name: studentName,
-        session_date: session.session_start,
-        duration_minutes: durationMinutes,
-        topics: session.topic_or_content_used ? [session.topic_or_content_used] : [],
-        questions_asked: session.num_queries || 0,
-        questions_answered: session.num_queries || 0, // Assuming all questions were answered
-        userId: session.user_id,
-        userName: studentName,
-        topic: session.topic_or_content_used || 'General',
-        queries: session.num_queries || 0
-      };
-    });
-
-    return sessions;
-  } catch (error) {
-    console.error("Error in fetchSessionLogs:", error);
-    return getMockSessionData();
-  }
-};
-
 // Helper function for mock session data
 const getMockSessionData = (): SessionData[] => {
   return Array(15).fill(null).map((_, i) => ({
@@ -959,4 +704,230 @@ const getMockSessionData = (): SessionData[] => {
     questions_answered: Math.floor(Math.random() * 8) + 2,
     userId: `student-${i % 5 + 1}`,
     userName: `Student ${i % 5 + 1}`,
-    topic: ['Math', 'Science', 'History', 'English', 'Geography'][i %
+    topic: ['Math', 'Science', 'History', 'English', 'Geography'][i % 5],
+    queries: Math.floor(Math.random() * 10) + 3
+  }));
+};
+
+// Check if string is a valid UUID
+export const isValidUUID = (str: string): boolean => {
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidPattern.test(str);
+};
+
+// Helper function to make sure we have valid date filters
+export const getDateFilterSQL = (dateRange?: DateRange): { startDate: string; endDate: string } => {
+  if (!dateRange || !dateRange.from) {
+    // Default to last 30 days if no dateRange is provided
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(endDate.getDate() - 30);
+    
+    return {
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString()
+    };
+  }
+  
+  const startDate = new Date(dateRange.from);
+  startDate.setHours(0, 0, 0, 0);
+  
+  let endDate: Date;
+  if (dateRange.to) {
+    endDate = new Date(dateRange.to);
+    endDate.setHours(23, 59, 59, 999);
+  } else {
+    // If only "from" is specified, use that day as both start and end
+    endDate = new Date(dateRange.from);
+    endDate.setHours(23, 59, 59, 999);
+  }
+  
+  return {
+    startDate: startDate.toISOString(),
+    endDate: endDate.toISOString()
+  };
+};
+
+// Now let's implement the fetchTopics function used in the analytics
+export const fetchTopics = async (
+  schoolId: string | undefined,
+  filters: AnalyticsFilters
+): Promise<TopicData[]> => {
+  try {
+    // Validate school ID
+    if (!schoolId || !isValidUUID(schoolId)) {
+      console.warn("Invalid school ID for topics, using demo data");
+      return getMockTopicsData();
+    }
+
+    // Get date range filter
+    const { dateRange } = filters;
+    const dateFilter = getDateFilterSQL(dateRange);
+
+    // Execute the query with proper await
+    const { data, error } = await supabase
+      .from('session_logs')
+      .select('topic_or_content_used')
+      .eq('school_id', schoolId)
+      .gte('session_start', dateFilter.startDate)
+      .lte('session_start', dateFilter.endDate)
+      .not('topic_or_content_used', 'is', null);
+
+    if (error) {
+      console.error("Error fetching topics:", error);
+      return getMockTopicsData();
+    }
+
+    // Count topics and format data
+    const topicCounts: Record<string, number> = {};
+    (data || []).forEach(session => {
+      const topic = session.topic_or_content_used || 'General';
+      topicCounts[topic] = (topicCounts[topic] || 0) + 1;
+    });
+
+    // Format into the expected structure
+    const topicsData: TopicData[] = Object.entries(topicCounts)
+      .map(([topic, count]) => ({ 
+        topic, 
+        count, 
+        name: topic, // For compatibility with components expecting 'name'
+        value: count // For compatibility with components expecting 'value'
+      }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10); // Get top 10 topics
+
+    return topicsData;
+  } catch (error) {
+    console.error("Error in fetchTopics:", error);
+    return getMockTopicsData();
+  }
+};
+
+// Helper function for mock topics data
+const getMockTopicsData = (): TopicData[] => {
+  return [
+    { topic: 'Math', count: 15, name: 'Math', value: 15 },
+    { topic: 'Science', count: 12, name: 'Science', value: 12 },
+    { topic: 'History', count: 8, name: 'History', value: 8 },
+    { topic: 'English', count: 7, name: 'English', value: 7 },
+    { topic: 'Geography', count: 5, name: 'Geography', value: 5 }
+  ];
+};
+
+// Implement the study time function
+export const fetchStudyTime = async (
+  schoolId: string | undefined,
+  filters: AnalyticsFilters
+): Promise<StudyTimeData[]> => {
+  try {
+    // Validate school ID
+    if (!schoolId || !isValidUUID(schoolId)) {
+      console.warn("Invalid school ID for study time, using demo data");
+      return getMockStudyTimeData();
+    }
+
+    // Get date range filter
+    const { dateRange, studentId } = filters;
+    const dateFilter = getDateFilterSQL(dateRange);
+
+    // Build the query
+    let query = supabase
+      .from('session_logs')
+      .select(`
+        user_id,
+        session_start,
+        session_end,
+        profiles!inner(full_name)
+      `)
+      .eq('school_id', schoolId)
+      .gte('session_start', dateFilter.startDate)
+      .lte('session_start', dateFilter.endDate);
+
+    // Add student filter if provided
+    if (studentId && isValidUUID(studentId)) {
+      query = query.eq('user_id', studentId);
+    }
+
+    // Execute the query with proper await
+    const { data, error } = await query;
+
+    if (error) {
+      console.error("Error fetching study time:", error);
+      return getMockStudyTimeData();
+    }
+
+    // Group by student and calculate total study time
+    const studyTimeByStudent: Record<string, {
+      student_id: string;
+      student_name: string;
+      total_minutes: number;
+    }> = {};
+
+    (data || []).forEach(session => {
+      if (session.session_start && session.session_end) {
+        const studentId = session.user_id;
+        const studentName = session.profiles?.full_name || 'Unknown Student';
+        const start = new Date(session.session_start);
+        const end = new Date(session.session_end);
+        let minutes = Math.round((end.getTime() - start.getTime()) / (1000 * 60));
+
+        // Cap very long sessions at 4 hours (240 minutes)
+        if (minutes < 0) minutes = 0;
+        if (minutes > 240) minutes = 240;
+
+        if (!studyTimeByStudent[studentId]) {
+          studyTimeByStudent[studentId] = {
+            student_id: studentId,
+            student_name: studentName,
+            total_minutes: 0
+          };
+        }
+
+        studyTimeByStudent[studentId].total_minutes += minutes;
+      }
+    });
+
+    // Format into the expected structure and sort by total time (descending)
+    const studyTimeData: StudyTimeData[] = Object.values(studyTimeByStudent)
+      .map(({ student_id, student_name, total_minutes }) => ({
+        student_id,
+        student_name,
+        total_minutes,
+        name: student_name, // For compatibility with components expecting 'name'
+        studentName: student_name, // For compatibility with components expecting 'studentName'
+        hours: parseFloat((total_minutes / 60).toFixed(1)),
+        week: new Date().getWeek(), // This would need a proper implementation
+        year: new Date().getFullYear()
+      }))
+      .sort((a, b) => b.total_minutes - a.total_minutes);
+
+    return studyTimeData;
+  } catch (error) {
+    console.error("Error in fetchStudyTime:", error);
+    return getMockStudyTimeData();
+  }
+};
+
+// Helper to get week number (added to avoid Date.prototype extension)
+declare global {
+  interface Date {
+    getWeek(): number;
+  }
+}
+
+// Add getWeek method to Date prototype if not exists
+if (!Date.prototype.getWeek) {
+  Date.prototype.getWeek = function(): number {
+    const date = new Date(this.getTime());
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7);
+    const week1 = new Date(date.getFullYear(), 0, 4);
+    return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+  };
+}
+
+// Helper function for mock study time data
+const getMockStudyTimeData = (): StudyTimeData[] => {
+  return [
+    { student_id: 'student-1', student_name: 'Student 1', total_minutes: 240, name: 'Student 1', studentName: 'Student 1', hours: 4, week: 1, year: 2023 },
+    { student_id: 'student-2', student_name: 'Student 2', total_minutes: 180, name:

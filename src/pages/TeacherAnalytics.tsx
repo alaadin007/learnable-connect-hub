@@ -39,20 +39,20 @@ const TeacherAnalytics = () => {
     from: new Date(new Date().setDate(new Date().getDate() - 30)),
     to: new Date(),
   });
-  const [summary, setSummary] = useState<AnalyticsSummary>({
+  const [summary, setSummary<AnalyticsSummary>({
     activeStudents: 0,
     totalSessions: 0,
     totalQueries: 0,
     avgSessionMinutes: 0,
   });
-  const [sessions, setSessions] = useState<SessionData[]>([]);
-  const [topics, setTopics] = useState<TopicData[]>([]);
-  const [studyTime, setStudyTime] = useState<StudyTimeData[]>([]);
-  const [activeTab, setActiveTab] = useState("overview");
-  const [retryCount, setRetryCount] = useState(0);
-  const [dataError, setDataError] = useState(false);
-  const [dataLoaded, setDataLoaded] = useState(false);
-  const [dataFetchDisabled, setDataFetchDisabled] = useState(false);
+  const [sessions, setSessions<SessionData[]>([]);
+  const [topics, setTopics<TopicData[]>([]);
+  const [studyTime, setStudyTime<StudyTimeData[]>([]);
+  const [activeTab, setActiveTab("overview");
+  const [retryCount, setRetryCount(0);
+  const [dataError, setDataError(false);
+  const [dataLoaded, setDataLoaded(false);
+  const [dataFetchDisabled, setDataFetchDisabled(false);
   
   // Get teacher's school ID with memoization
   const schoolId = useMemo(() => profile?.organization?.id || "test-school-0", [profile?.organization?.id]);
