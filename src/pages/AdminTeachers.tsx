@@ -1,35 +1,43 @@
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import TeacherManagement from "@/components/school-admin/TeacherManagement";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
 
 const AdminTeachers = () => {
   const navigate = useNavigate();
-  const { userRole, user } = useAuth();
+  const { userRole, user, isLoading: authLoading } = useAuth();
+  const [pageLoading, setPageLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Verify authentication first
   useEffect(() => {
+    if (authLoading) return;
+
     if (!user) {
       toast.error("You must be logged in to access this page");
       navigate("/login", { replace: true });
       return;
     }
-  }, [user, navigate]);
-
-  // Verify correct user role and redirect if needed - but with improved error handling
-  useEffect(() => {
+    
+    // Verify correct user role and redirect if needed - but with improved error handling
     if (userRole && userRole !== "school") {
       console.log(`AdminTeachers: Unauthorized access by user with role ${userRole}`);
       toast.error("You don't have permission to access this page");
       navigate("/dashboard", { replace: true });
+      return;
     }
-  }, [userRole, navigate]);
+    
+    setPageLoading(false);
+  }, [user, userRole, navigate, authLoading]);
   
   return (
     <div className="min-h-screen flex flex-col">
@@ -49,7 +57,33 @@ const AdminTeachers = () => {
             <h1 className="text-3xl font-bold gradient-text">Teacher Management</h1>
           </div>
           
-          <TeacherManagement />
+          {pageLoading ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Loading</CardTitle>
+                <CardDescription>Please wait while we load the teacher management page...</CardDescription>
+              </CardHeader>
+              <CardContent className="flex justify-center items-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin" />
+              </CardContent>
+            </Card>
+          ) : error ? (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+              <Button 
+                onClick={() => navigate('/admin', { replace: true })} 
+                className="mt-2"
+                variant="outline"
+                size="sm"
+              >
+                Return to Admin Dashboard
+              </Button>
+            </Alert>
+          ) : (
+            <TeacherManagement />
+          )}
         </div>
       </main>
       <Footer />

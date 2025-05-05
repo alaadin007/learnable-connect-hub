@@ -52,10 +52,10 @@ export const getCurrentUserSchoolId = async (): Promise<string | null> => {
       return studentData.school_id;
     }
     
-    // Try from profile data
+    // Try from profile data with school_code
     const { data: profileData } = await supabase
       .from("profiles")
-      .select("school_code")
+      .select("school_code, user_metadata")
       .eq("id", user.id)
       .single();
     
@@ -73,10 +73,44 @@ export const getCurrentUserSchoolId = async (): Promise<string | null> => {
       }
     }
     
-    console.error("Could not determine school ID");
+    // Try from user metadata
+    if (user.user_metadata?.school_code) {
+      // Get school ID from code in user metadata
+      const { data: metadataSchoolData } = await supabase
+        .from("schools")
+        .select("id")
+        .eq("code", user.user_metadata.school_code)
+        .single();
+        
+      if (metadataSchoolData?.id) {
+        console.log("Found school ID from user metadata school code:", metadataSchoolData.id);
+        return metadataSchoolData.id;
+      }
+    }
+    
+    console.error("Could not determine school ID through any method");
     return null;
   } catch (error) {
     console.error("Error getting school ID:", error);
+    return null;
+  }
+};
+
+/**
+ * Get additional information about a school
+ */
+export const getSchoolInfo = async (schoolId: string) => {
+  try {
+    const { data, error } = await supabase
+      .from("schools")
+      .select("*")
+      .eq("id", schoolId)
+      .single();
+      
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error("Error getting school info:", error);
     return null;
   }
 };

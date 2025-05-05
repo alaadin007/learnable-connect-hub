@@ -40,6 +40,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase, isTestAccount } from "@/integrations/supabase/client";
+import { getCurrentUserSchoolId } from "@/utils/schoolUtils";
 
 // Define TeacherInvitation type if not imported
 export interface TeacherInvitation {
@@ -57,7 +58,7 @@ export interface TeacherInvitation {
 
 // Update component to use TeacherInvitation type
 const TeacherManagement = () => {
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
   const [invitations, setInvitations] = useState<TeacherInvitation[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -68,19 +69,47 @@ const TeacherManagement = () => {
   const [selectedInvitations, setSelectedInvitations] = useState<string[]>([]);
   const [selectAll, setSelectAll] = useState(false);
   const [loadingError, setLoadingError] = useState<string | null>(null);
+  const [schoolId, setSchoolId] = useState<string | null>(null);
 
-  // Get the school ID from the profile
-  const schoolId = profile?.organization?.id || null;
+  // Get the school ID from various sources to ensure we have it
+  useEffect(() => {
+    const fetchSchoolId = async () => {
+      setIsLoading(true);
+      setLoadingError(null);
+
+      try {
+        // Try to get the school ID from the profile first
+        let id = profile?.organization?.id;
+        
+        // If not available in profile, try the utility function
+        if (!id) {
+          id = await getCurrentUserSchoolId();
+        }
+
+        console.log("TeacherManagement: Fetched school ID:", id);
+        setSchoolId(id);
+
+        if (!id) {
+          setLoadingError("School ID could not be retrieved. Please refresh the page or try logging out and back in.");
+        }
+      } catch (error: any) {
+        console.error("Error fetching school ID:", error);
+        setLoadingError("Error fetching school information: " + error.message);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchSchoolId();
+  }, [profile]);
+
   // Check if this is a test account
   const isTestSchool = schoolId ? schoolId.startsWith('test-') : false;
+  const isUserTestAccount = profile?.email ? isTestAccount(profile.email) : false;
 
   useEffect(() => {
     if (schoolId) {
       loadInvitations();
-    } else {
-      setInvitations([]);
-      setIsLoading(false);
-      setLoadingError("School ID is not available. Please make sure you are logged in as a school administrator.");
     }
   }, [schoolId]);
 
@@ -97,7 +126,7 @@ const TeacherManagement = () => {
     
     try {
       // Handle test accounts differently to prevent RLS policy issues
-      if (isTestSchool || (profile && profile.email && isTestAccount(profile.email))) {
+      if (isTestSchool || isUserTestAccount) {
         console.log("Using mock data for test school:", schoolId);
         // For test accounts, return mock data instead of querying the database
         const mockInvitations: TeacherInvitation[] = [
@@ -163,7 +192,7 @@ const TeacherManagement = () => {
     setIsCreating(true);
     try {
       // Handle test accounts differently
-      if (isTestSchool || (profile && profile.email && isTestAccount(profile.email))) {
+      if (isTestSchool || isUserTestAccount) {
         // For test accounts, simulate invitation creation
         const newInvitation: TeacherInvitation = {
           id: `test-invitation-${Date.now()}`,
