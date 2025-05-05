@@ -1,3 +1,4 @@
+
 import React, {
   createContext,
   useState,
@@ -445,10 +446,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       console.log(`Successfully set up test user of type ${type}`);
       
       // Generate test data for this user (sessions, etc) - only for non-school roles
-      // Do this in background after the user is already set up
+      // Do this in background using Promise but handle it properly
       if (type !== 'school') {
-        setTimeout(() => {
-          supabase.rpc("populatetestaccountwithsessions", {
+        try {
+          // Using void to explicitly ignore the promise result
+          void supabase.rpc("populatetestaccountwithsessions", {
             userid: mockUser.id,
             schoolid: testSchoolId,
             num_sessions: 5
@@ -457,7 +459,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
           }).catch(error => {
             console.warn("Failed to create test session data:", error);
           });
-        }, 0);
+        } catch (error) {
+          console.warn("Error setting up test data:", error);
+        }
       }
     } catch (error) {
       console.error("Error setting test user:", error);
