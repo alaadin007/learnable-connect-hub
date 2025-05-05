@@ -1,9 +1,8 @@
 
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
-import { Copy, UserPlus, AlertCircle } from 'lucide-react';
+import { Copy, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { supabase } from '@/integrations/supabase/client';
 
 interface StudentInvitationProps {
@@ -11,14 +10,9 @@ interface StudentInvitationProps {
 }
 
 export const StudentInvitation = ({ onSuccess }: StudentInvitationProps) => {
-  const [isGenerating, setIsGenerating] = useState(false);
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   const generateInviteCode = async () => {
-    setIsGenerating(true);
-    setError(null);
-
     try {
       const { data: { session } } = await supabase.auth.getSession();
 
@@ -46,9 +40,6 @@ export const StudentInvitation = ({ onSuccess }: StudentInvitationProps) => {
     } catch (error: any) {
       console.error("Error generating invite code:", error);
       toast.error("Failed to generate code");
-      setError(error.message || "Failed to generate invitation code");
-    } finally {
-      setIsGenerating(false);
     }
   };
 
@@ -64,17 +55,10 @@ export const StudentInvitation = ({ onSuccess }: StudentInvitationProps) => {
       {!generatedCode ? (
         <Button 
           onClick={generateInviteCode} 
-          disabled={isGenerating}
           className="w-full gradient-bg"
         >
-          {isGenerating ? (
-            "Generating Code..."
-          ) : (
-            <>
-              <UserPlus className="mr-2 h-4 w-4" />
-              Generate Student Invite Code
-            </>
-          )}
+          <UserPlus className="mr-2 h-4 w-4" />
+          Generate Student Invite Code
         </Button>
       ) : (
         <div className="p-4 bg-muted rounded-lg">
@@ -95,19 +79,10 @@ export const StudentInvitation = ({ onSuccess }: StudentInvitationProps) => {
             size="sm" 
             className="w-full mt-4"
             onClick={generateInviteCode}
-            disabled={isGenerating}
           >
-            {isGenerating ? "Generating New Code..." : "Generate New Code"}
+            Generate New Code
           </Button>
         </div>
-      )}
-      
-      {error && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
       )}
     </div>
   );
