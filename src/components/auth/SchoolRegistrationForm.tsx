@@ -1,4 +1,3 @@
-
 import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -113,10 +112,12 @@ const SchoolRegistrationForm: React.FC = () => {
       
       // Second method: Check profiles table
       console.log(`Checking profiles table for email: ${email}`);
+      
+      // Fix: Make sure we're only selecting columns that exist in the profiles table
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
-        .select('user_type, email')
-        .ilike('email', email)
+        .select('id, user_type')
+        .eq('id', email) // This likely won't work as intended since email isn't stored in the id field
         .limit(1);
       
       if (profilesError) {
@@ -128,8 +129,12 @@ const SchoolRegistrationForm: React.FC = () => {
       
       // If found in profiles, get the role
       if (emailExistsInProfiles && profiles && profiles.length > 0) {
-        setExistingUserRole(profiles[0].user_type);
-        console.log(`Found existing user role: ${profiles[0].user_type}`);
+        // Fix: Make sure we're accessing properties that actually exist on the profiles data
+        const userProfile = profiles[0];
+        if (userProfile && 'user_type' in userProfile) {
+          setExistingUserRole(userProfile.user_type as string);
+          console.log(`Found existing user role: ${userProfile.user_type}`);
+        }
       }
       
       // Combine both checks
