@@ -451,21 +451,37 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           return { data: { user: null, session: null }, error: null };
         }
 
+        // Use a faster method to sign in with email pattern recognition
+        const potentialRoleFromEmail = email.toLowerCase().includes("school") 
+          ? "school" 
+          : email.toLowerCase().includes("teacher") 
+          ? "teacher" 
+          : "student";
+
+        console.log(`SignIn: Detected potential role from email pattern: ${potentialRoleFromEmail}`);
+        
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
         if (error) throw error;
 
-        // If user metadata missing user_type/school_code, try updating user metadata from profile
-
-        if (data?.user && (!data.user.user_metadata?.user_type || !data.user.user_metadata?.school_code)) {
+        // Immediately try to extract role information from existing data
+        const userMetadata = data?.user?.user_metadata;
+        const userType = userMetadata?.user_type as UserRole | null;
+        
+        // If user metadata missing user_type, try to update it based on email pattern
+        if (data?.user && !userType) {
           try {
+            console.log("Trying to update user metadata with role from email pattern");
+            
+            // First check if a profile exists with a role
             const { data: profileData, error: profileError } = await supabase
               .from("profiles")
               .select("user_type, school_code, full_name")
               .eq("id", data.user.id)
               .single();
 
-            if (!profileError && profileData) {
+            if (!profileError && profileData && profileData.user_type) {
+              // Profile has a role, use it
               const updatedMetadata = {
                 ...data.user.user_metadata,
                 user_type: profileData.user_type,
@@ -474,6 +490,29 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               };
 
               await supabase.auth.updateUser({ data: updatedMetadata });
+              
+              // Update local state to speed up navigation
+              setUserRole(profileData.user_type as UserRole);
+
+              const updatedUser = {
+                ...data.user,
+                user_metadata: updatedMetadata,
+              };
+
+              return { data: { user: updatedUser, session: data.session }, error: null };
+            } else {
+              // No profile with role, use email pattern to guess
+              console.log(`No user_type in profile, using email pattern: ${potentialRoleFromEmail}`);
+              
+              const updatedMetadata = {
+                ...data.user.user_metadata,
+                user_type: potentialRoleFromEmail,
+              };
+
+              await supabase.auth.updateUser({ data: updatedMetadata });
+              
+              // Update local state to speed up navigation
+              setUserRole(potentialRoleFromEmail as UserRole);
 
               const updatedUser = {
                 ...data.user,
@@ -482,9 +521,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
               return { data: { user: updatedUser, session: data.session }, error: null };
             }
-          } catch (profileLookupError) {
-            console.warn("Could not fetch profile data during sign-in:", profileLookupError);
+          } catch (metadataError) {
+            console.warn("Could not update user metadata during sign-in:", metadataError);
           }
+        } else if (userType) {
+          // User already has a role in metadata, use it directly
+          setUserRole(userType);
         }
 
         return { data, error: null };

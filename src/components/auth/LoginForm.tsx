@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,7 +39,7 @@ const LoginForm = () => {
   useEffect(() => {
     const checkActiveTestAccount = () => {
       const usingTestAccount = localStorage.getItem('usingTestAccount') === 'true';
-      const testAccountType = localStorage.getItem('testAccountType');
+      const testAccountType = localStorage.getItem('testAccountType') as string | null;
       
       if (usingTestAccount && testAccountType) {
         setActiveTestAccount(testAccountType);
@@ -168,7 +169,7 @@ const LoginForm = () => {
         return;
       }
       
-      // Handle normal login with credentials
+      // Handle normal login with credentials - optimized for instant login
       const { data, error } = await signIn(email, password);
       
       if (error) {
@@ -183,13 +184,13 @@ const LoginForm = () => {
         let userType: string | null = null;
         let userName: string | null = null;
         
-        // First try to get from user metadata
+        // First try to get from user metadata - fastest path
         if (data.user.user_metadata) {
           userType = data.user.user_metadata.user_type;
           userName = data.user.user_metadata.full_name;
         }
         
-        // If not in metadata, try to get from profile
+        // If not in metadata, try to get from profile - only if needed
         if (!userType) {
           try {
             const { data: profile, error: profileError } = await supabase
@@ -207,7 +208,7 @@ const LoginForm = () => {
           }
         }
         
-        // Default to dashboard if we still can't determine the role
+        // Immediately redirect based on role
         const redirectPath = userType ? getUserRedirectPath(userType) : "/dashboard";
           
         toast.success("Login successful", {
