@@ -73,31 +73,19 @@ const SchoolAdmin = () => {
   const handleQuickActionSelect = (action: string) => {
     switch (action) {
       case "manage-teachers":
-        navigate("/admin/teachers", { 
-          state: { fromNavigation: true, preserveContext: true } 
-        });
+        navigate("/admin/teachers");
         break;
       case "view-analytics":
-        navigate("/admin/analytics", { 
-          state: { fromNavigation: true, preserveContext: true } 
-        });
+        navigate("/admin/analytics");
         break;
       case "school-settings":
-        navigate("/admin/settings", { 
-          state: { fromNavigation: true, preserveContext: true } 
-        });
+        navigate("/admin/settings");
         break;
       case "student-management":
-        navigate("/admin/students", { 
-          state: { fromNavigation: true, preserveContext: true } 
-        });
+        navigate("/admin/students");
         break;
       case "dashboard":
-        // Clear any previous state and set new state to prevent redirect loops
-        navigate("/dashboard", { 
-          state: { fromNavigation: true, preserveContext: true },
-          replace: true
-        });
+        navigate("/dashboard");
         break;
       default:
         break;
@@ -109,18 +97,11 @@ const SchoolAdmin = () => {
     setActiveTab(value);
     
     if (value === "students") {
-      navigate("/admin/students", { 
-        state: { fromNavigation: true, preserveContext: true }
-      });
+      navigate("/admin/students");
     } else if (value === "settings") {
-      navigate("/admin/settings", { 
-        state: { fromNavigation: true, preserveContext: true }
-      });
+      navigate("/admin/settings");
     } else if (value === "teachers") {
-      // Add handler for the teachers tab
-      navigate("/admin/teachers", {
-        state: { fromNavigation: true, preserveContext: true }
-      });
+      navigate("/admin/teachers");
     }
   };
 
@@ -213,7 +194,26 @@ const SchoolAdmin = () => {
             </TabsList>
             
             <TabsContent value="teachers" className="space-y-4">
-              <TeacherManagement />
+              <Card>
+                <CardHeader>
+                  <CardTitle>Teacher Management</CardTitle>
+                  <CardDescription>Manage teachers at your school</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-col gap-4">
+                    <p className="text-muted-foreground mb-4">
+                      Manage your school's teachers, including invitations and permissions.
+                    </p>
+                    <Button 
+                      onClick={() => navigate('/admin/teachers')}
+                      className="w-full sm:w-auto gradient-bg"
+                    >
+                      <Users className="mr-2 h-4 w-4" />
+                      Go to Teacher Management
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
             </TabsContent>
             
             <TabsContent value="students" className="space-y-4">
@@ -228,7 +228,7 @@ const SchoolAdmin = () => {
                       Manage your school's students, including enrollment and class assignments.
                     </p>
                     <Button 
-                      onClick={() => navigate('/admin/students', { state: { fromNavigation: true, preserveContext: true } })} 
+                      onClick={() => navigate('/admin/students')}
                       className="w-full sm:w-auto gradient-bg"
                     >
                       <User className="mr-2 h-4 w-4" />
@@ -251,7 +251,7 @@ const SchoolAdmin = () => {
                       Configure your school settings, including notification preferences and school details.
                     </p>
                     <Button 
-                      onClick={() => navigate('/admin/settings', { state: { fromNavigation: true, preserveContext: true } })} 
+                      onClick={() => navigate('/admin/settings')}
                       className="w-full sm:w-auto gradient-bg"
                     >
                       <Settings className="mr-2 h-4 w-4" />

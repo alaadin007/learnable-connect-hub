@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -71,19 +72,36 @@ function App() {
 
               {/* Protected routes */}
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              
+              {/* School Admin routes */}
+              <Route path="/admin" element={<ProtectedRoute requiredRole="school_admin"><SchoolAdmin /></ProtectedRoute>} />
+              <Route path="/admin/teachers" element={<ProtectedRoute requiredRole="school_admin"><AdminTeachers /></ProtectedRoute>} />
+              <Route path="/admin/settings" element={<ProtectedRoute requiredRole="school_admin"><SchoolSettings /></ProtectedRoute>} />
+              <Route path="/admin/students" element={<ProtectedRoute requiredRole="school_admin"><AdminStudents /></ProtectedRoute>} />
+              <Route path="/admin/analytics" element={<ProtectedRoute requiredRole="school_admin"><AdminAnalytics /></ProtectedRoute>} />
+              <Route path="/admin/tools" element={<ProtectedRoute requiredRole="school_admin"><AdminTools /></ProtectedRoute>} />
+              <Route path="/admin/teacher-management" element={<ProtectedRoute requiredRole="school_admin"><AdminTeacherManagement /></ProtectedRoute>} />
+              
+              {/* Legacy school admin routes (redirects to new structure) */}
               <Route path="/school-admin" element={<ProtectedRoute requiredRole="school_admin"><SchoolAdmin /></ProtectedRoute>} />
               <Route path="/school-settings" element={<ProtectedRoute requiredRole="school_admin"><SchoolSettings /></ProtectedRoute>} />
-              <Route path="/teacher-students" element={<ProtectedRoute requiredRole="teacher"><TeacherStudents /></ProtectedRoute>} />
-              <Route path="/teacher-analytics" element={<ProtectedRoute requiredRole="teacher"><TeacherAnalytics /></ProtectedRoute>} />
-              <Route path="/admin-analytics" element={<ProtectedRoute requiredRole="school_admin"><AdminAnalytics /></ProtectedRoute>} />
-              <Route path="/student-settings" element={<ProtectedRoute requiredRole="student"><StudentSettings /></ProtectedRoute>} />
-              <Route path="/student-progress" element={<ProtectedRoute requiredRole="student"><StudentProgress /></ProtectedRoute>} />
-              <Route path="/student-assessments" element={<ProtectedRoute requiredRole="student"><StudentAssessments /></ProtectedRoute>} />
               <Route path="/admin-teachers" element={<ProtectedRoute requiredRole="school_admin"><AdminTeachers /></ProtectedRoute>} />
               <Route path="/admin-students" element={<ProtectedRoute requiredRole="school_admin"><AdminStudents /></ProtectedRoute>} />
+              <Route path="/admin-analytics" element={<ProtectedRoute requiredRole="school_admin"><AdminAnalytics /></ProtectedRoute>} />
               <Route path="/admin-teacher-management" element={<ProtectedRoute requiredRole="school_admin"><AdminTeacherManagement /></ProtectedRoute>} />
               <Route path="/admin-tools" element={<ProtectedRoute requiredRole="school_admin"><AdminTools /></ProtectedRoute>} />
               <Route path="/test-accounts" element={<ProtectedRoute requiredRole="school_admin"><TestAccounts /></ProtectedRoute>} />
+              
+              {/* Teacher routes */}
+              <Route path="/teacher-students" element={<ProtectedRoute requiredRole="teacher"><TeacherStudents /></ProtectedRoute>} />
+              <Route path="/teacher-analytics" element={<ProtectedRoute requiredRole="teacher"><TeacherAnalytics /></ProtectedRoute>} />
+              
+              {/* Student routes */}
+              <Route path="/student-settings" element={<ProtectedRoute requiredRole="student"><StudentSettings /></ProtectedRoute>} />
+              <Route path="/student-progress" element={<ProtectedRoute requiredRole="student"><StudentProgress /></ProtectedRoute>} />
+              <Route path="/student-assessments" element={<ProtectedRoute requiredRole="student"><StudentAssessments /></ProtectedRoute>} />
+              
+              {/* Shared routes */}
               <Route path="/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
               <Route path="/documents" element={<ProtectedRoute><Documents /></ProtectedRoute>} />
               <Route path="/chat-with-ai" element={<ProtectedRoute><ChatWithAI /></ProtectedRoute>} />

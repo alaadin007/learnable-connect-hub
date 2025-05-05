@@ -222,19 +222,19 @@ const SchoolAdminDashboard: React.FC<{ profile: any }> = ({ profile }) => {
   const handleQuickActionSelect = (action: string) => {
     switch(action) {
       case "manage-teachers":
-        navigate("/admin/teachers", { state: { fromNavigation: true, preserveContext: true } });
+        navigate("/admin/teachers");
         break;
       case "view-analytics":
-        navigate("/admin/analytics", { state: { fromNavigation: true, preserveContext: true } });
+        navigate("/admin/analytics");
         break;
       case "school-settings":
-        navigate("/admin/settings", { state: { fromNavigation: true, preserveContext: true } });
+        navigate("/admin/settings");
         break;
       case "student-management":
-        navigate("/admin/students", { state: { fromNavigation: true, preserveContext: true } });
+        navigate("/admin/students");
         break;
       case "dashboard":
-        navigate("/dashboard", { state: { fromNavigation: true, preserveContext: true } });
+        navigate("/dashboard");
         break;
       default:
         break;
@@ -316,37 +316,37 @@ const SchoolAdminDashboard: React.FC<{ profile: any }> = ({ profile }) => {
               title="Teacher Management"
               description="Add, remove, and manage teacher accounts"
               icon={<Users className="h-10 w-10" />}
-              onClick={() => navigate("/admin/teachers", { state: { fromNavigation: true } })}
+              onClick={() => navigate("/admin/teachers")}
             />
             <DashboardCard
               title="Analytics"
               description="View school-wide performance analytics"
               icon={<BarChart3 className="h-10 w-10" />}
-              onClick={() => navigate("/admin/analytics", { state: { fromNavigation: true } })}
+              onClick={() => navigate("/admin/analytics")}
             />
             <DashboardCard
               title="School Settings"
               description="Configure your school settings and details"
               icon={<Settings className="h-10 w-10" />}
-              onClick={() => navigate("/admin/settings", { state: { fromNavigation: true } })}
+              onClick={() => navigate("/admin/settings")}
             />
             <DashboardCard
               title="Student Management"
               description="Manage students at your school"
               icon={<User className="h-10 w-10" />}
-              onClick={() => navigate("/admin/students", { state: { fromNavigation: true } })}
+              onClick={() => navigate("/admin/students")}
             />
             <DashboardCard
               title="Chat with AI"
               description="Get help from our AI learning assistant"
               icon={<MessageSquare className="h-10 w-10" />}
-              onClick={() => navigate("/chat", { state: { fromNavigation: true } })}
+              onClick={() => navigate("/chat")}
             />
             <DashboardCard
               title="Documents"
               description="Upload and manage learning materials"
               icon={<FileText className="h-10 w-10" />}
-              onClick={() => navigate("/documents", { state: { fromNavigation: true } })}
+              onClick={() => navigate("/documents")}
             />
           </div>
         </div>

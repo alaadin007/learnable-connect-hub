@@ -49,7 +49,7 @@ const AdminTeachers = () => {
               variant="outline" 
               size="sm" 
               className="flex items-center gap-1"
-              onClick={() => navigate('/admin', { replace: true })}
+              onClick={() => navigate('/admin')}
             >
               <ArrowLeft className="h-4 w-4" />
               Back to Admin
@@ -73,7 +73,7 @@ const AdminTeachers = () => {
               <AlertTitle>Error</AlertTitle>
               <AlertDescription>{error}</AlertDescription>
               <Button 
-                onClick={() => navigate('/admin', { replace: true })} 
+                onClick={() => navigate('/admin')} 
                 className="mt-2"
                 variant="outline"
                 size="sm"
