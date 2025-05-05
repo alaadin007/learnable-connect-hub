@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -59,6 +60,8 @@ const AdminStudents = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [generatedCode, setGeneratedCode] = useState("");
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [schoolData, setSchoolData] = useState<{ name: string; code: string } | null>(null);
+  const [isSchoolDataLoading, setIsSchoolDataLoading] = useState(true);
   
   console.log("AdminStudents: User profile:", profile);
   console.log("AdminStudents: School ID from auth context:", authSchoolId);
@@ -72,11 +75,48 @@ const AdminStudents = () => {
     resolver: zodResolver(addStudentSchema),
     defaultValues: {
       email: "",
-      method: "invite",
+      method: "code",
     },
   });
   
   const selectedMethod = form.watch("method");
+
+  // Fetch school data from Supabase
+  useEffect(() => {
+    const fetchSchoolData = async () => {
+      if (!schoolId) return;
+      
+      try {
+        setIsSchoolDataLoading(true);
+        
+        // Attempt to get school data from the schools table
+        const { data: schoolData, error } = await supabase
+          .from('schools')
+          .select('name, code')
+          .eq('id', schoolId)
+          .single();
+        
+        if (error) {
+          console.error('Error fetching school data:', error);
+          return;
+        }
+        
+        if (schoolData) {
+          console.log("Fetched school data:", schoolData);
+          setSchoolData({
+            name: schoolData.name,
+            code: schoolData.code
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching school data:', error);
+      } finally {
+        setIsSchoolDataLoading(false);
+      }
+    };
+    
+    fetchSchoolData();
+  }, [schoolId]);
 
   // Load students and invites
   useEffect(() => {
@@ -241,9 +281,33 @@ const AdminStudents = () => {
         toast.success(`Invitation sent to ${values.email}`);
         form.reset();
       } else {
-        // Generate invite code
-        const inviteCode = Math.random().toString(36).substring(2, 10).toUpperCase();
-        console.log("Generated invitation code:", inviteCode);
+        // Generate invite code - try to use a stored procedure if available
+        let inviteCode;
+        
+        try {
+          // Try to use the stored procedure first
+          const { data, error } = await supabase
+            .rpc('create_student_invitation', { school_id_param: schoolId });
+            
+          if (error) {
+            console.error("Error using create_student_invitation RPC:", error);
+            // Fall back to client-side generation
+            inviteCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+          } else if (data && data.length > 0) {
+            // Extract code from the result
+            inviteCode = data[0].code;
+            console.log("Generated invitation code via RPC:", inviteCode);
+          } else {
+            // Fall back to client-side generation
+            inviteCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+          }
+        } catch (error) {
+          console.error("Error generating code:", error);
+          // Fall back to client-side generation
+          inviteCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+        }
+        
+        console.log("Final invitation code:", inviteCode);
         setGeneratedCode(inviteCode);
         
         // Try to store in student_invites if it exists
@@ -337,6 +401,57 @@ const AdminStudents = () => {
             </Button>
             <h1 className="text-3xl font-bold gradient-text">Student Management</h1>
           </div>
+          
+          {/* School Code Info */}
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>School Information</CardTitle>
+              <CardDescription>
+                Use this code when inviting students to your school
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <div className="flex flex-col sm:flex-row sm:items-center">
+                  <span className="font-medium min-w-32">School Name:</span>
+                  {isSchoolDataLoading ? (
+                    <span className="text-muted-foreground">Loading...</span>
+                  ) : (
+                    <span>{schoolData?.name || profile?.organization?.name || "Not available"}</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium min-w-32">School Code:</span>
+                  {isSchoolDataLoading ? (
+                    <span className="text-muted-foreground font-mono">Loading...</span>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <code className="px-2 py-1 bg-muted rounded text-sm font-mono">
+                        {schoolData?.code || profile?.organization?.code || "Not available"}
+                      </code>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => {
+                          const code = schoolData?.code || profile?.organization?.code;
+                          if (code) {
+                            navigator.clipboard.writeText(code);
+                            toast.success("School code copied to clipboard!");
+                          }
+                        }}
+                        disabled={!schoolData?.code && !profile?.organization?.code}
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Students will need this code to register for an account at your school.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
           
           {/* Add New Student Card */}
           <Card>
@@ -511,7 +626,13 @@ const AdminStudents = () => {
                   </Table>
                 </div>
               ) : (
-                <p className="text-muted-foreground">No students found.</p>
+                <div className="text-center py-8">
+                  <User className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
+                  <p className="text-muted-foreground">No students found.</p>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Students will appear here when they register using your school code.
+                  </p>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -575,7 +696,13 @@ const AdminStudents = () => {
                   </Table>
                 </div>
               ) : (
-                <p className="text-muted-foreground">No invitations found.</p>
+                <div className="text-center py-8">
+                  <Mail className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
+                  <p className="text-muted-foreground">No invitations found.</p>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Generated invitation codes will appear here.
+                  </p>
+                </div>
               )}
             </CardContent>
             <CardFooter>
