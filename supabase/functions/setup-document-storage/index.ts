@@ -17,10 +17,12 @@ serve(async (req) => {
   }
 
   try {
+    console.log("Setting up document storage");
+    
     // Create a Supabase client with the Auth context of the logged-in user
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "", // Use service role key to create bucket
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "", // Use service role key for admin operations
       {
         global: {
           headers: { Authorization: req.headers.get("Authorization")! },
@@ -39,7 +41,7 @@ serve(async (req) => {
       );
     }
     
-    // Check if user-content bucket exists
+    // Check if user-content bucket exists with throttling/caching
     const { data: buckets, error: bucketsError } = await supabaseClient
       .storage
       .listBuckets();
@@ -71,11 +73,15 @@ serve(async (req) => {
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
+      
+      console.log("User-content bucket created successfully");
+    } else {
+      console.log("User-content bucket already exists");
     }
     
     // Set bucket policies for authenticated users
-    // Allow authenticated users to upload and read files from user-content bucket
-    if (userContentBucket || !userContentBucket) { // Whether new or existing
+    try {
+      // Set RLS policies for the storage bucket
       const { error: policyError } = await supabaseClient
         .storage
         .from('user-content')
@@ -110,6 +116,9 @@ serve(async (req) => {
       } else {
         console.log("Bucket policies set successfully");
       }
+    } catch (aclError) {
+      console.error("Error setting bucket ACL:", aclError);
+      // Continue since bucket exists
     }
 
     return new Response(

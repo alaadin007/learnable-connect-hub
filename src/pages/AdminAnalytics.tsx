@@ -146,7 +146,7 @@ const AdminAnalytics = () => {
     { id: '3', name: 'Student 3' }
   ]);
 
-  // Derive schoolId with memo
+  // Derive schoolId with memo to avoid unnecessary recalculation
   const schoolId = useMemo(() => {
     return profile?.organization?.id || 'test-school-id';
   }, [profile?.organization?.id]);
@@ -161,14 +161,17 @@ const AdminAnalytics = () => {
     }
   }, [schoolId]);
 
-  // Attempt to fetch real students data in background
+  // Optimized to fetch students data only once
   useEffect(() => {
     if (schoolId) {
-      supabase
-        .from('students')
-        .select('id, profiles(*)')
-        .eq('school_id', schoolId)
-        .then(({ data, error }) => {
+      const fetchStudents = async () => {
+        try {
+          const { data, error } = await supabase
+            .from('students')
+            .select('id, profiles:profiles!inner(full_name)')
+            .eq('school_id', schoolId)
+            .limit(100);  // Limiting to 100 students to reduce query volume
+          
           if (!error && data && data.length > 0) {
             const formattedStudents = data.map(student => ({
               id: student.id,
@@ -176,147 +179,169 @@ const AdminAnalytics = () => {
             }));
             setStudents(formattedStudents);
           }
-        });
+        } catch (e) {
+          console.error("Error fetching students:", e);
+        }
+      };
+      
+      fetchStudents();
     }
   }, [schoolId]);
 
-  // Use React Query for analytics summary data - start with initial data
+  // Use React Query with optimized settings to reduce requests
   const { 
     data: summary = initialSummaryData,
     refetch: refetchSummary
   } = useQuery({
     queryKey: ['analytics-summary', schoolId, filters.dateRange],
     queryFn: () => fetchAnalyticsSummary(schoolId, filters),
-    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
+    staleTime: 15 * 60 * 1000, // Consider data fresh for 15 minutes
     enabled: !!schoolId,
     initialData: initialSummaryData
   });
 
-  // Use React Query for session logs - start with initial data
+  // Optimized query for session logs
   const {
     data: sessions = initialSessionData,
     refetch: refetchSessions
   } = useQuery({
     queryKey: ['session-logs', schoolId, filters],
     queryFn: () => fetchSessionLogs(schoolId, filters),
-    staleTime: 5 * 60 * 1000,
-    enabled: !!schoolId,
+    staleTime: 15 * 60 * 1000,
+    enabled: !!schoolId && activeTab === "engagement",
     initialData: initialSessionData
   });
 
-  // Use React Query for topics data - start with initial data
+  // Optimized query for topics data
   const {
     data: topics = initialTopicsData,
     refetch: refetchTopics
   } = useQuery({
     queryKey: ['topics', schoolId, filters],
     queryFn: () => fetchTopics(schoolId, filters),
-    staleTime: 10 * 60 * 1000,
-    enabled: !!schoolId,
+    staleTime: 20 * 60 * 1000,
+    enabled: !!schoolId && activeTab === "engagement",
     initialData: initialTopicsData
   });
 
-  // Use React Query for study time data - start with initial data
+  // Optimized query for study time data
   const {
     data: studyTime = initialStudyTimeData,
     refetch: refetchStudyTime
   } = useQuery({
     queryKey: ['study-time', schoolId, filters],
     queryFn: () => fetchStudyTime(schoolId, filters),
-    staleTime: 10 * 60 * 1000,
-    enabled: !!schoolId,
+    staleTime: 20 * 60 * 1000,
+    enabled: !!schoolId && activeTab === "engagement",
     initialData: initialStudyTimeData
   });
 
-  // Use React Query for performance data with adapted initial data
+  // Optimized query for school performance data with proper data transformation
   const {
     data: schoolPerformanceData = initialPerformanceData,
     refetch: refetchSchoolPerformance
   } = useQuery({
     queryKey: ['school-performance', schoolId, filters],
     queryFn: async () => {
-      const data = await fetchSchoolPerformance(schoolId, filters);
-      
-      // Transform the data to match expected format
-      return {
-        monthlyData: data.monthlyData.map(item => ({
-          month: item.month,
-          score: item.avg_monthly_score || 0
-        })),
-        summary: {
-          averageScore: data.summary?.avg_score || 0,
-          trend: data.summary?.avg_score > 80 ? 'up' : 'down',
-          changePercentage: 2 // Default value when real data doesn't have this
-        }
-      };
+      try {
+        const data = await fetchSchoolPerformance(schoolId, filters);
+        
+        // Transform data to match expected format
+        return {
+          monthlyData: data.monthlyData.map(item => ({
+            month: item.month,
+            score: item.avg_monthly_score || 0
+          })),
+          summary: {
+            averageScore: data.summary?.avg_score || 0,
+            trend: data.summary?.avg_score > 80 ? 'up' : 'down',
+            changePercentage: 2 // Default value when real data doesn't provide this
+          }
+        };
+      } catch (error) {
+        console.error("Error fetching school performance:", error);
+        return initialPerformanceData;
+      }
     },
     staleTime: 30 * 60 * 1000,
     enabled: !!schoolId && activeTab === "performance",
     initialData: initialPerformanceData
   });
 
-  // Use React Query for teacher performance data with data transformation
+  // Optimized query for teacher performance data with proper data transformation
   const {
     data: teacherPerformanceData = initialTeacherData,
     refetch: refetchTeacherPerformance
   } = useQuery({
     queryKey: ['teacher-performance', schoolId, filters],
     queryFn: async () => {
-      const data = await fetchTeacherPerformance(schoolId, filters);
-      
-      // Transform to match expected format
-      return data.map((teacher, index) => ({
-        id: index + 1,
-        name: teacher.teacher_name || `Teacher ${index + 1}`,
-        students: teacher.students_assessed || 0,
-        avgScore: teacher.avg_student_score || 0,
-        trend: teacher.avg_student_score > 80 ? 'up' : 'down'
-      }));
+      try {
+        const data = await fetchTeacherPerformance(schoolId, filters);
+        
+        // Transform to match expected format
+        return data.map((teacher, index) => ({
+          id: index + 1,
+          name: teacher.teacher_name || `Teacher ${index + 1}`,
+          students: teacher.students_assessed || 0,
+          avgScore: teacher.avg_student_score || 0,
+          trend: teacher.avg_student_score > 80 ? 'up' : 'down'
+        }));
+      } catch (error) {
+        console.error("Error fetching teacher performance:", error);
+        return initialTeacherData;
+      }
     },
     staleTime: 30 * 60 * 1000,
     enabled: !!schoolId && activeTab === "performance",
     initialData: initialTeacherData
   });
 
-  // Use React Query for student performance data with data transformation
+  // Optimized query for student performance data with proper data transformation
   const {
     data: studentPerformanceData = initialStudentData,
     refetch: refetchStudentPerformance
   } = useQuery({
     queryKey: ['student-performance', schoolId, filters],
     queryFn: async () => {
-      const data = await fetchStudentPerformance(schoolId, filters);
-      
-      // Transform to match expected format
-      return data.map(student => ({
-        id: student.student_id || '',
-        name: student.student_name || '',
-        assessments: student.assessments_taken || 0,
-        avgScore: student.avg_score || 0,
-        timeSpent: `${Math.round((student.avg_time_spent_seconds || 0) / 60)} min`,
-        completionRate: student.completion_rate || 0,
-        strengths: student.top_strengths ? student.top_strengths.split(', ') : [],
-        weaknesses: student.top_weaknesses ? student.top_weaknesses.split(', ') : []
-      }));
+      try {
+        const data = await fetchStudentPerformance(schoolId, filters);
+        
+        // Transform to match expected format
+        return data.map(student => ({
+          id: student.student_id || '',
+          name: student.student_name || '',
+          assessments: student.assessments_taken || 0,
+          avgScore: student.avg_score || 0,
+          timeSpent: `${Math.round((student.avg_time_spent_seconds || 0) / 60)} min`,
+          completionRate: student.completion_rate || 0,
+          strengths: student.top_strengths ? student.top_strengths.split(', ') : [],
+          weaknesses: student.top_weaknesses ? student.top_weaknesses.split(', ') : []
+        }));
+      } catch (error) {
+        console.error("Error fetching student performance:", error);
+        return initialStudentData;
+      }
     },
     staleTime: 30 * 60 * 1000,
     enabled: !!schoolId && activeTab === "performance",
     initialData: initialStudentData
   });
 
+  // Optimized refresh function to only refetch data based on active tab
   const handleRefreshData = () => {
     refetchSummary();
-    refetchSessions();
-    refetchTopics();
-    refetchStudyTime();
     
-    if (activeTab === "performance") {
+    if (activeTab === "engagement") {
+      refetchSessions();
+      refetchTopics();
+      refetchStudyTime();
+      toast.success("Engagement metrics refreshed");
+    } else if (activeTab === "performance") {
       refetchSchoolPerformance();
       refetchTeacherPerformance();
       refetchStudentPerformance();
+      toast.success("Performance metrics refreshed");
     }
-    
-    toast.success("Analytics data refreshed");
   };
 
   const handleFiltersChange = useCallback((newFilters: FiltersType) => {

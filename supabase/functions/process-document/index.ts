@@ -50,53 +50,77 @@ serve(async (req) => {
 
     console.log("Processing document:", document_id, "with file path:", file_path);
 
-    // In a real implementation we would:
-    // 1. Download the file from storage
-    // 2. Extract text content (OCR for images, PDF parsing for PDFs)
-    // 3. Process content (chunk, embed, etc.)
-    // 4. Store processed content in document_content table
-    
-    // For now, we'll simulate successful processing
+    try {
+      // First update document status to processing
+      await supabaseAdmin
+        .from("documents")
+        .update({ processing_status: "processing" })
+        .eq("id", document_id);
 
-    // Create a mock document content entry
-    const { error: contentError } = await supabaseAdmin
-      .from("document_content")
-      .insert({
-        document_id: document_id,
-        content: `This is extracted content from document ${document_id}`,
-        processing_status: "completed"
-      });
-      
-    if (contentError) {
-      console.error("Error creating document content:", contentError);
-      // Continue anyway, as we still want to update the document status
-    }
+      // Download the file to extract content (simulation for now)
+      const { data: fileData, error: downloadError } = await supabaseAdmin
+        .storage
+        .from('user-content')
+        .download(file_path);
+        
+      if (downloadError || !fileData) {
+        console.error("Error downloading file:", downloadError);
+        throw new Error(`Unable to download file: ${downloadError?.message || "Unknown error"}`);
+      }
 
-    // Mark document as completed
-    const { error: updateError } = await supabaseAdmin
-      .from("documents")
-      .update({ processing_status: "completed" })
-      .eq("id", document_id);
+      // Create a mock document content entry 
+      // In production this would be replaced with actual text extraction
+      const { error: contentError } = await supabaseAdmin
+        .from("document_content")
+        .insert({
+          document_id: document_id,
+          content: `This is extracted content from document ${document_id}. 
+                  In a real implementation, we would extract text from the file.
+                  File size: ${fileData.size} bytes.`,
+          processing_status: "completed"
+        });
+        
+      if (contentError) {
+        console.error("Error creating document content:", contentError);
+        throw new Error(`Failed to store document content: ${contentError.message}`);
+      }
+
+      // Mark document as completed
+      const { error: updateError } = await supabaseAdmin
+        .from("documents")
+        .update({ processing_status: "completed" })
+        .eq("id", document_id);
+        
+      if (updateError) {
+        console.error("Error updating document status:", updateError);
+        throw new Error(`Failed to update document status: ${updateError.message}`);
+      }
       
-    if (updateError) {
-      console.error("Error updating document status:", updateError);
+      console.log("Document processed successfully");
+      
+      // Return success response
       return new Response(
-        JSON.stringify({ error: "Failed to update document status", details: updateError.message }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ 
+          success: true,
+          message: "Document processed successfully",
+          document_id: document_id
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    } catch (processingError) {
+      // Handle processing errors by updating document status to failed
+      console.error("Processing error:", processingError);
+      
+      // Update document status to failed
+      await supabaseAdmin
+        .from("documents")
+        .update({ 
+          processing_status: "failed"
+        })
+        .eq("id", document_id);
+      
+      throw processingError;
     }
-    
-    console.log("Document marked as processed successfully");
-    
-    // Return success response
-    return new Response(
-      JSON.stringify({ 
-        success: true,
-        message: "Document processed successfully",
-        document_id: document_id
-      }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
   } catch (error) {
     console.error("Error processing document:", error);
     
