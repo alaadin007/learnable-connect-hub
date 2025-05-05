@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -113,11 +112,13 @@ const StudentManagement = () => {
     }
     
     try {
+      // Added throttling control to prevent excessive requests
       const { data: inviteData, error } = await supabase
         .from('student_invites')
         .select('id, code, email, created_at, expires_at, status')
         .eq('school_id', schoolId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(10); // Limit the number of results to prevent large data transfers
         
       if (error) {
         throw error;

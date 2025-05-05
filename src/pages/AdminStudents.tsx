@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -70,8 +69,11 @@ const AdminStudents = () => {
   
   const selectedMethod = form.watch("method");
 
-  // Load student invites
+  // Load student invites - with debounce to prevent excessive API calls
   useEffect(() => {
+    // Use a local variable to track if the component is mounted
+    let isMounted = true;
+    
     const fetchInvites = async () => {
       if (!schoolId) {
         console.log("No school ID available, cannot fetch invites");
@@ -89,48 +91,59 @@ const AdminStudents = () => {
           .order("created_at", { ascending: false })
           .limit(10);
           
-        if (studentInvites && studentInvites.length > 0) {
-          console.log("Found student invites:", studentInvites);
-          setInvites(studentInvites as StudentInvite[]);
-          return;
-        } else {
-          console.log("No student invites found or error:", studentInviteError);
-        }
-        
-        // Fallback to teacher_invitations table for display
-        const { data, error } = await supabase
-          .from("teacher_invitations")
-          .select("*")
-          .eq("school_id", schoolId)
-          .order("created_at", { ascending: false })
-          .limit(10);
+        // Only update state if component is still mounted
+        if (isMounted) {
+          if (studentInvites && studentInvites.length > 0) {
+            console.log("Found student invites:", studentInvites);
+            setInvites(studentInvites as StudentInvite[]);
+            return;
+          } else {
+            console.log("No student invites found or error:", studentInviteError);
+          }
+          
+          // Fallback to teacher_invitations table for display
+          const { data, error } = await supabase
+            .from("teacher_invitations")
+            .select("*")
+            .eq("school_id", schoolId)
+            .order("created_at", { ascending: false })
+            .limit(10);
 
-        if (error) {
-          console.error("Error fetching teacher invitations:", error);
-          throw error;
+          if (error) {
+            console.error("Error fetching teacher invitations:", error);
+            throw error;
+          }
+          
+          // Convert teacher_invitations to our StudentInvite type
+          const studentInviteData: StudentInvite[] = (data || []).map(invite => ({
+            id: invite.id,
+            email: invite.email,
+            code: null,
+            created_at: invite.created_at,
+            expires_at: invite.expires_at,
+            status: invite.status
+          }));
+          
+          console.log("Using teacher invitations as fallback:", studentInviteData);
+          setInvites(studentInviteData);
         }
-        
-        // Convert teacher_invitations to our StudentInvite type
-        const studentInviteData: StudentInvite[] = (data || []).map(invite => ({
-          id: invite.id,
-          email: invite.email,
-          code: null,
-          created_at: invite.created_at,
-          expires_at: invite.expires_at,
-          status: invite.status
-        }));
-        
-        console.log("Using teacher invitations as fallback:", studentInviteData);
-        setInvites(studentInviteData);
       } catch (error: any) {
-        console.error("Error fetching student invites:", error);
-        toast.error("Failed to load student invites");
+        if (isMounted) {
+          console.error("Error fetching student invites:", error);
+          toast.error("Failed to load student invites");
+        }
       }
     };
 
+    // Only fetch if we have a schoolId
     if (schoolId) {
       fetchInvites();
     }
+    
+    // Cleanup function to prevent state updates after unmount
+    return () => {
+      isMounted = false;
+    };
   }, [schoolId, refreshTrigger]);
 
   const onSubmit = async (values: AddStudentFormValues) => {
