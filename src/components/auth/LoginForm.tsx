@@ -126,7 +126,7 @@ const LoginForm = () => {
     console.log(`LoginForm: Attempting login for ${email}`);
 
     try {
-      // Direct Supabase auth to ensure consistent login experience for all accounts
+      // Direct Supabase auth login
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
@@ -244,6 +244,7 @@ const LoginForm = () => {
     
     setIsLoading(true);
     try {
+      // Direct call to Supabase to resend verification email
       const { error } = await supabase.auth.resend({
         type: 'signup',
         email,
@@ -271,6 +272,7 @@ const LoginForm = () => {
     setIsLoading(true);
 
     try {
+      // Direct call to Supabase to reset password
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/login?email_confirmed=true`,
       });
