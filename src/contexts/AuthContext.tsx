@@ -1,4 +1,3 @@
-
 import React, {
   createContext,
   useState,
@@ -23,7 +22,7 @@ type Profile = {
   school_name: string | null;
   user_type: string;
   organization?: {
-    id?: string;
+    id?: string;  // Added the id property to fix the TypeScript errors
     name?: string;
     code?: string;
   };
@@ -478,6 +477,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
           organization: {
+            id: schoolId, // This was missing the id property
             name: profileData.school_name || "Test School",
             code: profileData.school_code || "TEST0"
           }
