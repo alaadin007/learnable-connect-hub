@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthChangeEvent, Session, User } from '@supabase/supabase-js';
@@ -15,12 +16,15 @@ interface AuthContextType {
   isTestUser: boolean;
   schoolId: string | null;
   userRole: string | null;
-  signUp: (email: string, password: string) => Promise<any>;
+  signUp: (email: string, password: string, userData?: any) => Promise<any>;
   signIn: (email: string, password: string) => Promise<any>;
   signOut: () => Promise<boolean>;
   updateProfile: (updates: { full_name: string; user_type: string; school_code?: string }) => Promise<any>;
   refreshProfile: () => Promise<any>;
   isLoadingProfile: boolean;
+  setTestUser?: (accountType: "school" | "teacher" | "student", index?: number, useLoading?: boolean) => Promise<void>;
+  isSupervisor?: boolean;
+  isLoading?: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -38,6 +42,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isTestUser, setIsTestUser] = useState(false);
   const [schoolId, setSchoolId] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [isSupervisor, setIsSupervisor] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -74,13 +79,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setProfile(null);
       setSchoolId(null);
       setUserRole(null);
+      setIsSupervisor(false);
     }
   }, [user]);
 
   const refreshProfile = async () => {
     if (!user) {
       console.log("No user to refresh profile for.");
-      return;
+      return null;
     }
 
     setIsLoadingProfile(true);
@@ -90,6 +96,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setProfile(fetchedProfile);
         setSchoolId(fetchedProfile.organization?.id || fetchedProfile.school_code || null);
         setUserRole(fetchedProfile.user_type);
+        
+        // Check if user is a supervisor
+        if (fetchedProfile.user_type === 'teacher' || fetchedProfile.user_type === 'school') {
+          const { data } = await supabase
+            .from('teachers')
+            .select('is_supervisor')
+            .eq('id', user.id)
+            .single();
+            
+          setIsSupervisor(data?.is_supervisor || fetchedProfile.user_type === 'school');
+        }
+        
         console.log("Profile refreshed successfully", fetchedProfile);
         return fetchedProfile;
       } else {
@@ -108,7 +126,75 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const signUp = async (email: string, password: string) => {
+  const setTestUser = async (accountType: "school" | "teacher" | "student", index: number = 0, useLoading: boolean = true) => {
+    try {
+      if (useLoading) setLoading(true);
+      
+      // Set test user data
+      const testUserId = `test-${accountType}-${index}`;
+      localStorage.setItem('testUserRole', accountType);
+      localStorage.setItem('testUserIndex', index.toString());
+      
+      // Skip authentication for test accounts
+      console.log(`Setting up test account: ${testUserId}`);
+      
+      // For test accounts, we manually set up a mock user and profile
+      const mockUser = {
+        id: testUserId,
+        email: `${accountType}.test@learnable.edu`,
+        app_metadata: { provider: 'test' },
+        user_metadata: { full_name: `Test ${accountType.charAt(0).toUpperCase() + accountType.slice(1)}` }
+      } as unknown as User;
+      
+      setUser(mockUser);
+      
+      // Get the test user's profile directly
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', testUserId)
+        .single();
+        
+      if (profileData) {
+        // Add school data
+        const { data: schoolData } = await supabase
+          .from('schools')
+          .select('id, name, code')
+          .eq('id', `test-school-${index}`)
+          .single();
+          
+        const enhancedProfile = {
+          ...profileData,
+          organization: schoolData
+        };
+        
+        setProfile(enhancedProfile);
+        setSchoolId(schoolData?.id || null);
+        setUserRole(profileData.user_type);
+        setIsTestUser(true);
+        
+        if (profileData.user_type === 'school' || profileData.user_type === 'teacher') {
+          setIsSupervisor(profileData.user_type === 'school');
+        }
+        
+        // Redirect to appropriate dashboard
+        if (accountType === 'school') {
+          navigate('/admin');
+        } else if (accountType === 'teacher') {
+          navigate('/teacher/analytics');
+        } else {
+          navigate('/dashboard');
+        }
+      }
+    } catch (error) {
+      console.error("Error setting up test user:", error);
+      toast.error("Failed to set up test account");
+    } finally {
+      if (useLoading) setLoading(false);
+    }
+  };
+
+  const signUp = async (email: string, password: string, userData: any = {}) => {
     try {
       setLoading(true);
       const { data, error } = await supabase.auth.signUp({
@@ -116,8 +202,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         password,
         options: {
           data: {
-            full_name: '',
-            user_type: '',
+            full_name: userData.full_name || '',
+            user_type: userData.user_type || '',
           }
         }
       });
@@ -211,6 +297,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     updateProfile,
     refreshProfile,
     isLoadingProfile,
+    setTestUser,
+    isSupervisor,
+    isLoading: loading // Alias for loading for compatibility
   };
 
   return (

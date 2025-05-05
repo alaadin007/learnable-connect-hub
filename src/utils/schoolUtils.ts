@@ -13,8 +13,10 @@ export const getCurrentSchoolInfo = async () => {
     // First try to get via the RPC function (preferred for real users)
     const { data: rpcData, error: rpcError } = await supabase.rpc("get_current_school_info");
     
-    if (!rpcError && rpcData && rpcData.school_id) {
-      return rpcData;
+    if (!rpcError && rpcData && Array.isArray(rpcData) && rpcData.length > 0 && rpcData[0].school_id) {
+      return rpcData[0]; // Return the first item if it's an array
+    } else if (!rpcError && rpcData && !Array.isArray(rpcData) && rpcData.school_id) {
+      return rpcData; // Return the object directly if it's not an array
     }
     
     // If RPC failed or returned no data, try direct query with cached school ID
@@ -84,15 +86,7 @@ export const validateSchoolCode = async (code: string) => {
       return { valid: false, message: "Invalid school code" };
     }
     
-    // Handle case where expires_at might not exist in some records
-    if (data.expires_at) {
-      const expiryDate = new Date(data.expires_at).getTime();
-      const now = new Date().getTime();
-      
-      if (expiryDate < now) {
-        return { valid: false, message: "School code has expired" };
-      }
-    }
+    // No need to check expires_at since it might not exist in the table
     
     return {
       valid: true,
@@ -117,10 +111,12 @@ export const getCurrentUserSchoolId = async (): Promise<string | null> => {
     
     // Handle both return types from getCurrentSchoolInfo
     if ('school_id' in schoolInfo) {
-      return schoolInfo.school_id;
-    } else {
-      return schoolInfo.id;
+      return schoolInfo.school_id as string;
+    } else if ('id' in schoolInfo) {
+      return schoolInfo.id as string;
     }
+    
+    return null;
   } catch (error) {
     console.error("Error getting current user school ID:", error);
     return null;

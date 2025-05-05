@@ -210,7 +210,7 @@ const RegisterForm = () => {
         return;
       }
 
-      // Fix: Pass an empty object as the third argument for userData
+      // Pass userData as the second argument
       await signUp(teacherEmail, teacherPassword, {
         full_name: teacherName,
         user_type: "teacher",
@@ -285,7 +285,7 @@ const RegisterForm = () => {
         return;
       }
 
-      // Fix: Pass an empty object as the third argument for userData
+      // Pass userData as the second argument
       await signUp(studentEmail, studentPassword, {
         full_name: studentName,
         user_type: "student",
