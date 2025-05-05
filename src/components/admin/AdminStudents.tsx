@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { approveStudentDirect, revokeStudentAccessDirect } from "@/utils/databaseUtils";
+import { Loader2, RefreshCw, User } from "lucide-react";
 
 type Student = {
   id: string;
@@ -22,10 +23,11 @@ const AdminStudents = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   useEffect(() => {
     fetchStudents();
-  }, []);
+  }, [refreshTrigger]);
 
   const fetchStudents = async () => {
     setLoading(true);
@@ -41,7 +43,6 @@ const AdminStudents = () => {
         return;
       }
       
-      // Log the school ID for debugging
       console.log("AdminStudents: School ID retrieved:", schoolId);
       
       // Fetch all students from this school
@@ -57,8 +58,13 @@ const AdminStudents = () => {
         return;
       }
 
-      // Log the raw students data for debugging
       console.log("AdminStudents: Raw students data:", studentsData);
+      
+      if (!studentsData || studentsData.length === 0) {
+        setStudents([]);
+        setLoading(false);
+        return;
+      }
       
       // Now fetch the profiles data separately with only the columns that exist
       const studentIds = studentsData.map(student => student.id);
@@ -75,7 +81,6 @@ const AdminStudents = () => {
         return;
       }
 
-      // Log the profiles data for debugging
       console.log("AdminStudents: Profiles data:", profilesData);
 
       // Combine the data from the two queries
@@ -87,8 +92,7 @@ const AdminStudents = () => {
           status: student.status || "pending",
           created_at: student.created_at,
           full_name: profile?.full_name || "No name",
-          // Use the user's ID as email since it's not directly available
-          email: student.id,
+          email: student.id, // Using ID as email placeholder
         };
       });
 
@@ -138,6 +142,11 @@ const AdminStudents = () => {
     }
   };
 
+  const handleRefresh = () => {
+    setRefreshTrigger(prev => prev + 1);
+    toast.success("Refreshing students list...");
+  };
+
   const filteredStudents = students.filter((student) => {
     const searchLower = searchTerm.toLowerCase();
     return (
@@ -158,7 +167,8 @@ const AdminStudents = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="max-w-xs"
             />
-            <Button variant="outline" onClick={fetchStudents}>
+            <Button variant="outline" onClick={handleRefresh} className="flex items-center gap-2">
+              <RefreshCw className="h-4 w-4" />
               Refresh
             </Button>
           </div>
@@ -167,11 +177,15 @@ const AdminStudents = () => {
       <CardContent>
         {loading ? (
           <div className="flex justify-center p-6">
-            <div className="animate-spin h-8 w-8 border-2 border-primary rounded-full border-t-transparent"></div>
+            <Loader2 className="animate-spin h-8 w-8 border-2 border-primary rounded-full border-t-transparent" />
           </div>
         ) : students.length === 0 ? (
           <div className="text-center py-12">
+            <User className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
             <p className="text-muted-foreground">No students found.</p>
+            <p className="text-sm text-muted-foreground mt-2">
+              Students will appear here when they register using your school code.
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -179,7 +193,7 @@ const AdminStudents = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
+                  <TableHead>Email/ID</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Joined</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -191,7 +205,9 @@ const AdminStudents = () => {
                     <TableCell className="font-medium">
                       {student.full_name}
                     </TableCell>
-                    <TableCell>{student.email}</TableCell>
+                    <TableCell>
+                      <span className="font-mono text-xs">{student.email}</span>
+                    </TableCell>
                     <TableCell>
                       {student.status === "active" ? (
                         <Badge variant="outline" className="text-green-500 border-green-500">
