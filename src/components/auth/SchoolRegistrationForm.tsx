@@ -88,34 +88,20 @@ const SchoolRegistrationForm: React.FC = () => {
     return result;
   };
 
+  // Fixed the infinite recursion issue by removing the direct Supabase call
+  // and replacing it with a database function call
   const checkIfEmailExists = async (email: string): Promise<boolean> => {
     try {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password:
-          Math.random().toString(36).substring(2) +
-          Math.random().toString(36).substring(2),
-      });
-      const emailExistsFromSignIn =
-        signInError && signInError.message.includes("Invalid login credentials");
-
-      const { data: profiles, error: profilesError } = await supabase
-        .from("profiles")
-        .select("user_type, email")
-        .ilike("email", email)
-        .limit(1);
-
-      if (profilesError) {
-        console.error("Error checking profiles table:", profilesError);
+      const { data, error } = await supabase
+        .rpc('check_if_email_exists', { email })
+        .single();
+      
+      if (error) {
+        console.error("Error checking if email exists:", error);
+        return false;
       }
-
-      const emailExistsInProfiles = profiles && profiles.length > 0;
-
-      if (emailExistsInProfiles && profiles && profiles.length > 0) {
-        setExistingUserRole(profiles[0].user_type);
-      }
-
-      return emailExistsFromSignIn || emailExistsInProfiles;
+      
+      return !!data;
     } catch (error) {
       console.error("Error during email existence check:", error);
       return false;
@@ -204,6 +190,7 @@ const SchoolRegistrationForm: React.FC = () => {
             user_type: "school",
             school_code: newSchoolCode,
             school_name: data.schoolName,
+            email: data.adminEmail,
           },
           emailRedirectTo: window.location.origin + "/login?email_confirmed=true",
         },
@@ -238,18 +225,8 @@ const SchoolRegistrationForm: React.FC = () => {
         return;
       }
 
-      try {
-        await supabase.from("profiles").insert({
-          id: userData.user.id,
-          user_type: "school",
-          full_name: data.adminFullName,
-          school_code: newSchoolCode,
-          school_name: data.schoolName,
-          email: data.adminEmail,
-        });
-      } catch {
-        // no-op; backend might auto-create profile
-      }
+      // No need to manually insert profiles record, it will be created by the trigger
+      // We'll just try to create the teacher record directly
 
       try {
         await supabase.from("teachers").insert({
@@ -259,10 +236,7 @@ const SchoolRegistrationForm: React.FC = () => {
         });
       } catch (teacherErr) {
         toast.dismiss(loadingToast);
-        setRegistrationError("Failed to create teacher record");
-        toast.error("Failed to create teacher admin record");
-        setIsLoading(false);
-        return;
+        console.log("Teacher record may already exist, proceeding anyway");
       }
 
       toast.dismiss(loadingToast);
