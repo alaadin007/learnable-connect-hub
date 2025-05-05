@@ -49,7 +49,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useQuery } from "@tanstack/react-query";
 
-// Define the schema for student invite form with "email" method (not "invite")
+// Define the schema for student invite form
 const addStudentSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address" }).optional(),
   method: z.enum(["email", "code"], {
@@ -71,18 +71,13 @@ type StudentInvite = {
 const AdminStudents = () => {
   const { user, profile, schoolId: authSchoolId } = useAuth();
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(false);
-  const [invites, setInvites] = useState<StudentInvite[]>([]);
+  const [isSending, setIsSending] = useState(false);
   const [generatedCode, setGeneratedCode] = useState("");
   const [isGeneratingCode, setIsGeneratingCode] = useState(false);
   const [codeGenerationError, setCodeGenerationError] = useState<string | null>(null);
 
   // Get the schoolId properly
-  const userProfileId = user?.id || null;
   const schoolId = authSchoolId || profile?.organization?.id || null;
-
-  console.log("AdminStudents: Using user ID:", userProfileId);
-  console.log("AdminStudents: Using school ID:", schoolId);
 
   const form = useForm<AddStudentFormValues>({
     resolver: zodResolver(addStudentSchema),
@@ -94,16 +89,17 @@ const AdminStudents = () => {
 
   const selectedMethod = form.watch("method");
 
-  // Use React Query to fetch invites - this ensures proper client setup
-  const { data: inviteData, refetch: refreshInvites, isLoading: isLoadingInvites } = useQuery({
+  // Use React Query to fetch invites with better error handling and caching
+  const { 
+    data: invites = [], 
+    refetch: refreshInvites, 
+    isLoading: isLoadingInvites,
+    isError: isInvitesError,
+    error: invitesError
+  } = useQuery({
     queryKey: ['studentInvites', schoolId],
     queryFn: async () => {
-      if (!schoolId) {
-        console.log("No school ID available, cannot fetch invites");
-        return [];
-      }
-
-      console.log("Fetching invites for school ID:", schoolId);
+      if (!schoolId) return [];
       
       try {
         // Try to fetch from student_invites table
@@ -114,11 +110,10 @@ const AdminStudents = () => {
           .order("created_at", { ascending: false })
           .limit(10);
 
+        if (studentInviteError) throw studentInviteError;
+        
         if (studentInvites && studentInvites.length > 0) {
-          console.log("Found student invites:", studentInvites);
           return studentInvites as StudentInvite[];
-        } else {
-          console.log("No student invites found or error:", studentInviteError);
         }
 
         // Fallback to teacher_invitations table for display
@@ -129,36 +124,25 @@ const AdminStudents = () => {
           .order("created_at", { ascending: false })
           .limit(10);
 
-        if (error) {
-          console.error("Error fetching teacher invitations:", error);
-          throw error;
-        }
+        if (error) throw error;
 
-        const studentInviteData: StudentInvite[] = (data || []).map((invite) => ({
+        return (data || []).map((invite) => ({
           id: invite.id,
           email: invite.email,
           code: null,
           created_at: invite.created_at,
           expires_at: invite.expires_at,
           status: invite.status,
-        }));
-
-        console.log("Using teacher invitations as fallback:", studentInviteData);
-        return studentInviteData;
+        })) as StudentInvite[];
       } catch (error: any) {
         console.error("Error fetching student invites:", error);
         throw error;
       }
     },
     enabled: !!schoolId,
+    staleTime: 30000, // Cache for 30 seconds
+    refetchOnWindowFocus: false,
   });
-
-  // Load student invites
-  useEffect(() => {
-    if (inviteData) {
-      setInvites(inviteData);
-    }
-  }, [inviteData]);
 
   const onSubmit = async (values: AddStudentFormValues) => {
     if (!user || !schoolId) {
@@ -166,12 +150,10 @@ const AdminStudents = () => {
       return;
     }
 
-    setIsLoading(true);
+    setIsSending(true);
 
     try {
       if (values.method === "email" && values.email) {
-        console.log("Creating email invitation for:", values.email);
-
         const { data: { session } } = await supabase.auth.getSession();
 
         if (!session) {
@@ -182,29 +164,26 @@ const AdminStudents = () => {
           headers: {
             Authorization: `Bearer ${session.access_token}`,
           },
-          body: JSON.stringify({
+          body: {
             method: "email",
             email: values.email,
-          }),
+          },
         });
 
-        if (error) {
-          console.error("Error from invite-student function:", error);
-          throw error;
-        }
+        if (error) throw error;
 
-        console.log("Invitation created:", data);
         toast.success(`Invitation sent to ${values.email}`);
         form.reset();
         setGeneratedCode(""); // clear code if any previously generated
       }
 
+      // Refresh invites list
       refreshInvites();
     } catch (error: any) {
       console.error("Error inviting student:", error);
       toast.error(error.message || "Failed to invite student");
     } finally {
-      setIsLoading(false);
+      setIsSending(false);
     }
   };
 
@@ -213,13 +192,9 @@ const AdminStudents = () => {
       toast.error("No code available to copy");
       return;
     }
+    
     navigator.clipboard.writeText(generatedCode);
     toast.success("Code copied to clipboard!");
-  };
-
-  const handleRefresh = () => {
-    refreshInvites();
-    toast.success("Refreshing student invitations...");
   };
 
   const generateInviteCode = async () => {
@@ -230,51 +205,30 @@ const AdminStudents = () => {
 
     setIsGeneratingCode(true);
     setCodeGenerationError(null);
-    setGeneratedCode("");
 
     try {
-      console.log("Getting auth session");
       const { data: { session } } = await supabase.auth.getSession();
 
       if (!session) {
         throw new Error("You must be logged in");
       }
-
-      console.log("Calling generate-student-code function with token:", session.access_token.substring(0, 10) + '...');
       
-      // Call the edge function with detailed error handling
-      const response = await supabase.functions.invoke("generate-student-code", {
+      // Call the fixed edge function
+      const { data, error } = await supabase.functions.invoke("generate-student-code", {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
         }
       });
 
-      console.log("Function response status:", response);
-      
-      if (response.error) {
-        throw new Error(response.error.message || "Failed to generate invitation code");
+      if (error || !data || data.error) {
+        throw new Error(error?.message || data?.error || "Failed to generate invitation code");
       }
       
-      if (!response.data) {
-        throw new Error("No data received from server");
-      }
-      
-      console.log("Response data:", response.data);
-      
-      if (response.data.error) {
-        throw new Error(response.data.error);
-      }
-      
-      if (!response.data.code) {
-        throw new Error("Code not found in response");
-      }
-      
-      setGeneratedCode(response.data.code);
+      setGeneratedCode(data.code);
       toast.success("Student invitation code generated");
       
       // Refresh the invites list
       refreshInvites();
-
     } catch (error: any) {
       console.error("Error generating invite code:", error);
       toast.error(error.message || "Failed to generate invitation code");
@@ -367,8 +321,7 @@ const AdminStudents = () => {
                       >
                         {isGeneratingCode ? (
                           <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Generating...
+                            <span>Generating...</span>
                           </>
                         ) : (
                           <>
@@ -406,13 +359,8 @@ const AdminStudents = () => {
                   )}
 
                   {selectedMethod === "email" && (
-                    <Button type="submit" className="gradient-bg" disabled={isLoading}>
-                      {isLoading ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Sending...
-                        </>
-                      ) : (
+                    <Button type="submit" className="gradient-bg" disabled={isSending}>
+                      {isSending ? "Sending..." : (
                         <>
                           <Mail className="mr-2 h-4 w-4" />
                           Send Invitation
@@ -431,17 +379,29 @@ const AdminStudents = () => {
                 <CardTitle>Student Invitations</CardTitle>
                 <CardDescription>Recent student invitations and codes</CardDescription>
               </div>
-              <Button variant="outline" size="sm" onClick={handleRefresh} className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => refreshInvites()} className="flex items-center gap-2">
                 <RefreshCw className="h-4 w-4" />
                 Refresh
               </Button>
             </CardHeader>
             <CardContent>
-              {isLoadingInvites ? (
-                <div className="flex justify-center items-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-learnable-purple" />
+              {isLoadingInvites && (
+                <div className="flex justify-center items-center py-4">
+                  <p>Loading invitations...</p>
                 </div>
-              ) : invites && invites.length > 0 ? (
+              )}
+              
+              {isInvitesError && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Error</AlertTitle>
+                  <AlertDescription>
+                    {invitesError instanceof Error ? invitesError.message : "Failed to load invitations"}
+                  </AlertDescription>
+                </Alert>
+              )}
+              
+              {!isLoadingInvites && !isInvitesError && invites.length > 0 ? (
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
@@ -453,40 +413,54 @@ const AdminStudents = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {invites.map((invite) => (
-                        <TableRow key={invite.id}>
-                          <TableCell>
-                            {invite.email || (
-                              <code className="bg-muted p-1 rounded text-xs font-mono">
-                                {invite.code || "N/A"}
-                              </code>
-                            )}
-                          </TableCell>
-                          <TableCell>{new Date(invite.created_at).toLocaleDateString()}</TableCell>
-                          <TableCell>{invite.expires_at ? new Date(invite.expires_at).toLocaleDateString() : "N/A"}</TableCell>
-                          <TableCell>
-                            <span
-                              className={`text-xs font-medium px-2 py-0.5 rounded ${
-                                invite.status === "pending"
-                                  ? "bg-yellow-100 text-yellow-800"
-                                  : invite.status === "accepted"
-                                  ? "bg-green-100 text-green-800"
-                                  : "bg-red-100 text-red-800"
-                              }`}
-                            >
-                              {invite.status.charAt(0).toUpperCase() + invite.status.slice(1)}
-                            </span>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {invites.map((invite) => {
+                        const isExpired = new Date(invite.expires_at) < new Date();
+                        const status = isExpired && invite.status === 'pending' ? 'expired' : invite.status;
+                        
+                        return (
+                          <TableRow key={invite.id}>
+                            <TableCell>
+                              {invite.email || (
+                                <code className="bg-muted p-1 rounded text-xs font-mono">
+                                  {invite.code || "N/A"}
+                                </code>
+                              )}
+                            </TableCell>
+                            <TableCell>{new Date(invite.created_at).toLocaleDateString()}</TableCell>
+                            <TableCell>
+                              {invite.expires_at ? (
+                                <span>
+                                  {new Date(invite.expires_at).toLocaleDateString()}
+                                  {isExpired && invite.status === 'pending' && (
+                                    <span className="ml-2 text-xs text-red-500">(Expired)</span>
+                                  )}
+                                </span>
+                              ) : "N/A"}
+                            </TableCell>
+                            <TableCell>
+                              <span
+                                className={`text-xs font-medium px-2 py-0.5 rounded ${
+                                  status === "pending"
+                                    ? "bg-yellow-100 text-yellow-800"
+                                    : status === "accepted" || status === "used"
+                                    ? "bg-green-100 text-green-800"
+                                    : "bg-red-100 text-red-800"
+                                }`}
+                              >
+                                {status.charAt(0).toUpperCase() + status.slice(1)}
+                              </span>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>
-              ) : (
+              ) : !isLoadingInvites && !isInvitesError ? (
                 <div className="text-center py-8">
                   <p className="text-muted-foreground">No invitations found. Create one above.</p>
                 </div>
-              )}
+              ) : null}
             </CardContent>
             <CardFooter>
               <p className="text-xs text-muted-foreground">Student invitations expire after 7 days.</p>
