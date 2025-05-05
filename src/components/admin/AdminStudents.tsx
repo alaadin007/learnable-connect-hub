@@ -41,35 +41,44 @@ const AdminStudents = () => {
       }
       
       // Fetch all students from this school
-      const { data, error } = await supabase
+      const { data: studentsData, error: studentsError } = await supabase
         .from("students")
-        .select(`
-          id,
-          school_id,
-          status,
-          created_at,
-          profiles (
-            full_name,
-            email
-          )
-        `)
+        .select("id, school_id, status, created_at")
         .eq("school_id", schoolId);
 
-      if (error) {
+      if (studentsError) {
         toast.error("Error fetching students");
-        console.error("Error fetching students:", error);
+        console.error("Error fetching students:", studentsError);
         setLoading(false);
         return;
       }
 
-      const formattedStudents: Student[] = data.map((student) => ({
-        id: student.id,
-        school_id: student.school_id,
-        status: student.status || "pending",
-        created_at: student.created_at,
-        full_name: student.profiles?.full_name || "No name",
-        email: student.profiles?.email || "No email",
-      }));
+      // Now fetch the profiles data separately
+      const studentIds = studentsData.map(student => student.id);
+      const { data: profilesData, error: profilesError } = await supabase
+        .from("profiles")
+        .select("id, full_name, email")
+        .in("id", studentIds);
+      
+      if (profilesError) {
+        toast.error("Error fetching profiles");
+        console.error("Error fetching profiles:", profilesError);
+        setLoading(false);
+        return;
+      }
+
+      // Combine the data from the two queries
+      const formattedStudents: Student[] = studentsData.map(student => {
+        const profile = profilesData?.find(p => p.id === student.id);
+        return {
+          id: student.id,
+          school_id: student.school_id,
+          status: student.status || "pending",
+          created_at: student.created_at,
+          full_name: profile?.full_name || "No name",
+          email: profile?.email || "No email",
+        };
+      });
 
       setStudents(formattedStudents);
     } catch (error) {
