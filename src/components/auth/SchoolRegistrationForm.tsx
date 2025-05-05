@@ -1,3 +1,4 @@
+
 import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -64,7 +65,6 @@ const SchoolRegistrationForm: React.FC = () => {
   const [schoolCode, setSchoolCode] = React.useState<string | null>(null);
   const [registeredEmail, setRegisteredEmail] = React.useState<string | null>(null);
   const [existingEmailError, setExistingEmailError] = React.useState<string | null>(null);
-  const [existingUserRole, setExistingUserRole] = React.useState<string | null>(null);
   const [registrationError, setRegistrationError] = React.useState<string | null>(null);
 
   const form = useForm<SchoolRegistrationFormValues>({
@@ -88,7 +88,6 @@ const SchoolRegistrationForm: React.FC = () => {
     return result;
   };
 
-  // Fixed the function name to match the database function 'check_if_email_exists'
   const checkIfEmailExists = async (email: string): Promise<boolean> => {
     try {
       const { data, error } = await supabase
@@ -110,7 +109,6 @@ const SchoolRegistrationForm: React.FC = () => {
   const onSubmit = async (data: SchoolRegistrationFormValues) => {
     setIsLoading(true);
     setExistingEmailError(null);
-    setExistingUserRole(null);
     setRegistrationError(null);
 
     try {
@@ -138,50 +136,8 @@ const SchoolRegistrationForm: React.FC = () => {
 
       const newSchoolCode = generateSchoolCode();
 
-      // Create school code first
-      const { error: scError } = await supabase
-        .from("school_codes")
-        .insert({
-          code: newSchoolCode,
-          school_name: data.schoolName,
-          active: true,
-        });
-
-      if (scError) {
-        console.error("School code creation error:", scError);
-        toast.dismiss(loadingToast);
-        setRegistrationError("Failed to register school code");
-        toast.error("Failed to register school code");
-        setIsLoading(false);
-        return;
-      }
-
-      // Then create the school record
-      const { data: schoolData, error: schoolError } = await supabase
-        .from("schools")
-        .insert({
-          name: data.schoolName,
-          code: newSchoolCode,
-        })
-        .select()
-        .single();
-
-      if (schoolError || !schoolData) {
-        toast.dismiss(loadingToast);
-        
-        try {
-          await supabase.from("school_codes").delete().eq("code", newSchoolCode);
-        } catch (cleanupError) {
-          console.error("Cleanup error:", cleanupError);
-        }
-
-        setRegistrationError("Failed to create school record");
-        toast.error("Failed to create school record");
-        setIsLoading(false);
-        return;
-      }
-
-      // Finally create the user account
+      // Now we register the user directly with Supabase Auth
+      // The database trigger will handle creating all the necessary records
       const { data: userData, error: userError } = await supabase.auth.signUp({
         email: data.adminEmail,
         password: data.adminPassword,
@@ -199,16 +155,8 @@ const SchoolRegistrationForm: React.FC = () => {
 
       if (userError || !userData || !userData.user) {
         toast.dismiss(loadingToast);
-        
-        try {
-          await supabase.from("schools").delete().eq("id", schoolData.id);
-          await supabase.from("school_codes").delete().eq("code", newSchoolCode);
-        } catch (cleanupError) {
-          console.error("Cleanup error:", cleanupError);
-        }
-
-        setRegistrationError("Failed to create admin user account");
-        toast.error("Failed to create admin user account");
+        setRegistrationError("Failed to create school account: " + (userError?.message || "Unknown error"));
+        toast.error("Failed to create school account");
         setIsLoading(false);
         return;
       }
@@ -294,13 +242,10 @@ const SchoolRegistrationForm: React.FC = () => {
           <Alert variant="destructive" className="mb-6">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>
-              {existingUserRole
-                ? `Email Already Registered as ${existingUserRole}`
-                : "Email Already Registered"}
+              Email Already Registered
             </AlertTitle>
             <AlertDescription>
-              The email "{existingEmailError}" is already registered
-              {existingUserRole ? ` as a ${existingUserRole} account.` : "."} Please use a different email or{" "}
+              The email "{existingEmailError}" is already registered. Please use a different email or{" "}
               <a href="/login" className="font-medium underline">log in</a>.
             </AlertDescription>
           </Alert>
