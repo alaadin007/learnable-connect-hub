@@ -1,4 +1,3 @@
-
 import React, {
   createContext,
   useState,
@@ -104,17 +103,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         organization: null, // Default to null
       };
       
-      // Only set organization data if it exists and has the expected structure
+      // Safely check for organization data with proper null handling
       if (profileData.organization && 
-          typeof profileData.organization === 'object' && 
-          'id' in profileData.organization && 
-          'name' in profileData.organization && 
-          'code' in profileData.organization) {
-        safeProfileData.organization = {
-          id: String(profileData.organization.id || ""),
-          name: String(profileData.organization.name || ""),
-          code: String(profileData.organization.code || ""),
-        };
+          typeof profileData.organization === 'object') {
+        // Create a safe organization object by checking each property individually
+        const orgId = profileData.organization.id ? String(profileData.organization.id) : "";
+        const orgName = profileData.organization.name ? String(profileData.organization.name) : "";
+        const orgCode = profileData.organization.code ? String(profileData.organization.code) : "";
+        
+        // Only set if we have all required properties
+        if (orgId && orgName && orgCode) {
+          safeProfileData.organization = {
+            id: orgId,
+            name: orgName,
+            code: orgCode,
+          };
+        }
       }
 
       setProfile(safeProfileData);
