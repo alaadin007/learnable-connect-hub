@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -235,6 +236,8 @@ const AdminStudents = () => {
         throw new Error("You must be logged in");
       }
 
+      console.log("Session token available:", !!session.access_token);
+
       const { data, error } = await supabase.functions.invoke("invite-student", {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
@@ -246,6 +249,8 @@ const AdminStudents = () => {
         console.error("Error from invite-student function:", error);
         throw new Error(error.message || "Failed to generate invitation code");
       }
+
+      console.log("Response from invite-student function:", data);
 
       if (!data || !data.code) {
         throw new Error("Invalid response received from server");

@@ -17,8 +17,8 @@ serve(async (req) => {
   if (req.method === "OPTIONS") {
     console.log("Handling OPTIONS request");
     return new Response(null, {
-      headers: corsHeaders,
-      status: 204
+      status: 204,
+      headers: corsHeaders
     });
   }
 
