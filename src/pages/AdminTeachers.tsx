@@ -35,7 +35,7 @@ type TeacherInvite = {
 };
 
 const AdminTeachers = () => {
-  const { user, profile, isSuperviser } = useAuth();
+  const { user, profile, isSupervisor } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [invites, setInvites] = useState<TeacherInvite[]>([]);
 

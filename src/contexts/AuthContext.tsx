@@ -202,9 +202,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           return null;
         }
 
-        // Assemble safe profile data
+        // Assemble safe profile data with appropriate type casting
         const safeProfileData: UserProfile = {
           id: profileData.id,
+          // Apply type assertion to ensure user_type is treated as UserRole | null
           user_type: profileData.user_type as UserRole | null,
           full_name: profileData.full_name,
           school_code: profileData.school_code,
@@ -229,6 +230,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setProfile(safeProfileData);
 
         if (profileData.user_type) {
+          // Cast to UserRole type to ensure type safety
           setUserRole(profileData.user_type as UserRole);
         }
 
@@ -262,6 +264,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (user && user.user_metadata) {
           const fallbackProfile: UserProfile = {
             id: user.id,
+            // Ensure proper typing for user_type
             user_type: user.user_metadata.user_type as UserRole | null,
             full_name: user.user_metadata.full_name || null,
             school_code: user.user_metadata.school_code || null,
