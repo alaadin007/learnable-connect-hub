@@ -55,18 +55,18 @@ const SchoolAdmin = () => {
       const schoolData = await getCurrentSchoolInfo();
       
       if (schoolData) {
-        // Handle both return types from getCurrentSchoolInfo
+        // Handle different return types from getCurrentSchoolInfo
         if ('school_id' in schoolData) {
           // This is the response from the RPC function
           setSchoolInfo({
-            id: schoolData.school_id || '',
+            id: schoolData.school_id,
             name: schoolData.school_name || "Not available",
             code: schoolData.school_code || "Not available"
           });
         } else {
           // This is the direct schools table response
           setSchoolInfo({
-            id: schoolData.id || '',
+            id: schoolData.id,
             name: schoolData.name || "Not available",
             code: schoolData.code || "Not available"
           });

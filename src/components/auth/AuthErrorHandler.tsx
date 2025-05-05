@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -32,7 +31,8 @@ const AuthErrorHandler: React.FC<AuthErrorHandlerProps> = ({ children }) => {
       console.log("Attempting to refresh profile");
       if (refreshProfile) {
         const result = await refreshProfile();
-        if (result) {
+        // Changed this line to check if result exists rather than its truthiness
+        if (result !== undefined) {
           console.log("Profile refresh successful", result);
           setHasAuthError(false);
           toast.success("Profile refreshed successfully");
