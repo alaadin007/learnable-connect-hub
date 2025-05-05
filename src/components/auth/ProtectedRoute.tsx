@@ -72,8 +72,9 @@ const ProtectedRoute = ({
     // Log current user role for debugging
     console.log("ProtectedRoute: User role:", userRole, "Required role:", requiredUserType);
 
+    // Fixed the comparison by ensuring userRole is treated as a UserRole type
     // If we require a specific user type and the user doesn't have it
-    if (requiredUserType && userRole !== requiredUserType) {
+    if (requiredUserType && userRole && userRole !== requiredUserType) {
       console.log(`ProtectedRoute: User role ${userRole} doesn't match required role ${requiredUserType}`);
       // Redirect based on user role instead of generic dashboard
       const redirectPath = 
