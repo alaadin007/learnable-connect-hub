@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -243,8 +242,9 @@ const AdminStudents = () => {
         throw new Error("You must be logged in");
       }
 
-      console.log("Calling generate-student-code function with token");
-      // Call the updated edge function
+      console.log("Calling generate-student-code function with token:", session.access_token.substring(0, 10) + '...');
+      
+      // Call the edge function with detailed logging
       const { data, error } = await supabase.functions.invoke("generate-student-code", {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
@@ -258,7 +258,17 @@ const AdminStudents = () => {
 
       console.log("Response from generate-student-code function:", data);
 
-      if (!data || !data.code) {
+      // More detailed validation of the response
+      if (!data) {
+        throw new Error("No data received from server");
+      }
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      if (!data.code) {
+        console.error("Invalid response format - missing code:", data);
         throw new Error("Invalid response received from server");
       }
 

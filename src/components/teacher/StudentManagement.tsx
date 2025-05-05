@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -149,7 +148,7 @@ const StudentManagement = () => {
       
       console.log("Calling generate-student-code function");
       
-      // Call the updated edge function
+      // Call the updated edge function with proper error handling
       const { data, error } = await supabase.functions.invoke('generate-student-code', {
         headers: {
           Authorization: `Bearer ${session.access_token}`
@@ -161,7 +160,17 @@ const StudentManagement = () => {
         throw new Error(error.message || "Failed to generate code");
       }
       
-      if (!data || !data.code) {
+      console.log("Response data:", data);
+
+      if (!data) {
+        throw new Error('Empty response received from server');
+      }
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      if (!data.code) {
         console.error("Invalid response format:", data);
         throw new Error('Code not found in server response');
       }
@@ -275,6 +284,59 @@ const StudentManagement = () => {
     }
   };
 
+  const renderCodeGenerationContent = () => (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Generate a code that students can use to join your class.
+      </p>
+      {generatedCode ? (
+        <div className="mt-4">
+          <Label>Invite Code</Label>
+          <div className="flex items-center mt-1">
+            <div className="bg-muted p-2 rounded-l-md font-mono border border-r-0 flex-1 text-center">
+              {generatedCode}
+            </div>
+            <Button 
+              type="button" 
+              variant="outline" 
+              className="rounded-l-none"
+              onClick={() => handleCopyCode(generatedCode)}
+            >
+              <Copy className="h-4 w-4" />
+            </Button>
+          </div>
+          <p className="text-sm text-green-600 mt-2">
+            Share this code with your students
+          </p>
+        </div>
+      ) : (
+        <>
+          <Button 
+            type="button" 
+            onClick={generateInviteCode}
+            disabled={isGeneratingCode}
+            className="w-full"
+          >
+            {isGeneratingCode ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Generating...
+              </>
+            ) : (
+              'Generate New Code'
+            )}
+          </Button>
+          
+          {codeGenerationError && (
+            <p className="text-sm text-red-600 mt-2">
+              {codeGenerationError}
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -317,56 +379,7 @@ const StudentManagement = () => {
                   </div>
                 </TabsContent>
                 <TabsContent value="code" className="pt-4">
-                  <div className="space-y-4">
-                    <p className="text-sm text-muted-foreground">
-                      Generate a code that students can use to join your class.
-                    </p>
-                    {generatedCode ? (
-                      <div className="mt-4">
-                        <Label>Invite Code</Label>
-                        <div className="flex items-center mt-1">
-                          <div className="bg-muted p-2 rounded-l-md font-mono border border-r-0 flex-1">
-                            {generatedCode}
-                          </div>
-                          <Button 
-                            type="button" 
-                            variant="outline" 
-                            className="rounded-l-none"
-                            onClick={() => handleCopyCode(generatedCode)}
-                          >
-                            <Copy className="h-4 w-4" />
-                          </Button>
-                        </div>
-                        <p className="text-sm text-green-600 mt-2">
-                          Share this code with your students
-                        </p>
-                      </div>
-                    ) : (
-                      <>
-                        <Button 
-                          type="button" 
-                          onClick={generateInviteCode}
-                          disabled={isGeneratingCode}
-                          className="w-full"
-                        >
-                          {isGeneratingCode ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Generating...
-                            </>
-                          ) : (
-                            'Generate New Code'
-                          )}
-                        </Button>
-                        
-                        {codeGenerationError && (
-                          <p className="text-sm text-red-600 mt-2">
-                            {codeGenerationError}
-                          </p>
-                        )}
-                      </>
-                    )}
-                  </div>
+                  {renderCodeGenerationContent()}
                 </TabsContent>
               </Tabs>
             </div>
