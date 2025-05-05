@@ -239,7 +239,7 @@ serve(async (req) => {
           error: "Failed to create invitation",
           details: inviteError.message
         }), {
-          status: 500,
+        status: 500,
           headers: {
             "Content-Type": "application/json",
             ...corsHeaders
