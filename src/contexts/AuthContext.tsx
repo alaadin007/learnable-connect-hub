@@ -149,7 +149,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
 
       setProfile(safeProfileData);
       setUserRole(profileData.user_type || null);
-      setIsSuperviser(profileData.user_type === "superviser");
+      setIsSuperviser(profileData.user_type === "superviser" || (profileData.user_type === "school" && safeProfileData.organization?.id));
       setSchoolId(safeProfileData.organization?.id || null);
 
       if (user && isTestAccount(user.email || '')) {
@@ -236,18 +236,20 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       if (email.startsWith("school")) type = "school";
       else if (email.startsWith("teacher")) type = "teacher";
       await setTestUser(type);
-      return;
+      return { data: {}, error: null };
     }
 
     setIsLoading(true);
     try {
       if (password) {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        const authResponse = await supabase.auth.signInWithPassword({ email, password });
+        if (authResponse.error) throw authResponse.error;
+        return authResponse;
       } else {
-        const { error } = await supabase.auth.signInWithOtp({ email });
-        if (error) throw error;
+        const authResponse = await supabase.auth.signInWithOtp({ email });
+        if (authResponse.error) throw authResponse.error;
         toast.success("Check your email to verify your login");
+        return authResponse;
       }
     } catch (error: any) {
       toast.error(error.error_description ?? error.message);

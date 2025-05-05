@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -96,18 +97,20 @@ const LoginForm = () => {
       }
 
       // Regular user login flow
-      await signIn(email, password);
+      const { data, error } = await signIn(email, password);
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      if (error) throw error;
+
+      const { data: { user } } = await supabase.auth.getUser();
 
       if (user) {
         const { data: profile } = await supabase
           .from("profiles")
-          .select("user_type")
+          .select("user_type, full_name, organization(id, name)")
           .eq("id", user.id)
           .single();
+
+        console.log("LoginForm: User profile fetched:", profile);
 
         const redirectPath =
           profile?.user_type === "school"
@@ -118,11 +121,11 @@ const LoginForm = () => {
 
         toast.success("Login successful", {
           description: `Welcome back, ${
-            user.user_metadata?.full_name || email
+            profile?.full_name || user.user_metadata?.full_name || email
           }!`,
         });
 
-        navigate(redirectPath);
+        navigate(redirectPath, { replace: true });
       } else {
         // fallback
         toast.success("Login successful");
