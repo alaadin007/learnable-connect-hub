@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -228,29 +227,25 @@ const AdminStudents = () => {
     setIsGeneratingCode(true);
 
     try {
-      console.log("Calling invite-student edge function with method: code");
-
       const { data: { session } } = await supabase.auth.getSession();
 
       if (!session) {
         throw new Error("You must be logged in");
       }
 
-      console.log("Session token available:", !!session.access_token);
-
-      const { data, error } = await supabase.functions.invoke("invite-student", {
+      // Call the updated edge function
+      const { data, error } = await supabase.functions.invoke("generate-student-code", {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ method: "code" }),
+        }
       });
 
       if (error) {
-        console.error("Error from invite-student function:", error);
+        console.error("Error from generate-student-code function:", error);
         throw new Error(error.message || "Failed to generate invitation code");
       }
 
-      console.log("Response from invite-student function:", data);
+      console.log("Response from generate-student-code function:", data);
 
       if (!data || !data.code) {
         throw new Error("Invalid response received from server");

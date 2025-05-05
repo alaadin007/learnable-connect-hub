@@ -31,45 +31,57 @@ serve(async (req) => {
       }
     );
 
-    // Verify the user is logged in
-    const {
-      data: { user },
-      error: userError,
-    } = await supabaseClient.auth.getUser();
+    // Get the authenticated user
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
 
     if (userError || !user) {
-      console.error("Unauthorized request:", userError);
+      console.error("Unauthorized access attempt:", userError);
       return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        {
-          status: 401,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        }
-      );
-    }
-    
-    console.log("Authenticated user:", user.id);
-
-    // Get the school_id of the logged in user
-    const { data: schoolId, error: schoolIdError } = await supabaseClient
-      .rpc("get_user_school_id");
-
-    if (schoolIdError || !schoolId) {
-      console.error("Could not determine school ID:", schoolIdError);
-      return new Response(
-        JSON.stringify({ error: "Could not determine school ID" }),
+        JSON.stringify({ error: "Unauthorized access" }),
         { 
-          status: 400,
+          status: 401, 
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
+    
+    console.log("User authenticated:", user.id);
+
+    // Check if user is a school admin or teacher with permission
+    const { data: teacherData, error: teacherError } = await supabaseClient
+      .from("teachers")
+      .select("school_id, is_supervisor")
+      .eq("id", user.id)
+      .single();
+
+    if (teacherError) {
+      console.error("Error checking teacher permissions:", teacherError);
+      return new Response(
+        JSON.stringify({ error: "Failed to verify permissions" }),
+        { 
+          status: 403, 
           headers: { "Content-Type": "application/json", ...corsHeaders },
         }
       );
     }
 
+    if (!teacherData) {
+      console.error("User is not a teacher");
+      return new Response(
+        JSON.stringify({ error: "You must be a teacher to generate student codes" }),
+        { 
+          status: 403, 
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
+
+    const schoolId = teacherData.school_id;
     console.log("Generating code for school ID:", schoolId);
-    
+
     // Generate a unique 8-character alphanumeric code
     const generateCode = () => {
-      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // Removed confusing characters
+      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // Removed potentially confusing characters
       let result = "";
       for (let i = 0; i < 8; i++) {
         result += chars.charAt(Math.floor(Math.random() * chars.length));
@@ -86,7 +98,6 @@ serve(async (req) => {
       .insert({
         code: inviteCode,
         school_id: schoolId,
-        teacher_id: user.id,
         status: "pending"
       })
       .select()
@@ -94,71 +105,36 @@ serve(async (req) => {
 
     if (inviteError) {
       console.error("Error creating invitation:", inviteError);
-      
-      // Check if the error is related to teacher_id column not existing
-      if (inviteError.message?.includes('teacher_id')) {
-        // Try inserting without the teacher_id field
-        console.log("Retrying insertion without teacher_id field");
-        const { data: retryInviteData, error: retryError } = await supabaseClient
-          .from("student_invites")
-          .insert({
-            code: inviteCode,
-            school_id: schoolId,
-            status: "pending"
-          })
-          .select()
-          .single();
-          
-        if (retryError) {
-          console.error("Error in retry invitation:", retryError);
-          return new Response(
-            JSON.stringify({ error: "Failed to create invitation" }),
-            { 
-              status: 500,
-              headers: { "Content-Type": "application/json", ...corsHeaders },
-            }
-          );
-        }
-        
-        console.log("Invitation created successfully on retry");
-        return new Response(
-          JSON.stringify({ 
-            message: "Student invite code generated successfully",
-            code: inviteCode
-          }),
-          { 
-            status: 200,
-            headers: { "Content-Type": "application/json", ...corsHeaders },
-          }
-        );
-      }
-      
       return new Response(
         JSON.stringify({ error: "Failed to create invitation" }),
         { 
-          status: 500,
+          status: 500, 
           headers: { "Content-Type": "application/json", ...corsHeaders },
         }
       );
     }
 
-    console.log("Invitation created successfully");
+    console.log("Invitation created successfully:", inviteData);
     return new Response(
       JSON.stringify({ 
+        success: true,
         message: "Student invite code generated successfully",
         code: inviteCode
       }),
       { 
-        status: 200,
+        status: 200, 
         headers: { "Content-Type": "application/json", ...corsHeaders },
       }
     );
   } catch (error) {
-    console.error("Unexpected error processing request:", error);
+    console.error("Unexpected error:", error);
     return new Response(
-      JSON.stringify({ error: "Internal server error", details: error?.message }),
+      JSON.stringify({ 
+        error: "Internal server error", 
+        details: error?.message || String(error) 
+      }),
       { 
-        status: 500,
+        status: 500, 
         headers: { "Content-Type": "application/json", ...corsHeaders },
       }
     );

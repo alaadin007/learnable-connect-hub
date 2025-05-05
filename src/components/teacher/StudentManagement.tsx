@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -134,23 +135,28 @@ const StudentManagement = () => {
   const generateInviteCode = async () => {
     setIsGeneratingCode(true);
     try {
-      console.log("Calling invite-student edge function with method: code");
+      console.log("Calling generate-student-code function");
       
-      // Call the invite-student function directly with better error handling
-      const { data, error } = await supabase.functions.invoke('invite-student', {
-        body: { method: 'code' }
+      // Get the session for authentication
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        throw new Error("Authentication required");
+      }
+      
+      // Call the updated edge function
+      const { data, error } = await supabase.functions.invoke('generate-student-code', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
       });
 
       if (error) {
-        console.error("Error from invite-student function:", error);
+        console.error("Error from generate-student-code function:", error);
         throw error;
       }
       
-      if (!data) {
-        throw new Error('No data returned from the server');
-      }
-      
-      if (!data.code) {
+      if (!data || !data.code) {
         console.error("Invalid response format:", data);
         throw new Error('Code not found in server response');
       }

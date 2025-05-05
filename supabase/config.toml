@@ -76,3 +76,6 @@ enabled = true
 
 [functions.invite-student]
 verify_jwt = true
+
+[functions.generate-student-code]
+verify_jwt = true
