@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,10 +15,11 @@ const LoginForm = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const { signIn, setTestUser, userRole } = useAuth();
+  const { signIn, setTestUser, userRole, signOut } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [activeTestAccount, setActiveTestAccount] = useState<string | null>(null);
   
   // Show success toast for registration and email verification
   useEffect(() => {
@@ -32,6 +34,22 @@ const LoginForm = () => {
       });
     }
   }, [searchParams]);
+
+  // Check if a test account is already active
+  useEffect(() => {
+    const checkActiveTestAccount = () => {
+      const usingTestAccount = localStorage.getItem('usingTestAccount') === 'true';
+      const testAccountType = localStorage.getItem('testAccountType');
+      
+      if (usingTestAccount && testAccountType) {
+        setActiveTestAccount(testAccountType);
+      } else {
+        setActiveTestAccount(null);
+      }
+    };
+    
+    checkActiveTestAccount();
+  }, []);
 
   // Redirect if user role already set
   useEffect(() => {
@@ -66,6 +84,11 @@ const LoginForm = () => {
     try {
       console.log(`LoginForm: Quick login as ${type}`);
       
+      // If there's already a test account active, sign out first
+      if (activeTestAccount) {
+        await signOut();
+      }
+      
       // Make sure we're logged out first and clear test flags
       await supabase.auth.signOut();
       localStorage.removeItem('usingTestAccount');
@@ -80,6 +103,7 @@ const LoginForm = () => {
       // Mark in localStorage that we're using a test account
       localStorage.setItem('usingTestAccount', 'true');
       localStorage.setItem('testAccountType', type);
+      setActiveTestAccount(type);
       
       console.log(`LoginForm: Successfully set up quick login for ${type}`);
 
@@ -114,6 +138,7 @@ const LoginForm = () => {
       // Clear any partial test account state on error
       localStorage.removeItem('usingTestAccount');
       localStorage.removeItem('testAccountType');
+      setActiveTestAccount(null);
     } finally {
       setIsLoading(false);
     }
@@ -132,6 +157,14 @@ const LoginForm = () => {
     console.log(`LoginForm: Attempting login for ${email}`);
 
     try {
+      // If there's already a test account active, sign out first
+      if (activeTestAccount) {
+        await signOut();
+        localStorage.removeItem('usingTestAccount');
+        localStorage.removeItem('testAccountType');
+        setActiveTestAccount(null);
+      }
+      
       // Special handling for test accounts
       if (email.includes(".test@learnable.edu")) {
         let type: "school" | "teacher" | "student" = "student";
@@ -307,26 +340,32 @@ const LoginForm = () => {
                   <button
                     type="button"
                     onClick={() => handleQuickLogin("school")}
-                    className="text-sm text-blue-800 font-semibold hover:text-blue-900 bg-blue-100 px-3 py-1 rounded-full transition-colors duration-200"
+                    className={`text-sm text-blue-800 font-semibold hover:text-blue-900 bg-blue-100 px-3 py-1 rounded-full transition-colors duration-200 ${
+                      activeTestAccount === "school" ? "ring-2 ring-blue-500" : ""
+                    }`}
                     disabled={isLoading}
                   >
-                    Admin Login
+                    {activeTestAccount === "school" ? "Active Admin" : "Admin Login"}
                   </button>
                   <button
                     type="button"
                     onClick={() => handleQuickLogin("teacher")}
-                    className="text-sm text-green-800 font-semibold hover:text-green-900 bg-green-100 px-3 py-1 rounded-full transition-colors duration-200"
+                    className={`text-sm text-green-800 font-semibold hover:text-green-900 bg-green-100 px-3 py-1 rounded-full transition-colors duration-200 ${
+                      activeTestAccount === "teacher" ? "ring-2 ring-green-500" : ""
+                    }`}
                     disabled={isLoading}
                   >
-                    Teacher Login
+                    {activeTestAccount === "teacher" ? "Active Teacher" : "Teacher Login"}
                   </button>
                   <button
                     type="button"
                     onClick={() => handleQuickLogin("student")}
-                    className="text-sm text-purple-800 font-semibold hover:text-purple-900 bg-purple-100 px-3 py-1 rounded-full transition-colors duration-200"
+                    className={`text-sm text-purple-800 font-semibold hover:text-purple-900 bg-purple-100 px-3 py-1 rounded-full transition-colors duration-200 ${
+                      activeTestAccount === "student" ? "ring-2 ring-purple-500" : ""
+                    }`}
                     disabled={isLoading}
                   >
-                    Student Login
+                    {activeTestAccount === "student" ? "Active Student" : "Student Login"}
                   </button>
                   <Link
                     to="/test-accounts"

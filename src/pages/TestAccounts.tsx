@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -55,8 +56,9 @@ type AccountType = "school" | "teacher" | "student";
 
 const TestAccounts = () => {
   const navigate = useNavigate();
-  const { setTestUser } = useAuth();
+  const { setTestUser, signOut } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [activeAccount, setActiveAccount] = useState<AccountType | null>(null);
   const [dataCreationLoading, setDataCreationLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -67,6 +69,7 @@ const TestAccounts = () => {
         await supabase.auth.signOut();
         localStorage.removeItem('usingTestAccount');
         localStorage.removeItem('testAccountType');
+        setActiveAccount(null);
         console.log("TestAccounts: Cleared previous sessions on page load");
       } catch (error) {
         console.error("Error clearing sessions:", error);
@@ -74,6 +77,22 @@ const TestAccounts = () => {
     };
     
     clearPreviousSessions();
+  }, []);
+
+  // Check if a test account is already active
+  useEffect(() => {
+    const checkActiveAccount = () => {
+      const usingTestAccount = localStorage.getItem('usingTestAccount') === 'true';
+      const accountType = localStorage.getItem('testAccountType') as AccountType | null;
+      
+      if (usingTestAccount && accountType) {
+        setActiveAccount(accountType);
+      } else {
+        setActiveAccount(null);
+      }
+    };
+    
+    checkActiveAccount();
   }, []);
 
   const createTestAccounts = useCallback(async () => {
@@ -120,7 +139,7 @@ const TestAccounts = () => {
         console.log(`TestAccounts: Logging in as ${accountType} test account...`);
         
         // First make sure we're logged out and all test flags are cleared
-        await supabase.auth.signOut();
+        await signOut();
         localStorage.removeItem('usingTestAccount');
         localStorage.removeItem('testAccountType');
         
@@ -133,6 +152,7 @@ const TestAccounts = () => {
         // Mark in localStorage that we're using a test account
         localStorage.setItem('usingTestAccount', 'true');
         localStorage.setItem('testAccountType', accountType);
+        setActiveAccount(accountType);
         
         // Define redirect paths based on account type
         let redirectPath = "/dashboard";
@@ -171,11 +191,12 @@ const TestAccounts = () => {
         // Clear any partial test account state on error
         localStorage.removeItem('usingTestAccount');
         localStorage.removeItem('testAccountType');
+        setActiveAccount(null);
       } finally {
         setLoading(false);
       }
     },
-    [navigate, setTestUser]
+    [navigate, setTestUser, signOut]
   );
 
   return (
@@ -245,11 +266,14 @@ const TestAccounts = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {Object.entries(TEST_ACCOUNTS).map(([type, account]) => {
               const accountType = type as AccountType;
+              const isActive = activeAccount === accountType;
               
               return (
                 <div
                   key={type}
-                  className="border rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow"
+                  className={`border rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow ${
+                    isActive ? 'ring-2 ring-offset-2 ring-learnable-blue' : ''
+                  }`}
                 >
                   <div className="flex items-start mb-4">
                     {accountType === "school" && <School className="h-5 w-5 text-blue-600 mt-1 mr-2" aria-hidden="true" />}
@@ -299,7 +323,7 @@ const TestAccounts = () => {
                         : "bg-purple-600 hover:bg-purple-700"
                     } text-white`}
                     onClick={() => handleUseAccount(accountType)}
-                    disabled={loading}
+                    disabled={loading || (isActive && activeAccount !== null)}
                   >
                     {loading ? (
                       <span className="flex items-center">
@@ -309,6 +333,8 @@ const TestAccounts = () => {
                         </svg>
                         Logging in...
                       </span>
+                    ) : isActive ? (
+                      `Currently Active`
                     ) : (
                       `Login as ${account.role}`
                     )}

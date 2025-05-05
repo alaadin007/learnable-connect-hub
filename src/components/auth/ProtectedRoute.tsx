@@ -1,3 +1,4 @@
+
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth, UserRole } from "@/contexts/AuthContext";
 
@@ -65,24 +66,27 @@ const ProtectedRoute = ({
   } else {
     console.log("ProtectedRoute: User role:", userRole, "Required role:", requiredUserType);
 
-    if (requiredUserType && userRole && userRole !== requiredUserType) {
-      console.log(`ProtectedRoute: User role ${userRole} doesn't match required role ${requiredUserType}`);
-      return <Navigate to={getRedirectPath(userRole)} replace />;
+    // Fix for TypeScript error - explicitly cast userRole to UserRole when comparing
+    const currentUserRole = userRole as UserRole | null;
+
+    if (requiredUserType && currentUserRole && currentUserRole !== requiredUserType) {
+      console.log(`ProtectedRoute: User role ${currentUserRole} doesn't match required role ${requiredUserType}`);
+      return <Navigate to={getRedirectPath(currentUserRole)} replace />;
     }
 
-    if (allowedRoles && userRole && !allowedRoles.includes(userRole)) {
-      console.log(`ProtectedRoute: User role ${userRole} not in allowed roles:`, allowedRoles);
-      return <Navigate to={getRedirectPath(userRole)} replace />;
+    if (allowedRoles && currentUserRole && !allowedRoles.includes(currentUserRole)) {
+      console.log(`ProtectedRoute: User role ${currentUserRole} not in allowed roles:`, allowedRoles);
+      return <Navigate to={getRedirectPath(currentUserRole)} replace />;
     }
 
     if (requireSupervisor && !isSupervisor) {
       console.log(`ProtectedRoute: User is not a supervisor`);
-      return <Navigate to={getRedirectPath(userRole)} replace />;
+      return <Navigate to={getRedirectPath(currentUserRole)} replace />;
     }
 
     if (requireSameSchool && schoolId && userSchoolId && schoolId !== userSchoolId) {
       console.log(`ProtectedRoute: School ID mismatch - user: ${userSchoolId}, required: ${schoolId}`);
-      return <Navigate to={getRedirectPath(userRole)} replace />;
+      return <Navigate to={getRedirectPath(currentUserRole)} replace />;
     }
   }
 
