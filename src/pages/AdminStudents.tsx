@@ -51,6 +51,7 @@ const AdminStudents = () => {
   const [invites, setInvites] = useState<StudentInvite[]>([]);
   const [generatedCode, setGeneratedCode] = useState("");
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [isGeneratingCode, setIsGeneratingCode] = useState(false);
   
   console.log("AdminStudents: User profile:", profile);
   console.log("AdminStudents: School ID from auth context:", authSchoolId);
@@ -183,12 +184,12 @@ const AdminStudents = () => {
 
   const generateInviteCode = async () => {
     console.log("Generate button clicked");
-    setIsLoading(true);
+    setIsGeneratingCode(true);
     
     try {
-      // Use our dedicated generate-student-code function
-      const { data, error } = await supabase.functions.invoke("generate-student-code", {
-        body: {} // No body needed, the function gets school_id from the authenticated user
+      // Use our invite-student function
+      const { data, error } = await supabase.functions.invoke("invite-student", {
+        body: { method: "code" } // This is all we need to send
       });
       
       if (error) {
@@ -200,7 +201,7 @@ const AdminStudents = () => {
         throw new Error("No code returned from the server");
       }
       
-      console.log("Generated invite code:", data);
+      console.log("Generated invite code response:", data);
       setGeneratedCode(data.code);
       toast.success("Student invitation code generated");
       
@@ -210,7 +211,7 @@ const AdminStudents = () => {
       console.error("Error generating invite code:", error);
       toast.error(error.message || "Failed to generate invitation code");
     } finally {
-      setIsLoading(false);
+      setIsGeneratingCode(false);
     }
   };
 
@@ -304,10 +305,10 @@ const AdminStudents = () => {
                         type="button"
                         className="gradient-bg"
                         onClick={generateInviteCode}
-                        disabled={isLoading}
+                        disabled={isGeneratingCode}
                       >
                         <UserPlus className="mr-2 h-4 w-4" />
-                        {isLoading ? "Generating..." : "Generate Code"}
+                        {isGeneratingCode ? "Generating..." : "Generate Code"}
                       </Button>
                       
                       {generatedCode && (

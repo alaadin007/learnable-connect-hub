@@ -113,18 +113,16 @@ const StudentManagement = () => {
     }
     
     try {
-      const response = await fetch(`https://ldlgckwkdsvrfuymidrr.supabase.co/rest/v1/student_invites?select=id,code,email,created_at,expires_at,status&school_id=eq.${schoolId}&teacher_id=eq.${user.id}&order=created_at.desc`, {
-        headers: {
-          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxkbGdja3drZHN2cmZ1eW1pZHJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDYwNTc2NzksImV4cCI6MjA2MTYzMzY3OX0.kItrTMcKThMXuwNDClYNTGkEq-1EVVldq1vFw7ZsKx0',
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ''}`
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch invites');
+      const { data: inviteData, error } = await supabase
+        .from('student_invites')
+        .select('id, code, email, created_at, expires_at, status')
+        .eq('school_id', schoolId)
+        .order('created_at', { ascending: false });
+        
+      if (error) {
+        throw error;
       }
       
-      const inviteData = await response.json();
       setInvites(inviteData as StudentInvite[]);
     } catch (error) {
       console.error('Error fetching invites:', error);
@@ -135,12 +133,18 @@ const StudentManagement = () => {
   const generateInviteCode = async () => {
     setIsGeneratingCode(true);
     try {
-      const { data, error } = await supabase.functions.invoke('generate-student-invite', {
+      // Call the invite-student function directly
+      const { data, error } = await supabase.functions.invoke('invite-student', {
         body: { method: 'code' }
       });
 
       if (error) throw error;
       
+      if (!data || !data.code) {
+        throw new Error('No code returned from the server');
+      }
+      
+      console.log("Generated code response:", data);
       setGeneratedCode(data.code);
       toast.success("Invite code generated successfully");
       fetchInvites();
@@ -160,7 +164,8 @@ const StudentManagement = () => {
 
     setIsSending(true);
     try {
-      const { data, error } = await supabase.functions.invoke('generate-student-invite', {
+      // Use the invite-student function for email invites too
+      const { data, error } = await supabase.functions.invoke('invite-student', {
         body: {
           method: 'email',
           email: newStudentEmail.trim()
