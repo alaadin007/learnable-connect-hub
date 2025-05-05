@@ -12,9 +12,36 @@ export const saveApiKey = async (provider: string, apiKey: string) => {
       return { success: false, error: "Not authenticated" };
     }
     
-    // Store the API key in localStorage temporarily
-    // In a production environment, this should be stored in a secure database table
-    localStorage.setItem(`apiKey_${provider}_${user.id}`, apiKey);
+    // Check if user already has an API key for this provider
+    const { data: existingKey } = await supabase
+      .from('user_api_keys')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('provider', provider)
+      .maybeSingle();
+    
+    let result;
+    
+    if (existingKey) {
+      // Update existing key
+      result = await supabase
+        .from('user_api_keys')
+        .update({ api_key: apiKey, updated_at: new Date().toISOString() })
+        .eq('id', existingKey.id);
+    } else {
+      // Insert new key
+      result = await supabase
+        .from('user_api_keys')
+        .insert({
+          user_id: user.id,
+          provider,
+          api_key: apiKey
+        });
+    }
+    
+    if (result.error) {
+      throw result.error;
+    }
     
     return { success: true };
   } catch (error: any) {
@@ -34,8 +61,16 @@ export const removeApiKey = async (provider: string) => {
       return { success: false, error: "Not authenticated" };
     }
     
-    // Remove API key from localStorage
-    localStorage.removeItem(`apiKey_${provider}_${user.id}`);
+    // Delete API key for this provider
+    const { error } = await supabase
+      .from('user_api_keys')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('provider', provider);
+    
+    if (error) {
+      throw error;
+    }
     
     return { success: true };
   } catch (error: any) {
@@ -55,10 +90,19 @@ export const checkApiKey = async (provider: string) => {
       return { exists: false, error: "Not authenticated" };
     }
     
-    // Check for API key in localStorage
-    const apiKey = localStorage.getItem(`apiKey_${provider}_${user.id}`);
+    // Check for API key
+    const { data, error } = await supabase
+      .from('user_api_keys')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('provider', provider)
+      .maybeSingle();
     
-    return { exists: !!apiKey, error: null };
+    if (error) {
+      throw error;
+    }
+    
+    return { exists: !!data, error: null };
   } catch (error: any) {
     console.error("Error checking API key:", error);
     return { exists: false, error: error.message || "An unexpected error occurred" };
