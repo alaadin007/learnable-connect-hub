@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { FileIcon, Trash2, ExternalLink, Download, AlertCircle, CheckCircle2, RefreshCw } from 'lucide-react';
@@ -20,6 +20,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 type FileItem = {
   id: string;
@@ -39,28 +40,35 @@ type DocumentContent = {
 }
 
 interface FileListProps {
-  onError?: (errorMessage: string | null) => void;
+  disabled?: boolean;
+  storageError?: string | null;
+  isCheckingStorage?: boolean;
 }
 
-const FileList: React.FC<FileListProps> = ({ onError }) => {
-  const [files, setFiles] = useState<FileItem[]>([]);
-  const [loading, setLoading] = useState(true);
+const FileList: React.FC<FileListProps> = ({ 
+  disabled = false,
+  storageError = null,
+  isCheckingStorage = false
+}) => {
   const [fileToDelete, setFileToDelete] = useState<FileItem | null>(null);
   const [selectedFile, setSelectedFile] = useState<FileItem | null>(null);
-  const [fileContent, setFileContent] = useState<DocumentContent[]>([]);
   const [activeSection, setActiveSection] = useState(1);
   const [showContent, setShowContent] = useState(false);
-  const [retryCount, setRetryCount] = useState(0);
-  const [hasErrored, setHasErrored] = useState(false);
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   
-  // Memoized fetch function to prevent recreating on each render
-  const fetchFiles = useCallback(async () => {
-    if (!user) return;
-    
-    try {
-      setLoading(true);
-      console.log("Fetching documents, attempt:", retryCount + 1);
+  // Use React Query for data fetching
+  const {
+    data: files,
+    isLoading,
+    isError,
+    refetch
+  } = useQuery({
+    queryKey: ['documents'],
+    queryFn: async () => {
+      if (!user || disabled) {
+        return [];
+      }
       
       const { data, error } = await supabase
         .from('documents')
@@ -71,75 +79,169 @@ const FileList: React.FC<FileListProps> = ({ onError }) => {
         throw new Error(error.message);
       }
       
-      setFiles(data || []);
-      // Clear error if successful
-      if (onError) onError(null);
-      setHasErrored(false);
-      
-    } catch (error) {
-      const errorMessage = error instanceof Error 
-        ? error.message 
-        : 'Failed to fetch your files';
-      
-      // Only show toast once per error session
-      if (!hasErrored) {
-        toast.error('Error retrieving files', {
-          description: 'Please try refreshing the page',
-          id: 'file-fetch-error', // Use ID to prevent duplicates
-        });
-        setHasErrored(true);
+      return data || [];
+    },
+    enabled: !!user && !disabled,
+    refetchOnWindowFocus: false,
+    staleTime: 30000, // 30 seconds
+    retry: 1,
+  });
+
+  // Query for file content (only executed when needed)
+  const {
+    data: fileContent = [],
+    isLoading: contentLoading,
+    refetch: refetchContent
+  } = useQuery({
+    queryKey: ['document-content', selectedFile?.id],
+    queryFn: async () => {
+      if (!selectedFile?.id || selectedFile.processing_status !== 'completed') {
+        return [];
       }
       
-      console.error('Error fetching files:', error);
+      const { data, error } = await supabase
+        .from('document_content')
+        .select('*')
+        .eq('document_id', selectedFile.id)
+        .order('section_number', { ascending: true });
+        
+      if (error) {
+        throw new Error(error.message);
+      }
       
-      // Report error to parent component
-      if (onError) onError(errorMessage);
+      return data || [];
+    },
+    enabled: !!selectedFile?.id && selectedFile.processing_status === 'completed',
+    staleTime: 60000, // 1 minute
+  });
+
+  // Mutation for deleting a file
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      if (!fileToDelete) return;
       
-    } finally {
-      setLoading(false);
+      // Delete from storage first
+      const { error: storageError } = await supabase.storage
+        .from('user-content')
+        .remove([fileToDelete.storage_path]);
+      
+      if (storageError) {
+        throw new Error(storageError.message);
+      }
+      
+      // Delete content from document_content table
+      const { error: contentError } = await supabase
+        .from('document_content')
+        .delete()
+        .eq('document_id', fileToDelete.id);
+        
+      if (contentError) {
+        console.error('Error deleting document content:', contentError);
+        // Continue with deletion even if content deletion fails
+      }
+      
+      // Delete metadata from database
+      const { error: dbError } = await supabase
+        .from('documents')
+        .delete()
+        .eq('id', fileToDelete.id);
+      
+      if (dbError) {
+        throw new Error(dbError.message);
+      }
+      
+      return fileToDelete.id;
+    },
+    onSuccess: (deletedId) => {
+      toast.success('File Deleted', {
+        description: `${fileToDelete?.filename} has been deleted successfully.`,
+      });
+      
+      // Update cache by removing deleted item
+      queryClient.setQueryData(['documents'], (oldData: FileItem[] | undefined) => 
+        oldData ? oldData.filter(f => f.id !== deletedId) : []
+      );
+      
+      setFileToDelete(null);
+    },
+    onError: (error) => {
+      toast.error('Delete Failed', {
+        description: error instanceof Error ? error.message : 'Failed to delete file',
+      });
+      setFileToDelete(null);
     }
-  }, [user, retryCount, onError, hasErrored]);
+  });
 
-  useEffect(() => {
-    fetchFiles();
+  // Mutation for retrying processing
+  const retryProcessingMutation = useMutation({
+    mutationFn: async (file: FileItem) => {
+      // Update processing status back to pending
+      const { error: updateError } = await supabase
+        .from('documents')
+        .update({ processing_status: 'pending' })
+        .eq('id', file.id);
+        
+      if (updateError) {
+        throw new Error(updateError.message);
+      }
+      
+      // Trigger processing function
+      const { error } = await supabase.functions.invoke('process-document', {
+        body: { document_id: file.id }
+      });
+      
+      if (error) {
+        throw new Error(error.message);
+      }
+      
+      return file.id;
+    },
+    onSuccess: (fileId) => {
+      toast.success('Processing Restarted', {
+        description: 'Document processing has been restarted.',
+      });
+      
+      // Update the file in cache
+      queryClient.setQueryData(['documents'], (oldData: FileItem[] | undefined) => 
+        oldData ? oldData.map(f => 
+          f.id === fileId ? {...f, processing_status: 'pending'} : f
+        ) : []
+      );
+    },
+    onError: (error) => {
+      toast.error('Error', {
+        description: error instanceof Error ? error.message : 'Failed to restart processing',
+      });
+    }
+  });
 
-    // Set up a real-time subscription to detect changes to documents
-    let channel: any;
+  // Set up realtime subscription
+  React.useEffect(() => {
+    if (!user) return;
     
-    if (user) {
-      channel = supabase
-        .channel('public:documents')
-        .on('postgres_changes', 
-          { 
-            event: 'UPDATE', 
-            schema: 'public', 
-            table: 'documents'
-          }, 
-          (payload) => {
-            // Update the file in our state if it exists
-            setFiles(currentFiles => 
-              currentFiles.map(file => 
-                file.id === payload.new.id ? {...file, ...payload.new} : file
-              )
-            );
-          }
-        )
-        .subscribe();
-    }
+    const channel = supabase
+      .channel('public:documents')
+      .on('postgres_changes', 
+        { 
+          event: 'UPDATE', 
+          schema: 'public', 
+          table: 'documents'
+        }, 
+        (payload) => {
+          // Update the file in our state if it exists
+          queryClient.setQueryData(['documents'], (oldData: FileItem[] | undefined) => 
+            oldData ? oldData.map(file => 
+              file.id === payload.new.id ? {...file, ...payload.new} : file
+            ) : []
+          );
+        }
+      )
+      .subscribe();
 
     return () => {
-      if (channel) {
-        supabase.removeChannel(channel);
-      }
+      supabase.removeChannel(channel);
     };
-  }, [user, fetchFiles]);
-
-  // Manual retry handler
-  const handleManualRetry = () => {
-    setRetryCount(0);
-    setHasErrored(false);
-    fetchFiles();
-  };
+  }, [user, queryClient]);
 
   const getFileIcon = (fileType: string) => {
     if (fileType.includes('pdf')) return 'pdf';
@@ -174,7 +276,6 @@ const FileList: React.FC<FileListProps> = ({ onError }) => {
     } catch (error) {
       toast.error('Download Failed', {
         description: error instanceof Error ? error.message : 'Failed to download file',
-        id: 'download-error-' + file.id, // Use ID to prevent duplicates
       });
     }
   };
@@ -193,7 +294,6 @@ const FileList: React.FC<FileListProps> = ({ onError }) => {
     } catch (error) {
       toast.error('Error', {
         description: error instanceof Error ? error.message : 'Failed to open file',
-        id: 'open-error-' + file.id, // Use ID to prevent duplicates
       });
     }
   };
@@ -202,94 +302,16 @@ const FileList: React.FC<FileListProps> = ({ onError }) => {
     setFileToDelete(file);
   };
 
-  const deleteFile = async () => {
-    if (!fileToDelete) return;
-    
-    try {
-      // Delete from storage first
-      const { error: storageError } = await supabase.storage
-        .from('user-content')
-        .remove([fileToDelete.storage_path]);
-      
-      if (storageError) {
-        throw new Error(storageError.message);
-      }
-      
-      // Delete content from document_content table
-      const { error: contentError } = await supabase
-        .from('document_content')
-        .delete()
-        .eq('document_id', fileToDelete.id);
-        
-      if (contentError) {
-        console.error('Error deleting document content:', contentError);
-        // Continue with deletion even if content deletion fails
-      }
-      
-      // Delete metadata from database
-      const { error: dbError } = await supabase
-        .from('documents')
-        .delete()
-        .eq('id', fileToDelete.id);
-      
-      if (dbError) {
-        throw new Error(dbError.message);
-      }
-      
-      toast.success('File Deleted', {
-        description: `${fileToDelete.filename} has been deleted successfully.`,
-        id: 'delete-success-' + fileToDelete.id, // Use ID to prevent duplicates
-      });
-      
-      // Refresh file list
-      setFiles(files.filter(f => f.id !== fileToDelete.id));
-      
-    } catch (error) {
-      toast.error('Delete Failed', {
-        description: error instanceof Error ? error.message : 'Failed to delete file',
-        id: 'delete-error-' + fileToDelete.id, // Use ID to prevent duplicates
-      });
-    } finally {
-      setFileToDelete(null);
-    }
-  };
-
   const viewExtractedContent = async (file: FileItem) => {
-    try {
-      setSelectedFile(file);
-      
-      // Only fetch content if processing is complete
-      if (file.processing_status === 'completed') {
-        const { data, error } = await supabase
-          .from('document_content')
-          .select('*')
-          .eq('document_id', file.id)
-          .order('section_number', { ascending: true });
-          
-        if (error) {
-          throw new Error(error.message);
-        }
-        
-        if (data && data.length > 0) {
-          setFileContent(data);
-          setActiveSection(1);
-          setShowContent(true);
-        } else {
-          toast.info('No Content Available', {
-            description: 'No extracted content found for this document.',
-            id: 'no-content-' + file.id, // Use ID to prevent duplicates
-          });
-        }
-      } else {
-        toast.info('Content Not Available', {
-          description: 'The document content is still being processed.',
-          id: 'processing-content-' + file.id, // Use ID to prevent duplicates
-        });
-      }
-    } catch (error) {
-      toast.error('Error', {
-        description: error instanceof Error ? error.message : 'Failed to fetch document content',
-        id: 'content-error-' + file.id, // Use ID to prevent duplicates
+    setSelectedFile(file);
+    
+    // Only fetch content if processing is complete
+    if (file.processing_status === 'completed') {
+      // Content will be fetched by the useQuery hook
+      setShowContent(true);
+    } else {
+      toast.info('Content Not Available', {
+        description: 'The document content is still being processed.',
       });
     }
   };
@@ -311,47 +333,9 @@ const FileList: React.FC<FileListProps> = ({ onError }) => {
     }
   };
 
-  const retryProcessing = async (file: FileItem) => {
-    try {
-      // Update processing status back to pending
-      const { error: updateError } = await supabase
-        .from('documents')
-        .update({ processing_status: 'pending' })
-        .eq('id', file.id);
-        
-      if (updateError) {
-        throw new Error(updateError.message);
-      }
-      
-      // Trigger processing function
-      const { error } = await supabase.functions.invoke('process-document', {
-        body: { document_id: file.id }
-      });
-      
-      if (error) {
-        throw new Error(error.message);
-      }
-      
-      toast.success('Processing Restarted', {
-        description: 'Document processing has been restarted.',
-        id: 'processing-restarted-' + file.id, // Use ID to prevent duplicates
-      });
-      
-      // Update the file in state
-      setFiles(currentFiles => 
-        currentFiles.map(f => 
-          f.id === file.id ? {...f, processing_status: 'pending'} : f
-        )
-      );
-      
-    } catch (error) {
-      toast.error('Error', {
-        description: error instanceof Error ? error.message : 'Failed to restart processing',
-        id: 'retry-error-' + file.id, // Use ID to prevent duplicates
-      });
-    }
-  };
-
+  // Error state directly from the props
+  const hasError = !!storageError || isError;
+  
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
@@ -359,11 +343,11 @@ const FileList: React.FC<FileListProps> = ({ onError }) => {
         <Button 
           variant="outline" 
           size="sm"
-          onClick={handleManualRetry}
-          disabled={loading}
+          onClick={() => refetch()}
+          disabled={isLoading || disabled || isCheckingStorage}
           className="text-xs"
         >
-          {loading ? (
+          {isLoading ? (
             <>
               <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1" />
               Refreshing...
@@ -377,7 +361,7 @@ const FileList: React.FC<FileListProps> = ({ onError }) => {
         </Button>
       </div>
       
-      {loading ? (
+      {isLoading ? (
         <div className="space-y-2">
           {Array.from({ length: 3 }).map((_, i) => (
             <Card key={i} className="overflow-hidden">
@@ -396,7 +380,28 @@ const FileList: React.FC<FileListProps> = ({ onError }) => {
             </Card>
           ))}
         </div>
-      ) : files.length === 0 ? (
+      ) : hasError ? (
+        <div className="text-center py-8 bg-gray-50 border border-gray-100 rounded-md">
+          <div className="mb-2">
+            <AlertCircle className="h-12 w-12 mx-auto text-gray-400" />
+          </div>
+          <p className="text-gray-500 mb-1">
+            Unable to load your files.
+          </p>
+          <p className="text-sm text-gray-400 mb-3">
+            Please try refreshing the page
+          </p>
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => refetch()}
+            disabled={isLoading}
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Try Again
+          </Button>
+        </div>
+      ) : files?.length === 0 ? (
         <div className="text-center py-8 bg-gray-50 border border-gray-100 rounded-md">
           <div className="mb-2">
             <AlertCircle className="h-12 w-12 mx-auto text-gray-400" />
@@ -410,7 +415,7 @@ const FileList: React.FC<FileListProps> = ({ onError }) => {
         </div>
       ) : (
         <div className="space-y-3">
-          {files.map((file) => (
+          {files?.map((file) => (
             <Card key={file.id} className="overflow-hidden hover:shadow-md transition-shadow">
               <CardContent className="p-3">
                 <div className="flex items-center">
@@ -449,10 +454,11 @@ const FileList: React.FC<FileListProps> = ({ onError }) => {
                       <Button 
                         variant="ghost" 
                         size="icon" 
-                        onClick={() => retryProcessing(file)}
+                        onClick={() => retryProcessingMutation.mutate(file)}
+                        disabled={retryProcessingMutation.isPending}
                         title="Retry Processing"
                       >
-                        <RefreshCw className="h-4 w-4 text-amber-500" />
+                        <RefreshCw className={`h-4 w-4 text-amber-500 ${retryProcessingMutation.isPending ? 'animate-spin' : ''}`} />
                       </Button>
                     )}
                     <Button 
@@ -477,6 +483,7 @@ const FileList: React.FC<FileListProps> = ({ onError }) => {
                       onClick={() => confirmDelete(file)}
                       className="text-red-500 hover:text-red-700 hover:bg-red-50"
                       title="Delete"
+                      disabled={deleteMutation.isPending}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -503,9 +510,10 @@ const FileList: React.FC<FileListProps> = ({ onError }) => {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction 
               className="bg-red-600 hover:bg-red-700"
-              onClick={deleteFile}
+              onClick={() => deleteMutation.mutate()}
+              disabled={deleteMutation.isPending}
             >
-              Delete
+              {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -521,7 +529,21 @@ const FileList: React.FC<FileListProps> = ({ onError }) => {
             </AlertDialogDescription>
           </AlertDialogHeader>
           
-          {fileContent.length > 1 && (
+          {contentLoading ? (
+            <div className="max-h-[60vh] overflow-y-auto p-4 bg-gray-50 rounded border">
+              <div className="flex items-center justify-center py-8">
+                <RefreshCw className="h-6 w-6 animate-spin text-gray-400 mr-2" />
+                <p className="text-gray-500">Loading content...</p>
+              </div>
+            </div>
+          ) : fileContent.length === 0 ? (
+            <div className="max-h-[60vh] overflow-y-auto p-4 bg-gray-50 rounded border">
+              <div className="flex items-center justify-center py-8">
+                <AlertCircle className="h-6 w-6 text-gray-400 mr-2" />
+                <p className="text-gray-500">No content available</p>
+              </div>
+            </div>
+          ) : fileContent.length > 1 ? (
             <div className="mt-2 mb-4">
               <Tabs
                 value={activeSection.toString()} 
@@ -550,9 +572,7 @@ const FileList: React.FC<FileListProps> = ({ onError }) => {
                 ))}
               </Tabs>
             </div>
-          )}
-          
-          {fileContent.length === 1 && (
+          ) : (
             <div className="max-h-[60vh] overflow-y-auto p-4 bg-gray-50 rounded border">
               <pre className="whitespace-pre-wrap text-sm">{fileContent[0]?.content}</pre>
             </div>

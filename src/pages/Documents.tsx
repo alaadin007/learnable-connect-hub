@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/landing/Footer';
@@ -13,16 +12,13 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { useQuery } from '@tanstack/react-query';
 
 const Documents: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('upload');
-  const [error, setError] = useState<string | null>(null);
-  const [storageStatus, setStorageStatus] = useState<'unknown' | 'available' | 'error'>('unknown');
-  const [isChecking, setIsChecking] = useState(false);
-  const [hasCheckedStorage, setHasCheckedStorage] = useState(false);
-
+  
   // Redirect if not logged in
   useEffect(() => {
     if (!user) {
@@ -30,99 +26,63 @@ const Documents: React.FC = () => {
     }
   }, [user, navigate]);
 
-  // Check storage status on component mount - only once
-  useEffect(() => {
-    const checkStorage = async () => {
-      if (user && !hasCheckedStorage) {
-        try {
-          const { data, error } = await supabase.storage.getBucket('user-content');
-          if (error) {
-            console.warn("Storage service warning:", error);
-            
-            if (error.message.includes('does not exist')) {
-              // Try to create the bucket automatically since it doesn't exist
-              try {
-                const { error: createError } = await supabase
-                  .storage
-                  .createBucket('user-content', { public: false });
-                  
-                if (createError) {
-                  setStorageStatus('error');
-                  setError('Could not initialize document storage: ' + createError.message);
-                } else {
-                  console.log('Successfully created user-content bucket');
-                  setStorageStatus('available');
-                  setError(null);
-                }
-              } catch (createErr) {
-                setStorageStatus('error');
-                setError('Failed to initialize document storage');
+  // Check storage status using React Query for better caching and reduced flickering
+  const { 
+    data: storageStatus, 
+    error: storageError, 
+    isLoading: checkingStorage,
+    refetch: recheckStorage,
+    isError
+  } = useQuery({
+    queryKey: ['storageStatus', user?.id],
+    queryFn: async () => {
+      if (!user) return { status: 'unknown', error: null };
+      
+      try {
+        // Try to get bucket info
+        const { data, error } = await supabase.storage.getBucket('user-content');
+        
+        if (error) {
+          if (error.message.includes('does not exist')) {
+            // Try to create the bucket automatically
+            try {
+              const { error: createError } = await supabase
+                .storage
+                .createBucket('user-content', { public: false });
+                
+              if (createError) {
+                return { status: 'error', error: 'Could not initialize document storage: ' + createError.message };
+              } else {
+                console.log('Successfully created user-content bucket');
+                return { status: 'available', error: null };
               }
-            } else {
-              setStorageStatus('error');
-              setError('Storage service unavailable');
+            } catch (createErr) {
+              return { status: 'error', error: 'Failed to initialize document storage' };
             }
           } else {
-            setStorageStatus('available');
-            setError(null);
-          }
-        } catch (err) {
-          console.error("Storage connection error:", err);
-          setStorageStatus('error');
-          setError('Failed to connect to document storage');
-        } finally {
-          setHasCheckedStorage(true);
-        }
-      }
-    };
-    
-    checkStorage();
-  }, [user, hasCheckedStorage]);
-
-  // Function to check storage bucket connection
-  const checkStorageConnection = async () => {
-    if (isChecking) return; // Prevent multiple simultaneous checks
-    
-    setIsChecking(true);
-    setError(null);
-    
-    try {
-      // Try a simple operation with Supabase storage to check connection
-      const { error: storageError } = await supabase
-        .storage
-        .getBucket('user-content');
-      
-      if (storageError) {
-        if (storageError.message.includes('does not exist')) {
-          // If the bucket doesn't exist, try to create it
-          const { error: createError } = await supabase
-            .storage
-            .createBucket('user-content', { public: false });
-            
-          if (createError) {
-            throw new Error('Could not create storage bucket: ' + createError.message);
-          } else {
-            toast.success('Document storage initialized successfully');
-            setStorageStatus('available');
-            return;
+            return { status: 'error', error: 'Storage service unavailable' };
           }
         }
         
-        throw new Error(storageError.message);
+        return { status: 'available', error: null };
+      } catch (err) {
+        console.error("Storage connection error:", err);
+        return { status: 'error', error: 'Failed to connect to document storage' };
       }
-      
-      // Connection is good
-      toast.success('Document storage connection restored');
-      setStorageStatus('available');
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to connect to document storage';
-      setError(errorMessage);
-      setStorageStatus('error');
-      toast.error('Could not connect to document storage');
-    } finally {
-      setIsChecking(false);
-    }
-  };
+    },
+    enabled: !!user,
+    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
+    retry: false,
+    refetchOnWindowFocus: false // Prevent refetches when window regains focus
+  });
+
+  // Format error message for display
+  const errorMessage = isError ? 
+    (storageError instanceof Error ? storageError.message : 'Storage connection error') : 
+    storageStatus?.error || null;
+
+  // Check if user has access to storage
+  const hasStorageAccess = storageStatus?.status === 'available';
 
   if (!user) {
     return null; // Redirect handled in useEffect
@@ -150,7 +110,7 @@ const Documents: React.FC = () => {
             </AlertDescription>
           </Alert>
 
-          {error && storageStatus === 'error' && (
+          {errorMessage && storageStatus?.status === 'error' && (
             <Alert className="mb-6 bg-red-50 border-red-200" variant="destructive" role="alert">
               <AlertCircle className="h-4 w-4 text-red-500" />
               <AlertTitle className="text-red-700">Connection Error</AlertTitle>
@@ -160,10 +120,10 @@ const Documents: React.FC = () => {
                   variant="outline" 
                   size="sm" 
                   className="ml-2 border-red-200 hover:bg-red-100" 
-                  onClick={checkStorageConnection}
-                  disabled={isChecking}
+                  onClick={() => recheckStorage()}
+                  disabled={checkingStorage}
                 >
-                  {isChecking ? (
+                  {checkingStorage ? (
                     <>
                       <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                       Reconnecting...
@@ -190,18 +150,17 @@ const Documents: React.FC = () => {
                   <TabsTrigger value="list" role="tab" aria-selected={activeTab === 'list'} className="flex-1 sm:flex-initial">My Files</TabsTrigger>
                 </TabsList>
                 <TabsContent value="upload" role="tabpanel" tabIndex={0}>
-                  <FileUpload onSuccess={() => setActiveTab('list')} />
+                  <FileUpload 
+                    onSuccess={() => setActiveTab('list')} 
+                    disabled={!hasStorageAccess || checkingStorage}
+                  />
                 </TabsContent>
                 <TabsContent value="list" role="tabpanel" tabIndex={0}>
-                  <FileList onError={(errorMsg) => {
-                    // Only update error if it's different or if we're clearing it
-                    if (error !== errorMsg) {
-                      setError(errorMsg);
-                      if (errorMsg) {
-                        setStorageStatus('error');
-                      }
-                    }
-                  }} />
+                  <FileList 
+                    disabled={!hasStorageAccess}
+                    storageError={errorMessage}
+                    isCheckingStorage={checkingStorage}
+                  />
                 </TabsContent>
               </Tabs>
             </CardContent>

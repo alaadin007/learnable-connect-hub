@@ -5,22 +5,27 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Upload, FileText, AlertCircle, Loader2, CheckCircle, X } from 'lucide-react';
+import { Upload, FileText, AlertCircle, Loader2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface FileUploadProps {
   onSuccess?: () => void;
+  disabled?: boolean;
 }
 
-const FileUpload: React.FC<FileUploadProps> = ({ onSuccess }) => {
+const FileUpload: React.FC<FileUploadProps> = ({ 
+  onSuccess, 
+  disabled = false 
+}) => {
   const [file, setFile] = useState<File | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const queryClient = useQueryClient();
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0] || null;
@@ -52,16 +57,16 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess }) => {
     return true;
   };
 
-  const uploadFile = async () => {
-    if (!file || !user) return;
-    
-    if (!validateFile(file)) {
-      return;
-    }
-    
-    try {
-      setIsUploading(true);
-      setProgress(0);
+  // Use React Query mutation for file upload
+  const uploadMutation = useMutation({
+    mutationFn: async () => {
+      if (!file || !user) {
+        throw new Error("No file selected or user not logged in");
+      }
+      
+      if (!validateFile(file)) {
+        throw new Error("File validation failed");
+      }
       
       // Create a unique file path
       const timestamp = new Date().getTime();
@@ -69,33 +74,12 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess }) => {
       const filePath = `${user.id}/${timestamp}-${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
       
       // Upload file to Supabase Storage
-      // Since onUploadProgress is not supported in FileOptions, we'll simulate progress
-      const simulateUploadProgress = () => {
-        // Simulate progress from 0 to 95%
-        let currentProgress = 0;
-        const interval = setInterval(() => {
-          currentProgress += 5;
-          if (currentProgress >= 95) {
-            clearInterval(interval);
-          } else {
-            setProgress(currentProgress);
-          }
-        }, 100);
-        
-        return () => clearInterval(interval);
-      };
-      
-      const clearProgressSimulation = simulateUploadProgress();
-      
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('user-content')
         .upload(filePath, file, {
           cacheControl: '3600',
           upsert: false
         });
-      
-      clearProgressSimulation();
-      setProgress(100); // Set to 100% when complete
       
       if (uploadError) {
         throw new Error(`Upload failed: ${uploadError.message}`);
@@ -135,37 +119,65 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess }) => {
         // Continue anyway - processing can be retried later
       }
       
-      // Success
+      return data;
+    },
+    onMutate: () => {
+      setProgress(0);
+      const progressInterval = setInterval(() => {
+        setProgress(prev => {
+          if (prev >= 95) {
+            clearInterval(progressInterval);
+            return 95;
+          }
+          return prev + 5;
+        });
+      }, 100);
+      
+      // Return the interval so we can clear it in onSuccess/onError
+      return { progressInterval };
+    },
+    onSuccess: (data, _, context: any) => {
+      clearInterval(context.progressInterval);
+      setProgress(100);
+      
+      // Success message
       toast('File Uploaded', {
         description: 'Your file has been uploaded and is being processed.',
       });
 
       // Reset state
-      setFile(null);
-      setProgress(0);
+      setTimeout(() => {
+        setFile(null);
+        setProgress(0);
+        
+        // Reset file input
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      }, 500); // Small delay for feedback
       
-      // Reset file input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-
+      // Invalidate documents query to refresh the list
+      queryClient.invalidateQueries({ queryKey: ['documents'] });
+      
       // Call onSuccess callback
       if (onSuccess) {
         onSuccess();
       }
+    },
+    onError: (error, _, context: any) => {
+      if (context?.progressInterval) {
+        clearInterval(context.progressInterval);
+      }
+      setProgress(0);
       
-    } catch (error) {
-      console.error('Upload error:', error);
-      setError(error instanceof Error ? error.message : 'An unknown error occurred');
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      setError(errorMessage);
       
-      // Using the correct toast API for error notifications
       toast.error('Upload Failed', {
-        description: error instanceof Error ? error.message : 'Failed to upload file',
+        description: errorMessage,
       });
-    } finally {
-      setIsUploading(false);
     }
-  };
+  });
 
   const clearFile = () => {
     setFile(null);
@@ -197,7 +209,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess }) => {
         </Alert>
       )}
 
-      <Card className="border-dashed border-2 hover:border-blue-300 transition-colors bg-gray-50">
+      <Card className={`border-dashed border-2 hover:border-blue-300 transition-colors bg-gray-50 ${disabled ? 'opacity-70' : ''}`}>
         <CardContent className="p-6 flex flex-col items-center justify-center">
           <div className="w-full">
             <div className="flex flex-col items-center justify-center space-y-4">
@@ -219,14 +231,14 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess }) => {
                       variant="ghost" 
                       size="icon" 
                       onClick={clearFile} 
-                      disabled={isUploading}
+                      disabled={uploadMutation.isPending || disabled}
                       className="text-gray-500 hover:text-red-500"
                     >
                       <X className="h-5 w-5" />
                     </Button>
                   </div>
                   
-                  {isUploading && (
+                  {uploadMutation.isPending && (
                     <div className="space-y-2 mb-4">
                       <div className="flex justify-between items-center text-xs text-gray-500">
                         <span>Uploading...</span>
@@ -239,10 +251,10 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess }) => {
                   <div className="flex space-x-2">
                     <Button 
                       className="w-full"
-                      onClick={uploadFile} 
-                      disabled={isUploading}
+                      onClick={() => uploadMutation.mutate()}
+                      disabled={uploadMutation.isPending || disabled}
                     >
-                      {isUploading ? (
+                      {uploadMutation.isPending ? (
                         <>
                           <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                           Uploading...
@@ -258,7 +270,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess }) => {
                     <Button 
                       variant="outline"
                       onClick={clearFile}
-                      disabled={isUploading}
+                      disabled={uploadMutation.isPending || disabled}
                     >
                       Cancel
                     </Button>
@@ -282,6 +294,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess }) => {
                     className="cursor-pointer max-w-sm"
                     accept=".pdf,.png,.jpg,.jpeg"
                     onChange={handleFileChange}
+                    disabled={disabled}
                   />
                 </>
               )}
