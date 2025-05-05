@@ -26,7 +26,7 @@ import {
 
 // Define the schema for student invite form
 const addStudentSchema = z.object({
-  email: z.string().email({ message: "Please enter a valid email address" }),
+  email: z.string().email({ message: "Please enter a valid email address" }).optional(),
   method: z.enum(["invite", "code"], {
     required_error: "Please select a method",
   }),
@@ -36,8 +36,8 @@ type AddStudentFormValues = z.infer<typeof addStudentSchema>;
 
 type StudentInvite = {
   id: string;
-  email: string;
-  code?: string;
+  email: string | null;
+  code: string | null;
   created_at: string;
   expires_at: string;
   status: string;
@@ -63,7 +63,7 @@ const AdminStudents = () => {
     resolver: zodResolver(addStudentSchema),
     defaultValues: {
       email: "",
-      method: "invite",
+      method: "code",
     },
   });
   
@@ -113,6 +113,7 @@ const AdminStudents = () => {
         const studentInviteData: StudentInvite[] = (data || []).map(invite => ({
           id: invite.id,
           email: invite.email,
+          code: null,
           created_at: invite.created_at,
           expires_at: invite.expires_at,
           status: invite.status
@@ -140,76 +141,34 @@ const AdminStudents = () => {
     setIsLoading(true);
     
     try {
-      if (values.method === "invite") {
+      if (values.method === "invite" && values.email) {
         console.log("Creating email invitation for:", values.email);
         
-        // Try to insert into student_invites first
-        try {
-          const { data, error } = await supabase
-            .from("student_invites")
-            .insert({
-              email: values.email,
-              school_id: schoolId,
-              created_by: user.id,
-              status: "pending"
-            })
-            .select();
+        // Call our invite-student edge function
+        const { data, error } = await supabase.functions.invoke("invite-student", {
+          body: { 
+            method: "email", 
+            email: values.email 
+          }
+        });
 
-          if (error) {
-            console.error("Error inserting into student_invites:", error);
-            throw error;
-          } else {
-            console.log("Successfully created student invite:", data);
-          }
-        } catch (error: any) {
-          console.error("Failed to insert into student_invites, trying teacher_invitations:", error);
-          
-          // Fallback to teacher_invitations
-          const { data, error: fallbackError } = await supabase
-            .from("teacher_invitations")
-            .insert({
-              email: values.email,
-              school_id: schoolId,
-              created_by: user.id,
-              status: "pending",
-              invitation_token: Math.random().toString(36).substring(2, 15)
-            })
-            .select();
-            
-          if (fallbackError) {
-            console.error("Fallback also failed:", fallbackError);
-            throw fallbackError;
-          }
-        }
+        if (error) throw error;
         
+        console.log("Invitation created:", data);
         toast.success(`Invitation sent to ${values.email}`);
         form.reset();
-      } else {
-        // Generate invite code
-        const inviteCode = Math.random().toString(36).substring(2, 10).toUpperCase();
-        console.log("Generated invitation code:", inviteCode);
-        setGeneratedCode(inviteCode);
+      } else if (values.method === "code") {
+        console.log("Generating invitation code");
         
-        // Try to store in student_invites if it exists
-        try {
-          const { data, error } = await supabase
-            .from("student_invites")
-            .insert({
-              code: inviteCode,
-              school_id: schoolId,
-              created_by: user.id,
-              status: "pending"
-            });
-          
-          if (error) {
-            console.warn("Could not store code in student_invites:", error);
-          } else {
-            console.log("Successfully stored code in student_invites");
-          }
-        } catch (error) {
-          console.warn("Could not store code in database, but will still display it to user");
-        }
+        // Call our invite-student edge function
+        const { data, error } = await supabase.functions.invoke("invite-student", {
+          body: { method: "code" }
+        });
+
+        if (error) throw error;
         
+        console.log("Generated code:", data);
+        setGeneratedCode(data.code);
         toast.success("Student invitation code generated");
       }
       
@@ -232,6 +191,32 @@ const AdminStudents = () => {
   const handleRefresh = () => {
     setRefreshTrigger(prev => prev + 1);
     toast.success("Refreshing student invitations...");
+  };
+
+  const generateInviteCode = async () => {
+    console.log("Generate button clicked");
+    setIsLoading(true);
+    
+    try {
+      // Direct invocation of the function when button is clicked
+      const { data, error } = await supabase.functions.invoke("invite-student", {
+        body: { method: "code" }
+      });
+      
+      if (error) throw error;
+      
+      console.log("Generated invite code:", data);
+      setGeneratedCode(data.code);
+      toast.success("Student invitation code generated");
+      
+      // Refresh the invites list
+      setRefreshTrigger(prev => prev + 1);
+    } catch (error: any) {
+      console.error("Error generating invite code:", error);
+      toast.error(error.message || "Failed to generate invitation code");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -335,23 +320,38 @@ const AdminStudents = () => {
                     </div>
                   )}
                   
-                  <Button 
-                    type="submit" 
-                    className="gradient-bg" 
-                    disabled={isLoading}
-                  >
-                    {selectedMethod === "invite" ? (
-                      <>
-                        <Mail className="mr-2 h-4 w-4" />
-                        {isLoading ? "Sending..." : "Send Invitation"}
-                      </>
-                    ) : (
-                      <>
+                  <div className="flex space-x-2">
+                    <Button 
+                      type="submit" 
+                      className="gradient-bg" 
+                      disabled={isLoading}
+                    >
+                      {selectedMethod === "invite" ? (
+                        <>
+                          <Mail className="mr-2 h-4 w-4" />
+                          {isLoading ? "Sending..." : "Send Invitation"}
+                        </>
+                      ) : (
+                        <>
+                          <UserPlus className="mr-2 h-4 w-4" />
+                          {isLoading ? "Generating..." : "Generate Code"}
+                        </>
+                      )}
+                    </Button>
+                    
+                    {selectedMethod === "code" && (
+                      <Button
+                        type="button"
+                        variant="default"
+                        className="bg-learnable-light-blue text-white hover:bg-learnable-blue"
+                        onClick={generateInviteCode}
+                        disabled={isLoading}
+                      >
                         <UserPlus className="mr-2 h-4 w-4" />
                         {isLoading ? "Generating..." : "Generate Code"}
-                      </>
+                      </Button>
                     )}
-                  </Button>
+                  </div>
                 </form>
               </Form>
             </CardContent>

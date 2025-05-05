@@ -34,13 +34,14 @@ serve(async (req) => {
       }
     );
 
-    // Verify the user is logged in and is a teacher
+    // Verify the user is logged in
     const {
       data: { user },
       error: userError,
     } = await supabaseClient.auth.getUser();
 
     if (userError || !user) {
+      console.error("Unauthorized request:", userError);
       return new Response(
         JSON.stringify({ error: "Unauthorized" }),
         {
@@ -50,11 +51,12 @@ serve(async (req) => {
       );
     }
 
-    // Get the school_id of the logged in teacher
+    // Get the school_id of the logged in user
     const { data: schoolId, error: schoolIdError } = await supabaseClient
       .rpc("get_user_school_id");
 
     if (schoolIdError || !schoolId) {
+      console.error("Could not determine school ID:", schoolIdError);
       return new Response(
         JSON.stringify({ error: "Could not determine school ID" }),
         { 
@@ -64,25 +66,28 @@ serve(async (req) => {
       );
     }
 
+    console.log("Processing request for school ID:", schoolId);
+
     // Parse the request body
     const { method, email }: InviteStudentBody = await req.json();
 
     // Handle invite by code
     if (method === "code") {
-      // Generate a unique invite code using the database function
-      const { data: inviteCode, error: codeError } = await supabaseClient
-        .rpc("generate_student_invite_code");
-
-      if (codeError) {
-        console.error("Error generating invite code:", codeError);
-        return new Response(
-          JSON.stringify({ error: "Failed to generate invite code" }),
-          { 
-            status: 500,
-            headers: { "Content-Type": "application/json", ...corsHeaders },
-          }
-        );
-      }
+      console.log("Generating invitation code");
+      
+      // Generate a unique 8-character alphanumeric code
+      const generateCode = () => {
+        const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // Removed confusing characters
+        let result = "";
+        for (let i = 0; i < 8; i++) {
+          result += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return result;
+      };
+      
+      const inviteCode = generateCode();
+      
+      console.log("Generated invite code:", inviteCode);
 
       // Create an invitation record
       const { data: inviteData, error: inviteError } = await supabaseClient
@@ -91,6 +96,7 @@ serve(async (req) => {
           code: inviteCode,
           school_id: schoolId,
           teacher_id: user.id,
+          status: "pending"
         })
         .select()
         .single();
@@ -109,7 +115,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           message: "Student invite code generated successfully",
-          data: { code: inviteCode }
+          code: inviteCode
         }),
         { 
           status: 200,
@@ -119,20 +125,19 @@ serve(async (req) => {
     }
     // Handle invite by email
     else if (method === "email" && email) {
-      // Generate a unique invite code
-      const { data: inviteCode, error: codeError } = await supabaseClient
-        .rpc("generate_student_invite_code");
-
-      if (codeError) {
-        console.error("Error generating invite code:", codeError);
-        return new Response(
-          JSON.stringify({ error: "Failed to generate invite code" }),
-          { 
-            status: 500,
-            headers: { "Content-Type": "application/json", ...corsHeaders },
-          }
-        );
-      }
+      console.log("Creating email invitation for:", email);
+      
+      // Generate a code for the email invitation as well
+      const generateCode = () => {
+        const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+        let result = "";
+        for (let i = 0; i < 8; i++) {
+          result += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return result;
+      };
+      
+      const inviteCode = generateCode();
 
       // Create an invitation record
       const { data: inviteData, error: inviteError } = await supabaseClient
@@ -142,6 +147,7 @@ serve(async (req) => {
           email: email,
           school_id: schoolId,
           teacher_id: user.id,
+          status: "pending"
         })
         .select()
         .single();
@@ -164,10 +170,8 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           message: "Student invitation created successfully",
-          data: { 
-            code: inviteCode,
-            email: email
-          }
+          code: inviteCode,
+          email: email
         }),
         { 
           status: 200,
@@ -175,6 +179,7 @@ serve(async (req) => {
         }
       );
     } else {
+      console.error("Invalid request parameters");
       return new Response(
         JSON.stringify({ error: "Invalid request parameters" }),
         { 
