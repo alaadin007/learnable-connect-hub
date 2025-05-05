@@ -53,13 +53,14 @@ export const getCurrentUserSchoolId = async (): Promise<string | null> => {
     }
     
     // Try from profile data with school_code
-    const { data: profileData } = await supabase
+    const { data: profileData, error: profileError } = await supabase
       .from("profiles")
-      .select("school_code, user_metadata")
+      .select("school_code")
       .eq("id", user.id)
       .single();
     
-    if (profileData?.school_code) {
+    // Only proceed if we have valid profile data and school_code
+    if (profileData && profileData.school_code) {
       // Get school ID from code
       const { data: schoolData } = await supabase
         .from("schools")
