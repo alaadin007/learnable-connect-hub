@@ -5,6 +5,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 // Set up CORS headers
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type"
 };
 
@@ -18,25 +19,25 @@ serve(async (req) => {
   }
 
   try {
-    // Create a Supabase client with the Auth context of the logged in user
-    const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-      {
-        global: {
-          headers: {
-            Authorization: req.headers.get("Authorization") ?? ""
-          }
-        }
-      }
-    );
-
-    // Verify the user is logged in
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
-    if (userError || !user) {
-      console.error("Unauthorized request:", userError);
+    // Validate that this is a POST request
+    if (req.method !== "POST") {
       return new Response(JSON.stringify({
-        error: "Unauthorized"
+        error: "Method not allowed. Please use POST."
+      }), {
+        status: 405,
+        headers: {
+          "Content-Type": "application/json",
+          ...corsHeaders
+        }
+      });
+    }
+
+    // Get the authorization header
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      console.error("No authorization header provided");
+      return new Response(JSON.stringify({
+        error: "Unauthorized: No authorization header"
       }), {
         status: 401,
         headers: {
@@ -46,12 +47,61 @@ serve(async (req) => {
       });
     }
 
-    // Get the school_id of the logged in user
-    const { data: schoolId, error: schoolIdError } = await supabaseClient.rpc("get_user_school_id");
-    if (schoolIdError || !schoolId) {
-      console.error("Could not determine school ID:", schoolIdError);
+    // Create a Supabase client with the Auth context of the logged in user
+    const supabaseClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      {
+        global: {
+          headers: { Authorization: authHeader }
+        }
+      }
+    );
+
+    // Verify the user is logged in
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+    if (userError || !user) {
+      console.error("Unauthorized request:", userError);
       return new Response(JSON.stringify({
-        error: "Could not determine school ID"
+        error: "Unauthorized: Invalid credentials",
+        details: userError?.message || "User authentication failed"
+      }), {
+        status: 401,
+        headers: {
+          "Content-Type": "application/json",
+          ...corsHeaders
+        }
+      });
+    }
+    
+    console.log("Authenticated user ID:", user.id);
+
+    // Get the school_id of the logged in user using the database function
+    const { data, error: schoolIdError } = await supabaseClient.rpc("get_user_school_id");
+    
+    // Log the response to help debug
+    console.log("get_user_school_id response:", { data, error: schoolIdError });
+    
+    if (schoolIdError) {
+      console.error("Error getting school ID:", schoolIdError);
+      return new Response(JSON.stringify({
+        error: "Failed to retrieve school ID",
+        details: schoolIdError.message
+      }), {
+        status: 500,
+        headers: {
+          "Content-Type": "application/json",
+          ...corsHeaders
+        }
+      });
+    }
+    
+    // Ensure data contains a valid school_id
+    if (!data) {
+      console.error("No school ID returned from function");
+      return new Response(JSON.stringify({
+        error: "No school ID associated with user",
+        details: "User may not be connected to a school"
       }), {
         status: 400,
         headers: {
@@ -60,12 +110,59 @@ serve(async (req) => {
         }
       });
     }
-
+    
+    // Use the returned data as the school ID directly
+    const schoolId = data;
     console.log("Processing request for school ID:", schoolId);
 
-    // Parse the request body
-    const requestBody = await req.json();
+    // Parse and validate the request body
+    let requestBody;
+    try {
+      requestBody = await req.json();
+    } catch (parseError) {
+      console.error("Error parsing request body:", parseError);
+      return new Response(JSON.stringify({
+        error: "Invalid JSON in request body"
+      }), {
+        status: 400,
+        headers: {
+          "Content-Type": "application/json",
+          ...corsHeaders
+        }
+      });
+    }
+    
     const { method, email } = requestBody;
+    
+    // Validate the method parameter
+    if (!method || (method !== "code" && method !== "email")) {
+      console.error("Invalid method parameter:", method);
+      return new Response(JSON.stringify({
+        error: "Invalid method parameter. Must be 'code' or 'email'",
+        received: { method }
+      }), {
+        status: 400,
+        headers: {
+          "Content-Type": "application/json",
+          ...corsHeaders
+        }
+      });
+    }
+    
+    // Validate email if method is email
+    if (method === "email" && (!email || !email.includes('@'))) {
+      console.error("Invalid email parameter:", email);
+      return new Response(JSON.stringify({
+        error: "Invalid email address",
+        received: { email }
+      }), {
+        status: 400,
+        headers: {
+          "Content-Type": "application/json",
+          ...corsHeaders
+        }
+      });
+    }
 
     console.log("Request body:", { method, email });
 
@@ -121,7 +218,7 @@ serve(async (req) => {
       });
     } 
     // Handle invite by email
-    else if (method === "email" && email) {
+    else if (method === "email") {
       console.log("Creating email invitation for:", email);
       const inviteCode = generateCode();
 
@@ -157,20 +254,6 @@ serve(async (req) => {
         email: email
       }), {
         status: 200,
-        headers: {
-          "Content-Type": "application/json",
-          ...corsHeaders
-        }
-      });
-    } 
-    // Handle invalid requests
-    else {
-      console.error("Invalid request parameters");
-      return new Response(JSON.stringify({
-        error: "Invalid request parameters",
-        received: { method, email }
-      }), {
-        status: 400,
         headers: {
           "Content-Type": "application/json",
           ...corsHeaders
