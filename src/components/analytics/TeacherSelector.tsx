@@ -29,11 +29,17 @@ export function TeacherSelector({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">All Teachers</SelectItem>
-          {teachers.map((teacher) => (
-            <SelectItem key={teacher.id} value={teacher.id}>
-              {teacher.name}
+          {teachers && teachers.length > 0 ? (
+            teachers.map((teacher) => (
+              <SelectItem key={teacher.id} value={teacher.id}>
+                {teacher.name}
+              </SelectItem>
+            ))
+          ) : (
+            <SelectItem value="no-teachers" disabled>
+              No teachers available
             </SelectItem>
-          ))}
+          )}
         </SelectContent>
       </Select>
     </div>

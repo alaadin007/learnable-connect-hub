@@ -34,10 +34,13 @@ import { SchoolPerformancePanel } from "@/components/analytics/SchoolPerformance
 import { TeacherPerformanceTable } from "@/components/analytics/TeacherPerformanceTable";
 import { StudentPerformanceTable } from "@/components/analytics/StudentPerformancePanel";
 import { useRBAC } from "@/contexts/RBACContext";
+import { supabase } from "@/integrations/supabase/client";
 
 const AdminAnalytics = () => {
   const { profile, schoolId: authSchoolId } = useAuth();
   const { isAdmin } = useRBAC();
+  const [schoolData, setSchoolData] = useState<{ name: string; code: string } | null>(null);
+  const [isSchoolDataLoading, setIsSchoolDataLoading] = useState(true);
 
   // Explicitly typing states
   const [summary, setSummary] = useState<{
@@ -76,6 +79,42 @@ const AdminAnalytics = () => {
   const schoolId = useMemo(() => {
     return authSchoolId || profile?.organization?.id || 'test';
   }, [authSchoolId, profile?.organization?.id]);
+  
+  // Fetch school data from Supabase
+  useEffect(() => {
+    const fetchSchoolData = async () => {
+      if (!schoolId || schoolId === 'test') return;
+      
+      try {
+        setIsSchoolDataLoading(true);
+        
+        // Attempt to get school data from the schools table
+        const { data: schoolData, error } = await supabase
+          .from('schools')
+          .select('name, code')
+          .eq('id', schoolId)
+          .single();
+        
+        if (error) {
+          console.error('Error fetching school data:', error);
+          return;
+        }
+        
+        if (schoolData) {
+          setSchoolData({
+            name: schoolData.name,
+            code: schoolData.code
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching school data:', error);
+      } finally {
+        setIsSchoolDataLoading(false);
+      }
+    };
+    
+    fetchSchoolData();
+  }, [schoolId]);
   
   // Fetch students with real data
   const loadStudents = useCallback(async () => {
@@ -392,11 +431,19 @@ const AdminAnalytics = () => {
               <div className="space-y-2">
                 <div className="flex flex-col sm:flex-row sm:items-center">
                   <span className="font-medium min-w-32">Name:</span>
-                  <span className="text-foreground">{profile?.organization?.name || "Test School"}</span>
+                  {isSchoolDataLoading ? (
+                    <span className="text-muted-foreground">Loading...</span>
+                  ) : (
+                    <span className="text-foreground">{schoolData?.name || profile?.organization?.name || "Test School"}</span>
+                  )}
                 </div>
                 <div className="flex flex-col sm:flex-row sm:items-center">
                   <span className="font-medium min-w-32">Code:</span>
-                  <span className="text-foreground">{profile?.organization?.code || "TEST123"}</span>
+                  {isSchoolDataLoading ? (
+                    <span className="font-mono text-muted-foreground">Loading...</span>
+                  ) : (
+                    <span className="text-foreground font-mono">{schoolData?.code || profile?.organization?.code || "TEST123"}</span>
+                  )}
                 </div>
               </div>
             </CardContent>

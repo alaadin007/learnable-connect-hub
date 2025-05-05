@@ -35,9 +35,45 @@ const SchoolAdmin = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [activeTab, setActiveTab] = useState("teachers");
+  const [schoolData, setSchoolData] = useState<{ name: string; code: string } | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   
   // Use optional chaining for organization properties
   const schoolId = profile?.organization?.id || null;
+  
+  // Fetch school data from Supabase
+  useEffect(() => {
+    const fetchSchoolData = async () => {
+      if (!schoolId) return;
+      
+      try {
+        // Attempt to get school data from the schools table
+        const { data: schoolData, error } = await supabase
+          .from('schools')
+          .select('name, code')
+          .eq('id', schoolId)
+          .single();
+        
+        if (error) {
+          console.error('Error fetching school data:', error);
+          return;
+        }
+        
+        if (schoolData) {
+          setSchoolData({
+            name: schoolData.name,
+            code: schoolData.code
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching school data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchSchoolData();
+  }, [schoolId]);
   
   // Verify correct user role, but only if not coming from test accounts
   useEffect(() => {
@@ -107,11 +143,19 @@ const SchoolAdmin = () => {
               <div className="space-y-2">
                 <div className="flex flex-col sm:flex-row sm:items-center">
                   <span className="font-medium min-w-32">School Name:</span>
-                  <span>{profile?.organization?.name || "Not available"}</span>
+                  {isLoading ? (
+                    <span className="text-muted-foreground">Loading...</span>
+                  ) : (
+                    <span>{schoolData?.name || profile?.organization?.name || "Not available"}</span>
+                  )}
                 </div>
                 <div className="flex flex-col sm:flex-row sm:items-center">
                   <span className="font-medium min-w-32">School Code:</span>
-                  <span className="font-mono">{profile?.organization?.code || "Not available"}</span>
+                  {isLoading ? (
+                    <span className="font-mono text-muted-foreground">Loading...</span>
+                  ) : (
+                    <span className="font-mono">{schoolData?.code || profile?.organization?.code || "Not available"}</span>
+                  )}
                 </div>
                 <p className="text-sm text-muted-foreground mt-2">
                   Your school code is used to invite teachers and students to join your school.

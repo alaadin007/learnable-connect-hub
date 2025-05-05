@@ -29,11 +29,17 @@ export function StudentSelector({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">All Students</SelectItem>
-          {students.map((student) => (
-            <SelectItem key={student.id} value={student.id}>
-              {student.name}
+          {students && students.length > 0 ? (
+            students.map((student) => (
+              <SelectItem key={student.id} value={student.id}>
+                {student.name}
+              </SelectItem>
+            ))
+          ) : (
+            <SelectItem value="no-students" disabled>
+              No students available
             </SelectItem>
-          ))}
+          )}
         </SelectContent>
       </Select>
     </div>
