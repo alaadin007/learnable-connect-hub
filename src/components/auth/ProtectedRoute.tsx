@@ -27,7 +27,7 @@ const ProtectedRoute = ({
   requireSameSchool = false,
   schoolId
 }: ProtectedRouteProps) => {
-  const { user, profile, isSupervisor, isLoading, userRole, schoolId: userSchoolId } = useAuth();
+  const { user, profile, isLoading, userRole, schoolId: userSchoolId } = useAuth();
   const location = useLocation();
 
   // Check if we're using a test account
@@ -79,7 +79,9 @@ const ProtectedRoute = ({
       return <Navigate to={getRedirectPath(currentUserRole)} replace />;
     }
 
-    if (requireSupervisor && !isSupervisor) {
+    // For supervisor checks, we'll use the role directly instead of isSupervisor property
+    // School role functions as supervisor in this system
+    if (requireSupervisor && currentUserRole !== 'school') {
       console.log(`ProtectedRoute: User is not a supervisor`);
       return <Navigate to={getRedirectPath(currentUserRole)} replace />;
     }
