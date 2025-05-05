@@ -1,3 +1,4 @@
+
 import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -76,23 +77,11 @@ const SchoolRegistrationForm: React.FC = () => {
     try {
       console.log("Checking if email exists:", email);
       
-      // Attempt sign-in with random password to detect if email exists
-      const randomPassword = Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
-      console.log("Using random password for email check");
-      
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password: randomPassword,
-      });
-
-      const emailExistsFromSignIn = signInError && signInError.message.includes("Invalid login credentials");
-      console.log("Email exists from sign-in check:", emailExistsFromSignIn, signInError?.message);
-
-      // Also check the profiles table
+      // Check the profiles table first (more reliable)
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
         .select("user_type")
-        .eq("id", email)
+        .eq("email", email)
         .limit(1);
 
       if (profilesError) {
@@ -108,7 +97,28 @@ const SchoolRegistrationForm: React.FC = () => {
         console.log("User role from profiles:", profiles[0].user_type);
       }
 
-      return emailExistsFromSignIn || emailExistsInProfiles;
+      // If not found in profiles, try the auth API
+      if (!emailExistsInProfiles) {
+        // This method checks if an account exists with this email
+        const { data, error } = await supabase.auth.signInWithOtp({
+          email,
+          options: {
+            shouldCreateUser: false,
+          }
+        });
+
+        if (!error || (error && !error.message.includes("Email not found"))) {
+          // If there's no error, or the error is not about email not found,
+          // the email exists
+          console.log("Email exists in auth:", true, data);
+          return true;
+        }
+        
+        console.log("Email check from auth:", error?.message, data);
+        return false;
+      }
+
+      return emailExistsInProfiles;
     } catch (error) {
       console.error("Error during email existence check:", error);
       // Fallback: Assume email does not exist
@@ -195,7 +205,7 @@ const SchoolRegistrationForm: React.FC = () => {
 
       console.log("School created with ID:", schoolData.id);
 
-      // Create admin user
+      // Create admin user with metadata
       const { data: userData, error: userError } = await supabase.auth.signUp({
         email: data.adminEmail,
         password: data.adminPassword,
@@ -205,6 +215,7 @@ const SchoolRegistrationForm: React.FC = () => {
             user_type: "school",
             school_code: newSchoolCode,
             school_name: data.schoolName,
+            email: data.adminEmail, // Add email to metadata for easier lookups
           },
           emailRedirectTo: window.location.origin + "/login?email_confirmed=true",
         },
@@ -242,7 +253,7 @@ const SchoolRegistrationForm: React.FC = () => {
 
       console.log("Admin user created with ID:", userData.user.id);
 
-      // Create admin profile - note: this might be handled by a database trigger
+      // Create admin profile manually (in case the trigger doesn't work)
       try {
         await supabase.from("profiles").insert({
           id: userData.user.id,

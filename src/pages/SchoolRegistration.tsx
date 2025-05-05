@@ -1,3 +1,4 @@
+
 import React from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
@@ -30,7 +31,7 @@ const SchoolRegistration = () => {
         </div>
       </main>
       <Footer />
-      <Toaster />
+      <Toaster position="top-center" />
     </div>
   );
 };
