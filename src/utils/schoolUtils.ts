@@ -124,3 +124,89 @@ export const getSchoolInfoByCode = async (schoolCode: string) => {
     return null;
   }
 };
+
+/**
+ * Generate a student invitation code and store it in the database
+ */
+export const generateStudentInviteCode = async (): Promise<{ code: string; error: null | string }> => {
+  try {
+    // Get the current user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return { code: "", error: "No authenticated user found" };
+    }
+    
+    // Get the school ID for the current user
+    const schoolId = await getCurrentUserSchoolId();
+    if (!schoolId) {
+      return { code: "", error: "Could not determine school ID" };
+    }
+    
+    // Generate a random 8-character invitation code
+    const generateCode = () => {
+      // Use characters that are less likely to be confused with each other
+      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      let code = "";
+      for (let i = 0; i < 8; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return code;
+    };
+    
+    const inviteCode = generateCode();
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7); // Set expiry to 7 days from now
+    
+    // Store the code in the student_invites table
+    const { data, error } = await supabase
+      .from("student_invites")
+      .insert({
+        school_id: schoolId,
+        code: inviteCode,
+        status: "pending",
+        expires_at: expiresAt.toISOString(),
+      })
+      .select()
+      .single();
+      
+    if (error) {
+      console.error("Failed to create invitation:", error);
+      return { code: "", error: "Failed to create invitation" };
+    }
+    
+    return { code: inviteCode, error: null };
+  } catch (error: any) {
+    console.error("Error generating invite code:", error);
+    return { code: "", error: error.message || "An unexpected error occurred" };
+  }
+};
+
+/**
+ * Get all student invites for the current user's school
+ */
+export const getStudentInvites = async () => {
+  try {
+    // Get the school ID for the current user
+    const schoolId = await getCurrentUserSchoolId();
+    if (!schoolId) {
+      return { data: null, error: "Could not determine school ID" };
+    }
+    
+    // Fetch student invites
+    const { data, error } = await supabase
+      .from("student_invites")
+      .select("*")
+      .eq("school_id", schoolId)
+      .order("created_at", { ascending: false });
+      
+    if (error) {
+      console.error("Error fetching student invites:", error);
+      return { data: null, error: error.message };
+    }
+    
+    return { data, error: null };
+  } catch (error: any) {
+    console.error("Error getting student invites:", error);
+    return { data: null, error: error.message || "An unexpected error occurred" };
+  }
+};

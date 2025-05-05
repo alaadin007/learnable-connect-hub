@@ -7,6 +7,7 @@ import StudentManagement from "@/components/teacher/StudentManagement";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 
 const TeacherStudents = () => {
   const navigate = useNavigate();

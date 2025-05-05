@@ -5,7 +5,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Copy, RefreshCw, AlertCircle } from "lucide-react";
+import { Copy, RefreshCw, AlertCircle, Loader2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "sonner";
 import {
@@ -60,6 +60,13 @@ const StudentInviteList = ({
         </Button>
       </CardHeader>
       <CardContent>
+        {isLoading && (
+          <div className="flex justify-center items-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-primary mr-2" />
+            <p className="text-muted-foreground">Loading invitations...</p>
+          </div>
+        )}
+        
         {isError && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
@@ -70,7 +77,7 @@ const StudentInviteList = ({
           </Alert>
         )}
         
-        {!isError && invites.length > 0 ? (
+        {!isLoading && !isError && invites.length > 0 ? (
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
