@@ -16,6 +16,8 @@ import {
   fetchSchoolPerformance,
   fetchTeacherPerformance,
   fetchStudentPerformance,
+  fetchStudents,
+  fetchTeachers,
   getDateRangeText
 } from "@/utils/analyticsUtils";
 import { 
@@ -26,14 +28,16 @@ import {
   AnalyticsExport,
   AnalyticsSummaryCards
 } from "@/components/analytics";
-import { AnalyticsFilters as FiltersType, SessionData, TopicData, StudyTimeData, Student } from "@/components/analytics/types";
+import { AnalyticsFilters as FiltersType, SessionData, TopicData, StudyTimeData, Student, Teacher } from "@/components/analytics/types";
 import { toast } from "sonner";
 import { SchoolPerformancePanel } from "@/components/analytics/SchoolPerformancePanel";
 import { TeacherPerformanceTable } from "@/components/analytics/TeacherPerformanceTable";
 import { StudentPerformanceTable } from "@/components/analytics/StudentPerformancePanel";
+import { useRBAC } from "@/contexts/RBACContext";
 
 const AdminAnalytics = () => {
   const { profile, schoolId: authSchoolId } = useAuth();
+  const { isAdmin } = useRBAC();
 
   // Explicitly typing states
   const [summary, setSummary] = useState<{
@@ -47,6 +51,7 @@ const AdminAnalytics = () => {
   const [topics, setTopics] = useState<TopicData[]>([]);
   const [studyTime, setStudyTime] = useState<StudyTimeData[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [filters, setFilters] = useState<FiltersType>({
     dateRange: {
       from: new Date(new Date().setDate(new Date().getDate() - 30)),
@@ -72,87 +77,25 @@ const AdminAnalytics = () => {
     return authSchoolId || profile?.organization?.id || 'test';
   }, [authSchoolId, profile?.organization?.id]);
   
-  // Fetch students - mock implementation
-  const fetchStudents = useCallback(async () => {
-    try {
-      const mockStudents = [
-        { id: '1', name: 'Student 1' },
-        { id: '2', name: 'Student 2' },
-        { id: '3', name: 'Student 3' },
-      ];
-      setStudents(mockStudents);
-    } catch (error) {
-      console.error("Error fetching students:", error);
+  // Fetch students with real data
+  const loadStudents = useCallback(async () => {
+    if (schoolId) {
+      const studentData = await fetchStudents(schoolId);
+      if (studentData.length > 0) {
+        setStudents(studentData);
+      }
     }
-  }, []);
+  }, [schoolId]);
 
-  // Generate mock data - only called once after initial load if real data is empty
-  const generateMockData = useCallback(() => {
-    if (!summary) {
-      setSummary({
-        activeStudents: 15,
-        totalSessions: 42,
-        totalQueries: 128,
-        avgSessionMinutes: 18,
-      });
+  // Fetch teachers with real data
+  const loadTeachers = useCallback(async () => {
+    if (schoolId) {
+      const teacherData = await fetchTeachers(schoolId);
+      if (teacherData.length > 0) {
+        setTeachers(teacherData);
+      }
     }
-    if (sessions.length === 0) {
-      const mockSessions: SessionData[] = Array(5).fill(null).map((_, i) => ({
-        id: `mock-session-${i}`,
-        student_id: `student-${i % 3 + 1}`,
-        student_name: `Student ${i % 3 + 1}`,
-        session_date: new Date(Date.now() - i * 86400000).toISOString(),
-        duration_minutes: Math.floor(Math.random() * 45) + 10,
-        topics: ['Math', 'Science', 'History', 'English', 'Geography'][i % 5].split(','),
-        questions_asked: Math.floor(Math.random() * 10) + 3,
-        questions_answered: Math.floor(Math.random() * 8) + 2,
-        userId: `student-${i % 3 + 1}`,
-        userName: `Student ${i % 3 + 1}`,
-        topic: ['Math', 'Science', 'History', 'English', 'Geography'][i % 5],
-        queries: Math.floor(Math.random() * 10) + 3,
-      }));
-      setSessions(mockSessions);
-    }
-    if (topics.length === 0) {
-      setTopics([
-        { topic: 'Math', count: 15, name: 'Math', value: 15 },
-        { topic: 'Science', count: 12, name: 'Science', value: 12 },
-        { topic: 'History', count: 8, name: 'History', value: 8 },
-        { topic: 'English', count: 7, name: 'English', value: 7 },
-        { topic: 'Geography', count: 5, name: 'Geography', value: 5 },
-      ]);
-    }
-    if (studyTime.length === 0) {
-      setStudyTime([
-        { student_id: 'student-1', student_name: 'Student 1', total_minutes: 240, name: 'Student 1', studentName: 'Student 1', hours: 4, week: 1, year: 2023 },
-        { student_id: 'student-2', student_name: 'Student 2', total_minutes: 180, name: 'Student 2', studentName: 'Student 2', hours: 3, week: 1, year: 2023 },
-        { student_id: 'student-3', student_name: 'Student 3', total_minutes: 150, name: 'Student 3', studentName: 'Student 3', hours: 2.5, week: 1, year: 2023 },
-      ]);
-    }
-    if (activeTab === "performance" && schoolPerformanceData.length === 0) {
-      setSchoolPerformanceData([
-        { month: 'Jan', score: 78 },
-        { month: 'Feb', score: 82 },
-        { month: 'Mar', score: 85 },
-      ]);
-      setSchoolPerformanceSummary({
-        averageScore: 82,
-        trend: 'up',
-        changePercentage: 5,
-      });
-      setTeacherPerformanceData([
-        { id: 1, name: 'Teacher 1', students: 10, avgScore: 82, trend: 'up' },
-        { id: 2, name: 'Teacher 2', students: 8, avgScore: 78, trend: 'down' },
-      ]);
-      setStudentPerformanceData([
-        { id: 1, name: 'Student 1', teacher: 'Teacher 1', avgScore: 85, trend: 'up', subjects: ['Math', 'Science'] },
-        { id: 2, name: 'Student 2', teacher: 'Teacher 1', avgScore: 79, trend: 'steady', subjects: ['English', 'History'] },
-      ]);
-    }
-    
-    // Mark data as loaded
-    setDataLoaded(true);
-  }, [summary, sessions, topics, studyTime, activeTab, schoolPerformanceData.length]);
+  }, [schoolId]);
 
   const loadAnalyticsData = useCallback(async () => {
     // Only show loading state on initial load
@@ -174,7 +117,11 @@ const AdminAnalytics = () => {
       // Summary data
       promises.push(
         fetchAnalyticsSummary(schoolId, filters)
-          .then(summaryData => setSummary(summaryData))
+          .then(summaryData => {
+            if (summaryData) {
+              setSummary(summaryData);
+            }
+          })
           .catch(err => {
             console.error("Error fetching summary data:", err);
             // Don't clear previous data
@@ -274,23 +221,103 @@ const AdminAnalytics = () => {
 
       // Wait for all promises to complete
       await Promise.allSettled(promises);
-
-      // Generate mock data for any missing data
-      generateMockData();
+      
+      // If no real data was loaded, use mock data as fallback
+      if (!summary) {
+        setSummary({
+          activeStudents: 15,
+          totalSessions: 42,
+          totalQueries: 128,
+          avgSessionMinutes: 18,
+        });
+      }
+      
+      if (sessions.length === 0) {
+        const mockSessions: SessionData[] = Array(5).fill(null).map((_, i) => ({
+          id: `mock-session-${i}`,
+          student_id: `student-${i % 3 + 1}`,
+          student_name: `Student ${i % 3 + 1}`,
+          session_date: new Date(Date.now() - i * 86400000).toISOString(),
+          duration_minutes: Math.floor(Math.random() * 45) + 10,
+          topics: ['Math', 'Science', 'History', 'English', 'Geography'][i % 5].split(','),
+          questions_asked: Math.floor(Math.random() * 10) + 3,
+          questions_answered: Math.floor(Math.random() * 8) + 2,
+          userId: `student-${i % 3 + 1}`,
+          userName: `Student ${i % 3 + 1}`,
+          topic: ['Math', 'Science', 'History', 'English', 'Geography'][i % 5],
+          queries: Math.floor(Math.random() * 10) + 3,
+        }));
+        setSessions(mockSessions);
+      }
+      
+      if (topics.length === 0) {
+        setTopics([
+          { topic: 'Math', count: 15, name: 'Math', value: 15 },
+          { topic: 'Science', count: 12, name: 'Science', value: 12 },
+          { topic: 'History', count: 8, name: 'History', value: 8 },
+          { topic: 'English', count: 7, name: 'English', value: 7 },
+          { topic: 'Geography', count: 5, name: 'Geography', value: 5 },
+        ]);
+      }
+      
+      if (studyTime.length === 0) {
+        setStudyTime([
+          { student_id: 'student-1', student_name: 'Student 1', total_minutes: 240, name: 'Student 1', studentName: 'Student 1', hours: 4, week: 1, year: 2023 },
+          { student_id: 'student-2', student_name: 'Student 2', total_minutes: 180, name: 'Student 2', studentName: 'Student 2', hours: 3, week: 1, year: 2023 },
+          { student_id: 'student-3', student_name: 'Student 3', total_minutes: 150, name: 'Student 3', studentName: 'Student 3', hours: 2.5, week: 1, year: 2023 },
+        ]);
+      }
+      
+      if (activeTab === "performance") {
+        if (schoolPerformanceData.length === 0) {
+          setSchoolPerformanceData([
+            { month: 'Jan', score: 78 },
+            { month: 'Feb', score: 82 },
+            { month: 'Mar', score: 85 },
+          ]);
+          
+          setSchoolPerformanceSummary({
+            averageScore: 82,
+            trend: 'up',
+            changePercentage: 5,
+          });
+        }
+        
+        if (teacherPerformanceData.length === 0) {
+          setTeacherPerformanceData([
+            { id: 1, name: 'Teacher 1', students: 10, avgScore: 82, trend: 'up' },
+            { id: 2, name: 'Teacher 2', students: 8, avgScore: 78, trend: 'down' },
+          ]);
+        }
+        
+        if (studentPerformanceData.length === 0) {
+          setStudentPerformanceData([
+            { id: 1, name: 'Student 1', teacher: 'Teacher 1', avgScore: 85, trend: 'up', subjects: ['Math', 'Science'] },
+            { id: 2, name: 'Student 2', teacher: 'Teacher 1', avgScore: 79, trend: 'steady', subjects: ['English', 'History'] },
+          ]);
+        }
+      }
       
     } catch (error: any) {
       console.error("Error loading analytics data:", error);
       setDataError(true);
       toast.error("Failed to load analytics data. Showing mock data instead.");
       
-      // Generate mock data on error
-      generateMockData();
+      // Set mock data on error as fallback
+      if (!summary) {
+        setSummary({
+          activeStudents: 15,
+          totalSessions: 42,
+          totalQueries: 128,
+          avgSessionMinutes: 18,
+        });
+      }
     } finally {
       setIsLoading(false);
       setInitialLoad(false);
       setDataLoaded(true);
     }
-  }, [schoolId, filters, activeTab, initialLoad, generateMockData]);
+  }, [schoolId, filters, activeTab, initialLoad, summary, sessions.length, topics.length, studyTime.length, schoolPerformanceData.length, teacherPerformanceData.length, studentPerformanceData.length]);
 
   const handleRefreshData = useCallback(() => {
     setRetryCount((count) => count + 1);
@@ -302,9 +329,10 @@ const AdminAnalytics = () => {
         ...prevFilters,
         schoolId,
       }));
-      fetchStudents();
+      loadStudents();
+      loadTeachers();
     }
-  }, [schoolId, fetchStudents]);
+  }, [schoolId, loadStudents, loadTeachers]);
 
   useEffect(() => {
     loadAnalyticsData();
@@ -323,6 +351,27 @@ const AdminAnalytics = () => {
 
   // Show loading state only on initial load
   const showLoading = initialLoad && isLoading && !dataLoaded;
+
+  // Check if user has admin access
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Navbar />
+        <main className="flex-grow bg-learnable-super-light py-8">
+          <div className="container mx-auto px-4">
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Access Denied</AlertTitle>
+              <AlertDescription>
+                You don't have permission to access the admin analytics. Please contact your school administrator.
+              </AlertDescription>
+            </Alert>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -360,6 +409,7 @@ const AdminAnalytics = () => {
               showStudentSelector={true}
               showTeacherSelector={true}
               students={students}
+              teachers={teachers}
             />
             <Button onClick={handleRefreshData} variant="outline" className="flex items-center" disabled={isLoading}>
               <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />

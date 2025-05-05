@@ -1,86 +1,76 @@
+
 import React from "react";
+import { Card, CardContent } from "@/components/ui/card";
 import { DateRangePicker } from "./DateRangePicker";
+import { AnalyticsFilters as FiltersType } from "./types";
 import { StudentSelector } from "./StudentSelector";
 import { TeacherSelector } from "./TeacherSelector";
-import { Card, CardContent } from "@/components/ui/card";
-import { Filter } from "lucide-react";
-import { AnalyticsFilters as FiltersType, DateRange } from "./types";
+import { Student, Teacher } from "./types";
 
 interface AnalyticsFiltersProps {
   filters: FiltersType;
   onFiltersChange: (filters: FiltersType) => void;
   showStudentSelector?: boolean;
   showTeacherSelector?: boolean;
-  students?: { id: string; name: string }[];
+  students?: Student[];
+  teachers?: Teacher[];
 }
 
-export const AnalyticsFilters: React.FC<AnalyticsFiltersProps> = ({
+export function AnalyticsFilters({
   filters,
   onFiltersChange,
   showStudentSelector = false,
   showTeacherSelector = false,
-  students = []
-}) => {
-  const handleDateRangeChange = (range: DateRange | undefined) => {
+  students = [],
+  teachers = []
+}: AnalyticsFiltersProps) {
+  const handleDateRangeChange = (dateRange) => {
     onFiltersChange({
       ...filters,
-      dateRange: range,
+      dateRange
     });
   };
 
-  const handleStudentChange = (studentId: string | undefined) => {
+  const handleStudentChange = (studentId) => {
     onFiltersChange({
       ...filters,
-      studentId,
+      studentId
     });
   };
 
-  const handleTeacherChange = (teacherId: string | undefined) => {
+  const handleTeacherChange = (teacherId) => {
     onFiltersChange({
       ...filters,
-      teacherId,
+      teacherId
     });
   };
 
   return (
-    <Card className="mb-6">
-      <CardContent className="pt-6">
-        <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
-          <div className="flex items-center text-muted-foreground mb-2 md:mb-0">
-            <Filter className="w-4 h-4 mr-2" />
-            <span>Filter Analytics:</span>
-          </div>
+    <Card>
+      <CardContent className="p-4 space-y-4">
+        <div className="flex flex-col md:flex-row gap-4">
+          <DateRangePicker
+            dateRange={filters.dateRange}
+            onChange={handleDateRangeChange}
+          />
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full">
-            <div>
-              <DateRangePicker
-                dateRange={filters.dateRange}
-                onDateRangeChange={handleDateRangeChange}
-              />
-            </div>
+          {showStudentSelector && (
+            <StudentSelector
+              students={students}
+              selectedStudent={filters.studentId}
+              onStudentChange={handleStudentChange}
+            />
+          )}
 
-            {showStudentSelector && (
-              <div>
-                <StudentSelector
-                  students={students}
-                  selectedStudentId={filters.studentId}
-                  onStudentChange={handleStudentChange}
-                />
-              </div>
-            )}
-
-            {showTeacherSelector && (
-              <div>
-                <TeacherSelector
-                  schoolId={typeof filters.schoolId === "string" ? filters.schoolId : ""}
-                  selectedTeacherId={filters.teacherId}
-                  onTeacherChange={handleTeacherChange}
-                />
-              </div>
-            )}
-          </div>
+          {showTeacherSelector && (
+            <TeacherSelector
+              teachers={teachers}
+              selectedTeacher={filters.teacherId}
+              onTeacherChange={handleTeacherChange}
+            />
+          )}
         </div>
       </CardContent>
     </Card>
   );
-};
+}

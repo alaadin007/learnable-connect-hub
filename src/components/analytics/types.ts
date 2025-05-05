@@ -89,6 +89,11 @@ export interface SchoolPerformanceSummary {
   average_score?: number;
   total_questions?: number;
   improvement_rate?: number;
+  averageScore?: number;
+  trend?: string;
+  changePercentage?: number;
+  completionRate?: number;
+  participationRate?: number;
 }
 
 export interface SchoolPerformanceData {
@@ -101,6 +106,9 @@ export interface SchoolPerformanceData {
   // Additional properties from utils
   average_score?: number;
   total_questions?: number;
+  score?: number;
+  completionRate?: number;
+  improvement?: number;
 }
 
 export interface TeacherPerformanceData {
@@ -119,6 +127,11 @@ export interface TeacherPerformanceData {
   average_score?: number;
   total_questions?: number;
   improvement_rate?: number;
+  students?: number;
+  avgScore?: number;
+  assessmentsCreated?: number;
+  completionRate?: number;
+  trend?: string;
 }
 
 export interface StudentPerformanceData {
@@ -139,5 +152,11 @@ export interface StudentPerformanceData {
   average_score?: number;
   total_questions?: number;
   improvement_rate?: number;
+  teacher?: string;
+  avgScore?: number;
+  assessmentsTaken?: number;
+  completionRate?: number;
+  trend?: string;
+  subjects?: string[];
   last_active?: string;
 }
