@@ -428,7 +428,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // No timeouts or spinners - direct navigation
       navigate("/login");
-      return true;
+      // Return void instead of boolean to match the interface
     } catch (error) {
       console.error("Logout error:", error);
       toast.error(`Logout failed: ${(error as Error).message}`);
