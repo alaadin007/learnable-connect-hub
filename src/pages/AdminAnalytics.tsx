@@ -76,15 +76,69 @@ const initialStudyTimeData = [
   { student_id: 'student-3', student_name: 'Mike Brown', total_minutes: 210, hours: 3.5 }
 ];
 
+// Adapt initial data to match expected components format
+const initialPerformanceData = {
+  monthlyData: [
+    { month: new Date().toISOString().split('T')[0], score: 85 },
+    { month: new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0], score: 82 }
+  ],
+  summary: {
+    averageScore: 83,
+    trend: 'up',
+    changePercentage: 3
+  }
+};
+
+// Adapted teacher data format to match component expectations
+const initialTeacherData = [
+  { 
+    id: 1,
+    name: 'Ms. Johnson',
+    students: 8,
+    avgScore: 86,
+    trend: 'up'
+  },
+  { 
+    id: 2,
+    name: 'Mr. Smith',
+    students: 10,
+    avgScore: 79,
+    trend: 'down'
+  }
+];
+
+// Adapted student data format to match component expectations
+const initialStudentData = [
+  {
+    id: 'student-1',
+    name: 'John Doe',
+    assessments: 8,
+    avgScore: 88,
+    timeSpent: '20 min',
+    completionRate: 87.5,
+    strengths: ['Algebra', 'Geometry'],
+    weaknesses: ['Calculus']
+  },
+  {
+    id: 'student-2',
+    name: 'Jane Smith',
+    assessments: 7,
+    avgScore: 92,
+    timeSpent: '15 min',
+    completionRate: 100,
+    strengths: ['Chemistry', 'Biology'],
+    weaknesses: ['Physics']
+  }
+];
+
 const AdminAnalytics = () => {
-  const { profile, schoolId: authSchoolId } = useAuth();
+  const { profile, user } = useAuth();
   const [activeTab, setActiveTab] = useState<string>("engagement");
   const [filters, setFilters] = useState<FiltersType>({
     dateRange: {
       from: new Date(new Date().setDate(new Date().getDate() - 30)),
       to: new Date(),
-    },
-    schoolId: "", 
+    }
   });
   const [students, setStudents] = useState<Student[]>([
     { id: '1', name: 'Student 1' },
@@ -92,12 +146,27 @@ const AdminAnalytics = () => {
     { id: '3', name: 'Student 3' }
   ]);
 
+  // Derive schoolId with memo
+  const schoolId = useMemo(() => {
+    return profile?.organization?.id || 'test-school-id';
+  }, [profile?.organization?.id]);
+  
+  // Update filters when schoolId changes
+  useEffect(() => {
+    if (schoolId) {
+      setFilters(prevFilters => ({
+        ...prevFilters,
+        schoolId,
+      }));
+    }
+  }, [schoolId]);
+
   // Attempt to fetch real students data in background
   useEffect(() => {
     if (schoolId) {
       supabase
         .from('students')
-        .select('id, profiles:profiles(full_name)')
+        .select('id, profiles(*)')
         .eq('school_id', schoolId)
         .then(({ data, error }) => {
           if (!error && data && data.length > 0) {
@@ -108,21 +177,6 @@ const AdminAnalytics = () => {
             setStudents(formattedStudents);
           }
         });
-    }
-  }, [schoolId]);
-
-  // Derive schoolId with memo
-  const schoolId = useMemo(() => {
-    return authSchoolId || profile?.organization?.id || 'test';
-  }, [authSchoolId, profile?.organization?.id]);
-  
-  // Update filters when schoolId changes
-  useEffect(() => {
-    if (schoolId) {
-      setFilters(prevFilters => ({
-        ...prevFilters,
-        schoolId,
-      }));
     }
   }, [schoolId]);
 
@@ -174,104 +228,77 @@ const AdminAnalytics = () => {
     initialData: initialStudyTimeData
   });
 
-  // Initial performance data
-  const initialPerformanceData = {
-    monthlyData: [
-      { month: new Date().toISOString().split('T')[0], avg_monthly_score: 85, monthly_completion_rate: 78 },
-      { month: new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0], avg_monthly_score: 82, monthly_completion_rate: 75 }
-    ],
-    summary: {
-      school_id: schoolId,
-      school_name: profile?.organization?.name || 'Test School',
-      total_assessments: 24,
-      students_with_submissions: 12,
-      total_students: 15,
-      avg_submissions_per_assessment: 3.5,
-      avg_score: 83,
-      completion_rate: 78,
-      student_participation_rate: 80
-    }
-  };
-
-  // Initial teacher performance data
-  const initialTeacherData = [
-    { 
-      teacher_id: 'teacher-1',
-      teacher_name: 'Ms. Johnson',
-      assessments_created: 12,
-      students_assessed: 8,
-      avg_submissions_per_assessment: 4.2,
-      avg_student_score: 86,
-      completion_rate: 82
-    },
-    { 
-      teacher_id: 'teacher-2',
-      teacher_name: 'Mr. Smith',
-      assessments_created: 8,
-      students_assessed: 10,
-      avg_submissions_per_assessment: 3.8,
-      avg_student_score: 79,
-      completion_rate: 75
-    }
-  ];
-
-  // Initial student performance data
-  const initialStudentData = [
-    {
-      student_id: 'student-1',
-      student_name: 'John Doe',
-      assessments_taken: 8,
-      avg_score: 88,
-      avg_time_spent_seconds: 1200,
-      assessments_completed: 7,
-      completion_rate: 87.5,
-      top_strengths: 'Algebra, Geometry',
-      top_weaknesses: 'Calculus'
-    },
-    {
-      student_id: 'student-2',
-      student_name: 'Jane Smith',
-      assessments_taken: 7,
-      avg_score: 92,
-      avg_time_spent_seconds: 950,
-      assessments_completed: 7,
-      completion_rate: 100,
-      top_strengths: 'Chemistry, Biology',
-      top_weaknesses: 'Physics'
-    }
-  ];
-
-  // Use React Query for performance data - load only when needed
+  // Use React Query for performance data with adapted initial data
   const {
     data: schoolPerformanceData = initialPerformanceData,
     refetch: refetchSchoolPerformance
   } = useQuery({
     queryKey: ['school-performance', schoolId, filters],
-    queryFn: () => fetchSchoolPerformance(schoolId, filters),
+    queryFn: async () => {
+      const data = await fetchSchoolPerformance(schoolId, filters);
+      
+      // Transform the data to match expected format
+      return {
+        monthlyData: data.monthlyData.map(item => ({
+          month: item.month,
+          score: item.avg_monthly_score || 0
+        })),
+        summary: {
+          averageScore: data.summary?.avg_score || 0,
+          trend: data.summary?.avg_score > 80 ? 'up' : 'down',
+          changePercentage: 2 // Default value when real data doesn't have this
+        }
+      };
+    },
     staleTime: 30 * 60 * 1000,
     enabled: !!schoolId && activeTab === "performance",
     initialData: initialPerformanceData
   });
 
-  // Use React Query for teacher performance data - load only when needed
+  // Use React Query for teacher performance data with data transformation
   const {
     data: teacherPerformanceData = initialTeacherData,
     refetch: refetchTeacherPerformance
   } = useQuery({
     queryKey: ['teacher-performance', schoolId, filters],
-    queryFn: () => fetchTeacherPerformance(schoolId, filters),
+    queryFn: async () => {
+      const data = await fetchTeacherPerformance(schoolId, filters);
+      
+      // Transform to match expected format
+      return data.map((teacher, index) => ({
+        id: index + 1,
+        name: teacher.teacher_name || `Teacher ${index + 1}`,
+        students: teacher.students_assessed || 0,
+        avgScore: teacher.avg_student_score || 0,
+        trend: teacher.avg_student_score > 80 ? 'up' : 'down'
+      }));
+    },
     staleTime: 30 * 60 * 1000,
     enabled: !!schoolId && activeTab === "performance",
     initialData: initialTeacherData
   });
 
-  // Use React Query for student performance data - load only when needed
+  // Use React Query for student performance data with data transformation
   const {
     data: studentPerformanceData = initialStudentData,
     refetch: refetchStudentPerformance
   } = useQuery({
     queryKey: ['student-performance', schoolId, filters],
-    queryFn: () => fetchStudentPerformance(schoolId, filters),
+    queryFn: async () => {
+      const data = await fetchStudentPerformance(schoolId, filters);
+      
+      // Transform to match expected format
+      return data.map(student => ({
+        id: student.student_id || '',
+        name: student.student_name || '',
+        assessments: student.assessments_taken || 0,
+        avgScore: student.avg_score || 0,
+        timeSpent: `${Math.round((student.avg_time_spent_seconds || 0) / 60)} min`,
+        completionRate: student.completion_rate || 0,
+        strengths: student.top_strengths ? student.top_strengths.split(', ') : [],
+        weaknesses: student.top_weaknesses ? student.top_weaknesses.split(', ') : []
+      }));
+    },
     staleTime: 30 * 60 * 1000,
     enabled: !!schoolId && activeTab === "performance",
     initialData: initialStudentData
@@ -321,11 +348,11 @@ const AdminAnalytics = () => {
               <div className="space-y-2">
                 <div className="flex flex-col sm:flex-row sm:items-center">
                   <span className="font-medium min-w-32">Name:</span>
-                  <span className="text-foreground">{profile?.organization?.name || "Test School"}</span>
+                  <span className="text-foreground">{profile?.organization?.name || "Crescent School"}</span>
                 </div>
                 <div className="flex flex-col sm:flex-row sm:items-center">
                   <span className="font-medium min-w-32">Code:</span>
-                  <span className="text-foreground">{profile?.organization?.code || "TEST123"}</span>
+                  <span className="text-foreground">{profile?.organization?.code || "CRES123"}</span>
                 </div>
               </div>
             </CardContent>

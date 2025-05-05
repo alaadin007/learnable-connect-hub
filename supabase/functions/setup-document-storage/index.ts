@@ -73,14 +73,50 @@ serve(async (req) => {
       }
     }
     
-    // Set bucket policies to allow authenticated users to upload and read files
-    console.log("Setting up bucket policies");
+    // Set bucket policies for authenticated users
+    // Allow authenticated users to upload and read files from user-content bucket
+    if (userContentBucket || !userContentBucket) { // Whether new or existing
+      const { error: policyError } = await supabaseClient
+        .storage
+        .from('user-content')
+        .setAccessControl({
+          acl: [
+            {
+              userId: user.id,
+              operation: "read",
+              permission: "allow",
+            },
+            {
+              userId: user.id,
+              operation: "create",
+              permission: "allow",
+            },
+            {
+              userId: user.id,
+              operation: "update",
+              permission: "allow",
+            },
+            {
+              userId: user.id,
+              operation: "delete",
+              permission: "allow",
+            }
+          ]
+        });
+        
+      if (policyError) {
+        console.error("Error setting bucket policies:", policyError);
+        // Don't return error as the bucket creation already succeeded
+      } else {
+        console.log("Bucket policies set successfully");
+      }
+    }
 
     return new Response(
       JSON.stringify({ 
         success: true,
         message: "Document storage ready",
-        bucket: userContentBucket || "user-content bucket created successfully"
+        bucket: userContentBucket ? "user-content bucket already exists" : "user-content bucket created successfully"
       }),
       { 
         status: 200, 

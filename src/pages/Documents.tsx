@@ -13,9 +13,10 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 const Documents: React.FC = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('upload');
   
@@ -62,7 +63,7 @@ const Documents: React.FC = () => {
     }
   }, [user]);
 
-  // Handle retrying storage initialization
+  // Handle retrying storage setup
   const retryStorageSetup = async () => {
     if (!user) return;
     
