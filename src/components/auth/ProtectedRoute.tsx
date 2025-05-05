@@ -73,9 +73,10 @@ const ProtectedRoute = ({
     console.log("ProtectedRoute: User role:", userRole, "Required role:", requiredUserType);
 
     // If we require a specific user type and the user doesn't have it
-    // Safely handle userRole by ensuring it's treated as UserRole type when it exists
     if (requiredUserType && userRole) {
+      // Ensure userRole is properly typed for comparison
       const typedUserRole = userRole as UserRole;
+      
       if (typedUserRole !== requiredUserType) {
         console.log(`ProtectedRoute: User role ${userRole} doesn't match required role ${requiredUserType}`);
         // Redirect based on user role instead of generic dashboard
@@ -89,7 +90,9 @@ const ProtectedRoute = ({
 
     // If we require specific roles and the user doesn't have one of them
     if (allowedRoles && userRole) {
+      // Ensure userRole is properly typed for comparison
       const typedUserRole = userRole as UserRole;
+      
       if (!allowedRoles.includes(typedUserRole)) {
         console.log(`ProtectedRoute: User role ${userRole} not in allowed roles:`, allowedRoles);
         // Redirect based on user role instead of generic dashboard
