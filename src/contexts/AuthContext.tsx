@@ -57,6 +57,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isSupervisor, setIsSupervisor] = useState<boolean>(false);
   const [isTestUser, setIsTestUser] = useState<boolean>(false);
   const [initAttempts, setInitAttempts] = useState<number>(0);
+  
+  // These hooks will now work because AuthProvider is used inside Router
   const navigate = useNavigate();
   const location = useLocation();
   
