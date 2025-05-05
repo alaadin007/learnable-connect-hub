@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -59,7 +60,7 @@ const Navbar = () => {
       ];
     }
 
-    // Updated navigation links to match the image
+    // Navigation links for logged-in users
     return [
       { name: "Dashboard", href: "/dashboard" },
       { name: "School Admin", href: "/admin" },
@@ -70,40 +71,57 @@ const Navbar = () => {
     ];
   }, [isLoggedIn, isTestAccountsPage]);
 
+  // Fixed isActiveLink function that handles nested routes properly
   const isActiveLink = useCallback((href: string): boolean => {
+    // Get the current path without query parameters
     const currentPath = location.pathname;
-
-    // Updated active link detection logic
-    if (href === "/dashboard") {
-      return currentPath === "/dashboard";
-    } else if (href === "/admin") {
-      return currentPath === "/admin" || currentPath.startsWith("/admin/");
-    } else if (href === "/admin/teachers") {
-      return currentPath === "/admin/teachers";
-    } else if (href === "/admin/analytics") {
-      return currentPath === "/admin/analytics";
-    } else if (href === "/chat") {
-      return currentPath === "/chat" || currentPath.startsWith("/chat/");
-    } else if (href === "/documents") {
-      return currentPath === "/documents" || currentPath.startsWith("/documents/");
+    
+    // Exact matches
+    if (href === currentPath) {
+      return true;
     }
     
-    return currentPath === href;
+    // Special case for dashboard
+    if (href === "/dashboard" && currentPath === "/dashboard") {
+      return true;
+    }
+    
+    // Special case for admin
+    if (href === "/admin" && (currentPath === "/admin" || currentPath === "/admin/settings")) {
+      return true;
+    }
+    
+    // Special case for teachers
+    if (href === "/admin/teachers" && currentPath === "/admin/teachers") {
+      return true;
+    }
+    
+    // Special case for analytics
+    if (href === "/admin/analytics" && currentPath === "/admin/analytics") {
+      return true;
+    }
+    
+    // Special case for chat
+    if (href === "/chat" && (currentPath === "/chat" || currentPath.startsWith("/chat/"))) {
+      return true;
+    }
+    
+    // Special case for documents
+    if (href === "/documents" && (currentPath === "/documents" || currentPath.startsWith("/documents/"))) {
+      return true;
+    }
+    
+    return false;
   }, [location.pathname]);
 
+  // Updated handleNavigation to fix navigation issues
   const handleNavigation = useCallback((path: string) => {
     if (location.pathname === path) {
       setIsOpen(false);
       return;
     }
     
-    navigate(path, { 
-      state: { 
-        fromNavigation: true,
-        preserveContext: true,
-        timestamp: Date.now()
-      } 
-    });
+    navigate(path);
     setIsOpen(false);
   }, [location.pathname, navigate]);
 
