@@ -68,26 +68,26 @@ const Navbar = () => {
       { name: "Analytics", href: "/admin/analytics" },
       { name: "Chat", href: "/chat" },
       { name: "Documents", href: "/documents" },
+      { name: "AI Settings", href: "/ai-settings" },
     ];
   }, [isLoggedIn, isTestAccountsPage]);
 
-  // Simplified isActiveLink function that handles all route patterns
+  // Fix the isActiveLink function to work correctly for all routes
   const isActiveLink = useCallback((href: string): boolean => {
-    // Get the current path without query parameters
     const currentPath = location.pathname;
     
-    // Handle default route matches
+    // For exact matches
     if (href === currentPath) {
       return true;
     }
     
-    // Handle nested routes for admin section
+    // For admin section
     if (href === "/admin" && currentPath.startsWith("/admin")) {
       // Only highlight "School Admin" for /admin and /admin/settings
       return currentPath === "/admin" || currentPath === "/admin/settings";
     }
     
-    // Handle specific admin routes that should highlight their own nav item
+    // For specific admin routes
     if (href === "/admin/teachers" && currentPath === "/admin/teachers") {
       return true;
     }
@@ -96,7 +96,7 @@ const Navbar = () => {
       return true;
     }
     
-    // Handle nested routes that should highlight their parent
+    // For nested routes
     if (href === "/chat" && currentPath.startsWith("/chat")) {
       return true;
     }
@@ -105,18 +105,20 @@ const Navbar = () => {
       return true;
     }
     
+    if (href === "/ai-settings" && currentPath.startsWith("/ai-settings")) {
+      return true;
+    }
+    
     return false;
   }, [location.pathname]);
 
-  // Direct navigation handler without extra state
+  // Direct navigation handler
   const handleNavigation = useCallback((path: string) => {
-    // If already on the page, just close the menu
     if (location.pathname === path) {
       setIsOpen(false);
       return;
     }
     
-    // Navigate to the selected page
     navigate(path);
     setIsOpen(false);
   }, [location.pathname, navigate]);
