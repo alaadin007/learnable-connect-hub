@@ -66,6 +66,8 @@ const TestAccounts = () => {
     const clearPreviousSessions = async () => {
       try {
         await supabase.auth.signOut();
+        localStorage.removeItem('usingTestAccount');
+        localStorage.removeItem('testAccountType');
         console.log("TestAccounts: Cleared previous sessions on page load");
       } catch (error) {
         console.error("Error clearing sessions:", error);
@@ -120,11 +122,17 @@ const TestAccounts = () => {
       try {
         console.log(`TestAccounts: Logging in as ${accountType} test account...`);
         
-        // First make sure we're logged out
+        // First make sure we're logged out and all test flags are cleared
         await supabase.auth.signOut();
+        localStorage.removeItem('usingTestAccount');
+        localStorage.removeItem('testAccountType');
         
-        // Set test user in auth context
+        // Set test user in auth context - this is the critical part that bypasses authentication
         await setTestUser(accountType);
+        
+        // Mark in localStorage that we're using a test account
+        localStorage.setItem('usingTestAccount', 'true');
+        localStorage.setItem('testAccountType', accountType);
         
         // Immediately show success toast so user gets feedback
         toast.success(`Logged in as ${account.role}`, {
@@ -156,6 +164,10 @@ const TestAccounts = () => {
         console.error(`Error setting up ${accountType} test account:`, error);
         setErrorMessage(`Setup failed: ${error.message || "Unknown error"}`);
         toast.error(`Account setup failed: ${error.message || "Unknown error"}`);
+        
+        // Clear any partial test account state on error
+        localStorage.removeItem('usingTestAccount');
+        localStorage.removeItem('testAccountType');
         
         // Make sure to reset loading state on error
         setLoadingAccount(null);

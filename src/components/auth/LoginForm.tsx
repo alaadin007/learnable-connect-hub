@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +46,72 @@ const LoginForm = () => {
     }
   }, [userRole, navigate]);
 
+  // Special handling for test accounts
+  const handleQuickLogin = async (
+    type: "school" | "teacher" | "student",
+    schoolIndex = 0
+  ) => {
+    setIsLoading(true);
+    setLoginError(null);
+
+    try {
+      console.log(`LoginForm: Quick login as ${type}`);
+      
+      // Make sure we're logged out first and clear test flags
+      await supabase.auth.signOut();
+      localStorage.removeItem('usingTestAccount');
+      localStorage.removeItem('testAccountType');
+      
+      // Direct login for test accounts - this completely bypasses authentication
+      await setTestUser(type, schoolIndex);
+      
+      // Mark in localStorage that we're using a test account
+      localStorage.setItem('usingTestAccount', 'true');
+      localStorage.setItem('testAccountType', type);
+      
+      console.log(`LoginForm: Successfully set up quick login for ${type}`);
+
+      // Define redirect paths
+      let redirectPath = "/dashboard";
+      if (type === "school") {
+        redirectPath = "/admin";
+      } else if (type === "teacher") {
+        redirectPath = "/teacher/analytics";
+      }
+
+      console.log(`LoginForm: Redirecting quick login user to ${redirectPath}`);
+      toast.success(
+        `Logged in as ${
+          type === "school"
+            ? "School Admin"
+            : type === "teacher"
+            ? "Teacher"
+            : "Student"
+        }`
+      );
+
+      navigate(redirectPath, { 
+        replace: true,
+        state: { 
+          fromTestAccounts: true,
+          accountType: type,
+          preserveContext: true,
+          timestamp: Date.now()
+        }
+      });
+    } catch (error: any) {
+      console.error("Quick login error:", error);
+      setLoginError(`Failed to log in with test account: ${error.message}`);
+      toast.error("Failed to log in with test account");
+      
+      // Clear any partial test account state on error
+      localStorage.removeItem('usingTestAccount');
+      localStorage.removeItem('testAccountType');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
     setLoginError(null);
@@ -66,11 +131,18 @@ const LoginForm = () => {
 
         console.log(`LoginForm: Setting up test user of type ${type}`);
         
-        // Make sure we're logged out first
+        // Make sure we're logged out first and clear test flags
         await supabase.auth.signOut();
+        localStorage.removeItem('usingTestAccount');
+        localStorage.removeItem('testAccountType');
         
-        // Set up test user
+        // Set up test user - this bypasses authentication
         await setTestUser(type);
+        
+        // Mark in localStorage that we're using a test account
+        localStorage.setItem('usingTestAccount', 'true');
+        localStorage.setItem('testAccountType', type);
+        
         console.log(`LoginForm: Successfully set up test user of type ${type}`);
 
         const redirectPath = type === "school"
@@ -95,7 +167,8 @@ const LoginForm = () => {
           state: { 
             fromTestAccounts: true, 
             accountType: type,
-            preserveContext: true
+            preserveContext: true,
+            timestamp: Date.now()
           } 
         });
         return;
@@ -175,60 +248,6 @@ const LoginForm = () => {
       } else {
         toast.error(`Login failed: ${error.message}`);
       }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleQuickLogin = async (
-    type: "school" | "teacher" | "student",
-    schoolIndex = 0
-  ) => {
-    setIsLoading(true);
-    setLoginError(null);
-
-    try {
-      console.log(`LoginForm: Quick login as ${type}`);
-      
-      // Make sure we're logged out first
-      await supabase.auth.signOut();
-      
-      // Direct login for test accounts
-      await setTestUser(type, schoolIndex);
-      console.log(`LoginForm: Successfully set up quick login for ${type}`);
-
-      // Define redirect paths
-      let redirectPath = "/dashboard";
-      if (type === "school") {
-        redirectPath = "/admin";
-      } else if (type === "teacher") {
-        redirectPath = "/teacher/analytics";
-      }
-
-      console.log(`LoginForm: Redirecting quick login user to ${redirectPath}`);
-      toast.success(
-        `Logged in as ${
-          type === "school"
-            ? "School Admin"
-            : type === "teacher"
-            ? "Teacher"
-            : "Student"
-        }`
-      );
-
-      navigate(redirectPath, { 
-        replace: true,
-        state: { 
-          fromTestAccounts: true,
-          accountType: type,
-          preserveContext: true,
-          timestamp: Date.now()
-        }
-      });
-    } catch (error: any) {
-      console.error("Quick login error:", error);
-      setLoginError(`Failed to log in with test account: ${error.message}`);
-      toast.error("Failed to log in with test account");
     } finally {
       setIsLoading(false);
     }

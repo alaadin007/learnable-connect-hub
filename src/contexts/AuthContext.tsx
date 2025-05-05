@@ -1,4 +1,3 @@
-
 import React, {
   createContext,
   useState,
@@ -162,6 +161,27 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     // Set loading state
     setLoading(true);
 
+    // Check if we already have a test account in localStorage
+    const usingTestAccount = localStorage.getItem('usingTestAccount') === 'true';
+    const testAccountType = localStorage.getItem('testAccountType') as UserRole | null;
+    
+    if (usingTestAccount && testAccountType) {
+      console.log(`Restoring test account session for ${testAccountType}`);
+      // Restore test account without authentication
+      setTestUser(testAccountType)
+        .then(() => {
+          console.log(`Successfully restored test account session for ${testAccountType}`);
+          setLoading(false);
+        })
+        .catch(error => {
+          console.error("Failed to restore test account session:", error);
+          localStorage.removeItem('usingTestAccount');
+          localStorage.removeItem('testAccountType');
+          setLoading(false);
+        });
+      return;
+    }
+
     // Get session from URL if available
     const setSession = async () => {
       try {
@@ -195,9 +215,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         setUser(session.user);
         await fetchProfile(session.user.id);
       } else {
-        setUser(null);
-        setProfile(null);
-        setUserRole(null);
+        // Only clear user/profile if not using test account
+        if (!usingTestAccount) {
+          setUser(null);
+          setProfile(null);
+          setUserRole(null);
+        }
       }
 
       setLoading(false);
@@ -233,6 +256,29 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
 
   // Sign in functionality
   const signIn = async (email: string, password?: string) => {
+    // Special handling for test accounts
+    if (email.includes(".test@learnable.edu")) {
+      let type: "school" | "teacher" | "student" = "student";
+      if (email.startsWith("school")) type = "school";
+      else if (email.startsWith("teacher")) type = "teacher";
+      
+      console.log(`Auth signIn: Direct login for test account type ${type}`);
+      
+      // Clear any existing auth state
+      await supabase.auth.signOut();
+      localStorage.removeItem('usingTestAccount');
+      localStorage.removeItem('testAccountType');
+      
+      // Set up test user directly
+      await setTestUser(type);
+      
+      // Mark in localStorage that we're using a test account
+      localStorage.setItem('usingTestAccount', 'true');
+      localStorage.setItem('testAccountType', type);
+      
+      return { data: { user: null, session: null }, error: null };
+    }
+    
     try {
       if (!password) {
         // Sign in with magic link
@@ -267,7 +313,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   // Sign out functionality
   const signOut = async () => {
     try {
+      // Check if we're using a test account
+      const usingTestAccount = localStorage.getItem('usingTestAccount') === 'true';
+      
+      if (usingTestAccount) {
+        // For test accounts, just clear the test account flags
+        localStorage.removeItem('usingTestAccount');
+        localStorage.removeItem('testAccountType');
+        setUser(null);
+        setProfile(null);
+        setUserRole(null);
+        setIsSuperviser(false);
+        setSchoolId(null);
+      }
+      
+      // Always sign out from Supabase
       await supabase.auth.signOut();
+      
       // Navigate after signout
       navigate("/login");
     } catch (error) {
@@ -304,118 +366,64 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       // Clear any existing session before setting up test user
       await supabase.auth.signOut();
       
-      // Created combined type+school identifier
-      const testEmail = `${type}.test@learnable.edu`;
-      console.log(`Setting test user with email: ${testEmail}`);
-
-      // This creates a session without password for the test user
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: testEmail,
-        password: "test1234" // Using placeholder password for test accounts
-      });
-
-      if (error) {
-        // If login fails for test user, we'll create a mock session instead
-        console.log("Test login failed, creating mock session:", error);
-        
-        // Create a school ID for test accounts
-        const testSchoolId = `test-school-${schoolIndex}`;
-        
-        // Mock relevant profile data
-        const testProfile: UserProfile = {
-          id: `test-${type}-${Date.now()}`,
-          user_type: type,
-          full_name: `Test ${type.charAt(0).toUpperCase() + type.slice(1)}`,
-          school_code: TEST_SCHOOL_CODE,
-          organization: type === "school" 
-            ? {
-                id: testSchoolId,
-                name: `Test School ${schoolIndex}`,
-                code: TEST_SCHOOL_CODE
-              } 
-            : null
-        };
-        
-        // Set mock states
-        setProfile(testProfile);
-        setUserRole(type);
-        setIsSuperviser(type === "school");
-        
-        // Important: All test user types need a school ID
-        setSchoolId(type === "school" ? testSchoolId : testSchoolId);
-        
-        // Create a mock user (with type assertion to fix the type error)
-        const mockUser = {
-          id: testProfile.id,
-          email: testEmail,
-          user_metadata: {
-            full_name: testProfile.full_name
-          },
-          // Add required User properties
-          app_metadata: {},
-          aud: "authenticated",
-          created_at: new Date().toISOString()
-        } as User;
-        
-        setUser(mockUser);
-        
-        // Track session as test
-        localStorage.setItem('usingTestAccount', 'true');
-        localStorage.setItem('testAccountType', type);
-        
-        console.log(`Successfully set up test user of type ${type}`);
-        return;
-      }
-
-      if (data?.user) {
-        console.log("Test login succeeded, processing session");
-        setUser(data.user);
-        
-        // Set user role and session info
-        setUserRole(type);
-        
-        // Create a school ID for test accounts
-        const testSchoolId = `test-school-${schoolIndex}`;
-        
-        // Mock profile specifically for test users
-        const testProfile: UserProfile = {
-          id: data.user.id,
-          user_type: type,
-          full_name: data.user.user_metadata?.full_name || `Test ${type.charAt(0).toUpperCase() + type.slice(1)}`,
-          school_code: TEST_SCHOOL_CODE,
-          organization: type === "school" 
-            ? {
-                id: testSchoolId,
-                name: `Test School ${schoolIndex}`,
-                code: TEST_SCHOOL_CODE
-              } 
-            : null
-        };
-        
-        setProfile(testProfile);
-        setIsSuperviser(type === "school");
-        
-        // Important: All test user types need a school ID
-        setSchoolId(type === "school" ? testSchoolId : testSchoolId);
-        
-        // Track session as test
-        localStorage.setItem('usingTestAccount', 'true');
-        localStorage.setItem('testAccountType', type);
-        
-        console.log(`Successfully set up test user of type ${type}`);
-        
-        // Generate test data for this user (sessions, etc)
-        if (type !== 'school') {
-          try {
-            await supabase.rpc("populatetestaccountwithsessions", {
-              userid: data.user.id,
-              schoolid: testSchoolId,
-              num_sessions: 5
-            });
-            console.log("Created test sessions data");
-          } catch (error) {
-            console.warn("Failed to create test session data:", error);
-          }
+      // Create a consistent test school ID
+      const testSchoolId = `test-school-${schoolIndex}`;
+      
+      // Mock profile specifically for test users
+      const testProfile: UserProfile = {
+        id: `test-${type}-${Date.now()}`,
+        user_type: type,
+        full_name: `Test ${type.charAt(0).toUpperCase() + type.slice(1)}`,
+        school_code: TEST_SCHOOL_CODE,
+        organization: type === "school" 
+          ? {
+              id: testSchoolId,
+              name: `Test School ${schoolIndex}`,
+              code: TEST_SCHOOL_CODE
+            } 
+          : null
+      };
+      
+      // Set mock states
+      setProfile(testProfile);
+      setUserRole(type);
+      setIsSuperviser(type === "school");
+      
+      // Important: All test user types need a school ID
+      setSchoolId(testSchoolId);
+      
+      // Create a mock user (with type assertion to fix the type error)
+      const mockUser = {
+        id: testProfile.id,
+        email: `${type}.test@learnable.edu`,
+        user_metadata: {
+          full_name: testProfile.full_name
+        },
+        // Add required User properties
+        app_metadata: {},
+        aud: "authenticated",
+        created_at: new Date().toISOString()
+      } as User;
+      
+      setUser(mockUser);
+      
+      // Track session as test
+      localStorage.setItem('usingTestAccount', 'true');
+      localStorage.setItem('testAccountType', type);
+      
+      console.log(`Successfully set up test user of type ${type}`);
+      
+      // Generate test data for this user (sessions, etc) - only for non-school roles
+      if (type !== 'school') {
+        try {
+          await supabase.rpc("populatetestaccountwithsessions", {
+            userid: mockUser.id,
+            schoolid: testSchoolId,
+            num_sessions: 5
+          });
+          console.log("Created test sessions data");
+        } catch (error) {
+          console.warn("Failed to create test session data:", error);
         }
       }
     } catch (error) {
