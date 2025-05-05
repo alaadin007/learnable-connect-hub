@@ -88,7 +88,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const profileData = {
           ...data,
           organization: {
-            id: schoolId || null,
+            id: schoolId || null, // Make sure the id is set here
             name: data.school_name || null,
             code: data.school_code || null,
           }
@@ -173,6 +173,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             const enhancedProfile = {
               ...profileData,
               organization: {
+                id: schoolData?.id || null, // Make sure the id is set here
                 name: profileData.school_name,
                 code: profileData.school_code
               }
