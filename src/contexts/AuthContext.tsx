@@ -1,3 +1,4 @@
+
 import React, {
   createContext,
   useState,
@@ -45,7 +46,7 @@ interface AuthContextType {
   loading: boolean;
   isSuperviser: boolean;
   schoolId: string | null;
-  signIn: (email: string, password?: string) => Promise<void>;
+  signIn: (email: string, password?: string) => Promise<any>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
@@ -149,7 +150,11 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
 
       setProfile(safeProfileData);
       setUserRole(profileData.user_type || null);
-      setIsSuperviser(profileData.user_type === "superviser" || (profileData.user_type === "school" && safeProfileData.organization?.id));
+      // Fix the type issue by using a ternary operator to ensure boolean value
+      setIsSuperviser(
+        profileData.user_type === "superviser" || 
+        (profileData.user_type === "school" && !!safeProfileData.organization?.id)
+      );
       setSchoolId(safeProfileData.organization?.id || null);
 
       if (user && isTestAccount(user.email || '')) {

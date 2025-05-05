@@ -97,9 +97,10 @@ const LoginForm = () => {
       }
 
       // Regular user login flow
-      const { data, error } = await signIn(email, password);
-
-      if (error) throw error;
+      const response = await signIn(email, password);
+      
+      // Since we've updated signIn to return the auth response, we can check for errors here
+      if (response.error) throw response.error;
 
       const { data: { user } } = await supabase.auth.getUser();
 
