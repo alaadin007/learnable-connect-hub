@@ -82,7 +82,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             .single();
             
           if (!schoolError && schoolData) {
-            data.organization = schoolData;
+            const profileWithOrg = { 
+              ...data, 
+              organization: schoolData 
+            } as Profile;
+            return profileWithOrg;
           }
         }
         
@@ -113,7 +117,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             .single();
             
           if (!schoolError && schoolData) {
-            data.organization = schoolData;
+            const profileWithOrg = { 
+              ...data, 
+              organization: schoolData 
+            } as Profile;
+            return profileWithOrg;
           }
         }
       }
@@ -145,8 +153,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const mockUser = {
         id: `test-${type}-${Date.now()}`,
         email: `${type}.test@learnable.edu`,
-        user_metadata: { user_type: type }
-      } as User;
+        user_metadata: { user_type: type },
+        // Add minimal required User properties
+        app_metadata: {},
+        aud: 'authenticated',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        role: null,
+        confirmed_at: new Date().toISOString()
+      } as unknown as User;
       
       const mockProfile = {
         id: mockUser.id,
