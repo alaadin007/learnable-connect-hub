@@ -123,9 +123,7 @@ const SchoolRegistrationForm: React.FC = () => {
         setExistingEmailError(data.adminEmail);
 
         toast.error(
-          existingUserRole
-            ? `Email already registered as ${existingUserRole}`
-            : "Email already registered",
+          "Email already registered",
           {
             description:
               "Please use a different email address. Each user can only have one role in the system.",
@@ -140,6 +138,7 @@ const SchoolRegistrationForm: React.FC = () => {
 
       const newSchoolCode = generateSchoolCode();
 
+      // Create school code first
       const { error: scError } = await supabase
         .from("school_codes")
         .insert({
@@ -149,13 +148,15 @@ const SchoolRegistrationForm: React.FC = () => {
         });
 
       if (scError) {
+        console.error("School code creation error:", scError);
         toast.dismiss(loadingToast);
-        setRegistrationError("Failed to register school code: " + scError.message);
+        setRegistrationError("Failed to register school code");
         toast.error("Failed to register school code");
         setIsLoading(false);
         return;
       }
 
+      // Then create the school record
       const { data: schoolData, error: schoolError } = await supabase
         .from("schools")
         .insert({
@@ -167,11 +168,11 @@ const SchoolRegistrationForm: React.FC = () => {
 
       if (schoolError || !schoolData) {
         toast.dismiss(loadingToast);
-
+        
         try {
           await supabase.from("school_codes").delete().eq("code", newSchoolCode);
-        } catch {
-          // ignore cleanup errors
+        } catch (cleanupError) {
+          console.error("Cleanup error:", cleanupError);
         }
 
         setRegistrationError("Failed to create school record");
@@ -180,6 +181,7 @@ const SchoolRegistrationForm: React.FC = () => {
         return;
       }
 
+      // Finally create the user account
       const { data: userData, error: userError } = await supabase.auth.signUp({
         email: data.adminEmail,
         password: data.adminPassword,
@@ -197,49 +199,21 @@ const SchoolRegistrationForm: React.FC = () => {
 
       if (userError || !userData || !userData.user) {
         toast.dismiss(loadingToast);
-
+        
         try {
           await supabase.from("schools").delete().eq("id", schoolData.id);
           await supabase.from("school_codes").delete().eq("code", newSchoolCode);
-        } catch {
-          // ignore cleanup errors
+        } catch (cleanupError) {
+          console.error("Cleanup error:", cleanupError);
         }
 
-        if (userError?.message.includes("already registered")) {
-          setExistingEmailError(data.adminEmail);
-          toast.error(
-            "Email already registered",
-            {
-              description:
-                "This email is already registered. Please use a different email or log in instead.",
-              duration: 8000,
-              icon: <AlertCircle className="h-4 w-4" />,
-            }
-          );
-        } else {
-          setRegistrationError("Failed to create admin user account");
-          toast.error("Failed to create admin user account");
-        }
+        setRegistrationError("Failed to create admin user account");
+        toast.error("Failed to create admin user account");
         setIsLoading(false);
         return;
       }
 
-      // No need to manually insert profiles record, it will be created by the trigger
-      // We'll just try to create the teacher record directly
-
-      try {
-        await supabase.from("teachers").insert({
-          id: userData.user.id,
-          school_id: schoolData.id,
-          is_supervisor: true,
-        });
-      } catch (teacherErr) {
-        toast.dismiss(loadingToast);
-        console.log("Teacher record may already exist, proceeding anyway");
-      }
-
       toast.dismiss(loadingToast);
-
       setRegisteredEmail(data.adminEmail);
       setSchoolCode(newSchoolCode);
       setEmailSent(true);
@@ -254,7 +228,7 @@ const SchoolRegistrationForm: React.FC = () => {
         icon: <Mail className="h-4 w-4" />,
       });
     } catch (err: any) {
-      toast.error(`Unexpected error: ${err.message || err}`);
+      toast.error(`Registration error: ${err.message || err}`);
       setRegistrationError(err.message || "Unknown error during registration");
     } finally {
       setIsLoading(false);
