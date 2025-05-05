@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -190,19 +189,27 @@ serve(async (req) => {
       return result;
     };
 
+    // Create timestamp for proper record-keeping
+    const now = new Date().toISOString();
+    const expiryDate = new Date();
+    expiryDate.setDate(expiryDate.getDate() + 7); // 7 days from now
+    const expires_at = expiryDate.toISOString();
+
     // Handle invite by code
     if (method === "code") {
       console.log("Generating invitation code");
       const inviteCode = generateCode();
       console.log("Generated invite code:", inviteCode);
 
-      // Insert into student_invites table
+      // Insert into student_invites table with explicit timestamps
       const { data: inviteData, error: inviteError } = await supabaseClient
         .from("student_invites")
         .insert({
           code: inviteCode,
           school_id: schoolId,
-          status: "pending"
+          status: "pending",
+          created_at: now,
+          expires_at: expires_at
         })
         .select();
 
@@ -222,7 +229,9 @@ serve(async (req) => {
 
       return new Response(JSON.stringify({
         message: "Student invite code generated successfully",
-        code: inviteCode
+        code: inviteCode,
+        created_at: now,
+        expires_at: expires_at
       }), {
         status: 200,
         headers: {
@@ -236,14 +245,16 @@ serve(async (req) => {
       console.log("Creating email invitation for:", email);
       const inviteCode = generateCode();
 
-      // Create an invitation record
+      // Create an invitation record with explicit timestamps
       const { data: inviteData, error: inviteError } = await supabaseClient
         .from("student_invites")
         .insert({
           code: inviteCode,
           email: email,
           school_id: schoolId,
-          status: "pending"
+          status: "pending",
+          created_at: now,
+          expires_at: expires_at
         })
         .select();
 
@@ -265,7 +276,9 @@ serve(async (req) => {
       return new Response(JSON.stringify({
         message: "Student invitation created successfully",
         code: inviteCode,
-        email: email
+        email: email,
+        created_at: now,
+        expires_at: expires_at
       }), {
         status: 200,
         headers: {
