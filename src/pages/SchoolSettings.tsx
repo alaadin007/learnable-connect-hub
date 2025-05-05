@@ -1,148 +1,146 @@
-
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { toast } from "sonner";
-import { useNavigate } from "react-router-dom";
-import { ArrowLeft, RefreshCw } from "lucide-react";
-import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { getCurrentUserSchoolId, generateNewSchoolCode } from "@/utils/schoolUtils";
+import { toast } from "sonner";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { ArrowLeft, Loader2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 
-// Interface for school data
-interface SchoolData {
-  id: string;
-  name: string;
-  code: string;
-  contact_email?: string;
-  description?: string;
-  notifications_enabled?: boolean;
-}
+// Define the schema for school settings form
+const schoolSettingsSchema = z.object({
+  name: z.string().min(2, {
+    message: "School name must be at least 2 characters.",
+  }),
+  description: z.string().optional(),
+  contactEmail: z.string().email({
+    message: "Please enter a valid email address.",
+  }),
+});
+
+type SchoolSettingsFormValues = z.infer<typeof schoolSettingsSchema>;
 
 const SchoolSettings = () => {
-  const { profile, user } = useAuth();
+  const { user, profile, schoolId } = useAuth();
   const navigate = useNavigate();
-  const [schoolName, setSchoolName] = useState("");
-  const [schoolCode, setSchoolCode] = useState("");
-  const [contactEmail, setContactEmail] = useState("");
-  const [description, setDescription] = useState("");
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isGeneratingCode, setIsGeneratingCode] = useState(false);
-  const [schoolId, setSchoolId] = useState<string | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [initialValues, setInitialValues] = useState<SchoolSettingsFormValues | null>(null);
+
+  const form = useForm<SchoolSettingsFormValues>({
+    resolver: zodResolver(schoolSettingsSchema),
+    defaultValues: {
+      name: "",
+      description: "",
+      contactEmail: "",
+    },
+    mode: "onChange",
+  });
 
   useEffect(() => {
-    // Load initial school data directly from the database
-    const fetchSchoolData = async () => {
-      try {
-        // First try to get school ID
-        let schoolIdVar = await getCurrentUserSchoolId();
-        
-        // Set a fallback email
-        setContactEmail(user?.email || "");
-        
-        // Store the school ID for later use
-        setSchoolId(schoolIdVar);
-        
-        // If we have a school ID, get the school data
-        if (schoolIdVar) {
-          const { data } = await supabase
+    // Set initial values when the component mounts and schoolId is available
+    if (schoolId) {
+      const loadSchoolInfo = async () => {
+        try {
+          const { data, error } = await supabase
             .from("schools")
             .select("*")
-            .eq("id", schoolIdVar)
+            .eq("id", schoolId)
             .single();
 
+          if (error) throw error;
+
           if (data) {
-            setSchoolName(data.name || "");
-            setSchoolCode(data.code || "");
-            setContactEmail(data.contact_email || user?.email || "");
-            setDescription(data.description || "");
-            setNotificationsEnabled(data.notifications_enabled !== false);
-          } else {
-            // Fallback to metadata
-            setSchoolName(user?.user_metadata?.school_name || "");
-            setSchoolCode(user?.user_metadata?.school_code || "");
-            setDescription("A learning institution focused on student success");
+            const initialData: SchoolSettingsFormValues = {
+              name: data.name || "",
+              description: data.description || "",
+              contactEmail: data.contact_email || "",
+            };
+            form.reset(initialData);
+            setInitialValues(initialData);
           }
-        } else {
-          // Fallback to metadata
-          setSchoolName(user?.user_metadata?.school_name || "");
-          setSchoolCode(user?.user_metadata?.school_code || "");
-          setDescription("A learning institution focused on student success");
+        } catch (error: any) {
+          console.error("Error fetching school info:", error);
+          toast.error(error.message || "Failed to load school information");
         }
-      } catch (error) {
-        console.error("Error fetching school data:", error);
-        // Set fallback values
-        setSchoolName(user?.user_metadata?.school_name || "");
-        setSchoolCode(user?.user_metadata?.school_code || "");
-        setDescription("A learning institution focused on student success");
-      }
-    };
+      };
 
-    if (user) {
-      fetchSchoolData();
+      loadSchoolInfo();
     }
-  }, [profile, user]);
+  }, [schoolId, form]);
 
-  const handleSaveSettings = async () => {
-    if (!schoolId) {
-      toast.error("School information not found");
-      return;
-    }
-    
-    setIsSaving(true);
+  const refreshSchoolInfo = async () => {
     try {
+      const { data, error } = await supabase
+        .from("schools")
+        .select("*")
+        .eq("id", schoolId)
+        .single();
+
+      if (error) throw error;
+
+      if (data) {
+        const initialData: SchoolSettingsFormValues = {
+          name: data.name || "",
+          description: data.description || "",
+          contactEmail: data.contact_email || "",
+        };
+        form.reset(initialData);
+        setInitialValues(initialData);
+      }
+    } catch (error: any) {
+      console.error("Error fetching school info:", error);
+      toast.error(error.message || "Failed to load school information");
+    }
+  };
+
+  const handleUpdateBasicInfo = async () => {
+    try {
+      setIsUpdating(true);
+      
+      // Update school info
       const { error } = await supabase
         .from("schools")
         .update({
-          name: schoolName,
-          contact_email: contactEmail,
-          description: description,
-          notifications_enabled: notificationsEnabled
+          name: form.getValues().name,
+          description: form.getValues().description,
+          contact_email: form.getValues().contactEmail,
         })
         .eq("id", schoolId);
         
       if (error) throw error;
-      toast.success("School settings updated successfully!");
-    } catch (error: any) {
-      console.error("Error updating school settings:", error);
-      toast.error(error.message || "Failed to update school settings");
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleGenerateNewSchoolCode = async () => {
-    if (!schoolId) {
-      toast.error("School information not found");
-      return;
-    }
-    
-    setIsGeneratingCode(true);
-    try {
-      // Call the function to generate a new school code
-      const result = await generateNewSchoolCode(schoolId);
       
-      if (result.error) {
-        throw new Error(result.error);
-      }
+      toast.success("School information updated successfully");
       
-      if (result.code) {
-        // Update the local state
-        setSchoolCode(result.code);
-        toast.success("New school code generated successfully!");
-      }
+      // Refresh the school info
+      refreshSchoolInfo(); // Call without arguments
     } catch (error: any) {
-      console.error("Error generating new school code:", error);
-      toast.error(error.message || "Failed to generate new school code");
+      console.error("Error updating school:", error);
+      toast.error(error.message || "Failed to update school information");
     } finally {
-      setIsGeneratingCode(false);
+      setIsUpdating(false);
     }
   };
 
@@ -152,135 +150,88 @@ const SchoolSettings = () => {
       <main className="flex-grow bg-learnable-super-light py-8">
         <div className="container mx-auto px-4">
           <div className="flex items-center gap-4 mb-6">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="flex items-center gap-1"
-              onClick={() => navigate('/admin')}
-            >
+            <Button variant="outline" size="sm" className="flex items-center gap-1" onClick={() => navigate("/admin")}>
               <ArrowLeft className="h-4 w-4" />
               Back to Admin
             </Button>
             <h1 className="text-3xl font-bold gradient-text">School Settings</h1>
           </div>
-          
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>School Information</CardTitle>
-              <CardDescription>
-                Update your school details and settings
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="schoolName">School Name</Label>
-                    <Input 
-                      id="schoolName" 
-                      value={schoolName} 
-                      onChange={(e) => setSchoolName(e.target.value)}
-                      placeholder="Your school's name" 
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="contactEmail">Contact Email</Label>
-                    <Input 
-                      id="contactEmail" 
-                      type="email"
-                      value={contactEmail} 
-                      onChange={(e) => setContactEmail(e.target.value)}
-                      placeholder="admin@yourschool.edu" 
-                    />
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="description">School Description</Label>
-                  <Textarea 
-                    id="description" 
-                    value={description} 
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Brief description of your school" 
-                    rows={3}
-                  />
-                </div>
-                
-                <div className="space-y-4">
-                  <Label>School Code</Label>
-                  <div className="flex items-center space-x-2">
-                    <code className="bg-background p-3 rounded border flex-1 text-center font-mono">
-                      {schoolCode}
-                    </code>
-                    <Button 
-                      variant="outline" 
-                      onClick={handleGenerateNewSchoolCode}
-                      disabled={isGeneratingCode}
-                    >
-                      {isGeneratingCode ? (
-                        <>
-                          <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                          Generating...
-                        </>
-                      ) : (
-                        "Generate New Code"
-                      )}
-                    </Button>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    This code is used by teachers and students to join your school.
-                    Generating a new code will invalidate the old one.
-                  </p>
-                </div>
-                
-                <div className="flex items-center space-x-2">
-                  <Switch 
-                    id="notifications"
-                    checked={notificationsEnabled}
-                    onCheckedChange={setNotificationsEnabled}
-                  />
-                  <Label htmlFor="notifications">Enable email notifications</Label>
-                </div>
-                
-                <Button 
-                  onClick={handleSaveSettings} 
-                  disabled={isSaving}
-                  className="gradient-bg"
-                >
-                  {isSaving ? (
-                    <>
-                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    "Save Settings"
-                  )}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-          
+
           <Card>
             <CardHeader>
-              <CardTitle>Advanced Settings</CardTitle>
-              <CardDescription>
-                Danger zone - actions here cannot be easily reversed
-              </CardDescription>
+              <CardTitle>Basic Information</CardTitle>
+              <CardDescription>Update your school's basic information</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                <div className="p-4 border border-destructive rounded-lg">
-                  <h3 className="text-lg font-semibold text-destructive mb-2">Delete School Account</h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Permanently remove your school account and all associated data.
-                    This action cannot be undone.
-                  </p>
-                  <Button variant="destructive">
-                    Delete School Account
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(handleUpdateBasicInfo)} className="space-y-6">
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>School Name</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Learnable Academy" {...field} />
+                        </FormControl>
+                        <FormDescription>
+                          This is the name that will be displayed to students and teachers.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="description"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Description</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="A brief description of your school"
+                            className="resize-none"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Briefly describe your school to give students and teachers an overview.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="contactEmail"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Contact Email</FormLabel>
+                        <FormControl>
+                          <Input placeholder="info@learnable.com" type="email" {...field} />
+                        </FormControl>
+                        <FormDescription>
+                          This email will be used for communication purposes.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <Button type="submit" className="gradient-bg" disabled={isUpdating}>
+                    {isUpdating ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Updating...
+                      </>
+                    ) : (
+                      "Update Information"
+                    )}
                   </Button>
-                </div>
-              </div>
+                </form>
+              </Form>
             </CardContent>
           </Card>
         </div>

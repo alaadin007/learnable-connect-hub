@@ -21,7 +21,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   requireSameSchool = false,
   redirectTo = "/login",
 }) => {
-  const { user, userRole, isSupervisor, schoolId, isTestUser } = useAuth();
+  const { user, userRole, isSupervisor = false, schoolId, isTestUser = false } = useAuth();
   const location = useLocation();
   
   // For test users, bypass all permission checks

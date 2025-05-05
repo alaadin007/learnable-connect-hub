@@ -224,7 +224,7 @@ const Login = () => {
   };
 
   // Handle the test login functionality directly from the login page
-  const handleTestLogin = (accountType: string) => {
+  const handleTestLogin = (accountType: "school" | "teacher" | "student") => {
     const { setTestUser } = useAuth();
     
     try {

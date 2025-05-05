@@ -1,3 +1,4 @@
+
 import React, {
   createContext,
   useState,
@@ -13,7 +14,20 @@ import { supabase, isTestAccount } from "@/integrations/supabase/client";
 import { Database } from "@/integrations/supabase/types";
 import { ensureTestAccountsSetup, generateTestSessionData } from "@/utils/testAccountUtils";
 
-type Profile = Database["public"]["Tables"]["profiles"]["Row"];
+type Profile = {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  full_name: string | null;
+  school_code: string | null;
+  school_name: string | null;
+  user_type: string;
+  organization?: {
+    id?: string;
+    name?: string;
+    code?: string;
+  };
+};
 
 interface AuthContextType {
   user: any | null;
@@ -31,6 +45,9 @@ interface AuthContextType {
     index?: number,
     showLoadingState?: boolean
   ) => Promise<void>;
+  refreshProfile?: () => Promise<void>;
+  isSupervisor?: boolean;
+  isTestUser?: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -51,8 +68,52 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [schoolId, setSchoolId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [isSupervisor, setIsSupervisor] = useState(false);
+  const [isTestUser, setIsTestUser] = useState(false);
   const navigate = useNavigate();
 
+  // Function to refresh profile
+  const refreshProfile = async () => {
+    try {
+      if (!user) return;
+      
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .single();
+
+      if (error) throw error;
+
+      if (data) {
+        const profileData = {
+          ...data,
+          organization: {
+            id: schoolId || null,
+            name: data.school_name || null,
+            code: data.school_code || null,
+          }
+        };
+        
+        setProfile(profileData);
+        setUserRole(data.user_type || null);
+        
+        // Check if teacher is supervisor
+        if (data.user_type === 'teacher' || data.user_type === 'school') {
+          const { data: teacherData } = await supabase
+            .from("teachers")
+            .select("is_supervisor")
+            .eq("id", user.id)
+            .maybeSingle();
+            
+          setIsSupervisor(!!teacherData?.is_supervisor);
+        }
+      }
+    } catch (error) {
+      console.error("Error refreshing profile:", error);
+    }
+  };
+  
   useEffect(() => {
     const loadSession = async () => {
       setIsLoading(true);
@@ -74,6 +135,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           console.log(
             `AuthContext: Found stored test user (${accountType}), setting up...`
           );
+          
+          // Mark as test user
+          setIsTestUser(true);
 
           // Set up test user directly
           await setTestUser(accountType, index, false);
@@ -105,7 +169,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
           if (profileData) {
             console.log("AuthContext: Profile loaded, setting role...");
-            setProfile(profileData);
+            
+            // Add the organization property to the profile
+            const enhancedProfile = {
+              ...profileData,
+              organization: {
+                name: profileData.school_name,
+                code: profileData.school_code
+              }
+            };
+            
+            setProfile(enhancedProfile);
             setUserRole(profileData.user_type || "unknown");
 
             // Set school ID
@@ -121,7 +195,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
               } else if (schoolData) {
                 console.log("AuthContext: School ID loaded:", schoolData.id);
                 setSchoolId(schoolData.id);
+                
+                // Update organization.id in the profile
+                enhancedProfile.organization.id = schoolData.id;
+                setProfile(enhancedProfile);
               }
+            }
+
+            // Check if teacher is supervisor
+            if (profileData.user_type === 'teacher' || profileData.user_type === 'school') {
+              const { data: teacherData } = await supabase
+                .from("teachers")
+                .select("is_supervisor")
+                .eq("id", currentSession.user.id)
+                .maybeSingle();
+                
+              setIsSupervisor(!!teacherData?.is_supervisor);
             }
 
             // Store last active role
@@ -161,7 +250,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           }
 
           if (profileData) {
-            setProfile(profileData);
+            const enhancedProfile = {
+              ...profileData,
+              organization: {
+                name: profileData.school_name,
+                code: profileData.school_code
+              }
+            };
+            
+            setProfile(enhancedProfile);
             setUserRole(profileData.user_type || "unknown");
 
             // Set school ID
@@ -176,7 +273,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 console.error("AuthContext: Error fetching school:", schoolError);
               } else if (schoolData) {
                 setSchoolId(schoolData.id);
+                
+                // Update organization.id in the profile
+                enhancedProfile.organization.id = schoolData.id;
+                setProfile(enhancedProfile);
               }
+            }
+
+            // Check if teacher is supervisor
+            if (profileData.user_type === 'teacher' || profileData.user_type === 'school') {
+              const { data: teacherData } = await supabase
+                .from("teachers")
+                .select("is_supervisor")
+                .eq("id", currentSession.user.id)
+                .maybeSingle();
+                
+              setIsSupervisor(!!teacherData?.is_supervisor);
             }
 
             // Store last active role
@@ -186,6 +298,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           setProfile(null);
           setUserRole(null);
           setSchoolId(null);
+          setIsSupervisor(false);
         }
       }
     );
@@ -312,6 +425,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         
         console.log(`Setting up test account: ${accountType} (${userId})`);
         
+        // Mark as test user
+        setIsTestUser(true);
+        
         // Make sure all test accounts are properly set up
         await ensureTestAccountsSetup();
         
@@ -351,26 +467,39 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         // Update state
         setUser(mockUser);
         setUserRole(accountType);
-        setProfile({
+        
+        // Set up enhanced profile with organization object
+        const enhancedProfile = {
           id: userId,
           user_type: accountType,
           full_name: mockUser.user_metadata.full_name,
           school_code: profileData.school_code || "TEST0",
           school_name: profileData.school_name || "Test School",
-        });
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          organization: {
+            name: profileData.school_name || "Test School",
+            code: profileData.school_code || "TEST0"
+          }
+        };
+        
+        setProfile(enhancedProfile);
         
         // Set school ID based on account type
         let userSchoolId = schoolId;
         if (accountType === "school" || accountType === "teacher") {
           const { data: teacherData } = await supabase
             .from("teachers")
-            .select("school_id")
+            .select("school_id, is_supervisor")
             .eq("id", userId)
             .single();
             
           if (teacherData?.school_id) {
             userSchoolId = teacherData.school_id;
           }
+          
+          // Set supervisor status
+          setIsSupervisor(!!teacherData?.is_supervisor);
         } else if (accountType === "student") {
           const { data: studentData } = await supabase
             .from("students")
@@ -384,6 +513,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
         
         setSchoolId(userSchoolId);
+        
+        // Update organization.id in the profile
+        enhancedProfile.organization.id = userSchoolId;
+        setProfile(enhancedProfile);
         
         // Navigate based on role
         if (accountType === "school") {
@@ -419,6 +552,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     isLoading,
     isLoggingIn,
     setTestUser,
+    refreshProfile,
+    isSupervisor,
+    isTestUser
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
