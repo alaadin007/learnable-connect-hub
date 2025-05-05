@@ -75,6 +75,7 @@ const ProtectedRoute = ({
     // If we require a specific user type and the user doesn't have it
     if (requiredUserType && userRole) {
       // Ensure userRole is properly typed for comparison
+      // The issue is here - we need to cast userRole to UserRole to match requiredUserType
       const typedUserRole = userRole as UserRole;
       
       if (typedUserRole !== requiredUserType) {
