@@ -11,6 +11,8 @@ export const ensureTestAccountsSetup = async () => {
     const schoolCode = "TEST0";
     const schoolName = "Test School";
     
+    console.log("Setting up test account infrastructure...");
+    
     // Check if test school already exists
     const { data: existingSchool } = await supabase
       .from('schools')
@@ -138,20 +140,168 @@ export const ensureTestAccountsSetup = async () => {
  */
 export const generateTestSessionData = async (studentId: string, schoolId: string, numSessions: number = 5) => {
   try {
-    const { error } = await supabase.rpc('populatetestaccountwithsessions', {
-      userid: studentId,
-      schoolid: schoolId,
-      num_sessions: numSessions
-    });
+    console.log(`Generating ${numSessions} test sessions for student ${studentId} at school ${schoolId}`);
     
-    if (error) {
-      console.error("Error generating test sessions:", error);
-      return { success: false, error };
+    try {
+      const { error } = await supabase.rpc('populatetestaccountwithsessions', {
+        userid: studentId,
+        schoolid: schoolId,
+        num_sessions: numSessions
+      });
+      
+      if (error) {
+        console.error("Error generating test sessions via RPC:", error);
+        // Fall back to direct generation
+        return await generateTestSessionsDirectly(studentId, schoolId, numSessions);
+      }
+      
+      return { success: true };
+    } catch (rpcError) {
+      console.error("RPC call failed, using fallback:", rpcError);
+      return await generateTestSessionsDirectly(studentId, schoolId, numSessions);
+    }
+  } catch (error) {
+    console.error("Error generating test sessions:", error);
+    return { success: false, error };
+  }
+};
+
+/**
+ * Generate test session data directly without using the RPC function
+ * Used as fallback when RPC fails
+ */
+const generateTestSessionsDirectly = async (studentId: string, schoolId: string, numSessions: number = 5) => {
+  try {
+    console.log("Using direct database insertion for test sessions");
+    
+    const topics = ['Algebra equations', 'World War II', 'Chemical reactions', 'Shakespeare\'s Macbeth', 'Programming basics'];
+    
+    // Generate test sessions
+    for (let i = 0; i < numSessions; i++) {
+      const randomTopic = topics[Math.floor(Math.random() * topics.length)];
+      const sessionStart = new Date();
+      sessionStart.setDate(sessionStart.getDate() - (i + 1)); // 1-5 days ago
+      
+      const sessionEnd = new Date(sessionStart);
+      sessionEnd.setMinutes(sessionEnd.getMinutes() + Math.floor(Math.random() * 120)); // Add 0-120 minutes
+      
+      // Create session log
+      const { data: sessionLog, error: sessionError } = await supabase.from('session_logs')
+        .insert({
+          user_id: studentId,
+          school_id: schoolId,
+          topic_or_content_used: randomTopic,
+          session_start: sessionStart.toISOString(),
+          session_end: sessionEnd.toISOString(),
+          num_queries: Math.floor(Math.random() * 10 + 5)
+        })
+        .select();
+        
+      if (sessionError) {
+        console.error(`Error creating session ${i+1}:`, sessionError);
+      } else {
+        console.log(`Created test session ${i+1} with topic ${randomTopic}`);
+      }
     }
     
     return { success: true };
   } catch (error) {
-    console.error("Error generating test sessions:", error);
+    console.error("Error generating test sessions directly:", error);
+    return { success: false, error };
+  }
+};
+
+/**
+ * Ensure the test account data matches across all tables
+ */
+export const validateAndFixTestAccount = async (userId: string, accountType: string) => {
+  try {
+    console.log(`Validating and fixing test account: ${accountType} (${userId})`);
+    
+    const schoolId = "test-school-0";
+    const schoolCode = "TEST0";
+    const schoolName = "Test School";
+    
+    // Fix profile data
+    const { data: existingProfile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle();
+      
+    if (!existingProfile) {
+      await supabase.from('profiles').insert({
+        id: userId,
+        user_type: accountType,
+        full_name: `Test ${accountType.charAt(0).toUpperCase()}${accountType.slice(1)}`,
+        school_code: schoolCode,
+        school_name: schoolName
+      });
+      console.log(`Created missing profile for ${accountType}`);
+    } else if (
+      existingProfile.user_type !== accountType || 
+      existingProfile.school_code !== schoolCode || 
+      existingProfile.school_name !== schoolName
+    ) {
+      await supabase.from('profiles').update({
+        user_type: accountType,
+        school_code: schoolCode,
+        school_name: schoolName
+      }).eq('id', userId);
+      console.log(`Updated profile data for ${accountType}`);
+    }
+    
+    // Fix role-specific data
+    if (accountType === 'school' || accountType === 'teacher') {
+      const { data: existingTeacher } = await supabase
+        .from('teachers')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+        
+      if (!existingTeacher) {
+        await supabase.from('teachers').insert({
+          id: userId,
+          school_id: schoolId,
+          is_supervisor: accountType === 'school'
+        });
+        console.log(`Created missing teacher record for ${accountType}`);
+      } else if (
+        existingTeacher.school_id !== schoolId || 
+        existingTeacher.is_supervisor !== (accountType === 'school')
+      ) {
+        await supabase.from('teachers').update({
+          school_id: schoolId,
+          is_supervisor: accountType === 'school'
+        }).eq('id', userId);
+        console.log(`Updated teacher data for ${accountType}`);
+      }
+    }
+    
+    if (accountType === 'student') {
+      const { data: existingStudent } = await supabase
+        .from('students')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+        
+      if (!existingStudent) {
+        await supabase.from('students').insert({
+          id: userId,
+          school_id: schoolId
+        });
+        console.log("Created missing student record");
+      } else if (existingStudent.school_id !== schoolId) {
+        await supabase.from('students').update({
+          school_id: schoolId
+        }).eq('id', userId);
+        console.log("Updated student data");
+      }
+    }
+    
+    return { success: true };
+  } catch (error) {
+    console.error("Error fixing test account:", error);
     return { success: false, error };
   }
 };

@@ -6,6 +6,19 @@ import { supabase } from "@/integrations/supabase/client";
  */
 export const getCurrentUserSchoolId = async () => {
   try {
+    // Check if this is a test account
+    const testUserRole = localStorage.getItem("testUserRole");
+    const testUserIndex = localStorage.getItem("testUserIndex") || "0";
+    
+    if (testUserRole) {
+      // For test accounts, use the predefined school ID
+      const schoolId = `test-school-${testUserIndex}`;
+      console.log(`Using predefined school ID for test account: ${schoolId}`);
+      return schoolId;
+    }
+    
+    // If not a test account, proceed with normal lookup
+    
     // First try to use the RPC function
     const { data, error } = await supabase.rpc('get_user_school_id');
     
@@ -159,6 +172,41 @@ export const generateStudentInviteCode = async () => {
  */
 export const getCurrentSchoolInfo = async () => {
   try {
+    // Check if this is a test account
+    const testUserRole = localStorage.getItem("testUserRole");
+    const testUserIndex = localStorage.getItem("testUserIndex") || "0";
+    
+    if (testUserRole) {
+      // For test accounts, return predefined school info
+      const schoolId = `test-school-${testUserIndex}`;
+      
+      // First check if this test school exists in the database
+      const { data: schoolData, error: schoolError } = await supabase
+        .from("schools")
+        .select("*")
+        .eq("id", schoolId)
+        .single();
+      
+      if (!schoolError && schoolData) {
+        console.log("Found test school in database:", schoolData);
+        return schoolData;
+      }
+      
+      // If the school doesn't exist in the database, return mock data
+      console.log("Test school not found, returning mock data");
+      return {
+        id: schoolId,
+        name: `Test School${testUserIndex > 0 ? ' ' + testUserIndex : ''}`,
+        code: `TEST${testUserIndex}`,
+        contact_email: `school.test${testUserIndex > 0 ? testUserIndex : ''}@learnable.edu`,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        description: "This is a test school for development purposes",
+        notifications_enabled: true
+      };
+    }
+    
+    // If not a test account, proceed with normal lookup
     // Try using the RPC function first
     const { data, error } = await supabase.rpc('get_current_school_info');
     

@@ -12,7 +12,11 @@ import { toast } from "sonner";
 
 import { supabase, isTestAccount } from "@/integrations/supabase/client";
 import { Database } from "@/integrations/supabase/types";
-import { ensureTestAccountsSetup, generateTestSessionData } from "@/utils/testAccountUtils";
+import { 
+  ensureTestAccountsSetup, 
+  generateTestSessionData,
+  validateAndFixTestAccount 
+} from "@/utils/testAccountUtils";
 
 type Profile = {
   id: string;
@@ -139,17 +143,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const storedTestUserRole = localStorage.getItem("testUserRole");
         const storedTestUserIndex = localStorage.getItem("testUserIndex");
 
-        if (storedTestUser && storedTestUserRole && storedTestUserIndex) {
+        if (storedTestUserRole) {
           // Parse the stored test user data
-          const testUser = JSON.parse(storedTestUser);
           const accountType = storedTestUserRole as
             | "school"
             | "teacher"
             | "student";
-          const index = parseInt(storedTestUserIndex, 10);
+          const index = storedTestUserIndex ? parseInt(storedTestUserIndex, 10) : 0;
 
           console.log(
-            `AuthContext: Found stored test user (${accountType}), setting up...`
+            `AuthContext: Found stored test user role (${accountType}), setting up...`
           );
           
           // Mark as test user
@@ -450,11 +453,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           setIsLoggingIn(true);
         }
         
+        console.log(`Setting up test account: ${accountType}, index: ${index}`);
+        
         // Generate a stable user ID for the test account
         const userId = `test-${accountType}-${index}`;
         const schoolId = `test-school-${index}`;
-        
-        console.log(`Setting up test account: ${accountType} (${userId})`);
         
         // Mark as test user
         setIsTestUser(true);
@@ -462,157 +465,105 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         // Make sure all test accounts are properly set up
         await ensureTestAccountsSetup();
         
+        // Make sure this specific test account is valid
+        await validateAndFixTestAccount(userId, accountType);
+        
         // For test student accounts, generate session data
         if (accountType === "student") {
           await generateTestSessionData(userId, schoolId);
         }
         
-        // Get profile data - directly query the database
-        const { data: profileData, error: profileError } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", userId)
-          .single();
-          
-        if (profileError || !profileData) {
-          throw new Error("Test account profile not found");
-        }
-        
-        // Get school information
-        let userSchoolId = schoolId;
-        let schoolName = profileData.school_name || "Test School";
-        let schoolCode = profileData.school_code || "TEST0";
-        
-        // Get the correct school ID based on account type
-        if (accountType === "school" || accountType === "teacher") {
-          const { data: teacherData } = await supabase
-            .from("teachers")
-            .select("school_id, is_supervisor")
-            .eq("id", userId)
-            .single();
-            
-          if (teacherData?.school_id) {
-            userSchoolId = teacherData.school_id;
-            
-            // Also fetch school details
-            const { data: schoolData } = await supabase
-              .from("schools")
-              .select("name, code")
-              .eq("id", userSchoolId)
-              .single();
-              
-            if (schoolData) {
-              schoolName = schoolData.name;
-              schoolCode = schoolData.code;
-            }
-            
-            // Set supervisor status
-            setIsSupervisor(!!teacherData?.is_supervisor);
-          }
-        } else if (accountType === "student") {
-          const { data: studentData } = await supabase
-            .from("students")
-            .select("school_id")
-            .eq("id", userId)
-            .single();
-            
-          if (studentData?.school_id) {
-            userSchoolId = studentData.school_id;
-            
-            // Also fetch school details
-            const { data: schoolData } = await supabase
-              .from("schools")
-              .select("name, code")
-              .eq("id", userSchoolId)
-              .single();
-              
-            if (schoolData) {
-              schoolName = schoolData.name;
-              schoolCode = schoolData.code;
-            }
-          }
-        }
-        
-        // Set up mock user data
+        // Set up mock user data with predefined school information
         const mockUser = {
           id: userId,
           email: `${accountType}.test${index > 0 ? index : ''}@learnable.edu`,
           user_metadata: {
-            full_name: profileData.full_name || `Test ${accountType.charAt(0).toUpperCase()}${accountType.slice(1)}`,
+            full_name: `Test ${accountType.charAt(0).toUpperCase()}${accountType.slice(1)}`,
             user_type: accountType,
-            school_code: schoolCode,
-            school_name: schoolName,
-          },
+            school_code: `TEST${index}`,
+            school_name: `Test School${index > 0 ? ' ' + index : ''}`
+          }
         };
         
         // Store in localStorage to persist across page loads
         localStorage.setItem("testUser", JSON.stringify(mockUser));
         localStorage.setItem("testUserRole", accountType);
-        localStorage.setItem("testUserIndex", index.toString());
+        localStorage.setItem("testUserIndex", String(index));
         
-        // Update state
+        // Set up the user state
         setUser(mockUser);
         setUserRole(accountType);
+        setSchoolId(schoolId);
         
-        // Set up enhanced profile with organization object
-        const enhancedProfile = {
+        // Set up supervisor status for school admins
+        setIsSupervisor(accountType === "school");
+        
+        // Set up mock profile
+        const mockProfile = {
           id: userId,
-          user_type: accountType,
-          full_name: mockUser.user_metadata.full_name,
-          school_code: schoolCode,
-          school_name: schoolName,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
+          full_name: mockUser.user_metadata.full_name,
+          school_code: mockUser.user_metadata.school_code,
+          school_name: mockUser.user_metadata.school_name,
+          user_type: accountType,
           organization: {
-            id: userSchoolId,
-            name: schoolName,
-            code: schoolCode
+            id: schoolId,
+            name: mockUser.user_metadata.school_name,
+            code: mockUser.user_metadata.school_code
           }
         };
         
-        setProfile(enhancedProfile);
+        setProfile(mockProfile);
         
-        // Set school ID
-        setSchoolId(userSchoolId);
+        // Show success message
+        toast.success(`Logged in as Test ${accountType.charAt(0).toUpperCase() + accountType.slice(1)}`);
         
-        // Navigate based on role
+        // Navigate to appropriate dashboard based on role
         if (accountType === "school") {
-          navigate("/admin", { state: { fromTestAccounts: true, accountType } });
+          navigate("/admin", { replace: true });
         } else if (accountType === "teacher") {
-          navigate("/teacher/analytics", { state: { fromTestAccounts: true, accountType } });
+          navigate("/teacher/analytics", { replace: true });
         } else {
-          navigate("/dashboard", { state: { fromTestAccounts: true, accountType } });
+          navigate("/dashboard", { replace: true });
         }
-        
-        console.log(`Test account set up successfully: ${accountType}`);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error setting up test user:", error);
-        toast.error("Failed to set up test account");
+        toast.error(`Failed to set up test account: ${error.message || "Unknown error"}`);
+        
+        // Reset test user state
+        localStorage.removeItem("testUser");
+        localStorage.removeItem("testUserRole");
+        localStorage.removeItem("testUserIndex");
+        
+        setIsTestUser(false);
       } finally {
-        if (showLoadingState) {
-          setIsLoggingIn(false);
-        }
+        setIsLoggingIn(false);
       }
     },
     [navigate]
   );
 
-  const value: AuthContextType = {
-    user,
-    profile,
-    session,
-    userRole,
-    schoolId,
-    signIn,
-    signOut,
-    signUp,
-    isLoading,
-    isLoggingIn,
-    setTestUser,
-    refreshProfile,
-    isSupervisor,
-    isTestUser
-  };
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        profile,
+        session,
+        userRole,
+        schoolId,
+        signIn,
+        signOut,
+        signUp,
+        isLoading,
+        isLoggingIn,
+        setTestUser,
+        refreshProfile,
+        isSupervisor,
+        isTestUser
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
 };
