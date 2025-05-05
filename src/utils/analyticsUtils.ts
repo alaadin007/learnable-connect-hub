@@ -930,4 +930,4 @@ if (!Date.prototype.getWeek) {
 const getMockStudyTimeData = (): StudyTimeData[] => {
   return [
     { student_id: 'student-1', student_name: 'Student 1', total_minutes: 240, name: 'Student 1', studentName: 'Student 1', hours: 4, week: 1, year: 2023 },
-    { student_id: 'student-2', student_name: 'Student 2', total_minutes: 180, name: 'Student
+    { student_id: 'student-2', student_name: 'Student 2', total_minutes: 180, name:
