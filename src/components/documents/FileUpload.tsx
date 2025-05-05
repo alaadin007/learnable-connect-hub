@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -99,36 +100,22 @@ const FileUpload: React.FC = () => {
   // Function to trigger content processing after upload
   const triggerContentProcessing = async (documentId: string) => {
     try {
-      setProcessingStatus('pending');
+      setProcessingStatus('processing');
       
       // Use non-blocking approach to improve perceived performance
       supabase.functions.invoke('process-document', {
         body: { document_id: documentId }
-      })
-      .then(({ error }) => {
-        if (error) {
-          console.error('Error triggering document processing:', error);
-          setProcessingStatus('error');
-          toast({
-            title: 'Processing Failed',
-            description: 'Failed to process document content. Please try again.',
-            variant: 'destructive'
-          });
-        } else {
-          setProcessingStatus('processing');
-        }
-      })
-      .catch(err => {
-        console.error('Error calling process-document function:', err);
-        setProcessingStatus('error');
       });
       
-      // Immediately show processing status for better UX
-      setProcessingStatus('processing');
+      // Immediately show success message for better UX
+      toast({
+        title: 'Upload Successful',
+        description: `${file?.name} has been uploaded and is being processed.`
+      });
       
     } catch (err) {
       console.error('Error calling process-document function:', err);
-      setProcessingStatus('error');
+      // Don't show error to user since document was already uploaded successfully
     }
   };
 
@@ -151,20 +138,11 @@ const FileUpload: React.FC = () => {
     
     try {
       // Create a unique file path using user ID
-      const fileExt = file.name.split('.').pop();
       const filePath = `${user.id}/${Date.now()}_${file.name}`;
 
-      // Optimistically show progress to improve perceived performance
-      const progressInterval = setInterval(() => {
-        setUploadProgress(prev => {
-          if (prev >= 95) {
-            clearInterval(progressInterval);
-            return 95;
-          }
-          return prev + 5;
-        });
-      }, 100);
-
+      // Show immediate progress feedback
+      setUploadProgress(30);
+      
       // Upload to Supabase Storage
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('user-content')
@@ -173,8 +151,7 @@ const FileUpload: React.FC = () => {
           upsert: false,
         });
       
-      clearInterval(progressInterval);
-      setUploadProgress(100);
+      setUploadProgress(70);
       
       if (uploadError) {
         throw new Error(uploadError.message);
@@ -194,19 +171,18 @@ const FileUpload: React.FC = () => {
         .select()
         .single();
       
+      setUploadProgress(90);
+      
       if (metadataError) {
         // If metadata storage fails, attempt to delete the uploaded file
         await supabase.storage.from('user-content').remove([filePath]);
         throw new Error(metadataError.message);
       }
       
-      // Trigger content processing
-      triggerContentProcessing(metadataData.id);
+      setUploadProgress(100);
       
-      toast({
-        title: 'Upload Successful',
-        description: `${file.name} has been uploaded and is being processed.`
-      });
+      // Trigger content processing immediately
+      triggerContentProcessing(metadataData.id);
       
       setFile(null);
       // Reset file input by clearing the form
@@ -220,22 +196,11 @@ const FileUpload: React.FC = () => {
         variant: 'destructive'
       });
     } finally {
-      setIsUploading(false);
-      setTimeout(() => setUploadProgress(0), 500); // Reset progress after animation
-    }
-  };
-
-  // Get status message based on processing state
-  const getProcessingStatusMessage = () => {
-    switch (processingStatus) {
-      case 'pending':
-        return 'Starting document processing...';
-      case 'processing':
-        return 'Extracting text from document...';
-      case 'error':
-        return 'Error processing document content.';
-      default:
-        return null;
+      // Quickly reset upload state
+      setTimeout(() => {
+        setIsUploading(false);
+        setUploadProgress(0);
+      }, 300);
     }
   };
 
@@ -300,24 +265,6 @@ const FileUpload: React.FC = () => {
                 <p className="text-xs text-gray-500 text-right mt-1">
                   {Math.round(uploadProgress)}%
                 </p>
-              </div>
-            )}
-            
-            {processingStatus && (
-              <div className="mt-4 flex items-center text-sm">
-                {processingStatus === 'processing' && (
-                  <div className="mr-2 w-20 h-2 bg-gray-200 rounded overflow-hidden">
-                    <div 
-                      className="h-full bg-amber-500 animate-pulse" 
-                      style={{width: '100%'}}
-                    ></div>
-                  </div>
-                )}
-                <span className={`
-                  ${processingStatus === 'error' ? 'text-red-500' : 'text-amber-600'}
-                `}>
-                  {getProcessingStatusMessage()}
-                </span>
               </div>
             )}
           </CardContent>

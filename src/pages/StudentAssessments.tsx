@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Clock, FileCheck, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
-import { Skeleton } from "@/components/ui/skeleton";
 
 interface Assessment {
   id: string;
@@ -117,6 +116,11 @@ const StudentAssessments = () => {
   const handleViewResults = (assessmentId: string, submissionId: string) => {
     navigate(`/student/assessment-results/${assessmentId}/${submissionId}`);
   };
+
+  // If not logged in or not a student, we've already redirected
+  if (!user || (profile && profile.user_type !== "student")) {
+    return null;
+  }
 
   return (
     <>

@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -320,7 +321,7 @@ const FileList: React.FC = () => {
     }
   };
 
-  // Render empty state or file list immediately
+  // Render the content immediately
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
