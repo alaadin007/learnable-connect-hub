@@ -94,45 +94,52 @@ const SchoolRegistrationForm: React.FC = () => {
     return result;
   };
 
-  // Check if email already exists using a more reliable method
+  // Improved method to check if email exists
   const checkIfEmailExists = async (email: string): Promise<boolean> => {
     try {
-      // Attempt to sign in with the email - we just want to check if it exists
-      // We'll use a deliberately wrong password so it should fail with invalid credentials
-      // if the email exists, or with a different error if email doesn't exist
-      const { error } = await supabase.auth.signInWithPassword({
-        email: email,
-        password: "dummy-password-for-check",
-      });
-
-      // If we get "Invalid login credentials", email likely exists
-      const emailExists = error && error.message.includes("Invalid login credentials");
+      console.log(`Checking if email exists using auth API: ${email}`);
       
-      if (emailExists) {
-        console.log(`Email check indicates ${email} already exists`);
-        
-        // Try to get the user's role if the email exists
-        try {
-          const { data: profiles } = await supabase
-            .from('profiles')
-            .select('user_type')
-            .ilike('email', email)
-            .limit(1);
-            
-          if (profiles && profiles.length > 0) {
-            const role = profiles[0].user_type;
-            setExistingUserRole(role);
-            console.log(`Found existing user role: ${role}`);
-          }
-        } catch (roleError) {
-          console.error("Error checking user role:", roleError);
-        }
+      // First method: Try to sign in with a random password
+      // If we get "Invalid login credentials", email likely exists
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: email,
+        // Use a completely random password instead of a fixed one 
+        // This avoids any possibility of actually logging in
+        password: Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2),
+      });
+      
+      const emailExistsFromSignIn = signInError && signInError.message.includes("Invalid login credentials");
+      console.log(`Sign-in check result: ${emailExistsFromSignIn ? "Email might exist" : "Email does not exist"}`);
+      
+      // Second method: Check profiles table
+      console.log(`Checking profiles table for email: ${email}`);
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('user_type, email')
+        .ilike('email', email)
+        .limit(1);
+      
+      if (profilesError) {
+        console.error("Error checking profiles table:", profilesError);
       }
+      
+      const emailExistsInProfiles = profiles && profiles.length > 0;
+      console.log(`Profiles check result: ${emailExistsInProfiles ? "Email exists in profiles" : "Email not found in profiles"}`);
+      
+      // If found in profiles, get the role
+      if (emailExistsInProfiles && profiles && profiles.length > 0) {
+        setExistingUserRole(profiles[0].user_type);
+        console.log(`Found existing user role: ${profiles[0].user_type}`);
+      }
+      
+      // Combine both checks
+      const emailExists = emailExistsFromSignIn || emailExistsInProfiles;
+      console.log(`Final email existence check result: ${emailExists ? "Email exists" : "Email does not exist"}`);
       
       return emailExists;
     } catch (error) {
-      console.error("Error checking email existence:", error);
-      // In case of error, safer to assume it might exist
+      console.error("Error during email existence check:", error);
+      // In case of error, safer to proceed and let the signup attempt fail if needed
       return false;
     }
   };
@@ -226,7 +233,8 @@ const SchoolRegistrationForm: React.FC = () => {
       const schoolId = schoolData.id;
       console.log(`School created with ID: ${schoolId}`);
       
-      // Create the admin user
+      // Create the admin user with improved error handling
+      console.log(`Creating admin user account for: ${data.adminEmail}`);
       const { data: userData, error: userError } = await supabase.auth.signUp({
         email: data.adminEmail,
         password: data.adminPassword,
@@ -240,6 +248,8 @@ const SchoolRegistrationForm: React.FC = () => {
           emailRedirectTo: window.location.origin + "/login?email_confirmed=true"
         }
       });
+      
+      console.log(`Auth signup response:`, userData ? "Success" : "Failed", userError ? `Error: ${userError.message}` : "No error");
       
       if (userError || !userData || !userData.user) {
         console.error("Error creating admin user:", userError);
@@ -294,7 +304,8 @@ const SchoolRegistrationForm: React.FC = () => {
           user_type: "school",
           full_name: data.adminFullName,
           school_code: schoolCode,
-          school_name: data.schoolName
+          school_name: data.schoolName,
+          email: data.adminEmail // Add email to profile for easier lookups
         });
       
       if (profileError) {
