@@ -7,7 +7,7 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
-import { supabase, isTestAccount, TEST_SCHOOL_CODE } from "@/integrations/supabase/client";
+import { supabase, isTestAccount, TEST_SCHOOL_CODE, SUPABASE_PUBLIC_URL, SUPABASE_PUBLIC_KEY } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { User, Session } from "@supabase/supabase-js";
@@ -373,6 +373,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       // Special handling for specific account
       if (email === "salman.k.786000@gmail.com" && password) {
         console.log("Using direct auth for specific account");
+        // Direct Supabase auth login with special error handling
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
@@ -381,6 +382,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         if (error) {
           console.error("Sign in error for specific account:", error);
           throw error;
+        }
+
+        // Ensure we specifically store user role for this account
+        if (data?.user && (!data.user.user_metadata?.user_type || data.user.user_metadata?.user_type !== 'school')) {
+          // Update user metadata if needed
+          await supabase.auth.updateUser({
+            data: {
+              user_type: 'school',
+              full_name: 'Salman',
+              ...data.user.user_metadata
+            }
+          });
         }
 
         return { data, error: null };
@@ -570,18 +583,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
               try {
                 // Using a timeout to avoid blocking the UI
                 setTimeout(() => {
-                  // Fix: Use a direct URL constructed from environment variables instead of using protected properties
-                  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://ldlgckwkdsvrfuymidrr.supabase.co";
-                  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 
-                    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxkbGdja3drZHN2cmZ1eW1pZHJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDYwNTc2NzksImV4cCI6MjA2MTYzMzY3OX0.kItrTMcKThMXuwNDClYNTGkEq-1EVVldq1vFw7ZsKx0";
-                  
-                  // Use the URL directly without accessing protected properties
-                  fetch(`${supabaseUrl}/rest/v1/rpc/populatetestaccountwithsessions`, {
+                  // Use the public URL and key constants
+                  fetch(`${SUPABASE_PUBLIC_URL}/rest/v1/rpc/populatetestaccountwithsessions`, {
                     method: 'POST',
                     headers: {
                       'Content-Type': 'application/json',
-                      'apikey': supabaseKey,
-                      'Authorization': `Bearer ${supabaseKey}`
+                      'apikey': SUPABASE_PUBLIC_KEY,
+                      'Authorization': `Bearer ${SUPABASE_PUBLIC_KEY}`
                     },
                     body: JSON.stringify({
                       userid: mockUser.id,

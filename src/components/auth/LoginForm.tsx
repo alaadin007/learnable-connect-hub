@@ -126,7 +126,43 @@ const LoginForm = () => {
     console.log(`LoginForm: Attempting login for ${email}`);
 
     try {
-      // Direct Supabase auth login
+      // Special handling for the specific account
+      if (email === "salman.k.786000@gmail.com") {
+        console.log("Using special login flow for salman.k.786000@gmail.com");
+        
+        // Direct Supabase auth login with detailed error handling
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password
+        });
+
+        if (error) {
+          console.error("Login error for salman.k.786000@gmail.com:", error);
+          throw error;
+        }
+
+        if (data?.user) {
+          console.log("Login successful for salman.k.786000@gmail.com");
+          
+          // Navigate directly to admin route for this account
+          toast.success("Login successful", {
+            description: `Welcome back, ${data.user.user_metadata?.full_name || "Salman"}!`,
+          });
+          
+          navigate("/admin", { 
+            replace: true,
+            state: { 
+              fromNavigation: true,
+              preserveContext: true
+            }
+          });
+        }
+        
+        setIsLoading(false);
+        return;
+      }
+      
+      // Regular login flow for other accounts
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
