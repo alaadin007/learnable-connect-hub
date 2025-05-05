@@ -153,8 +153,6 @@ const AdminStudents = () => {
     enabled: !!schoolId,
   });
 
-  const selectedMethod = form.watch("method");
-
   // Load student invites
   useEffect(() => {
     if (inviteData) {
