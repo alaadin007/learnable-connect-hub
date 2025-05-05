@@ -53,11 +53,14 @@ const AdminStudents = () => {
         return;
       }
 
-      // Now fetch the profiles data separately
+      // Now fetch the profiles data separately with only the columns that exist
       const studentIds = studentsData.map(student => student.id);
+      
+      // Based on the error, the profiles table doesn't have an 'email' column directly
+      // Let's query only for the columns we know exist
       const { data: profilesData, error: profilesError } = await supabase
         .from("profiles")
-        .select("id, full_name, email")
+        .select("id, full_name")
         .in("id", studentIds);
       
       if (profilesError) {
@@ -76,7 +79,8 @@ const AdminStudents = () => {
           status: student.status || "pending",
           created_at: student.created_at,
           full_name: profile?.full_name || "No name",
-          email: profile?.email || "No email",
+          // Since email doesn't exist in profiles table, we'll use the id as email (which is the user's id)
+          email: student.id || "No email",
         };
       });
 
