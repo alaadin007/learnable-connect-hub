@@ -271,7 +271,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
           id: testProfile.id,
           email: `${testAccountType}.test@learnable.edu`,
           user_metadata: {
-            full_name: testProfile.full_name
+            full_name: testProfile.full_name,
+            user_type: testAccountType,
+            school_code: TEST_SCHOOL_CODE
           },
           // Add required User properties
           app_metadata: {},
@@ -581,7 +583,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   const setTestUser = async (
     type: "school" | "teacher" | "student",
     schoolIndex = 0
-  ) => {
+  ): Promise<User> => {
     try {
       console.log(`Setting up test user of type ${type}`);
       // Create a consistent test school ID

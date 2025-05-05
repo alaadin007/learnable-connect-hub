@@ -75,6 +75,9 @@ const LoginForm = () => {
       
       // Direct login for test accounts - this completely bypasses authentication
       const mockUser = await setTestUser(type, schoolIndex);
+      if (!mockUser) {
+        throw new Error(`Failed to set up ${type} test account`);
+      }
       
       // Mark in localStorage that we're using a test account
       localStorage.setItem('usingTestAccount', 'true');
