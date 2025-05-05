@@ -5,6 +5,7 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
 import { useAuth } from "@/contexts/AuthContext";
 import TeacherManagement from "@/components/school-admin/TeacherManagement";
+import StudentInvitation from "@/components/school-admin/StudentInvitation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -37,53 +38,45 @@ const SchoolAdmin = () => {
   const location = useLocation();
   const [activeTab, setActiveTab] = useState("teachers");
   const { profile, userRole, user } = useAuth();
+  const schoolCodeFromProfile = profile?.school_code || user?.user_metadata?.school_code;
+  const schoolNameFromProfile = profile?.school_name || user?.user_metadata?.school_name;
+  const organizationName = profile?.organization?.name;
+  const organizationCode = profile?.organization?.code;
+  
+  // Initialize with data from user context for immediate display
   const [schoolInfo, setSchoolInfo] = useState<{name: string, code: string}>({
-    // Default values to avoid loading state
-    name: profile?.organization?.name || user?.user_metadata?.school_name || "Your School",
-    code: profile?.organization?.code || user?.user_metadata?.school_code || "SCHOOL123"
+    name: organizationName || schoolNameFromProfile || "Crescent School",
+    code: organizationCode || schoolCodeFromProfile || "SCHOOL123"
   });
   
-  // Try to fetch real school info if available, but don't show loading state
+  // Try to fetch real school info in the background
   useEffect(() => {
     const fetchSchoolInfo = async () => {
-      // First check if we already have the info from profile or user metadata
-      if ((profile?.organization?.name && profile?.organization?.code) || 
-          (user?.user_metadata?.school_name && user?.user_metadata?.school_code)) {
-        setSchoolInfo({
-          name: profile?.organization?.name || user?.user_metadata?.school_name || schoolInfo.name,
-          code: profile?.organization?.code || user?.user_metadata?.school_code || schoolInfo.code
-        });
-        return;
-      }
-      
-      // Only if we don't have it, try to fetch from the database
-      if (user) {
-        try {
-          const schoolId = await getCurrentUserSchoolId();
-          
-          if (schoolId) {
-            const { data, error } = await supabase
-              .from("schools")
-              .select("name, code")
-              .eq("id", schoolId)
-              .single();
-              
-            if (!error && data) {
-              setSchoolInfo({
-                name: data.name,
-                code: data.code
-              });
-            }
+      try {
+        const schoolId = await getCurrentUserSchoolId();
+        
+        if (schoolId) {
+          const { data, error } = await supabase
+            .from("schools")
+            .select("name, code")
+            .eq("id", schoolId)
+            .single();
+            
+          if (!error && data) {
+            setSchoolInfo({
+              name: data.name,
+              code: data.code
+            });
           }
-        } catch (error) {
-          console.error("Error fetching school info:", error);
-          // No need to show error to user as we're using fallback values
         }
+      } catch (error) {
+        console.error("Error fetching school info:", error);
+        // No need to show error to user as we're using fallback values
       }
     };
     
     fetchSchoolInfo();
-  }, [profile, user]);
+  }, []);
   
   // Safety check for authentication
   if (!user) {
@@ -254,6 +247,7 @@ const SchoolAdmin = () => {
                     <p className="text-muted-foreground mb-4">
                       Manage your school's students, including enrollment and class assignments.
                     </p>
+                    <StudentInvitation />
                     <Button 
                       onClick={() => navigate('/admin/students')}
                       className="w-full sm:w-auto gradient-bg"

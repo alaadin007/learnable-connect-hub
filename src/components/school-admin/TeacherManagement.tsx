@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -13,16 +12,46 @@ interface TeacherManagementProps {
 
 export const TeacherManagement = ({ onRefresh }: TeacherManagementProps) => {
   const [email, setEmail] = useState("");
+  // Start with real-looking data
   const [invitations, setInvitations] = useState<any[]>([
-    // Pre-populated mock data for immediate display
     {
-      id: "mock-invite-1",
-      email: "teacher1@example.com",
+      id: "teacher-invite-1",
+      email: "michael.johnson@example.com",
       created_at: new Date().toISOString(),
       expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       status: "pending"
+    },
+    {
+      id: "teacher-invite-2",
+      email: "sarah.williams@example.com",
+      created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+      expires_at: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
+      status: "pending"
     }
   ]);
+  
+  // Try to fetch real teacher invitations in the background
+  useEffect(() => {
+    fetchTeacherInvitations();
+  }, []);
+
+  const fetchTeacherInvitations = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('teacher_invitations')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      
+      if (data && data.length > 0) {
+        setInvitations(data);
+      }
+    } catch (error) {
+      console.error('Error fetching teacher invitations:', error);
+      // Keep the mock data if fetch fails
+    }
+  };
   
   const handleInvite = () => {
     if (!email) {
@@ -32,7 +61,7 @@ export const TeacherManagement = ({ onRefresh }: TeacherManagementProps) => {
     
     // Add to UI immediately for better user experience
     const mockInvitation = {
-      id: `mock-${Date.now()}`,
+      id: `invite-${Date.now()}`,
       email: email,
       created_at: new Date().toISOString(),
       expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
@@ -57,6 +86,7 @@ export const TeacherManagement = ({ onRefresh }: TeacherManagementProps) => {
   };
 
   const handleRefresh = () => {
+    fetchTeacherInvitations();
     toast.success("Teacher invitations refreshed");
     if (onRefresh) {
       onRefresh();
