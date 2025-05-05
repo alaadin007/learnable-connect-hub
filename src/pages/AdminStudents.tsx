@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -202,11 +203,17 @@ const AdminStudents = () => {
   };
 
   const generateInviteCode = async () => {
-    console.log("Generate button clicked");
     setIsGeneratingCode(true);
     
     try {
       console.log("Calling invite-student edge function with method: code");
+      
+      // Get the auth token for the request
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        throw new Error("No active session found");
+      }
       
       // Use invite-student function with proper headers
       const { data, error } = await supabase.functions.invoke("invite-student", {
@@ -215,19 +222,20 @@ const AdminStudents = () => {
       
       if (error) {
         console.error("Error from invite-student function:", error);
-        throw error;
+        throw new Error(error.message || "Failed to generate invitation code");
       }
       
       if (!data) {
         throw new Error("No data returned from the server");
       }
       
+      console.log("Generated invite code response:", data);
+      
       if (!data.code) {
         console.error("Invalid response format:", data);
         throw new Error("Code not found in server response");
       }
       
-      console.log("Generated invite code response:", data);
       setGeneratedCode(data.code);
       toast.success("Student invitation code generated");
       
