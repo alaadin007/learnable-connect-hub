@@ -1,3 +1,4 @@
+
 // Update the import section to include our UUID validation helper
 import { supabase, getMockOrValidUUID } from "@/integrations/supabase/client";
 import { 
@@ -38,10 +39,89 @@ export const isDateWithinRange = (date: Date, from: Date, to: Date): boolean => 
   return isAfter(checkDate, start) && isBefore(checkDate, end);
 };
 
-export const getDateRangeText = (dateRange: { from: Date; to: Date }): string => {
+// Updated to handle optional 'to' property
+export const getDateRangeText = (dateRange: { from: Date; to?: Date }): string => {
+  if (!dateRange.from) {
+    return "No date range selected";
+  }
+  
+  if (!dateRange.to) {
+    return format(dateRange.from, "MMM d, yyyy");
+  }
+  
   const fromDate = format(dateRange.from, "MMM d, yyyy");
   const toDate = format(dateRange.to, "MMM d, yyyy");
   return `${fromDate} - ${toDate}`;
+};
+
+// Add the missing exportAnalyticsToCSV function
+export const exportAnalyticsToCSV = (
+  summary: any, 
+  sessions: SessionData[], 
+  topics: TopicData[], 
+  studyTime: StudyTimeData[],
+  dateRangeText: string
+): void => {
+  // Convert data to CSV format
+  const csvRows = [];
+  
+  // Add summary data
+  csvRows.push(['Analytics Summary']);
+  csvRows.push(['Date Range', dateRangeText]);
+  csvRows.push(['Active Students', summary?.activeStudents || 0]);
+  csvRows.push(['Total Sessions', summary?.totalSessions || 0]);
+  csvRows.push(['Total Queries', summary?.totalQueries || 0]);
+  csvRows.push(['Avg Session Minutes', summary?.avgSessionMinutes || 0]);
+  csvRows.push([]);
+  
+  // Add topics data
+  csvRows.push(['Most Studied Topics']);
+  csvRows.push(['Topic', 'Count']);
+  topics.forEach(topic => {
+    csvRows.push([topic.topic || topic.name || 'Unknown', topic.count || topic.value || 0]);
+  });
+  csvRows.push([]);
+  
+  // Add study time data
+  csvRows.push(['Student Study Time']);
+  csvRows.push(['Student', 'Hours']);
+  studyTime.forEach(item => {
+    const hours = typeof item.total_minutes === 'number' 
+      ? (item.total_minutes / 60).toFixed(2) 
+      : item.hours?.toString() || '0';
+    csvRows.push([item.student_name || item.studentName || item.name || 'Unknown', hours]);
+  });
+  csvRows.push([]);
+  
+  // Add sessions data
+  csvRows.push(['Session Details']);
+  csvRows.push(['Student', 'Topic', 'Queries', 'Duration', 'Date']);
+  sessions.forEach(session => {
+    const topic = Array.isArray(session.topics) && session.topics.length > 0
+      ? session.topics[0]
+      : session.topic || 'General';
+    
+    csvRows.push([
+      session.student_name || session.userName || 'Unknown',
+      topic,
+      session.questions_asked || session.queries || 0,
+      `${session.duration_minutes || 0} min`,
+      session.session_date ? format(new Date(session.session_date), 'yyyy-MM-dd') : ''
+    ]);
+  });
+  
+  // Convert array to CSV content
+  const csvContent = csvRows.map(row => row.join(',')).join('\n');
+  
+  // Create and download CSV file
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', `analytics-export-${dateRangeText.replace(/\s/g, '-')}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 };
 
 export const fetchAnalyticsSummary = async (
@@ -113,14 +193,12 @@ export const fetchSessionLogs = async (
     }
     
     // First, fetch the basic session logs
-    const { data: sessionLogs, error: sessionError } = await safeQuery(() => 
-      supabase
-        .from('session_logs')
-        .select('id, user_id, school_id, topic_or_content_used, session_start, session_end, num_queries')
-        .eq('school_id', validSchoolId)
-        .order('session_start', { ascending: false })
-        .limit(20)
-    );
+    const { data: sessionLogs, error: sessionError } = await supabase
+      .from('session_logs')
+      .select('id, user_id, school_id, topic_or_content_used, session_start, session_end, num_queries')
+      .eq('school_id', validSchoolId)
+      .order('session_start', { ascending: false })
+      .limit(20);
     
     if (sessionError || !sessionLogs || sessionLogs.length === 0) {
       console.error("Error or no data in fetchSessionLogs:", sessionError);
@@ -129,12 +207,10 @@ export const fetchSessionLogs = async (
     
     // We need to fetch user names separately since we were getting relation errors
     const userIds = [...new Set(sessionLogs.map(session => session.user_id))];
-    const { data: profiles, error: profilesError } = await safeQuery(() => 
-      supabase
-        .from('profiles')
-        .select('id, full_name')
-        .in('id', userIds)
-    );
+    const { data: profiles, error: profilesError } = await supabase
+      .from('profiles')
+      .select('id, full_name')
+      .in('id', userIds as string[]);
     
     // Create a lookup map for user names
     const userNameMap = new Map();
@@ -198,14 +274,12 @@ export const fetchTopics = async (
     }
     
     // Try to fetch real data
-    const { data, error } = await safeQuery(() => 
-      supabase
-        .from('most_studied_topics')
-        .select('*')
-        .eq('school_id', validSchoolId)
-        .order('count_of_sessions', { ascending: false })
-        .limit(10)
-    );
+    const { data, error } = await supabase
+      .from('most_studied_topics')
+      .select('*')
+      .eq('school_id', validSchoolId)
+      .order('count_of_sessions', { ascending: false })
+      .limit(10);
     
     if (error || !data || data.length === 0) {
       console.error("Error or no data in fetchTopics:", error);
@@ -248,14 +322,12 @@ export const fetchStudyTime = async (
     }
     
     // Try to fetch real data
-    const { data, error } = await safeQuery(() => 
-      supabase
-        .from('student_weekly_study_time')
-        .select('*')
-        .eq('school_id', validSchoolId)
-        .order('study_hours', { ascending: false })
-        .limit(10)
-    );
+    const { data, error } = await supabase
+      .from('student_weekly_study_time')
+      .select('*')
+      .eq('school_id', validSchoolId)
+      .order('study_hours', { ascending: false })
+      .limit(10);
     
     if (error || !data || data.length === 0) {
       console.error("Error or no data in fetchStudyTime:", error);
@@ -403,13 +475,11 @@ export const fetchStudents = async (schoolId?: string): Promise<Student[]> => {
     }
     
     // Fetch student records
-    const { data: students, error: studentsError } = await safeQuery(() => 
-      supabase
-        .from('students')
-        .select('id, school_id, status')
-        .eq('school_id', validSchoolId)
-        .eq('status', 'active')
-    );
+    const { data: students, error: studentsError } = await supabase
+      .from('students')
+      .select('id, school_id, status')
+      .eq('school_id', validSchoolId)
+      .eq('status', 'active');
     
     if (studentsError || !students || students.length === 0) {
       console.error("Error or no data in fetchStudents:", studentsError);
@@ -418,12 +488,10 @@ export const fetchStudents = async (schoolId?: string): Promise<Student[]> => {
     
     // Fetch profiles separately to avoid relation errors
     const studentIds = students.map(student => student.id);
-    const { data: profiles, error: profilesError } = await safeQuery(() => 
-      supabase
-        .from('profiles')
-        .select('id, full_name')
-        .in('id', studentIds)
-    );
+    const { data: profiles, error: profilesError } = await supabase
+      .from('profiles')
+      .select('id, full_name')
+      .in('id', studentIds);
     
     if (profilesError || !profiles) {
       console.error("Error fetching student profiles:", profilesError);
@@ -467,12 +535,10 @@ export const fetchTeachers = async (schoolId?: string): Promise<Teacher[]> => {
     }
     
     // Fetch teacher records
-    const { data: teachers, error: teachersError } = await safeQuery(() => 
-      supabase
-        .from('teachers')
-        .select('id, school_id, is_supervisor')
-        .eq('school_id', validSchoolId)
-    );
+    const { data: teachers, error: teachersError } = await supabase
+      .from('teachers')
+      .select('id, school_id, is_supervisor')
+      .eq('school_id', validSchoolId);
     
     if (teachersError || !teachers || teachers.length === 0) {
       console.error("Error or no data in fetchTeachers:", teachersError);
@@ -481,12 +547,10 @@ export const fetchTeachers = async (schoolId?: string): Promise<Teacher[]> => {
     
     // Fetch profiles separately to avoid relation errors
     const teacherIds = teachers.map(teacher => teacher.id);
-    const { data: profiles, error: profilesError } = await safeQuery(() => 
-      supabase
-        .from('profiles')
-        .select('id, full_name')
-        .in('id', teacherIds)
-    );
+    const { data: profiles, error: profilesError } = await supabase
+      .from('profiles')
+      .select('id, full_name')
+      .in('id', teacherIds);
     
     if (profilesError || !profiles) {
       console.error("Error fetching teacher profiles:", profilesError);

@@ -391,7 +391,7 @@ const AdminAnalytics = () => {
       setInitialLoad(false);
       setDataLoaded(true);
     }
-  }, [schoolId, filters, activeTab, initialLoad, summary, sessions.length, topics.length, studyTime.length, schoolPerformanceData.length, teacherPerformanceData.length, studentPerformanceData.length]);
+  }, [schoolId, filters, activeTab, initialLoad, summary, sessions.length, topics.length, studyTime.length, schoolPerformanceData.length, teacherPerformanceData.length,]);
 
   const handleRefreshData = useCallback(() => {
     setRetryCount((count) => count + 1);
@@ -421,7 +421,12 @@ const AdminAnalytics = () => {
     setActiveTab(value);
   }, []);
 
-  const dateRangeText = useMemo(() => getDateRangeText(filters.dateRange), [filters.dateRange]);
+  const dateRangeText = useMemo(() => {
+    if (!filters.dateRange) {
+      return "";
+    }
+    return getDateRangeText(filters.dateRange);
+  }, [filters.dateRange]);
 
   // Show loading state only on initial load
   const showLoading = initialLoad && isLoading && !dataLoaded;

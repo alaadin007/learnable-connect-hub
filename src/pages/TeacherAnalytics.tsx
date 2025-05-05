@@ -233,8 +233,16 @@ const TeacherAnalytics = () => {
 
   const handleExport = useCallback(() => {
     try {
-      const dateRangeText = getDateRangeText(dateRange);
-      exportAnalyticsToCSV(summary, sessions, topics, studyTime, dateRangeText);
+      if (!dateRange) {
+        toast.error("Please select a date range first");
+        return;
+      }
+      
+      const dateRangeStr = dateRange.to 
+        ? `${format(dateRange.from, "MMM d, yyyy")} - ${format(dateRange.to, "MMM d, yyyy")}`
+        : format(dateRange.from, "MMM d, yyyy");
+        
+      exportAnalyticsToCSV(summary, sessions, topics, studyTime, dateRangeStr);
       toast.success("Analytics data exported successfully");
     } catch (error) {
       console.error("Error exporting data:", error);
