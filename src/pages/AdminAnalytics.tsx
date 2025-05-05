@@ -144,6 +144,7 @@ const AdminAnalytics = () => {
     { id: '2', name: 'Student 2' },
     { id: '3', name: 'Student 3' }
   ]);
+  const [isLoadingStudents, setIsLoadingStudents] = useState<boolean>(false);
 
   // Derive schoolId with memo to avoid unnecessary recalculation
   const schoolId = useMemo(() => {
@@ -165,6 +166,8 @@ const AdminAnalytics = () => {
     if (schoolId) {
       const fetchStudents = async () => {
         try {
+          setIsLoadingStudents(true);
+          
           // Get total count first
           const { count, error: countError } = await supabase
             .from('students')
@@ -176,25 +179,44 @@ const AdminAnalytics = () => {
           // If too many students, limit the query
           const limit = count && count > 500 ? 50 : 500;
           
-          // Fetch student profiles with name information
+          // Fetch student data with a safer approach
           const { data, error } = await supabase
             .from('students')
-            .select('id, profiles(full_name)')
+            .select('id, school_id')
             .eq('school_id', schoolId)
             .limit(limit);
             
           if (error) throw error;
           
+          // If we have student data, get their profile information
           if (data && data.length > 0) {
-            const formattedStudents = data.map(student => ({
-              id: student.id,
-              name: student.profiles?.full_name || `Student ${student.id.substring(0, 4)}`
-            }));
-            setStudents(formattedStudents);
+            // Get profile information for students
+            const studentProfiles = await Promise.all(
+              data.map(async (student) => {
+                const { data: profileData, error: profileError } = await supabase
+                  .from('profiles')
+                  .select('full_name')
+                  .eq('id', student.id)
+                  .single();
+                
+                // Return formatted student with name (if profile exists) or fallback
+                return {
+                  id: student.id,
+                  name: profileError || !profileData ? 
+                    `Student ${student.id.substring(0, 4)}` : 
+                    profileData.full_name || `Student ${student.id.substring(0, 4)}`
+                };
+              })
+            );
+            
+            setStudents(studentProfiles);
           }
         } catch (e) {
           console.error("Error fetching students:", e);
+          toast.error("Failed to load students data");
           // Keep using default students data on error
+        } finally {
+          setIsLoadingStudents(false);
         }
       };
       
@@ -254,9 +276,30 @@ const AdminAnalytics = () => {
     initialData: initialStudyTimeData
   });
 
+  // Function to transform API data to match component expectations
+  const transformSchoolPerformanceData = (apiData: any) => {
+    // Create transformed monthly data with expected property names
+    const monthlyData = apiData.monthlyData.map((item: any) => ({
+      month: item.month,
+      score: item.avg_monthly_score || 0,
+    }));
+
+    // Create transformed summary with expected property names
+    const summary = {
+      averageScore: apiData.summary.avg_score || 0,
+      trend: apiData.summary.score_improvement_rate > 0 ? 'up' : 'down',
+      changePercentage: Math.abs(apiData.summary.score_improvement_rate || 0)
+    };
+
+    return {
+      monthlyData,
+      summary
+    };
+  };
+
   // Optimized query for school performance data
   const {
-    data: schoolPerformanceData = initialPerformanceData,
+    data: apiSchoolPerformanceData, 
     refetch: refetchSchoolPerformance,
     isLoading: isSchoolPerformanceLoading
   } = useQuery({
@@ -264,12 +307,29 @@ const AdminAnalytics = () => {
     queryFn: () => fetchSchoolPerformance(schoolId, filters),
     staleTime: 30 * 60 * 1000,
     enabled: !!schoolId && activeTab === "performance",
-    initialData: initialPerformanceData
   });
+  
+  // Transform the API data to match component expectations
+  const schoolPerformanceData = useMemo(() => 
+    apiSchoolPerformanceData ? 
+    transformSchoolPerformanceData(apiSchoolPerformanceData) : 
+    initialPerformanceData
+  , [apiSchoolPerformanceData]);
+
+  // Function to transform teacher data
+  const transformTeacherData = (apiData: any[]) => {
+    return apiData.map((teacher: any) => ({
+      id: teacher.teacher_id,
+      name: teacher.teacher_name || 'Unknown',
+      students: teacher.students_assessed || 0,
+      avgScore: teacher.avg_student_score || 0,
+      trend: (teacher.avg_student_score > 75) ? 'up' : 'down'
+    }));
+  };
 
   // Optimized query for teacher performance data
   const {
-    data: teacherPerformanceData = initialTeacherData,
+    data: apiTeacherPerformanceData,
     refetch: refetchTeacherPerformance,
     isLoading: isTeacherPerformanceLoading
   } = useQuery({
@@ -277,12 +337,35 @@ const AdminAnalytics = () => {
     queryFn: () => fetchTeacherPerformance(schoolId, filters),
     staleTime: 30 * 60 * 1000,
     enabled: !!schoolId && activeTab === "performance",
-    initialData: initialTeacherData
   });
+  
+  // Transform the API data to match component expectations
+  const teacherPerformanceData = useMemo(() => 
+    apiTeacherPerformanceData ? 
+    transformTeacherData(apiTeacherPerformanceData) : 
+    initialTeacherData
+  , [apiTeacherPerformanceData]);
+
+  // Function to transform student data
+  const transformStudentData = (apiData: any[]) => {
+    return apiData.map((student: any) => ({
+      id: student.student_id || '',
+      name: student.student_name || 'Unknown',
+      teacher: '', // This field isn't in the API response but is expected by the component
+      assessments: student.assessments_taken || 0,
+      avgScore: student.avg_score || 0,
+      timeSpent: `${Math.round((student.avg_time_spent_seconds || 0) / 60)} min`,
+      completionRate: student.completion_rate || 0,
+      strengths: student.top_strengths ? student.top_strengths.split(', ') : [],
+      weaknesses: student.top_weaknesses ? student.top_weaknesses.split(', ') : [],
+      trend: (student.avg_score > 75) ? 'up' : 'down',
+      subjects: [] // Add empty array for expected subjects field
+    }));
+  };
 
   // Optimized query for student performance data
   const {
-    data: studentPerformanceData = initialStudentData,
+    data: apiStudentPerformanceData,
     refetch: refetchStudentPerformance,
     isLoading: isStudentPerformanceLoading
   } = useQuery({
@@ -290,8 +373,14 @@ const AdminAnalytics = () => {
     queryFn: () => fetchStudentPerformance(schoolId, filters),
     staleTime: 30 * 60 * 1000,
     enabled: !!schoolId && activeTab === "performance",
-    initialData: initialStudentData
   });
+  
+  // Transform the API data to match component expectations
+  const studentPerformanceData = useMemo(() => 
+    apiStudentPerformanceData ? 
+    transformStudentData(apiStudentPerformanceData) : 
+    initialStudentData
+  , [apiStudentPerformanceData]);
 
   // Optimized refresh function to only refetch data based on active tab
   const handleRefreshData = () => {
