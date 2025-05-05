@@ -88,12 +88,11 @@ const SchoolRegistrationForm: React.FC = () => {
     return result;
   };
 
-  // Fixed the infinite recursion issue by removing the direct Supabase call
-  // and replacing it with a database function call
+  // Fixed the function name to match the database function 'check_if_email_exists'
   const checkIfEmailExists = async (email: string): Promise<boolean> => {
     try {
       const { data, error } = await supabase
-        .rpc('check_if_email_exists', { email })
+        .rpc('check_if_email_exists', { input_email: email })
         .single();
       
       if (error) {

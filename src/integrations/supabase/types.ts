@@ -1187,6 +1187,10 @@ export type Database = {
         Args: { token: string; user_id?: string }
         Returns: boolean
       }
+      check_if_email_exists: {
+        Args: { input_email: string }
+        Returns: boolean
+      }
       create_session_log: {
         Args: { topic?: string }
         Returns: string
@@ -1222,6 +1226,15 @@ export type Database = {
           school_name: string
           school_code: string
           contact_email: string
+        }[]
+      }
+      get_school_by_code: {
+        Args: { input_code: string }
+        Returns: {
+          id: string
+          name: string
+          school_code: string
+          active: boolean
         }[]
       }
       get_school_improvement_metrics: {
