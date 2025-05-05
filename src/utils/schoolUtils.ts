@@ -14,7 +14,7 @@ export const getCurrentUserSchoolId = async (): Promise<string | null> => {
       return null;
     }
     
-    // Try teachers table
+    // Try teachers table first (school admins are in teachers table)
     const { data: teacherData } = await supabase
       .from("teachers")
       .select("school_id")
@@ -80,7 +80,7 @@ export const getCurrentUserSchoolId = async (): Promise<string | null> => {
 };
 
 /**
- * Get additional information about a school
+ * Get comprehensive information about a school
  */
 export const getSchoolInfo = async (schoolId: string) => {
   try {
@@ -90,10 +90,37 @@ export const getSchoolInfo = async (schoolId: string) => {
       .eq("id", schoolId)
       .single();
       
-    if (error) throw error;
+    if (error) {
+      console.error("Error fetching school info:", error);
+      throw error;
+    }
+    
     return data;
   } catch (error) {
     console.error("Error getting school info:", error);
+    return null;
+  }
+};
+
+/**
+ * Get school information by code
+ */
+export const getSchoolInfoByCode = async (schoolCode: string) => {
+  try {
+    const { data, error } = await supabase
+      .from("schools")
+      .select("*")
+      .eq("code", schoolCode)
+      .single();
+      
+    if (error) {
+      console.error("Error fetching school info by code:", error);
+      throw error;
+    }
+    
+    return data;
+  } catch (error) {
+    console.error("Error getting school info by code:", error);
     return null;
   }
 };

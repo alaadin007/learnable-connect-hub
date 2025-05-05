@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -43,21 +44,15 @@ const SchoolAdmin = () => {
     code: "Loading..."
   });
   
+  const [isLoading, setIsLoading] = useState(true);
+  
   // Fetch school info directly from the database
   useEffect(() => {
     const fetchSchoolInfo = async () => {
       try {
-        // First try to get from context/profile for immediate display
-        if (profile?.organization?.name && profile?.organization?.code) {
-          setSchoolInfo({
-            id: profile.organization.id || '',
-            name: profile.organization.name,
-            code: profile.organization.code
-          });
-          return;
-        }
+        setIsLoading(true);
         
-        // Otherwise fetch from database
+        // Try to get school ID from various sources
         const schoolId = await getCurrentUserSchoolId();
         
         if (schoolId) {
@@ -66,37 +61,56 @@ const SchoolAdmin = () => {
           if (schoolData) {
             setSchoolInfo({
               id: schoolData.id,
-              name: schoolData.name,
-              code: schoolData.code
+              name: schoolData.name || "Not available",
+              code: schoolData.code || "Not available"
             });
           } else {
-            setSchoolInfo({
-              id: '',
-              name: "Not available",
-              code: "Not available"
-            });
+            // Fallback to profile data
+            if (profile?.organization?.name && profile?.organization?.code) {
+              setSchoolInfo({
+                id: profile.organization.id || '',
+                name: profile.organization.name,
+                code: profile.organization.code
+              });
+            } else if (user?.user_metadata?.school_name && user?.user_metadata?.school_code) {
+              // Fallback to user metadata
+              setSchoolInfo({
+                id: '',
+                name: user.user_metadata.school_name,
+                code: user.user_metadata.school_code
+              });
+            } else {
+              // Last resort - query directly from the teachers table
+              if (user?.id) {
+                const { data: teacherData } = await supabase
+                  .from('teachers')
+                  .select('school_id')
+                  .eq('id', user.id)
+                  .single();
+                
+                if (teacherData?.school_id) {
+                  const { data: directSchoolData } = await supabase
+                    .from('schools')
+                    .select('*')
+                    .eq('id', teacherData.school_id)
+                    .single();
+                  
+                  if (directSchoolData) {
+                    setSchoolInfo({
+                      id: directSchoolData.id,
+                      name: directSchoolData.name,
+                      code: directSchoolData.code
+                    });
+                  }
+                }
+              }
+            }
           }
-        } else if (user?.user_metadata?.school_name && user?.user_metadata?.school_code) {
-          // Fallback to user metadata
-          setSchoolInfo({
-            id: '',
-            name: user.user_metadata.school_name,
-            code: user.user_metadata.school_code
-          });
-        } else {
-          setSchoolInfo({
-            id: '',
-            name: "Not available",
-            code: "Not available"
-          });
         }
       } catch (error) {
         console.error("Error fetching school info:", error);
-        setSchoolInfo({
-          id: '',
-          name: "Not available",
-          code: "Not available"
-        });
+      } finally {
+        setIsLoading(false);
       }
     };
     
@@ -180,19 +194,26 @@ const SchoolAdmin = () => {
               <CardDescription>Your school details</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2">
-                <div className="flex flex-col sm:flex-row sm:items-center">
-                  <span className="font-medium min-w-32">School Name:</span>
-                  <span>{schoolInfo.name}</span>
+              {isLoading ? (
+                <div className="space-y-2">
+                  <div className="h-6 bg-gray-100 animate-pulse rounded"></div>
+                  <div className="h-6 bg-gray-100 animate-pulse rounded"></div>
                 </div>
-                <div className="flex flex-col sm:flex-row sm:items-center">
-                  <span className="font-medium min-w-32">School Code:</span>
-                  <span className="font-mono">{schoolInfo.code}</span>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center">
+                    <span className="font-medium min-w-32">School Name:</span>
+                    <span>{schoolInfo.name}</span>
+                  </div>
+                  <div className="flex flex-col sm:flex-row sm:items-center">
+                    <span className="font-medium min-w-32">School Code:</span>
+                    <span className="font-mono">{schoolInfo.code}</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Your school code is used to invite teachers and students to join your school.
+                  </p>
                 </div>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Your school code is used to invite teachers and students to join your school.
-                </p>
-              </div>
+              )}
             </CardContent>
           </Card>
           
