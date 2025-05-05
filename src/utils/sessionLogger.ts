@@ -1,7 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { createSessionLog, endSessionLog, updateSessionTopic } from "./databaseUtils";
+import { createSessionLog, endSessionLog, updateSessionTopic as updateSessionTopicDb } from "./databaseUtils";
 
 // Log session start in Supabase
 const logSessionStart = async (topic?: string, userId?: string): Promise<string | null> => {
@@ -82,7 +82,7 @@ const updateSessionTopic = async (sessionId: string, topic: string): Promise<voi
       return;
     }
 
-    await updateSessionTopic(sessionId, topic);
+    await updateSessionTopicDb(sessionId, topic);
   } catch (error) {
     console.error("Error updating session topic:", error);
   }

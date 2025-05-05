@@ -14,8 +14,8 @@ type Student = {
   school_id: string;
   status: string;
   created_at: string;
-  full_name: string;
-  email: string;
+  full_name: string | null;
+  email: string | null;
 };
 
 const AdminStudents = () => {
@@ -48,7 +48,7 @@ const AdminStudents = () => {
           school_id,
           status,
           created_at,
-          profiles:id (
+          profiles (
             full_name,
             email
           )
