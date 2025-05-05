@@ -16,8 +16,8 @@ const Documents: React.FC = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('upload');
 
+  // Immediate conditional rendering instead of waiting
   if (!user) {
-    // Redirect immediately instead of showing loading
     navigate('/login', { state: { from: '/documents' } });
     return null;
   }

@@ -46,35 +46,12 @@ const FileList: React.FC = () => {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const fetchFiles = async () => {
-    if (!user) return;
-    
-    try {
-      const { data, error } = await supabase
-        .from('documents')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
-      if (error) {
-        throw new Error(error.message);
-      }
-      
-      setFiles(data || []);
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch your files',
-        variant: 'destructive',
-      });
-      console.error('Error fetching files:', error);
-    }
-  };
-
+  // Pre-fetch files immediately when component mounts
   useEffect(() => {
-    fetchFiles();
-
-    // Set up a real-time subscription to detect changes to documents
     if (user) {
+      fetchFiles();
+      
+      // Set up a real-time subscription to detect changes to documents
       const channel = supabase
         .channel('public:documents')
         .on('postgres_changes', 
@@ -99,6 +76,30 @@ const FileList: React.FC = () => {
       };
     }
   }, [user]);
+
+  const fetchFiles = async () => {
+    if (!user) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('documents')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        throw new Error(error.message);
+      }
+      
+      setFiles(data || []);
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch your files',
+        variant: 'destructive',
+      });
+      console.error('Error fetching files:', error);
+    }
+  };
 
   const getFileIcon = (fileType: string) => {
     if (fileType.includes('pdf')) return 'pdf';
@@ -319,9 +320,21 @@ const FileList: React.FC = () => {
     }
   };
 
+  // Render empty state or file list immediately
   return (
     <div>
-      <h3 className="text-lg font-medium mb-4">Your Files</h3>
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-lg font-medium">Your Files</h3>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={fetchFiles} 
+          className="flex items-center gap-1"
+        >
+          <RefreshCw className="h-3.5 w-3.5" />
+          <span>Refresh</span>
+        </Button>
+      </div>
       
       {files.length === 0 ? (
         <p className="text-center py-8 text-gray-500">

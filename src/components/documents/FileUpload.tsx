@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -102,21 +101,31 @@ const FileUpload: React.FC = () => {
     try {
       setProcessingStatus('pending');
       
-      const { error } = await supabase.functions.invoke('process-document', {
+      // Use non-blocking approach to improve perceived performance
+      supabase.functions.invoke('process-document', {
         body: { document_id: documentId }
+      })
+      .then(({ error }) => {
+        if (error) {
+          console.error('Error triggering document processing:', error);
+          setProcessingStatus('error');
+          toast({
+            title: 'Processing Failed',
+            description: 'Failed to process document content. Please try again.',
+            variant: 'destructive'
+          });
+        } else {
+          setProcessingStatus('processing');
+        }
+      })
+      .catch(err => {
+        console.error('Error calling process-document function:', err);
+        setProcessingStatus('error');
       });
       
-      if (error) {
-        console.error('Error triggering document processing:', error);
-        setProcessingStatus('error');
-        toast({
-          title: 'Processing Failed',
-          description: 'Failed to process document content. Please try again.',
-          variant: 'destructive'
-        });
-      } else {
-        setProcessingStatus('processing');
-      }
+      // Immediately show processing status for better UX
+      setProcessingStatus('processing');
+      
     } catch (err) {
       console.error('Error calling process-document function:', err);
       setProcessingStatus('error');
@@ -145,16 +154,16 @@ const FileUpload: React.FC = () => {
       const fileExt = file.name.split('.').pop();
       const filePath = `${user.id}/${Date.now()}_${file.name}`;
 
-      // Create a new XMLHttpRequest to track upload progress
-      const xhr = new XMLHttpRequest();
-      
-      // Setup progress tracking
-      xhr.upload.addEventListener('progress', (event) => {
-        if (event.lengthComputable) {
-          const percent = (event.loaded / event.total) * 100;
-          setUploadProgress(percent);
-        }
-      });
+      // Optimistically show progress to improve perceived performance
+      const progressInterval = setInterval(() => {
+        setUploadProgress(prev => {
+          if (prev >= 95) {
+            clearInterval(progressInterval);
+            return 95;
+          }
+          return prev + 5;
+        });
+      }, 100);
 
       // Upload to Supabase Storage
       const { data: uploadData, error: uploadError } = await supabase.storage
@@ -163,6 +172,9 @@ const FileUpload: React.FC = () => {
           cacheControl: '3600',
           upsert: false,
         });
+      
+      clearInterval(progressInterval);
+      setUploadProgress(100);
       
       if (uploadError) {
         throw new Error(uploadError.message);
@@ -189,7 +201,7 @@ const FileUpload: React.FC = () => {
       }
       
       // Trigger content processing
-      await triggerContentProcessing(metadataData.id);
+      triggerContentProcessing(metadataData.id);
       
       toast({
         title: 'Upload Successful',
@@ -209,7 +221,7 @@ const FileUpload: React.FC = () => {
       });
     } finally {
       setIsUploading(false);
-      setUploadProgress(0);
+      setTimeout(() => setUploadProgress(0), 500); // Reset progress after animation
     }
   };
 
@@ -294,7 +306,12 @@ const FileUpload: React.FC = () => {
             {processingStatus && (
               <div className="mt-4 flex items-center text-sm">
                 {processingStatus === 'processing' && (
-                  <Progress className="h-2 mr-2 w-20" value={null} />
+                  <div className="mr-2 w-20 h-2 bg-gray-200 rounded overflow-hidden">
+                    <div 
+                      className="h-full bg-amber-500 animate-pulse" 
+                      style={{width: '100%'}}
+                    ></div>
+                  </div>
                 )}
                 <span className={`
                   ${processingStatus === 'error' ? 'text-red-500' : 'text-amber-600'}
