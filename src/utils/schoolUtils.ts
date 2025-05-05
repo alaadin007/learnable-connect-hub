@@ -13,10 +13,17 @@ export const getCurrentSchoolInfo = async () => {
     // First try to get via the RPC function (preferred for real users)
     const { data: rpcData, error: rpcError } = await supabase.rpc("get_current_school_info");
     
-    if (!rpcError && rpcData && Array.isArray(rpcData) && rpcData.length > 0 && rpcData[0].school_id) {
-      return rpcData[0]; // Return the first item if it's an array
-    } else if (!rpcError && rpcData && !Array.isArray(rpcData) && rpcData.school_id) {
-      return rpcData; // Return the object directly if it's not an array
+    if (!rpcError && rpcData) {
+      // Handle both array and object response types
+      if (Array.isArray(rpcData) && rpcData.length > 0) {
+        const firstItem = rpcData[0];
+        // Check if it has school_id property to confirm it's the expected shape
+        if (firstItem && 'school_id' in firstItem) {
+          return firstItem;
+        }
+      } else if (!Array.isArray(rpcData) && 'school_id' in rpcData) {
+        return rpcData;
+      }
     }
     
     // If RPC failed or returned no data, try direct query with cached school ID
