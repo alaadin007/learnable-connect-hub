@@ -1,6 +1,7 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { createSessionLog, endSessionLog, updateSessionTopic as updateTopic } from "./databaseUtils";
+import { createSessionLog, endSessionLog, updateSessionTopic } from "./databaseUtils";
 
 // Log session start in Supabase
 const logSessionStart = async (topic?: string, userId?: string): Promise<string | null> => {
@@ -81,7 +82,7 @@ const updateSessionTopic = async (sessionId: string, topic: string): Promise<voi
       return;
     }
 
-    await updateTopic(sessionId, topic);
+    await updateSessionTopic(sessionId, topic);
   } catch (error) {
     console.error("Error updating session topic:", error);
   }
@@ -224,8 +225,10 @@ export const populateTestAccountWithSessions = async (userId: string, schoolId: 
     console.log(`Creating test sessions for ${userId} in school ${schoolId}`);
     
     // Use the database function directly
-    const { error, data } = await supabase.functions.invoke("populate-test-performance", {
-      body: { userId, schoolId, numSessions }
+    const { error } = await supabase.rpc("populatetestaccountwithsessions", {
+      userid: userId,
+      schoolid: schoolId,
+      num_sessions: numSessions
     });
     
     if (error) {
@@ -233,8 +236,8 @@ export const populateTestAccountWithSessions = async (userId: string, schoolId: 
       return { success: false, message: error.message };
     }
     
-    console.log("Test sessions created successfully:", data);
-    return { success: true, data };
+    console.log("Test sessions created successfully");
+    return { success: true, message: "Test sessions created successfully" };
   } catch (error) {
     console.error("Error in populateTestAccountWithSessions:", error);
     return { success: false, message: error.message };
