@@ -16,17 +16,20 @@ import { User, Session } from "@supabase/supabase-js";
 // Define UserRole type
 export type UserRole = "school" | "teacher" | "student";
 
+// Organization type for better type safety
+type Organization = {
+  id: string;
+  name: string;
+  code: string;
+};
+
 // User profile type definition
 type UserProfile = {
   id: string;
   user_type: string | null;
   full_name: string | null;
   school_code: string | null;
-  organization?: {
-    id: string;
-    name: string;
-    code: string;
-  } | null;
+  organization?: Organization | null;
 };
 
 // App context type
@@ -104,13 +107,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         organization: null, // Default to null
       };
       
-      // Safely check for organization data with proper null handling
+      // Safely check for organization data with proper type handling
       if (profileData.organization && 
           typeof profileData.organization === 'object') {
-        // Use optional chaining and nullish coalescing to safely access properties
-        const orgId = profileData.organization?.id ? String(profileData.organization?.id) : "";
-        const orgName = profileData.organization?.name ? String(profileData.organization?.name) : "";
-        const orgCode = profileData.organization?.code ? String(profileData.organization?.code) : "";
+        
+        // Explicitly cast organization to an appropriate type to work with its properties
+        const orgData = profileData.organization as Record<string, unknown>;
+        
+        // Now we can safely access properties
+        const orgId = orgData.id ? String(orgData.id) : "";
+        const orgName = orgData.name ? String(orgData.name) : "";
+        const orgCode = orgData.code ? String(orgData.code) : "";
         
         // Only set if we have all required properties
         if (orgId && orgName && orgCode) {
@@ -436,4 +443,3 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>
   );
 };
-
