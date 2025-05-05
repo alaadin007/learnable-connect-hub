@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,8 +58,7 @@ const LoginForm = () => {
 
   // Special handling for test accounts
   const handleQuickLogin = async (
-    type: "school" | "teacher" | "student",
-    schoolIndex = 0
+    type: "school" | "teacher" | "student"
   ) => {
     setLoginError(null);
     setIsLoading(true);
@@ -74,7 +72,7 @@ const LoginForm = () => {
       localStorage.removeItem('testAccountType');
       
       // Direct login for test accounts - this completely bypasses authentication
-      const mockUser = await setTestUser(type, schoolIndex);
+      const mockUser = await setTestUser(type);
       if (!mockUser) {
         throw new Error(`Failed to set up ${type} test account`);
       }

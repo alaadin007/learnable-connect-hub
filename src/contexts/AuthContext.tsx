@@ -1,4 +1,3 @@
-
 import React, {
   createContext,
   useState,
@@ -687,7 +686,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
-  // Create context value
+  // Create context value with useMemo to optimize performance
   const contextValue = useMemo(
     () => ({
       user,
@@ -711,8 +710,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       loading,
       isSuperviser,
       schoolId,
+      signIn,
+      signUp,
+      signOut,
+      updateProfile,
       refreshProfile,
-      fetchProfile,
+      setTestUser,
     ]
   );
 
