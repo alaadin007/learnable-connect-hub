@@ -176,17 +176,6 @@ const TestAccounts = () => {
     [navigate, setTestUser]
   );
 
-  const getAccountIcon = (accountType: AccountType) => {
-    switch (accountType) {
-      case "school":
-        return <School className="h-8 w-8 text-blue-600" aria-hidden="true" />;
-      case "teacher":
-        return <Users className="h-8 w-8 text-green-600" aria-hidden="true" />;
-      case "student":
-        return <GraduationCap className="h-8 w-8 text-purple-600" aria-hidden="true" />;
-    }
-  };
-
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
@@ -256,59 +245,88 @@ const TestAccounts = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {Object.entries(TEST_ACCOUNTS).map(([type, account]) => (
-              <div
-                key={type}
-                className="border rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow"
-              >
-                <div className="flex items-center mb-4">
-                  {getAccountIcon(type as AccountType)}
-                  <h2 className="text-xl font-semibold ml-3">{account.role}</h2>
-                </div>
-                <p className="text-gray-600 text-sm mb-4">{account.description}</p>
-                <div className="mb-4">
-                  <p className="font-medium mb-2 text-sm">Features:</p>
-                  <ul className="text-xs space-y-1 mb-4">
-                    {account.features.map((feature, index) => (
-                      <li key={index} className="flex items-center">
-                        <svg
-                          className="w-3 h-3 mr-1 text-green-500"
-                          fill="currentColor"
-                          viewBox="0 0 20 20"
-                          aria-hidden="true"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                        {feature}
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="bg-green-50 p-2 rounded-md">
-                    <p className="text-green-700 text-xs font-semibold">
+            {Object.entries(TEST_ACCOUNTS).map(([type, account]) => {
+              const accountType = type as AccountType;
+              const isLoading = loadingAccount === accountType;
+              
+              let buttonText = `Login as ${account.role}`;
+              if (isLoading) {
+                buttonText = accountType === "teacher" ? "Accessing..." : `Login as ${account.role}`;
+              }
+              
+              return (
+                <div
+                  key={type}
+                  className="border rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow"
+                >
+                  <div className="flex items-start mb-4">
+                    {accountType === "school" && <School className="h-5 w-5 text-blue-600 mt-1 mr-2" aria-hidden="true" />}
+                    {accountType === "teacher" && <Users className="h-5 w-5 text-green-600 mt-1 mr-2" aria-hidden="true" />}
+                    {accountType === "student" && <GraduationCap className="h-5 w-5 text-purple-600 mt-1 mr-2" aria-hidden="true" />}
+                    <div>
+                      <h2 className="text-xl font-semibold">{account.role}</h2>
+                      <p className="text-gray-600 text-sm mt-1">{account.description}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="mb-4">
+                    <p className="font-medium text-sm mb-1">Features:</p>
+                    <ul className="space-y-1">
+                      {account.features.map((feature, index) => (
+                        <li key={index} className="flex items-center text-sm">
+                          <svg
+                            className="w-3 h-3 mr-2 text-green-500 flex-shrink-0"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                            aria-hidden="true"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                          {feature}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  
+                  <div className="bg-green-50 p-2 rounded-md mb-4">
+                    <p className="text-green-700 text-xs">
                       Direct access - no authentication required
                     </p>
                   </div>
+                  
+                  <Button
+                    className={`w-full ${
+                      accountType === "school" 
+                        ? "bg-blue-600 hover:bg-blue-700" 
+                        : accountType === "teacher" 
+                        ? "bg-green-600 hover:bg-green-700" 
+                        : "bg-purple-600 hover:bg-purple-700"
+                    } text-white`}
+                    onClick={() => handleUseAccount(accountType)}
+                    disabled={loadingAccount !== null}
+                  >
+                    {isLoading ? (
+                      <>
+                        {accountType === "teacher" ? (
+                          buttonText
+                        ) : (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            {buttonText}
+                          </>
+                        )}
+                      </>
+                    ) : (
+                      buttonText
+                    )}
+                  </Button>
                 </div>
-                <Button
-                  className="w-full bg-blue-700 hover:bg-blue-800"
-                  onClick={() => handleUseAccount(type as AccountType)}
-                  disabled={loadingAccount !== null}
-                >
-                  {loadingAccount === type ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Accessing...
-                    </>
-                  ) : (
-                    `Login as ${account.role}`
-                  )}
-                </Button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </main>
