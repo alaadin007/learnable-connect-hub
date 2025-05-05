@@ -43,8 +43,11 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptionComplete }
       chunksRef.current = [];
       
       // Check if browser supports speech recognition
-      if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
+      const speechRecognitionSupported = 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window;
+      
+      if (speechRecognitionSupported) {
         // Use the Speech Recognition API if available
+        // TypeScript-safe way to access the SpeechRecognition constructor
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         const recognition = new SpeechRecognition();
         recognitionRef.current = recognition;
