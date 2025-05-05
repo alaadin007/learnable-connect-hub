@@ -88,14 +88,17 @@ const ProtectedRoute = ({
     }
 
     // If we require specific roles and the user doesn't have one of them
-    if (allowedRoles && userRole && !allowedRoles.includes(userRole as UserRole)) {
-      console.log(`ProtectedRoute: User role ${userRole} not in allowed roles:`, allowedRoles);
-      // Redirect based on user role instead of generic dashboard
-      const redirectPath = 
-        userRole === 'school' ? '/admin' : 
-        userRole === 'teacher' ? '/teacher/analytics' : 
-        '/dashboard';
-      return <Navigate to={redirectPath} replace />;
+    if (allowedRoles && userRole) {
+      const typedUserRole = userRole as UserRole;
+      if (!allowedRoles.includes(typedUserRole)) {
+        console.log(`ProtectedRoute: User role ${userRole} not in allowed roles:`, allowedRoles);
+        // Redirect based on user role instead of generic dashboard
+        const redirectPath = 
+          typedUserRole === 'school' ? '/admin' : 
+          typedUserRole === 'teacher' ? '/teacher/analytics' : 
+          '/dashboard';
+        return <Navigate to={redirectPath} replace />;
+      }
     }
 
     // If we require supervisor access and the user isn't a supervisor
