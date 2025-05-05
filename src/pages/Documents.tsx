@@ -11,7 +11,6 @@ import FileList from '@/components/documents/FileList';
 import { AlertCircle, RefreshCw } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 
@@ -27,7 +26,7 @@ const Documents: React.FC = () => {
     }
   }, [user, navigate]);
 
-  // Check storage status using React Query for better caching and reduced flickering
+  // Check storage status using React Query for better caching and reduced DB calls
   const { 
     data: storageStatus, 
     error: storageError, 
@@ -40,30 +39,22 @@ const Documents: React.FC = () => {
       if (!user) return { status: 'unknown', error: null };
       
       try {
-        // First check if the bucket exists
-        const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
+        // Check if a bucket exists by trying to access it rather than listing all buckets
+        // This reduces unnecessary DB calls
+        const { data: bucketInfo, error: bucketError } = await supabase
+          .storage
+          .getBucket('user-content');
         
-        if (bucketsError) {
-          console.error("Error checking buckets:", bucketsError);
-          return { status: 'error', error: 'Storage service unavailable: ' + bucketsError.message };
-        }
-        
-        const hasUserContentBucket = buckets.some(b => b.name === 'user-content');
-        
-        if (!hasUserContentBucket) {
+        if (bucketError && bucketError.message.includes('does not exist')) {
           console.log("user-content bucket does not exist, attempting to create");
-          // Try to create the bucket
+          
           try {
-            const { error: createError } = await supabase
-              .storage
-              .createBucket('user-content', { 
-                public: false,
-                fileSizeLimit: 52428800 // 50MB in bytes
-              });
-              
-            if (createError) {
-              console.error("Failed to create bucket:", createError);
-              return { status: 'error', error: 'Could not initialize document storage: ' + createError.message };
+            // Call the setup-document-storage edge function to create bucket with proper policies
+            const { data, error } = await supabase.functions.invoke('setup-document-storage');
+            
+            if (error) {
+              console.error("Failed to setup document storage:", error);
+              return { status: 'error', error: 'Could not initialize document storage: ' + error.message };
             }
             
             console.log("Successfully created user-content bucket");
@@ -72,6 +63,11 @@ const Documents: React.FC = () => {
             console.error("Exception creating bucket:", e);
             return { status: 'error', error: 'Failed to setup document storage' };
           }
+        }
+        
+        if (bucketError) {
+          console.error("Error checking bucket:", bucketError);
+          return { status: 'error', error: 'Storage service unavailable: ' + bucketError.message };
         }
         
         // If we get here, the bucket exists
@@ -83,7 +79,7 @@ const Documents: React.FC = () => {
       }
     },
     enabled: !!user,
-    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
+    staleTime: 30 * 60 * 1000, // Consider data fresh for 30 minutes
     retry: 1,
     refetchOnWindowFocus: false // Prevent refetches when window regains focus
   });

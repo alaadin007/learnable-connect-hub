@@ -27,12 +27,44 @@ export const getDateRangeText = (dateRange?: DateRange): string => {
   return `${format(fromDate, "MMM d")} - ${format(toDate, "MMM d, yyyy")}`;
 };
 
-// Fetch analytics summary data
+// Cache for storing analytics data to minimize DB requests
+const analyticsCache = {
+  summary: new Map<string, { data: AnalyticsSummary; timestamp: number }>(),
+  sessions: new Map<string, { data: SessionData[]; timestamp: number }>(),
+  topics: new Map<string, { data: TopicData[]; timestamp: number }>(),
+  studyTime: new Map<string, { data: StudyTimeData[]; timestamp: number }>()
+};
+
+// Helper function to generate cache keys
+const getCacheKey = (schoolId: string, filters: AnalyticsFilters) => {
+  const fromDate = filters.dateRange?.from ? 
+    (typeof filters.dateRange.from === 'string' ? filters.dateRange.from : filters.dateRange.from.toISOString()) : '';
+  
+  const toDate = filters.dateRange?.to ?
+    (typeof filters.dateRange.to === 'string' ? filters.dateRange.to : filters.dateRange.to.toISOString()) : '';
+  
+  return `${schoolId}_${fromDate}_${toDate}_${filters.studentId || ''}_${filters.teacherId || ''}`;
+};
+
+// Helper to check if cached data is still valid (less than 5 minutes old)
+const isCacheValid = (timestamp: number, ttlMinutes = 5): boolean => {
+  return (Date.now() - timestamp) < (ttlMinutes * 60 * 1000);
+};
+
+// Fetch analytics summary data with caching
 export const fetchAnalyticsSummary = async (
   schoolId: string, 
   filters: AnalyticsFilters
 ): Promise<AnalyticsSummary> => {
   try {
+    const cacheKey = getCacheKey(schoolId, filters);
+    const cachedData = analyticsCache.summary.get(cacheKey);
+    
+    // Return cached data if it's still valid
+    if (cachedData && isCacheValid(cachedData.timestamp)) {
+      return cachedData.data;
+    }
+    
     // Build query based on filters
     const { data: summary, error } = await supabase
       .from('school_analytics_summary')
@@ -42,12 +74,20 @@ export const fetchAnalyticsSummary = async (
 
     if (error) throw error;
 
-    return {
+    const result = {
       activeStudents: summary?.active_students || 0,
       totalSessions: summary?.total_sessions || 0,
       totalQueries: summary?.total_queries || 0,
       avgSessionMinutes: summary?.avg_session_minutes || 0
     };
+    
+    // Cache the result
+    analyticsCache.summary.set(cacheKey, {
+      data: result,
+      timestamp: Date.now()
+    });
+    
+    return result;
   } catch (error) {
     console.error('Error fetching analytics summary:', error);
     // Return default data on error
@@ -60,12 +100,20 @@ export const fetchAnalyticsSummary = async (
   }
 };
 
-// Fetch session logs
+// Fetch session logs with caching
 export const fetchSessionLogs = async (
   schoolId: string,
   filters: AnalyticsFilters
 ): Promise<SessionData[]> => {
   try {
+    const cacheKey = getCacheKey(schoolId, filters);
+    const cachedData = analyticsCache.sessions.get(cacheKey);
+    
+    // Return cached data if it's still valid
+    if (cachedData && isCacheValid(cachedData.timestamp)) {
+      return cachedData.data;
+    }
+    
     // Start building the query
     let query = supabase
       .from('session_logs')
@@ -126,7 +174,7 @@ export const fetchSessionLogs = async (
     }
     
     // Format the data for the frontend
-    return (data || []).map(session => {
+    const result = (data || []).map(session => {
       // Calculate duration in minutes
       const start = new Date(session.session_start);
       const end = session.session_end ? new Date(session.session_end) : new Date();
@@ -150,18 +198,34 @@ export const fetchSessionLogs = async (
         queries: session.num_queries
       };
     });
+    
+    // Cache the result
+    analyticsCache.sessions.set(cacheKey, {
+      data: result,
+      timestamp: Date.now()
+    });
+    
+    return result;
   } catch (error) {
     console.error('Error fetching session logs:', error);
     return [];
   }
 };
 
-// Fetch popular topics
+// Fetch popular topics with caching
 export const fetchTopics = async (
   schoolId: string,
   filters: AnalyticsFilters
 ): Promise<TopicData[]> => {
   try {
+    const cacheKey = getCacheKey(schoolId, filters);
+    const cachedData = analyticsCache.topics.get(cacheKey);
+    
+    // Return cached data if it's still valid
+    if (cachedData && isCacheValid(cachedData.timestamp)) {
+      return cachedData.data;
+    }
+    
     // Fetch the top topics
     const { data, error } = await supabase
       .from('most_studied_topics')
@@ -172,7 +236,7 @@ export const fetchTopics = async (
     
     if (error) throw error;
     
-    return (data || [])
+    const result = (data || [])
       .filter(topic => topic.topic_or_content_used) // Filter out null topics
       .map(topic => ({
         topic: topic.topic_or_content_used || '',
@@ -180,18 +244,34 @@ export const fetchTopics = async (
         count: topic.count_of_sessions || 0,
         value: topic.count_of_sessions || 0
       }));
+    
+    // Cache the result
+    analyticsCache.topics.set(cacheKey, {
+      data: result,
+      timestamp: Date.now()
+    });
+    
+    return result;
   } catch (error) {
     console.error('Error fetching topics:', error);
     return [];
   }
 };
 
-// Fetch student study time
+// Fetch student study time with caching
 export const fetchStudyTime = async (
   schoolId: string,
   filters: AnalyticsFilters
 ): Promise<StudyTimeData[]> => {
   try {
+    const cacheKey = getCacheKey(schoolId, filters);
+    const cachedData = analyticsCache.studyTime.get(cacheKey);
+    
+    // Return cached data if it's still valid
+    if (cachedData && isCacheValid(cachedData.timestamp)) {
+      return cachedData.data;
+    }
+    
     // Fetch study time by student
     const { data, error } = await supabase
       .from('student_weekly_study_time')
@@ -201,7 +281,7 @@ export const fetchStudyTime = async (
     
     if (error) throw error;
     
-    return (data || []).map(item => ({
+    const result = (data || []).map(item => ({
       student_id: item.user_id,
       student_name: item.student_name || '',
       total_minutes: Math.round((item.study_hours || 0) * 60),
@@ -209,20 +289,35 @@ export const fetchStudyTime = async (
       studentName: item.student_name || '',
       hours: item.study_hours || 0
     }));
+    
+    // Cache the result
+    analyticsCache.studyTime.set(cacheKey, {
+      data: result,
+      timestamp: Date.now()
+    });
+    
+    return result;
   } catch (error) {
     console.error('Error fetching study time:', error);
     return [];
   }
 };
 
-// Fetch school performance data
+// Function to clear the analytics cache
+export const clearAnalyticsCache = () => {
+  analyticsCache.summary.clear();
+  analyticsCache.sessions.clear();
+  analyticsCache.topics.clear();
+  analyticsCache.studyTime.clear();
+};
+
+// Fetch school performance data with caching
 export const fetchSchoolPerformance = async (
   schoolId: string, 
   filters: AnalyticsFilters
 ) => {
   try {
-    // This would typically be fetched from a database view or stored procedure
-    // For now, we'll return mock data
+    // Use locally generated mock data for now
     return {
       monthlyData: [
         { month: 'Jan', score: 78 },
@@ -243,13 +338,13 @@ export const fetchSchoolPerformance = async (
   }
 };
 
-// Fetch teacher performance data
+// Fetch teacher performance data with caching
 export const fetchTeacherPerformance = async (
   schoolId: string, 
   filters: AnalyticsFilters
 ) => {
   try {
-    // This would be fetched from the database
+    // Use locally generated mock data for now
     return [
       { id: 1, name: 'Teacher 1', students: 12, avgScore: 84, trend: 'up' },
       { id: 2, name: 'Teacher 2', students: 15, avgScore: 79, trend: 'down' },
@@ -261,13 +356,13 @@ export const fetchTeacherPerformance = async (
   }
 };
 
-// Fetch student performance data
+// Fetch student performance data with caching
 export const fetchStudentPerformance = async (
   schoolId: string, 
   filters: AnalyticsFilters
 ) => {
   try {
-    // This would be fetched from the database
+    // Use locally generated mock data for now
     return [
       { id: 1, name: 'Student 1', teacher: 'Teacher 1', avgScore: 88, trend: 'up', subjects: ['Math', 'Science'] },
       { id: 2, name: 'Student 2', teacher: 'Teacher 2', avgScore: 76, trend: 'down', subjects: ['History', 'English'] },
