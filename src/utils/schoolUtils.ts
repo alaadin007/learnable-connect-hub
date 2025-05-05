@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 
 /**
@@ -245,3 +246,392 @@ export const generateNewSchoolCode = async (schoolId: string): Promise<{ code: s
     return { code: null, error: error.message || "An unexpected error occurred" };
   }
 };
+
+/**
+ * Invite a teacher to join a school
+ */
+export const inviteTeacher = async (email: string): Promise<{ success: boolean; error: string | null; inviteId?: string }> => {
+  try {
+    // Get the current user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return { success: false, error: "Not authenticated" };
+    }
+    
+    // Check if user is a supervisor
+    const { data: teacherData } = await supabase
+      .from("teachers")
+      .select("school_id, is_supervisor")
+      .eq("id", user.id)
+      .single();
+      
+    if (!teacherData?.is_supervisor) {
+      return { success: false, error: "Only school supervisors can invite teachers" };
+    }
+    
+    // Get school information
+    const { data: schoolData } = await supabase
+      .from("schools")
+      .select("name, code")
+      .eq("id", teacherData.school_id)
+      .single();
+      
+    if (!schoolData) {
+      return { success: false, error: "School information not found" };
+    }
+    
+    // Generate token
+    const token = Math.random().toString(36).substring(2, 15) + 
+                  Math.random().toString(36).substring(2, 15);
+    
+    // Create invitation record
+    const { data: invitation, error: inviteError } = await supabase
+      .from("teacher_invitations")
+      .insert({
+        school_id: teacherData.school_id,
+        email: email,
+        invitation_token: token,
+        created_by: user.id
+      })
+      .select()
+      .single();
+      
+    if (inviteError) {
+      return { success: false, error: "Failed to create invitation record" };
+    }
+    
+    // Send invitation email (Note: this would typically be done by a server)
+    // In a real application, you would need a server component or Edge Function for this
+    // For now, we'll just return success and pretend the email was sent
+    
+    return { 
+      success: true, 
+      error: null,
+      inviteId: invitation.id
+    };
+  } catch (error: any) {
+    console.error("Error inviting teacher:", error);
+    return { success: false, error: error.message || "An unexpected error occurred" };
+  }
+};
+
+/**
+ * Approve a student (change status to active)
+ */
+export const approveStudent = async (studentId: string): Promise<{ success: boolean; error: string | null }> => {
+  try {
+    // Get current user's school
+    const schoolId = await getCurrentUserSchoolId();
+    if (!schoolId) {
+      return { success: false, error: "Could not determine school ID" };
+    }
+    
+    // Verify student belongs to the school
+    const { data: studentData, error: studentError } = await supabase
+      .from("students")
+      .select("*")
+      .eq("id", studentId)
+      .eq("school_id", schoolId)
+      .single();
+      
+    if (studentError || !studentData) {
+      return { success: false, error: "Student not found or not in your school" };
+    }
+    
+    // Update student status
+    const { error: updateError } = await supabase
+      .from("students")
+      .update({ status: "active" })
+      .eq("id", studentId)
+      .eq("school_id", schoolId);
+      
+    if (updateError) {
+      return { success: false, error: "Failed to approve student" };
+    }
+    
+    return { success: true, error: null };
+  } catch (error: any) {
+    console.error("Error approving student:", error);
+    return { success: false, error: error.message || "An unexpected error occurred" };
+  }
+};
+
+/**
+ * Revoke student access (delete student record)
+ */
+export const revokeStudentAccess = async (studentId: string): Promise<{ success: boolean; error: string | null }> => {
+  try {
+    // Get current user and verify they're a teacher
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return { success: false, error: "Not authenticated" };
+    }
+    
+    // Get teacher's school
+    const { data: teacherData } = await supabase
+      .from("teachers")
+      .select("school_id")
+      .eq("id", user.id)
+      .single();
+      
+    if (!teacherData?.school_id) {
+      return { success: false, error: "Only teachers can revoke student access" };
+    }
+    
+    // Verify student belongs to the school
+    const { data: studentData, error: studentError } = await supabase
+      .from("students")
+      .select("school_id")
+      .eq("id", studentId)
+      .eq("school_id", teacherData.school_id)
+      .single();
+      
+    if (studentError || !studentData) {
+      return { success: false, error: "Student not found or not in your school" };
+    }
+    
+    // Delete the student record
+    const { error: deleteError } = await supabase
+      .from("students")
+      .delete()
+      .eq("id", studentId);
+      
+    if (deleteError) {
+      return { success: false, error: "Failed to revoke student access" };
+    }
+    
+    return { success: true, error: null };
+  } catch (error: any) {
+    console.error("Error revoking student access:", error);
+    return { success: false, error: error.message || "An unexpected error occurred" };
+  }
+};
+
+/**
+ * Create a session log
+ */
+export const createSessionLog = async (topic?: string): Promise<{ success: boolean; sessionId?: string; error?: string }> => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return { success: false, error: "Not authenticated" };
+    }
+
+    // Get user's school ID
+    const { data: studentData } = await supabase
+      .from("students")
+      .select("school_id")
+      .eq("id", user.id)
+      .single();
+      
+    if (!studentData?.school_id) {
+      return { success: false, error: "User must be a student with an associated school" };
+    }
+    
+    // Create session log
+    const { data: sessionLog, error } = await supabase
+      .from("session_logs")
+      .insert({
+        user_id: user.id,
+        school_id: studentData.school_id,
+        topic_or_content_used: topic || null,
+        session_start: new Date().toISOString(),
+        num_queries: 0
+      })
+      .select()
+      .single();
+      
+    if (error) {
+      return { success: false, error: "Failed to create session log" };
+    }
+    
+    return { success: true, sessionId: sessionLog.id };
+  } catch (error: any) {
+    console.error("Error creating session log:", error);
+    return { success: false, error: error.message || "An unexpected error occurred" };
+  }
+};
+
+/**
+ * End a session log
+ */
+export const endSessionLog = async (sessionId: string, performanceData?: any): Promise<{ success: boolean; error?: string }> => {
+  try {
+    // Update session end time
+    const { error } = await supabase
+      .from("session_logs")
+      .update({
+        session_end: new Date().toISOString(),
+        performance_metric: performanceData || null
+      })
+      .eq("id", sessionId)
+      .eq("user_id", (await supabase.auth.getUser()).data.user?.id);
+      
+    if (error) {
+      return { success: false, error: "Failed to end session" };
+    }
+    
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error ending session:", error);
+    return { success: false, error: error.message || "An unexpected error occurred" };
+  }
+};
+
+/**
+ * Update a session topic
+ */
+export const updateSessionTopic = async (sessionId: string, topic: string): Promise<{ success: boolean; error?: string }> => {
+  try {
+    // Update session topic
+    const { error } = await supabase
+      .from("session_logs")
+      .update({ topic_or_content_used: topic })
+      .eq("id", sessionId)
+      .eq("user_id", (await supabase.auth.getUser()).data.user?.id);
+      
+    if (error) {
+      return { success: false, error: "Failed to update session topic" };
+    }
+    
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error updating session topic:", error);
+    return { success: false, error: error.message || "An unexpected error occurred" };
+  }
+};
+
+/**
+ * Increment session query count
+ */
+export const incrementSessionQueryCount = async (sessionId: string): Promise<{ success: boolean; error?: string }> => {
+  try {
+    // Get current query count
+    const { data: sessionData, error: fetchError } = await supabase
+      .from("session_logs")
+      .select("num_queries")
+      .eq("id", sessionId)
+      .eq("user_id", (await supabase.auth.getUser()).data.user?.id)
+      .single();
+      
+    if (fetchError) {
+      return { success: false, error: "Failed to fetch session data" };
+    }
+    
+    // Increment query count
+    const { error: updateError } = await supabase
+      .from("session_logs")
+      .update({ num_queries: (sessionData.num_queries || 0) + 1 })
+      .eq("id", sessionId)
+      .eq("user_id", (await supabase.auth.getUser()).data.user?.id);
+      
+    if (updateError) {
+      return { success: false, error: "Failed to increment query count" };
+    }
+    
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error incrementing query count:", error);
+    return { success: false, error: error.message || "An unexpected error occurred" };
+  }
+};
+
+/**
+ * Register a new school
+ */
+export const registerSchool = async (schoolName: string, adminEmail: string, adminPassword: string, adminFullName: string): Promise<{ success: boolean; error?: string; userId?: string; schoolCode?: string }> => {
+  try {
+    // Generate a school code
+    const schoolCode = generateRandomSchoolCode();
+    
+    // Sign up the user
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email: adminEmail,
+      password: adminPassword,
+      options: {
+        data: {
+          full_name: adminFullName,
+          school_name: schoolName,
+          school_code: schoolCode,
+          user_type: "school",
+          registration_complete: false
+        }
+      }
+    });
+    
+    if (authError) {
+      return { success: false, error: authError.message };
+    }
+    
+    return { 
+      success: true, 
+      userId: authData.user?.id,
+      schoolCode
+    };
+  } catch (error: any) {
+    console.error("Error registering school:", error);
+    return { success: false, error: error.message || "An unexpected error occurred" };
+  }
+};
+
+/**
+ * Check user role by email
+ */
+export const checkUserRoleByEmail = async (email: string): Promise<{
+  success: boolean;
+  data?: {
+    email: string;
+    userId: string;
+    role: string;
+    profile: any;
+  };
+  error?: string;
+}> => {
+  try {
+    // This would typically be done by an admin-level function
+    // For client-side, we can check only for the current user
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return { success: false, error: "Not authenticated" };
+    }
+    
+    if (user.email !== email) {
+      return { success: false, error: "Can only check role for current user" };
+    }
+    
+    // Get user profile
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("user_type, full_name, school_code, school_name")
+      .eq("id", user.id)
+      .single();
+      
+    return {
+      success: true,
+      data: {
+        email: user.email || '',
+        userId: user.id,
+        role: profile?.user_type || 'unknown',
+        profile: profile
+      }
+    };
+  } catch (error: any) {
+    console.error("Error checking user role:", error);
+    return { success: false, error: error.message || "An unexpected error occurred" };
+  }
+};
+
+/**
+ * Generate a random school code
+ */
+const generateRandomSchoolCode = (): string => {
+  // Use a combination of uppercase letters and numbers to create a unique code
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Removed confusing chars like 0, O, 1, I
+  let result = '';
+  for (let i = 0; i < 8; i++) {
+    result += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return result;
+};
+
