@@ -81,7 +81,7 @@ serve(async (req) => {
 
     // Generate a unique 8-character alphanumeric code
     const generateCode = () => {
-      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // Removed potentially confusing characters
+      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // Removed potentially confusing characters like O, 0, 1, I
       let result = "";
       for (let i = 0; i < 8; i++) {
         result += chars.charAt(Math.floor(Math.random() * chars.length));

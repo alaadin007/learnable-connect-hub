@@ -56,6 +56,7 @@ const StudentManagement = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [inviteMethod, setInviteMethod] = useState<'email' | 'code'>('email');
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
+  const [codeGenerationError, setCodeGenerationError] = useState<string | null>(null);
 
   useEffect(() => {
     if (schoolId) {
@@ -134,8 +135,10 @@ const StudentManagement = () => {
 
   const generateInviteCode = async () => {
     setIsGeneratingCode(true);
+    setCodeGenerationError(null);
+    
     try {
-      console.log("Calling generate-student-code function");
+      console.log("Getting auth session for code generation");
       
       // Get the session for authentication
       const { data: { session } } = await supabase.auth.getSession();
@@ -143,6 +146,8 @@ const StudentManagement = () => {
       if (!session) {
         throw new Error("Authentication required");
       }
+      
+      console.log("Calling generate-student-code function");
       
       // Call the updated edge function
       const { data, error } = await supabase.functions.invoke('generate-student-code', {
@@ -153,7 +158,7 @@ const StudentManagement = () => {
 
       if (error) {
         console.error("Error from generate-student-code function:", error);
-        throw error;
+        throw new Error(error.message || "Failed to generate code");
       }
       
       if (!data || !data.code) {
@@ -168,6 +173,7 @@ const StudentManagement = () => {
     } catch (error: any) {
       console.error('Error generating invite code:', error);
       toast.error(error.message || 'Failed to generate invite code');
+      setCodeGenerationError(error.message || "Failed to generate code");
     } finally {
       setIsGeneratingCode(false);
     }
@@ -183,8 +189,17 @@ const StudentManagement = () => {
     try {
       console.log("Calling invite-student edge function for email invite:", newStudentEmail);
       
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        throw new Error("Authentication required");
+      }
+      
       // Use the invite-student function for email invites with better error handling
       const { data, error } = await supabase.functions.invoke('invite-student', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        },
         body: {
           method: 'email',
           email: newStudentEmail.trim()
@@ -224,7 +239,16 @@ const StudentManagement = () => {
     }
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        throw new Error("Authentication required");
+      }
+      
       const { data, error } = await supabase.functions.invoke('revoke-student-access', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        },
         body: { student_id: studentId }
       });
 
@@ -318,21 +342,29 @@ const StudentManagement = () => {
                         </p>
                       </div>
                     ) : (
-                      <Button 
-                        type="button" 
-                        onClick={generateInviteCode}
-                        disabled={isGeneratingCode}
-                        className="w-full"
-                      >
-                        {isGeneratingCode ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Generating...
-                          </>
-                        ) : (
-                          'Generate New Code'
+                      <>
+                        <Button 
+                          type="button" 
+                          onClick={generateInviteCode}
+                          disabled={isGeneratingCode}
+                          className="w-full"
+                        >
+                          {isGeneratingCode ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Generating...
+                            </>
+                          ) : (
+                            'Generate New Code'
+                          )}
+                        </Button>
+                        
+                        {codeGenerationError && (
+                          <p className="text-sm text-red-600 mt-2">
+                            {codeGenerationError}
+                          </p>
                         )}
-                      </Button>
+                      </>
                     )}
                   </div>
                 </TabsContent>

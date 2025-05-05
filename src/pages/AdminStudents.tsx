@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -33,6 +34,7 @@ import {
   Copy,
   UserPlus,
   RefreshCw,
+  Loader2,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -71,6 +73,7 @@ const AdminStudents = () => {
   const [generatedCode, setGeneratedCode] = useState("");
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isGeneratingCode, setIsGeneratingCode] = useState(false);
+  const [codeGenerationError, setCodGenerationError] = useState<string | null>(null);
 
   // Get the schoolId properly
   const userProfileId = user?.id || null;
@@ -224,15 +227,23 @@ const AdminStudents = () => {
   };
 
   const generateInviteCode = async () => {
+    if (!user) {
+      toast.error("You must be logged in to generate a code");
+      return;
+    }
+
     setIsGeneratingCode(true);
+    setCodGenerationError(null);
 
     try {
+      console.log("Getting auth session");
       const { data: { session } } = await supabase.auth.getSession();
 
       if (!session) {
         throw new Error("You must be logged in");
       }
 
+      console.log("Calling generate-student-code function with token");
       // Call the updated edge function
       const { data, error } = await supabase.functions.invoke("generate-student-code", {
         headers: {
@@ -258,6 +269,7 @@ const AdminStudents = () => {
     } catch (error: any) {
       console.error("Error generating invite code:", error);
       toast.error(error.message || "Failed to generate invitation code");
+      setCodGenerationError(error.message || "Unknown error occurred");
     } finally {
       setIsGeneratingCode(false);
     }
@@ -344,9 +356,22 @@ const AdminStudents = () => {
                         onClick={generateInviteCode}
                         disabled={isGeneratingCode}
                       >
-                        <UserPlus className="mr-2 h-4 w-4" />
-                        {isGeneratingCode ? "Generating..." : "Generate Code"}
+                        {isGeneratingCode ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Generating...
+                          </>
+                        ) : (
+                          <>
+                            <UserPlus className="mr-2 h-4 w-4" />
+                            Generate Code
+                          </>
+                        )}
                       </Button>
+
+                      {codeGenerationError && (
+                        <p className="mt-2 text-sm text-red-600">{codeGenerationError}</p>
+                      )}
 
                       {generatedCode && (
                         <div className="p-4 mt-4 bg-muted rounded-lg">
@@ -369,8 +394,17 @@ const AdminStudents = () => {
 
                   {selectedMethod === "email" && (
                     <Button type="submit" className="gradient-bg" disabled={isLoading}>
-                      <Mail className="mr-2 h-4 w-4" />
-                      {isLoading ? "Sending..." : "Send Invitation"}
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Sending...
+                        </>
+                      ) : (
+                        <>
+                          <Mail className="mr-2 h-4 w-4" />
+                          Send Invitation
+                        </>
+                      )}
                     </Button>
                   )}
                 </form>
@@ -412,7 +446,7 @@ const AdminStudents = () => {
                             )}
                           </TableCell>
                           <TableCell>{new Date(invite.created_at).toLocaleDateString()}</TableCell>
-                          <TableCell>{new Date(invite.expires_at).toLocaleDateString()}</TableCell>
+                          <TableCell>{invite.expires_at ? new Date(invite.expires_at).toLocaleDateString() : "N/A"}</TableCell>
                           <TableCell>
                             <span
                               className={`text-xs font-medium px-2 py-0.5 rounded ${
