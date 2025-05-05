@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -65,10 +64,15 @@ const TestAccounts = () => {
   useEffect(() => {
     const clearPreviousSessions = async () => {
       try {
+        console.log("TestAccounts: Beginning session cleanup");
+        
+        // First clear any auth state in Supabase
         await supabase.auth.signOut();
+        
         // Clear any previous test account flags
         localStorage.removeItem('usingTestAccount');
         localStorage.removeItem('testAccountType');
+        
         console.log("TestAccounts: Cleared previous sessions on page load");
         
         // Also clear out state in AuthContext

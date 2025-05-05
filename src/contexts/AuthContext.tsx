@@ -1,3 +1,4 @@
+
 import React, {
   createContext,
   useState,
@@ -84,6 +85,132 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [schoolId, setSchoolId] = useState<string | null>(null);
   const navigate = useNavigate();
 
+  // Fetch user profile
+  const fetchProfile = useCallback(
+    async (userId: string): Promise<UserProfile | null> => {
+      try {
+        console.log("Fetching profile for user:", userId);
+        const { data: profileData, error } = await supabase
+          .from("profiles")
+          .select("*, organization:schools(id, name, code)")
+          .eq("id", userId)
+          .single();
+
+        if (error) {
+          console.error("Error fetching profile:", error);
+
+          // Fallback to user metadata if possible
+          if (user && user.user_metadata) {
+            const userType = user.user_metadata.user_type || null;
+            const fullName = user.user_metadata.full_name || null;
+            const schoolCode = user.user_metadata.school_code || null;
+
+            const fallbackProfile: UserProfile = {
+              id: userId,
+              user_type: userType as UserRole | null,
+              full_name: fullName,
+              school_code: schoolCode,
+              organization: null,
+            };
+
+            if (userType) {
+              setUserRole(userType as UserRole);
+              setIsSupervisor(userType === "school");
+            }
+
+            setProfile(fallbackProfile);
+            return fallbackProfile;
+          }
+
+          return null;
+        }
+
+        // Ensure profileData.user_type is properly typed
+        const userType = profileData.user_type as unknown;
+        
+        // Assemble safe profile data with appropriate type casting
+        const safeProfileData: UserProfile = {
+          id: profileData.id,
+          // Cast user_type to UserRole | null to ensure compatibility
+          user_type: userType as UserRole | null,
+          full_name: profileData.full_name,
+          school_code: profileData.school_code,
+          organization: null,
+        };
+
+        if (profileData.organization && typeof profileData.organization === "object") {
+          const orgData = profileData.organization as Record<string, unknown>;
+          const orgId = orgData.id ? String(orgData.id) : "";
+          const orgName = orgData.name ? String(orgData.name) : "";
+          const orgCode = orgData.code ? String(orgData.code) : "";
+
+          if (orgId && orgName && orgCode) {
+            safeProfileData.organization = {
+              id: orgId,
+              name: orgName,
+              code: orgCode,
+            };
+          }
+        }
+
+        setProfile(safeProfileData);
+
+        if (profileData.user_type) {
+          // Cast to UserRole type to ensure type safety
+          const typedUserRole = profileData.user_type as UserRole;
+          setUserRole(typedUserRole);
+          setIsSupervisor(typedUserRole === "school" && !!safeProfileData.organization?.id);
+        }
+
+        if (safeProfileData.organization?.id) {
+          setSchoolId(safeProfileData.organization.id);
+        } else if (profileData.user_type === "school") {
+          const { data: schoolData } = await supabase
+            .from("schools")
+            .select("id")
+            .eq("code", safeProfileData.school_code || "")
+            .single();
+
+          if (schoolData) {
+            setSchoolId(schoolData.id);
+          }
+        }
+
+        if (user && isTestAccount(user.email || "")) {
+          console.log("Test account detected, skipping persistent profile storage");
+        }
+
+        return profileData as unknown as UserProfile;
+      } catch (err) {
+        console.error("Error in fetchProfile:", err);
+
+        if (user && user.user_metadata) {
+          const fallbackProfile: UserProfile = {
+            id: user.id,
+            // Ensure proper typing for user_type
+            user_type: user.user_metadata.user_type as UserRole | null,
+            full_name: user.user_metadata.full_name || null,
+            school_code: user.user_metadata.school_code || null,
+          };
+
+          setUserRole(fallbackProfile.user_type);
+          setIsSupervisor(fallbackProfile.user_type === "school");
+          setProfile(fallbackProfile);
+          return fallbackProfile;
+        }
+        return null;
+      }
+    },
+    [user]
+  );
+
+  // Refresh profile
+  const refreshProfile = useCallback(async () => {
+    if (user) {
+      await fetchProfile(user.id);
+    }
+  }, [user, fetchProfile]);
+
   // Define setTestUser before it's used in signIn
   const setTestUser = useCallback(
     async (type: UserRole, schoolIndex = 0): Promise<User> => {
@@ -160,135 +287,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     },
     []
   );
-
-  // Fetch user profile
-  const fetchProfile = useCallback(
-    async (userId: string): Promise<UserProfile | null> => {
-      try {
-        console.log("Fetching profile for user:", userId);
-        const { data: profileData, error } = await supabase
-          .from("profiles")
-          .select("*, organization:schools(id, name, code)")
-          .eq("id", userId)
-          .single();
-
-        if (error) {
-          console.error("Error fetching profile:", error);
-
-          // Fallback to user metadata if possible
-          if (user && user.user_metadata) {
-            const userType = user.user_metadata.user_type || null;
-            const fullName = user.user_metadata.full_name || null;
-            const schoolCode = user.user_metadata.school_code || null;
-
-            const fallbackProfile: UserProfile = {
-              id: userId,
-              user_type: userType as UserRole | null,
-              full_name: fullName,
-              school_code: schoolCode,
-              organization: null,
-            };
-
-            if (userType) {
-              setUserRole(userType as UserRole);
-              setIsSupervisor(userType === "school");
-            }
-
-            setProfile(fallbackProfile);
-            return fallbackProfile;
-          }
-
-          return null;
-        }
-
-        // Ensure profileData.user_type is properly typed
-        const userType = profileData.user_type as unknown;
-        
-        // Assemble safe profile data with appropriate type casting
-        const safeProfileData: UserProfile = {
-          id: profileData.id,
-          // Cast user_type to UserRole | null to ensure compatibility
-          user_type: userType as UserRole | null,
-          full_name: profileData.full_name,
-          school_code: profileData.school_code,
-          organization: null,
-        };
-
-        if (profileData.organization && typeof profileData.organization === "object") {
-          const orgData = profileData.organization as Record<string, unknown>;
-          const orgId = orgData.id ? String(orgData.id) : "";
-          const orgName = orgData.name ? String(orgData.name) : "";
-          const orgCode = orgData.code ? String(orgData.code) : "";
-
-          if (orgId && orgName && orgCode) {
-            safeProfileData.organization = {
-              id: orgId,
-              name: orgName,
-              code: orgCode,
-            };
-          }
-        }
-
-        setProfile(safeProfileData);
-
-        if (profileData.user_type) {
-          // Cast to UserRole type to ensure type safety
-          setUserRole(profileData.user_type as UserRole);
-        }
-
-        setIsSupervisor(
-          profileData.user_type === "school" &&
-            !!safeProfileData.organization?.id
-        );
-
-        if (safeProfileData.organization?.id) {
-          setSchoolId(safeProfileData.organization.id);
-        } else if (profileData.user_type === "school") {
-          const { data: schoolData } = await supabase
-            .from("schools")
-            .select("id")
-            .eq("code", safeProfileData.school_code || "")
-            .single();
-
-          if (schoolData) {
-            setSchoolId(schoolData.id);
-          }
-        }
-
-        if (user && isTestAccount(user.email || "")) {
-          console.log("Test account detected, skipping persistent profile storage");
-        }
-
-        return profileData as unknown as UserProfile;
-      } catch (err) {
-        console.error("Error in fetchProfile:", err);
-
-        if (user && user.user_metadata) {
-          const fallbackProfile: UserProfile = {
-            id: user.id,
-            // Ensure proper typing for user_type
-            user_type: user.user_metadata.user_type as UserRole | null,
-            full_name: user.user_metadata.full_name || null,
-            school_code: user.user_metadata.school_code || null,
-          };
-
-          setUserRole(fallbackProfile.user_type);
-          setIsSupervisor(fallbackProfile.user_type === "school");
-          setProfile(fallbackProfile);
-          return fallbackProfile;
-        }
-        return null;
-      }
-    },
-    [user]
-  );
-
-  // Refresh profile
-  const refreshProfile = useCallback(async () => {
-    if (user) {
-      await fetchProfile(user.id);
-    }
-  }, [user, fetchProfile]);
 
   // Initialize auth state & listen to auth changes
   useEffect(() => {
@@ -427,16 +425,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (email.startsWith("school")) type = "school";
         else if (email.startsWith("teacher")) type = "teacher";
 
+        // Clean up any existing supabase session
         await supabase.auth.signOut();
+        
+        // Clear any existing test account flags
         localStorage.removeItem("usingTestAccount");
         localStorage.removeItem("testAccountType");
 
-        await setTestUser(type);
+        // Create the test user
+        const mockUser = await setTestUser(type);
 
+        // Set test account flags
         localStorage.setItem("usingTestAccount", "true");
         localStorage.setItem("testAccountType", type);
 
-        return { data: { user: null, session: null }, error: null };
+        return { data: { user: mockUser, session: null }, error: null };
       }
 
       try {
@@ -495,22 +498,36 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const signOut = useCallback(async () => {
     try {
+      console.log("SignOut: Starting signout process");
       const usingTestAccount = localStorage.getItem("usingTestAccount") === "true";
 
+      // Always clean up localStorage test account flags
       if (usingTestAccount) {
+        console.log("SignOut: Clearing test account flags");
         localStorage.removeItem("usingTestAccount");
         localStorage.removeItem("testAccountType");
-        setUser(null);
-        setProfile(null);
-        setUserRole(null);
-        setIsSupervisor(false);
-        setSchoolId(null);
       }
 
+      // Always clear local auth state
+      setUser(null);
+      setProfile(null);
+      setUserRole(null);
+      setIsSupervisor(false);
+      setSchoolId(null);
+
+      // Clean up Supabase session (even for test accounts, for consistency)
       await supabase.auth.signOut();
+      
+      console.log("SignOut: Successfully signed out");
       navigate("/login");
     } catch (error) {
       console.error("SignOut error:", error);
+      // Even if error occurs, try to clean up state
+      setUser(null);
+      setProfile(null);
+      setUserRole(null);
+      localStorage.removeItem("usingTestAccount");
+      localStorage.removeItem("testAccountType");
     }
   }, [navigate]);
 

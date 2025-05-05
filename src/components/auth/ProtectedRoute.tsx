@@ -27,7 +27,7 @@ const ProtectedRoute = ({
   requireSameSchool = false,
   schoolId
 }: ProtectedRouteProps) => {
-  const { user, profile, isLoading, userRole, schoolId: userSchoolId } = useAuth();
+  const { user, profile, isLoading, userRole, schoolId: userSchoolId, isSupervisor } = useAuth();
   const location = useLocation();
 
   // Check if we're using a test account
@@ -38,7 +38,13 @@ const ProtectedRoute = ({
     return (
       <div className="flex items-center justify-center h-screen">
         {/* You could replace this with a Spinner/Loader component */}
-        Loading...
+        <span className="inline-flex items-center">
+          <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          Loading...
+        </span>
       </div>
     );
   }
@@ -47,7 +53,10 @@ const ProtectedRoute = ({
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  // Handle test accounts
   if (usingTestAccount && testAccountType) {
+    console.log(`ProtectedRoute: Checking test account role ${testAccountType}`);
+    
     if (requiredUserType && testAccountType !== requiredUserType) {
       console.log(`ProtectedRoute: Test account role ${testAccountType} doesn't match required role ${requiredUserType}`);
       return <Navigate to={getRedirectPath(testAccountType)} replace />;
@@ -62,8 +71,8 @@ const ProtectedRoute = ({
       console.log(`ProtectedRoute: Test account is not a supervisor`);
       return <Navigate to={getRedirectPath(testAccountType)} replace />;
     }
-
   } else {
+    // Handle regular accounts
     console.log("ProtectedRoute: User role:", userRole, "Required role:", requiredUserType);
 
     // Fix for TypeScript error - explicitly cast userRole to UserRole when comparing
@@ -79,9 +88,8 @@ const ProtectedRoute = ({
       return <Navigate to={getRedirectPath(currentUserRole)} replace />;
     }
 
-    // For supervisor checks, we'll use the role directly instead of isSupervisor property
-    // School role functions as supervisor in this system
-    if (requireSupervisor && currentUserRole !== 'school') {
+    // For supervisor checks, we'll use the isSupervisor property
+    if (requireSupervisor && !isSupervisor) {
       console.log(`ProtectedRoute: User is not a supervisor`);
       return <Navigate to={getRedirectPath(currentUserRole)} replace />;
     }
@@ -92,6 +100,7 @@ const ProtectedRoute = ({
     }
   }
 
+  // If all checks pass, render the protected content
   return <>{children}</>;
 };
 

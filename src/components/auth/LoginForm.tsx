@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,6 +48,13 @@ const LoginForm = () => {
     };
     
     checkActiveTestAccount();
+    
+    // Add event listener to detect changes to localStorage
+    window.addEventListener('storage', checkActiveTestAccount);
+    
+    return () => {
+      window.removeEventListener('storage', checkActiveTestAccount);
+    };
   }, []);
 
   // Redirect if user role already set
