@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -47,7 +46,28 @@ serve(async (req) => {
     
     console.log("User authenticated:", user.id);
 
-    // Check if user is a school admin or teacher with permission
+    // Parse request body
+    let schoolId;
+    try {
+      const body = await req.json();
+      schoolId = body.schoolId;
+      console.log("School ID from request:", schoolId);
+      
+      if (!schoolId) {
+        throw new Error("Missing schoolId in request");
+      }
+    } catch (error) {
+      console.error("Error parsing request body:", error);
+      return new Response(
+        JSON.stringify({ error: "Invalid request. schoolId is required." }),
+        { 
+          status: 400, 
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
+
+    // Check if user is authorized to generate a school code
     const { data: teacherData, error: teacherError } = await supabaseClient
       .from("teachers")
       .select("school_id, is_supervisor")
@@ -68,7 +88,7 @@ serve(async (req) => {
     if (!teacherData) {
       console.error("User is not a teacher");
       return new Response(
-        JSON.stringify({ error: "You must be a teacher to generate student codes" }),
+        JSON.stringify({ error: "You must be a teacher to generate school codes" }),
         { 
           status: 403, 
           headers: { "Content-Type": "application/json", ...corsHeaders },
@@ -76,8 +96,17 @@ serve(async (req) => {
       );
     }
 
-    const schoolId = teacherData.school_id;
-    console.log("Generating code for school ID:", schoolId);
+    // Verify the teacher belongs to the requested school
+    if (teacherData.school_id !== schoolId) {
+      console.error("Teacher does not belong to the requested school");
+      return new Response(
+        JSON.stringify({ error: "You can only generate codes for your own school" }),
+        { 
+          status: 403, 
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
 
     // Generate a unique 8-character alphanumeric code
     const generateCode = () => {
@@ -89,37 +118,27 @@ serve(async (req) => {
       return result;
     };
     
-    const inviteCode = generateCode();
-    console.log("Generated invite code:", inviteCode);
+    const code = generateCode();
+    console.log("Generated school code:", code);
 
-    // Create an invitation record
-    const { data: inviteData, error: inviteError } = await supabaseClient
-      .from("student_invites")
-      .insert({
-        code: inviteCode,
-        school_id: schoolId,
-        status: "pending"
+    // Update the school_codes table to keep things in sync
+    const { error: schoolCodeError } = await supabaseClient
+      .from("school_codes")
+      .update({ 
+        code: code,
+        active: true
       })
-      .select()
-      .single();
-
-    if (inviteError) {
-      console.error("Error creating invitation:", inviteError);
-      return new Response(
-        JSON.stringify({ error: "Failed to create invitation" }),
-        { 
-          status: 500, 
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        }
-      );
+      .eq("school_id", schoolId);
+    
+    if (schoolCodeError) {
+      console.warn("Error updating school_codes table:", schoolCodeError);
+      // Continue anyway as this is just a sync issue
     }
 
-    console.log("Invitation created successfully:", inviteData);
     return new Response(
       JSON.stringify({ 
         success: true,
-        message: "Student invite code generated successfully",
-        code: inviteCode
+        code: code
       }),
       { 
         status: 200, 

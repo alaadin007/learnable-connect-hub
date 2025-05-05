@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -109,33 +110,40 @@ const SchoolSettings = () => {
     
     setIsGeneratingCode(true);
     try {
-      // Generate a new unique code - we'll use a function to generate a random code
-      const newCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+      console.log("Generating new code for school:", profile.organization.id);
       
-      // Update the code in the schools table
-      const { error } = await supabase
+      // Call the Edge Function to generate a new code
+      const { data, error } = await supabase.functions.invoke("generate-student-code", {
+        body: { schoolId: profile.organization.id }
+      });
+      
+      if (error) {
+        console.error("Error from edge function:", error);
+        throw new Error(error.message || "Failed to generate new code");
+      }
+      
+      if (!data || !data.code) {
+        throw new Error("No code returned from server");
+      }
+      
+      console.log("New code generated:", data.code);
+      
+      // Update the school record with the new code
+      const { error: updateError } = await supabase
         .from("schools")
         .update({
-          code: newCode,
+          code: data.code,
           updated_at: new Date().toISOString()
         })
         .eq("id", profile.organization.id);
 
-      if (error) throw error;
-      
-      // Also update the corresponding entry in school_codes table to keep things in sync
-      const { error: codeError } = await supabase
-        .from("school_codes")
-        .update({
-          code: newCode
-        })
-        .eq("school_name", schoolName);
-      
-      if (codeError) {
-        console.warn("Failed to update school_codes table, but the code was updated in schools table:", codeError);
+      if (updateError) {
+        console.error("Error updating school code:", updateError);
+        throw updateError;
       }
       
-      setSchoolCode(newCode);
+      // Update the UI with the new code
+      setSchoolCode(data.code);
       toast.success("New school code generated successfully!");
     } catch (error: any) {
       console.error("Error generating new school code:", error);
@@ -220,7 +228,14 @@ const SchoolSettings = () => {
                         onClick={generateNewSchoolCode}
                         disabled={isGeneratingCode}
                       >
-                        {isGeneratingCode ? "Generating..." : "Generate New Code"}
+                        {isGeneratingCode ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Generating...
+                          </>
+                        ) : (
+                          "Generate New Code"
+                        )}
                       </Button>
                     </div>
                     <p className="text-sm text-muted-foreground">
@@ -243,7 +258,14 @@ const SchoolSettings = () => {
                     disabled={isSaving}
                     className="gradient-bg"
                   >
-                    {isSaving ? "Saving..." : "Save Settings"}
+                    {isSaving ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      "Save Settings"
+                    )}
                   </Button>
                 </div>
               )}
