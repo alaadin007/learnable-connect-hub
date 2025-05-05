@@ -72,16 +72,19 @@ const ProtectedRoute = ({
     // Log current user role for debugging
     console.log("ProtectedRoute: User role:", userRole, "Required role:", requiredUserType);
 
-    // Fixed the comparison by ensuring userRole is treated as a UserRole type
     // If we require a specific user type and the user doesn't have it
-    if (requiredUserType && userRole && userRole !== requiredUserType) {
-      console.log(`ProtectedRoute: User role ${userRole} doesn't match required role ${requiredUserType}`);
-      // Redirect based on user role instead of generic dashboard
-      const redirectPath = 
-        userRole === 'school' ? '/admin' : 
-        userRole === 'teacher' ? '/teacher/analytics' : 
-        '/dashboard';
-      return <Navigate to={redirectPath} replace />;
+    // Ensure we're comparing the same types by casting userRole to UserRole if it exists
+    if (requiredUserType && userRole) {
+      const typedUserRole = userRole as UserRole;
+      if (typedUserRole !== requiredUserType) {
+        console.log(`ProtectedRoute: User role ${userRole} doesn't match required role ${requiredUserType}`);
+        // Redirect based on user role instead of generic dashboard
+        const redirectPath = 
+          typedUserRole === 'school' ? '/admin' : 
+          typedUserRole === 'teacher' ? '/teacher/analytics' : 
+          '/dashboard';
+        return <Navigate to={redirectPath} replace />;
+      }
     }
 
     // If we require specific roles and the user doesn't have one of them
