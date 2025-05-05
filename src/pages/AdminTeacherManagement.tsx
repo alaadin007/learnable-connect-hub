@@ -14,7 +14,7 @@ const AdminTeacherManagement = () => {
 
   // Verify correct user role and redirect if needed
   React.useEffect(() => {
-    if (userRole && userRole !== "school") {
+    if (userRole && userRole !== "school_admin" && userRole !== "school") {
       console.log(`AdminTeacherManagement: Redirecting user with role ${userRole} to dashboard`);
       navigate("/dashboard", { state: { fromRoleRedirect: true } });
     }

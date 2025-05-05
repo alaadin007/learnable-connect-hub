@@ -13,7 +13,6 @@ import Register from './pages/Register';
 import SchoolRegistration from './pages/SchoolRegistration';
 import Dashboard from './pages/Dashboard';
 import NotFound from './pages/NotFound';
-import Unauthorized from './pages/Unauthorized';
 import TeacherInvitation from './pages/TeacherInvitation';
 import SchoolAdmin from './pages/SchoolAdmin';
 import SchoolSettings from './pages/SchoolSettings';
@@ -68,29 +67,28 @@ function App() {
               <Route path="/contact" element={<Contact />} />
               <Route path="/about" element={<About />} />
               <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-              <Route path="/unauthorized" element={<Unauthorized />} />
 
               {/* Protected routes */}
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               
               {/* School Admin routes */}
-              <Route path="/admin" element={<ProtectedRoute requiredRole="school_admin"><SchoolAdmin /></ProtectedRoute>} />
-              <Route path="/admin/teachers" element={<ProtectedRoute requiredRole="school_admin"><AdminTeachers /></ProtectedRoute>} />
-              <Route path="/admin/settings" element={<ProtectedRoute requiredRole="school_admin"><SchoolSettings /></ProtectedRoute>} />
-              <Route path="/admin/students" element={<ProtectedRoute requiredRole="school_admin"><AdminStudents /></ProtectedRoute>} />
-              <Route path="/admin/analytics" element={<ProtectedRoute requiredRole="school_admin"><AdminAnalytics /></ProtectedRoute>} />
-              <Route path="/admin/tools" element={<ProtectedRoute requiredRole="school_admin"><AdminTools /></ProtectedRoute>} />
-              <Route path="/admin/teacher-management" element={<ProtectedRoute requiredRole="school_admin"><AdminTeacherManagement /></ProtectedRoute>} />
+              <Route path="/admin" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><SchoolAdmin /></ProtectedRoute>} />
+              <Route path="/admin/teachers" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><AdminTeachers /></ProtectedRoute>} />
+              <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><SchoolSettings /></ProtectedRoute>} />
+              <Route path="/admin/students" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><AdminStudents /></ProtectedRoute>} />
+              <Route path="/admin/analytics" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><AdminAnalytics /></ProtectedRoute>} />
+              <Route path="/admin/tools" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><AdminTools /></ProtectedRoute>} />
+              <Route path="/admin/teacher-management" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><AdminTeacherManagement /></ProtectedRoute>} />
               
               {/* Legacy school admin routes (redirects to new structure) */}
-              <Route path="/school-admin" element={<ProtectedRoute requiredRole="school_admin"><SchoolAdmin /></ProtectedRoute>} />
-              <Route path="/school-settings" element={<ProtectedRoute requiredRole="school_admin"><SchoolSettings /></ProtectedRoute>} />
-              <Route path="/admin-teachers" element={<ProtectedRoute requiredRole="school_admin"><AdminTeachers /></ProtectedRoute>} />
-              <Route path="/admin-students" element={<ProtectedRoute requiredRole="school_admin"><AdminStudents /></ProtectedRoute>} />
-              <Route path="/admin-analytics" element={<ProtectedRoute requiredRole="school_admin"><AdminAnalytics /></ProtectedRoute>} />
-              <Route path="/admin-teacher-management" element={<ProtectedRoute requiredRole="school_admin"><AdminTeacherManagement /></ProtectedRoute>} />
-              <Route path="/admin-tools" element={<ProtectedRoute requiredRole="school_admin"><AdminTools /></ProtectedRoute>} />
-              <Route path="/test-accounts" element={<ProtectedRoute requiredRole="school_admin"><TestAccounts /></ProtectedRoute>} />
+              <Route path="/school-admin" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><SchoolAdmin /></ProtectedRoute>} />
+              <Route path="/school-settings" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><SchoolSettings /></ProtectedRoute>} />
+              <Route path="/admin-teachers" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><AdminTeachers /></ProtectedRoute>} />
+              <Route path="/admin-students" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><AdminStudents /></ProtectedRoute>} />
+              <Route path="/admin-analytics" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><AdminAnalytics /></ProtectedRoute>} />
+              <Route path="/admin-teacher-management" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><AdminTeacherManagement /></ProtectedRoute>} />
+              <Route path="/admin-tools" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><AdminTools /></ProtectedRoute>} />
+              <Route path="/test-accounts" element={<ProtectedRoute allowedRoles={["school_admin", "school"]}><TestAccounts /></ProtectedRoute>} />
               
               {/* Teacher routes */}
               <Route path="/teacher-students" element={<ProtectedRoute requiredRole="teacher"><TeacherStudents /></ProtectedRoute>} />
