@@ -10,8 +10,12 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  console.log("Incoming request method:", req.method);
+  console.log("Authorization header present:", !!req.headers.get("Authorization"));
+
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
+    console.log("Handling OPTIONS request");
     return new Response(null, {
       headers: corsHeaders,
       status: 204
@@ -21,6 +25,7 @@ serve(async (req) => {
   try {
     // Validate that this is a POST request
     if (req.method !== "POST") {
+      console.error("Invalid request method:", req.method);
       return new Response(JSON.stringify({
         error: "Method not allowed. Please use POST."
       }), {
@@ -34,6 +39,8 @@ serve(async (req) => {
 
     // Get the authorization header
     const authHeader = req.headers.get("Authorization");
+    console.log("Auth header type:", typeof authHeader);
+    
     if (!authHeader) {
       console.error("No authorization header provided");
       return new Response(JSON.stringify({
@@ -47,13 +54,17 @@ serve(async (req) => {
       });
     }
 
+    // Extract token from the Authorization header (supports both "Bearer token" and raw token formats)
+    const token = authHeader.startsWith("Bearer ") ? authHeader.substring(7) : authHeader;
+    console.log("Token extracted, length:", token.length);
+
     // Create a Supabase client with the Auth context of the logged in user
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_ANON_KEY") ?? "",
       {
         global: {
-          headers: { Authorization: authHeader }
+          headers: { Authorization: `Bearer ${token}` }
         }
       }
     );
@@ -77,10 +88,12 @@ serve(async (req) => {
     console.log("Authenticated user ID:", user.id);
 
     // Get the school_id of the logged in user using the database function
-    const { data, error: schoolIdError } = await supabaseClient.rpc("get_user_school_id");
+    console.log("Calling get_user_school_id RPC function");
+    const { data: schoolIdData, error: schoolIdError } = await supabaseClient.rpc("get_user_school_id");
     
     // Log the response to help debug
-    console.log("get_user_school_id response:", { data, error: schoolIdError });
+    console.log("get_user_school_id response data:", schoolIdData);
+    console.log("get_user_school_id response error:", schoolIdError);
     
     if (schoolIdError) {
       console.error("Error getting school ID:", schoolIdError);
@@ -96,9 +109,11 @@ serve(async (req) => {
       });
     }
     
-    // Ensure data contains a valid school_id
-    if (!data) {
-      console.error("No school ID returned from function");
+    // Handle the school ID response - RPC returns a scalar value directly
+    const schoolId = schoolIdData;
+    
+    if (!schoolId) {
+      console.error("No school ID returned");
       return new Response(JSON.stringify({
         error: "No school ID associated with user",
         details: "User may not be connected to a school"
@@ -111,14 +126,13 @@ serve(async (req) => {
       });
     }
     
-    // Use the returned data as the school ID directly
-    const schoolId = data;
     console.log("Processing request for school ID:", schoolId);
 
     // Parse and validate the request body
     let requestBody;
     try {
       requestBody = await req.json();
+      console.log("Request body:", requestBody);
     } catch (parseError) {
       console.error("Error parsing request body:", parseError);
       return new Response(JSON.stringify({
@@ -164,7 +178,7 @@ serve(async (req) => {
       });
     }
 
-    console.log("Request body:", { method, email });
+    console.log("Request body valid:", { method, email });
 
     // Generate a random code
     const generateCode = () => {
@@ -182,7 +196,7 @@ serve(async (req) => {
       const inviteCode = generateCode();
       console.log("Generated invite code:", inviteCode);
 
-      // Insert into student_invites table - simple version without teacher_id
+      // Insert into student_invites table
       const { data: inviteData, error: inviteError } = await supabaseClient
         .from("student_invites")
         .insert({

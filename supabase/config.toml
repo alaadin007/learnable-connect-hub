@@ -48,6 +48,10 @@ additional_redirect_urls = ["https://localhost:3000"]
 jwt_expiry = 3600
 # Allow/disallow new user signups to your project.
 enable_signup = true
+
+[auth.email]
+# Allow/disallow new user signups via email to your project.
+enable_signup = true
 # If enabled, a user will be required to confirm any email change on both the old, and new email
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
@@ -63,51 +67,182 @@ client_id = ""
 secret = ""
 # Overrides the default auth redirectUrl.
 redirect_uri = ""
-# For apple signin only, users will be redirected to this URI when signin fails
-# Overrides the default auth redirectUrl.
-redirect_error_uri = ""
+# Overrides the default auth provider URL. Used to support self-hosted gitlab, single-tenant Azure,
+# or any other third-party OIDC providers.
+url = ""
+
+[auth.external.azure]
+enabled = false
+client_id = ""
+secret = ""
+redirect_uri = ""
+url = ""
+
+[auth.external.bitbucket]
+enabled = false
+client_id = ""
+secret = ""
+redirect_uri = ""
+url = ""
+
+[auth.external.discord]
+enabled = false
+client_id = ""
+secret = ""
+redirect_uri = ""
+url = ""
+
+[auth.external.facebook]
+enabled = false
+client_id = ""
+secret = ""
+redirect_uri = ""
+url = ""
 
 [auth.external.github]
 enabled = false
 client_id = ""
 secret = ""
-# Overrides the default auth redirectUrl.
 redirect_uri = ""
+url = ""
+
+[auth.external.gitlab]
+enabled = false
+client_id = ""
+secret = ""
+redirect_uri = ""
+url = ""
 
 [auth.external.google]
 enabled = false
 client_id = ""
 secret = ""
-# Overrides the default auth redirectUrl.
 redirect_uri = ""
+url = ""
 
-# Use custom JWT verification instead of the JWT secret on the dashboard. If enabled, the function
-# is run whenever a user signs in and the return value of the function is used to verify the JWT.
-[functions.verify_jwt]
-verify_jwt = false
+[auth.external.keycloak]
+enabled = false
+client_id = ""
+secret = ""
+redirect_uri = ""
+url = ""
 
+[auth.external.linkedin]
+enabled = false
+client_id = ""
+secret = ""
+redirect_uri = ""
+url = ""
+
+[auth.external.notion]
+enabled = false
+client_id = ""
+secret = ""
+redirect_uri = ""
+url = ""
+
+[auth.external.twitch]
+enabled = false
+client_id = ""
+secret = ""
+redirect_uri = ""
+url = ""
+
+[auth.external.twitter]
+enabled = false
+client_id = ""
+secret = ""
+redirect_uri = ""
+url = ""
+
+[auth.external.slack]
+enabled = false
+client_id = ""
+secret = ""
+redirect_uri = ""
+url = ""
+
+[auth.external.spotify]
+enabled = false
+client_id = ""
+secret = ""
+redirect_uri = ""
+url = ""
+
+[auth.external.workos]
+enabled = false
+client_id = ""
+secret = ""
+redirect_uri = ""
+url = ""
+
+[auth.external.zoom]
+enabled = false
+client_id = ""
+secret = ""
+redirect_uri = ""
+url = ""
+
+# Configure Postgres functions to use in your application. Externally these will be available as the
+# local API_URL/rest/v1/rpc/function_name.
+[functions]
+# Redundant external systems with the same interface for increased availability.
 [functions.invite-student]
 verify_jwt = true
+[functions.generate-student-invite]
+verify_jwt = true
 
-# Configure one of the supported SMS providers: `twilio`, `messagebird`, `textlocal`, `vonage`.
-[sms]
+[analytics]
 enabled = false
+port = 54327
+vector_port = 54328
+# Setup BigQuery credentials to enable log exports to BigQuery.
+big_query_project = ""
+big_query_dataset = ""
+big_query_table = ""
 
-# Add even more Meta information via the thorough documentation located at:
-# https://supabase.com/docs/guides/database/testing/mocking
-[email_templates]
-invite = """
-<h2>You're invited to {{.SiteURL}} by {{.InviterUserName}}</h2>
-
-<p>Hello {{.UserName}},</p>
-
-<p>You have been invited to join {{.SiteURL}}.</p>
-
-<p>Please use the invitation code below to join:</p>
-
-<p><strong>{{.SignUpCode}}</strong></p>
-
-<p>This invitation will expire in 24 hours.</p>
-
-<p>Thank you!</p>
-"""
+# Enable, disable, or configure edge functions.
+[functions.check-user-role]
+verify_jwt = true
+[functions.complete-registration]
+verify_jwt = true
+[functions.create-school-admin]
+verify_jwt = false
+[functions.create-session-log]
+verify_jwt = true
+[functions.create-teacher]
+verify_jwt = true
+[functions.create-test-accounts]
+verify_jwt = false
+[functions.end-session]
+verify_jwt = true
+[functions.generate-student-code]
+verify_jwt = true
+[functions.generate-summary]
+verify_jwt = true
+[functions.get-chat-history]
+verify_jwt = true
+[functions.get-conversations]
+verify_jwt = true
+[functions.invite-teacher]
+verify_jwt = true
+[functions.populate-test-performance]
+verify_jwt = false
+[functions.process-document]
+verify_jwt = true
+[functions.register-school]
+verify_jwt = false
+[functions.remove-user]
+verify_jwt = true
+[functions.resend-verification]
+verify_jwt = false
+[functions.revoke-student-access]
+verify_jwt = true
+[functions.save-chat-message]
+verify_jwt = true
+[functions.text-to-speech]
+verify_jwt = true
+[functions.transcribe-audio]
+verify_jwt = true
+[functions.update-session]
+verify_jwt = true
