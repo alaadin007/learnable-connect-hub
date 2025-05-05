@@ -60,12 +60,6 @@ const StudentInviteList = ({
         </Button>
       </CardHeader>
       <CardContent>
-        {isLoading && (
-          <div className="flex justify-center items-center py-4">
-            <p>Loading invitations...</p>
-          </div>
-        )}
-        
         {isError && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
@@ -76,7 +70,7 @@ const StudentInviteList = ({
           </Alert>
         )}
         
-        {!isLoading && !isError && invites.length > 0 ? (
+        {!isError && invites.length > 0 ? (
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>

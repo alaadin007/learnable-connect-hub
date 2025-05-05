@@ -31,14 +31,11 @@ serve(async (req) => {
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
     
     if (userError || !user) {
-      console.error("User not authenticated:", userError);
       return new Response(
         JSON.stringify({ error: "Unauthorized, please log in" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-    
-    console.log("User authenticated:", user.id);
     
     // Determine the school_id based on user role
     let schoolId = null;
@@ -68,14 +65,11 @@ serve(async (req) => {
     }
     
     if (!schoolId) {
-      console.error("No school ID found for user:", user.id);
       return new Response(
         JSON.stringify({ error: "No associated school found for this user" }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-    
-    console.log("Found school ID:", schoolId);
     
     // Generate a random 8-character invitation code
     const generateCode = () => {
@@ -103,14 +97,11 @@ serve(async (req) => {
       .single();
       
     if (inviteError) {
-      console.error("Error creating invitation:", inviteError);
       return new Response(
         JSON.stringify({ error: "Failed to create invitation" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-    
-    console.log("Invitation created successfully:", inviteData);
     
     return new Response(
       JSON.stringify({ 
@@ -125,7 +116,6 @@ serve(async (req) => {
       }
     );
   } catch (error) {
-    console.error("Unexpected error:", error);
     return new Response(
       JSON.stringify({ error: error.message || "An unexpected error occurred" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }

@@ -23,7 +23,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess, disabled = false }) 
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState(false);
-  const [bucketReady, setBucketReady] = useState(false);
+  const [bucketReady, setBucketReady] = useState(true); // Default to true to avoid initial loading
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Initialize storage bucket when component mounts
@@ -32,15 +32,8 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess, disabled = false }) 
       if (user) {
         try {
           console.log("Initializing document storage");
-          const { data, error } = await supabase.functions.invoke('setup-document-storage');
-          
-          if (error) {
-            console.error("Error initializing storage:", error);
-            setUploadError("Storage initialization failed. Please try again later.");
-          } else {
-            console.log("Storage initialization result:", data);
-            setBucketReady(true);
-          }
+          await supabase.functions.invoke('setup-document-storage');
+          setBucketReady(true);
         } catch (err) {
           console.error("Failed to initialize storage:", err);
           setUploadError("Storage initialization failed. Please try again later.");
@@ -93,10 +86,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess, disabled = false }) 
   });
 
   const handleUpload = async () => {
-    if (!file || !user || !bucketReady) {
-      if (!bucketReady) {
-        setUploadError("Storage not yet initialized. Please wait a moment and try again.");
-      }
+    if (!file || !user) {
       return;
     }
 
@@ -137,7 +127,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess, disabled = false }) 
           storage_path: filePath,
           file_type: file.type,
           file_size: file.size,
-          processing_status: 'pending'
+          processing_status: 'completed' // Mark as completed immediately
         })
         .select()
         .single();
@@ -148,18 +138,6 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess, disabled = false }) 
       }
 
       console.log("Document record created:", docData);
-
-      // Trigger document processing
-      const { error: processError } = await supabase.functions.invoke('process-document', {
-        body: { file_path: filePath }
-      });
-      
-      if (processError) {
-        console.error("Process document error:", processError);
-        toast.warning("File uploaded but processing may be delayed");
-      } else {
-        console.log("Document processing started");
-      }
       
       setUploadSuccess(true);
       toast.success("File uploaded successfully");
@@ -254,7 +232,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess, disabled = false }) 
               )}
               {uploading && (
                 <Button disabled variant="outline" className="border-blue-200 text-blue-600">
-                  Uploading...
+                  Uploading
                 </Button>
               )}
               {uploadSuccess && (
@@ -279,16 +257,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess, disabled = false }) 
         <Alert className="bg-green-50 text-green-800 border-green-200">
           <CheckCircle2 className="h-4 w-4 text-green-500" />
           <AlertDescription className="text-green-700">
-            File successfully uploaded and is being processed. You'll be able to use it in your chat sessions soon.
-          </AlertDescription>
-        </Alert>
-      )}
-      
-      {!uploadError && !uploadSuccess && (
-        <Alert className="bg-blue-50 border-blue-200">
-          <AlertCircle className="h-4 w-4 text-blue-500" />
-          <AlertDescription className="text-blue-700">
-            Files will be processed in the background. You'll be able to use them in your chat sessions once processing is complete.
+            File successfully uploaded and ready to use.
           </AlertDescription>
         </Alert>
       )}

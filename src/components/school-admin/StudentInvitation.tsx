@@ -68,7 +68,7 @@ export const StudentInvitation = ({ onSuccess }: StudentInvitationProps) => {
           className="w-full gradient-bg"
         >
           {isGenerating ? (
-            "Generating..."
+            "Generating Code..."
           ) : (
             <>
               <UserPlus className="mr-2 h-4 w-4" />
@@ -97,7 +97,7 @@ export const StudentInvitation = ({ onSuccess }: StudentInvitationProps) => {
             onClick={generateInviteCode}
             disabled={isGenerating}
           >
-            {isGenerating ? "Generating..." : "Generate New Code"}
+            {isGenerating ? "Generating New Code..." : "Generate New Code"}
           </Button>
         </div>
       )}

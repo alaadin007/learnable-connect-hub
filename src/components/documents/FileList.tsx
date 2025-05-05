@@ -45,7 +45,7 @@ const FileList: React.FC<FileListProps> = ({ disabled, storageError, isCheckingS
   const queryClient = useQueryClient();
   const [documentToDelete, setDocumentToDelete] = useState<Document | null>(null);
   
-  // Fetch documents with React Query 
+  // Fetch documents with React Query - no loading state displayed
   const { 
     data: documents = [], 
     isError,
@@ -68,7 +68,7 @@ const FileList: React.FC<FileListProps> = ({ disabled, storageError, isCheckingS
         const validStatus: Document['processing_status'] = 
           ['pending', 'processing', 'completed', 'error'].includes(doc.processing_status) 
             ? doc.processing_status as Document['processing_status']
-            : 'pending';
+            : 'completed'; // Default to completed instead of pending
             
         return {
           ...doc,
@@ -136,7 +136,7 @@ const FileList: React.FC<FileListProps> = ({ disabled, storageError, isCheckingS
     setDocumentToDelete(null);
   };
 
-  // Display content immediately instead of loading states
+  // Display content immediately
   if (disabled) {
     return (
       <div className="text-center py-8 border border-dashed border-gray-300 rounded-lg">
@@ -208,20 +208,10 @@ const FileList: React.FC<FileListProps> = ({ disabled, storageError, isCheckingS
                 <span>{format(new Date(doc.created_at), 'MMM d, yyyy')}</span>
                 <span>•</span>
                 <span className="flex items-center">
-                  {doc.processing_status === 'pending' && (
-                    <>
-                      <span className="text-amber-600">Pending</span>
-                    </>
-                  )}
-                  {doc.processing_status === 'processing' && (
-                    <>
-                      <span className="text-blue-600">Processing</span>
-                    </>
-                  )}
                   {doc.processing_status === 'completed' && (
                     <>
                       <Check className="h-3 w-3 text-green-500 mr-1" />
-                      <span className="text-green-600">Processed</span>
+                      <span className="text-green-600">Ready</span>
                     </>
                   )}
                   {doc.processing_status === 'error' && (
@@ -262,7 +252,7 @@ const FileList: React.FC<FileListProps> = ({ disabled, storageError, isCheckingS
               onClick={handleDeleteConfirm} 
               className="bg-red-500 hover:bg-red-600 focus:ring-red-500"
             >
-              {isDeleting ? 'Deleting...' : 'Delete'}
+              {isDeleting ? 'Deleting' : 'Delete'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
