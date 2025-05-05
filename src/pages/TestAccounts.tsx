@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -56,9 +55,8 @@ type AccountType = "school" | "teacher" | "student";
 
 const TestAccounts = () => {
   const navigate = useNavigate();
-  const { setTestUser, signOut } = useAuth();
-  const [loading, setLoading] = useState(false);
-  const [activeAccount, setActiveAccount] = useState<AccountType | null>(null);
+  const { setTestUser } = useAuth();
+  const [loadingAccount, setLoadingAccount] = useState<AccountType | null>(null);
   const [dataCreationLoading, setDataCreationLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -69,30 +67,13 @@ const TestAccounts = () => {
         await supabase.auth.signOut();
         localStorage.removeItem('usingTestAccount');
         localStorage.removeItem('testAccountType');
-        setActiveAccount(null);
         console.log("TestAccounts: Cleared previous sessions on page load");
       } catch (error) {
         console.error("Error clearing sessions:", error);
       }
     };
-    
-    clearPreviousSessions();
-  }, []);
 
-  // Check if a test account is already active
-  useEffect(() => {
-    const checkActiveAccount = () => {
-      const usingTestAccount = localStorage.getItem('usingTestAccount') === 'true';
-      const accountType = localStorage.getItem('testAccountType') as AccountType | null;
-      
-      if (usingTestAccount && accountType) {
-        setActiveAccount(accountType);
-      } else {
-        setActiveAccount(null);
-      }
-    };
-    
-    checkActiveAccount();
+    clearPreviousSessions();
   }, []);
 
   const createTestAccounts = useCallback(async () => {
@@ -133,30 +114,29 @@ const TestAccounts = () => {
   const handleUseAccount = useCallback(
     async (accountType: AccountType) => {
       setErrorMessage(null);
-      setLoading(true);
-      
+      setLoadingAccount(accountType);
+
       try {
         console.log(`TestAccounts: Logging in as ${accountType} test account...`);
-        
+
         // First make sure we're logged out and all test flags are cleared
-        await signOut();
+        await supabase.auth.signOut();
         localStorage.removeItem('usingTestAccount');
         localStorage.removeItem('testAccountType');
-        
+
         // Set test user in auth context - this bypasses authentication
         const mockUser = await setTestUser(accountType);
         if (!mockUser) {
           throw new Error(`Failed to set up ${accountType} test account`);
         }
-        
+
         // Mark in localStorage that we're using a test account
         localStorage.setItem('usingTestAccount', 'true');
         localStorage.setItem('testAccountType', accountType);
-        setActiveAccount(accountType);
-        
+
         // Define redirect paths based on account type
         let redirectPath = "/dashboard";
-        
+
         if (accountType === "school") {
           redirectPath = "/admin";
         } else if (accountType === "teacher") {
@@ -170,9 +150,9 @@ const TestAccounts = () => {
             ? "Teacher" 
             : "Student"
         }`);
-        
+
         console.log(`TestAccounts: Navigating to ${redirectPath} for ${accountType}`);
-        
+
         // Navigate with important state parameters for persistence
         navigate(redirectPath, {
           replace: true,
@@ -187,16 +167,15 @@ const TestAccounts = () => {
         console.error(`Error setting up ${accountType} test account:`, error);
         setErrorMessage(`Setup failed: ${error.message || "Unknown error"}`);
         toast.error(`Account setup failed: ${error.message || "Unknown error"}`);
-        
+
         // Clear any partial test account state on error
         localStorage.removeItem('usingTestAccount');
         localStorage.removeItem('testAccountType');
-        setActiveAccount(null);
       } finally {
-        setLoading(false);
+        setLoadingAccount(null);
       }
     },
-    [navigate, setTestUser, signOut]
+    [navigate, setTestUser]
   );
 
   return (
@@ -211,6 +190,7 @@ const TestAccounts = () => {
             <div
               className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4"
               role="alert"
+              aria-live="assertive"
             >
               <span className="inline-flex items-center">
                 <svg
@@ -246,14 +226,14 @@ const TestAccounts = () => {
           </Alert>
 
           <div className="flex justify-center space-x-4 mb-6">
-            <Button variant="outline" onClick={() => navigate("/")} className="border-gray-300">
+            <Button variant="outline" onClick={() => navigate("/")} className="border-gray-300" disabled={loadingAccount !== null || dataCreationLoading}>
               Back to Homepage
             </Button>
             <Button
               variant="default"
               className="bg-learnable-blue hover:bg-learnable-blue/90"
               onClick={createTestAccounts}
-              disabled={dataCreationLoading}
+              disabled={dataCreationLoading || loadingAccount !== null}
             >
               {dataCreationLoading ? (
                 "Refreshing Test Data..."
@@ -266,14 +246,11 @@ const TestAccounts = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {Object.entries(TEST_ACCOUNTS).map(([type, account]) => {
               const accountType = type as AccountType;
-              const isActive = activeAccount === accountType;
-              
+
               return (
                 <div
                   key={type}
-                  className={`border rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow ${
-                    isActive ? 'ring-2 ring-offset-2 ring-learnable-blue' : ''
-                  }`}
+                  className="border rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow"
                 >
                   <div className="flex items-start mb-4">
                     {accountType === "school" && <School className="h-5 w-5 text-blue-600 mt-1 mr-2" aria-hidden="true" />}
@@ -284,7 +261,7 @@ const TestAccounts = () => {
                       <p className="text-gray-600 text-sm mt-1">{account.description}</p>
                     </div>
                   </div>
-                  
+
                   <div className="mb-4">
                     <p className="font-medium text-sm mb-1">Features:</p>
                     <ul className="space-y-1">
@@ -307,13 +284,13 @@ const TestAccounts = () => {
                       ))}
                     </ul>
                   </div>
-                  
+
                   <div className="bg-green-50 p-2 rounded-md mb-4">
                     <p className="text-green-700 text-xs">
                       Direct access - no authentication required
                     </p>
                   </div>
-                  
+
                   <Button
                     className={`w-full ${
                       accountType === "school" 
@@ -323,18 +300,16 @@ const TestAccounts = () => {
                         : "bg-purple-600 hover:bg-purple-700"
                     } text-white`}
                     onClick={() => handleUseAccount(accountType)}
-                    disabled={loading || (isActive && activeAccount !== null)}
+                    disabled={loadingAccount !== null}
                   >
-                    {loading ? (
+                    {loadingAccount === accountType ? (
                       <span className="flex items-center">
-                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true" >
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
                         Logging in...
                       </span>
-                    ) : isActive ? (
-                      `Currently Active`
                     ) : (
                       `Login as ${account.role}`
                     )}
