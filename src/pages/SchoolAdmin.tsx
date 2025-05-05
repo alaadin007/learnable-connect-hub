@@ -39,12 +39,14 @@ const SchoolAdmin = () => {
   // Use optional chaining for organization properties
   const schoolId = profile?.organization?.id || null;
   
-  // Verify correct user role
+  // Verify correct user role, but only if not coming from test accounts
   useEffect(() => {
-    if (userRole && userRole !== "school") {
+    const fromTestAccounts = location.state?.fromTestAccounts === true;
+    
+    if (userRole && userRole !== "school" && !fromTestAccounts) {
       navigate("/dashboard");
     }
-  }, [userRole, navigate]);
+  }, [userRole, navigate, location.state]);
 
   // Fixed Quick actions dropdown handler to prevent navigation issues
   const handleQuickActionSelect = (action: string) => {

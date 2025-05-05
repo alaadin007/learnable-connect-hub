@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
 import { Button } from "@/components/ui/button";
-import { Loader2, Info, School, Users, GraduationCap } from "lucide-react";
+import { Info, School, Users, GraduationCap, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -57,7 +57,6 @@ type AccountType = "school" | "teacher" | "student";
 const TestAccounts = () => {
   const navigate = useNavigate();
   const { setTestUser } = useAuth();
-  const [loadingAccount, setLoadingAccount] = useState<AccountType | null>(null);
   const [dataCreationLoading, setDataCreationLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -116,9 +115,7 @@ const TestAccounts = () => {
   const handleUseAccount = useCallback(
     async (accountType: AccountType) => {
       setErrorMessage(null);
-      setLoadingAccount(accountType);
-      const account = TEST_ACCOUNTS[accountType];
-
+      
       try {
         console.log(`TestAccounts: Logging in as ${accountType} test account...`);
         
@@ -134,11 +131,6 @@ const TestAccounts = () => {
         localStorage.setItem('usingTestAccount', 'true');
         localStorage.setItem('testAccountType', accountType);
         
-        // Immediately show success toast so user gets feedback
-        toast.success(`Logged in as ${account.role}`, {
-          id: `login-success-${accountType}`,
-        });
-
         // Define redirect paths based on account type
         let redirectPath = "/dashboard";
         
@@ -168,9 +160,6 @@ const TestAccounts = () => {
         // Clear any partial test account state on error
         localStorage.removeItem('usingTestAccount');
         localStorage.removeItem('testAccountType');
-        
-        // Make sure to reset loading state on error
-        setLoadingAccount(null);
       }
     },
     [navigate, setTestUser]
@@ -182,7 +171,6 @@ const TestAccounts = () => {
       <main
         className="flex-grow flex flex-col items-center justify-center py-8 px-4"
         aria-live="polite"
-        aria-busy={dataCreationLoading || loadingAccount !== null}
       >
         <div className="max-w-4xl w-full mx-auto">
           {errorMessage && (
@@ -247,12 +235,6 @@ const TestAccounts = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {Object.entries(TEST_ACCOUNTS).map(([type, account]) => {
               const accountType = type as AccountType;
-              const isLoading = loadingAccount === accountType;
-              
-              let buttonText = `Login as ${account.role}`;
-              if (isLoading) {
-                buttonText = accountType === "teacher" ? "Accessing..." : `Login as ${account.role}`;
-              }
               
               return (
                 <div
@@ -307,22 +289,8 @@ const TestAccounts = () => {
                         : "bg-purple-600 hover:bg-purple-700"
                     } text-white`}
                     onClick={() => handleUseAccount(accountType)}
-                    disabled={loadingAccount !== null}
                   >
-                    {isLoading ? (
-                      <>
-                        {accountType === "teacher" ? (
-                          buttonText
-                        ) : (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            {buttonText}
-                          </>
-                        )}
-                      </>
-                    ) : (
-                      buttonText
-                    )}
+                    Login as {account.role}
                   </Button>
                 </div>
               );

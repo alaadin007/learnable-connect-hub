@@ -167,18 +167,56 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     
     if (usingTestAccount && testAccountType) {
       console.log(`Restoring test account session for ${testAccountType}`);
-      // Restore test account without authentication
-      setTestUser(testAccountType)
-        .then(() => {
-          console.log(`Successfully restored test account session for ${testAccountType}`);
-          setLoading(false);
-        })
-        .catch(error => {
-          console.error("Failed to restore test account session:", error);
-          localStorage.removeItem('usingTestAccount');
-          localStorage.removeItem('testAccountType');
-          setLoading(false);
-        });
+      // Restore test account without authentication - synchronously to avoid delay
+      try {
+        // Create a consistent test school ID
+        const testSchoolId = `test-school-0`;
+        
+        // Mock profile specifically for test users
+        const testProfile: UserProfile = {
+          id: `test-${testAccountType}-${Date.now()}`,
+          user_type: testAccountType,
+          full_name: `Test ${testAccountType.charAt(0).toUpperCase() + testAccountType.slice(1)}`,
+          school_code: TEST_SCHOOL_CODE,
+          organization: testAccountType === "school" 
+            ? {
+                id: testSchoolId,
+                name: `Test School 0`,
+                code: TEST_SCHOOL_CODE
+              } 
+            : null
+        };
+        
+        // Set mock states
+        setProfile(testProfile);
+        setUserRole(testAccountType);
+        setIsSuperviser(testAccountType === "school");
+        
+        // Important: All test user types need a school ID
+        setSchoolId(testSchoolId);
+        
+        // Create a mock user (with type assertion to fix the type error)
+        const mockUser = {
+          id: testProfile.id,
+          email: `${testAccountType}.test@learnable.edu`,
+          user_metadata: {
+            full_name: testProfile.full_name
+          },
+          // Add required User properties
+          app_metadata: {},
+          aud: "authenticated",
+          created_at: new Date().toISOString()
+        } as User;
+        
+        setUser(mockUser);
+        console.log(`Successfully restored test account session for ${testAccountType}`);
+      } catch (error) {
+        console.error("Failed to restore test account session:", error);
+        localStorage.removeItem('usingTestAccount');
+        localStorage.removeItem('testAccountType');
+      } finally {
+        setLoading(false);
+      }
       return;
     }
 
@@ -363,9 +401,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     schoolIndex = 0
   ) => {
     try {
-      // Clear any existing session before setting up test user
-      await supabase.auth.signOut();
-      
       // Create a consistent test school ID
       const testSchoolId = `test-school-${schoolIndex}`;
       
@@ -384,7 +419,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
           : null
       };
       
-      // Set mock states
+      // Set mock states immediately
       setProfile(testProfile);
       setUserRole(type);
       setIsSuperviser(type === "school");
@@ -407,24 +442,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       
       setUser(mockUser);
       
-      // Track session as test
-      localStorage.setItem('usingTestAccount', 'true');
-      localStorage.setItem('testAccountType', type);
-      
       console.log(`Successfully set up test user of type ${type}`);
       
       // Generate test data for this user (sessions, etc) - only for non-school roles
+      // Do this in background after the user is already set up
       if (type !== 'school') {
-        try {
-          await supabase.rpc("populatetestaccountwithsessions", {
+        setTimeout(() => {
+          supabase.rpc("populatetestaccountwithsessions", {
             userid: mockUser.id,
             schoolid: testSchoolId,
             num_sessions: 5
+          }).then(() => {
+            console.log("Created test sessions data");
+          }).catch(error => {
+            console.warn("Failed to create test session data:", error);
           });
-          console.log("Created test sessions data");
-        } catch (error) {
-          console.warn("Failed to create test session data:", error);
-        }
+        }, 0);
       }
     } catch (error) {
       console.error("Error setting test user:", error);
