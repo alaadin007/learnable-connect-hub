@@ -1,3 +1,4 @@
+
 import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -74,32 +75,38 @@ const SchoolRegistrationForm: React.FC = () => {
 
   const checkIfEmailExists = async (email: string): Promise<boolean> => {
     try {
+      console.log("Checking if email exists:", email);
+      
       // Attempt sign-in with random password to detect if email exists
+      const randomPassword = Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
+      console.log("Using random password for email check");
+      
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email,
-        password:
-          Math.random().toString(36).substring(2) +
-          Math.random().toString(36).substring(2),
+        password: randomPassword,
       });
 
-      const emailExistsFromSignIn =
-        signInError && signInError.message.includes("Invalid login credentials");
+      const emailExistsFromSignIn = signInError && signInError.message.includes("Invalid login credentials");
+      console.log("Email exists from sign-in check:", emailExistsFromSignIn, signInError?.message);
 
       // Also check the profiles table
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
-        .select("user_type, email")
-        .ilike("email", email)
+        .select("user_type")
+        .eq("id", email)
         .limit(1);
 
       if (profilesError) {
         console.error("Error checking profiles table:", profilesError);
       }
 
+      // If we got data back, the email exists
       const emailExistsInProfiles = profiles && profiles.length > 0;
+      console.log("Email exists in profiles:", emailExistsInProfiles);
 
-      if (emailExistsInProfiles && profiles && profiles.length > 0) {
+      if (emailExistsInProfiles && profiles && profiles.length > 0 && profiles[0]?.user_type) {
         setExistingUserRole(profiles[0].user_type);
+        console.log("User role from profiles:", profiles[0].user_type);
       }
 
       return emailExistsFromSignIn || emailExistsInProfiles;
@@ -142,6 +149,7 @@ const SchoolRegistrationForm: React.FC = () => {
       }
 
       const newSchoolCode = generateSchoolCode();
+      console.log("Generated school code:", newSchoolCode);
 
       // Insert into school_codes
       const { error: scError } = await supabase
@@ -175,15 +183,18 @@ const SchoolRegistrationForm: React.FC = () => {
 
         try {
           await supabase.from("school_codes").delete().eq("code", newSchoolCode);
-        } catch {
-          // Ignore cleanup errors
+          console.log("Cleaned up school_codes after failed school creation");
+        } catch (cleanupError) {
+          console.error("Error during cleanup:", cleanupError);
         }
 
-        setRegistrationError("Failed to create school record");
+        setRegistrationError("Failed to create school record: " + (schoolError?.message || "No school data returned"));
         toast.error("Failed to create school record");
         setIsLoading(false);
         return;
       }
+
+      console.log("School created with ID:", schoolData.id);
 
       // Create admin user
       const { data: userData, error: userError } = await supabase.auth.signUp({
@@ -206,8 +217,9 @@ const SchoolRegistrationForm: React.FC = () => {
         try {
           await supabase.from("schools").delete().eq("id", schoolData.id);
           await supabase.from("school_codes").delete().eq("code", newSchoolCode);
-        } catch {
-          // Ignore cleanup errors
+          console.log("Cleaned up after failed user creation");
+        } catch (cleanupError) {
+          console.error("Error during cleanup:", cleanupError);
         }
 
         if (userError?.message.includes("already registered")) {
@@ -222,14 +234,16 @@ const SchoolRegistrationForm: React.FC = () => {
             }
           );
         } else {
-          setRegistrationError("Failed to create admin user account");
+          setRegistrationError("Failed to create admin user account: " + (userError?.message || "No user data returned"));
           toast.error("Failed to create admin user account");
         }
         setIsLoading(false);
         return;
       }
 
-      // Create admin profile
+      console.log("Admin user created with ID:", userData.user.id);
+
+      // Create admin profile - note: this might be handled by a database trigger
       try {
         await supabase.from("profiles").insert({
           id: userData.user.id,
@@ -239,8 +253,9 @@ const SchoolRegistrationForm: React.FC = () => {
           school_name: data.schoolName,
           email: data.adminEmail,
         });
-      } catch {
-        // no-op; backend might auto-create profile
+        console.log("Created profile record");
+      } catch (profileError) {
+        console.log("Note: Profile creation error (may be auto-created by trigger):", profileError);
       }
 
       // Create teacher record with supervisor rights
@@ -250,9 +265,10 @@ const SchoolRegistrationForm: React.FC = () => {
           school_id: schoolData.id,
           is_supervisor: true,
         });
+        console.log("Created teacher supervisor record");
       } catch (teacherErr) {
         toast.dismiss(loadingToast);
-        setRegistrationError("Failed to create teacher record");
+        setRegistrationError("Failed to create teacher record: " + String(teacherErr));
         toast.error("Failed to create teacher admin record");
         setIsLoading(false);
         return;
