@@ -21,9 +21,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertCircle, Key, Loader2 } from "lucide-react";
+import { AlertCircle, Key } from "lucide-react";
 import { toast } from "sonner";
-import { Skeleton } from "@/components/ui/skeleton";
 
 const apiKeySchema = z.object({
   openai_api_key: z.string().optional(),
@@ -33,15 +32,13 @@ const apiKeySchema = z.object({
 type ApiKeyFormValues = z.infer<typeof apiKeySchema>;
 
 const AISettings = () => {
-  const { user, isLoading: authLoading } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(true);
-  const [isCheckingKeys, setIsCheckingKeys] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [activeProvider, setActiveProvider] = useState<"openai" | "gemini">("openai");
   const [hasOpenAIKey, setHasOpenAIKey] = useState(false);
   const [hasGeminiKey, setHasGeminiKey] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   
   const form = useForm<ApiKeyFormValues>({
     resolver: zodResolver(apiKeySchema),
@@ -53,17 +50,16 @@ const AISettings = () => {
 
   // Check if user is authenticated
   useEffect(() => {
-    if (!authLoading && !user) {
+    if (!user) {
       navigate("/login");
     }
-  }, [user, authLoading, navigate]);
+  }, [user, navigate]);
 
   // Check if API keys are already set
   useEffect(() => {
     const checkApiKeys = async () => {
       if (!user) return;
       
-      setIsCheckingKeys(true);
       setError(null);
       
       try {
@@ -95,18 +91,13 @@ const AISettings = () => {
       } catch (error) {
         console.error("Error checking API keys:", error);
         setError(`Failed to check API keys: ${error.message || 'Unknown error'}`);
-      } finally {
-        setIsCheckingKeys(false);
-        setIsLoading(false);
       }
     };
     
-    if (user && !authLoading) {
+    if (user) {
       checkApiKeys();
-    } else if (!authLoading) {
-      setIsLoading(false);
     }
-  }, [user, authLoading]);
+  }, [user, error]);
 
   const onSubmit = async (values: ApiKeyFormValues) => {
     if (!user) return;
@@ -184,20 +175,6 @@ const AISettings = () => {
     }
   };
 
-  const renderLoadingState = () => (
-    <div className="space-y-4 p-4">
-      <div className="flex items-center gap-2">
-        <Skeleton className="h-7 w-40" />
-      </div>
-      <Skeleton className="h-20 w-full" />
-      <div className="space-y-3">
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-10 w-2/3" />
-        <Skeleton className="h-10 w-1/3" />
-      </div>
-    </div>
-  );
-
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
@@ -221,12 +198,8 @@ const AISettings = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {isLoading ? (
-                <div className="py-6">
-                  {renderLoadingState()}
-                </div>
-              ) : error ? (
-                <div className="flex items-center p-4 bg-red-50 border border-red-200 rounded-md text-red-700">
+              {error ? (
+                <div className="flex items-center p-4 bg-red-50 border border-red-200 rounded-md text-red-700 mb-4">
                   <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0" />
                   <div>
                     <h4 className="font-medium">Error loading API key settings</h4>
@@ -278,12 +251,7 @@ const AISettings = () => {
                         </div>
                       </div>
 
-                      {isCheckingKeys ? (
-                        <div className="flex items-center justify-center py-8">
-                          <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-                          <span className="ml-2">Checking for existing API key...</span>
-                        </div>
-                      ) : hasOpenAIKey ? (
+                      {hasOpenAIKey ? (
                         <div className="flex items-center justify-between rounded-md border p-4">
                           <div>
                             <p className="font-medium text-gray-700">OpenAI API Key is set</p>
@@ -294,11 +262,7 @@ const AISettings = () => {
                             onClick={() => handleRemoveKey("openai")}
                             disabled={isSaving}
                           >
-                            {isSaving ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              "Remove Key"
-                            )}
+                            Remove Key
                           </Button>
                         </div>
                       ) : (
@@ -325,14 +289,7 @@ const AISettings = () => {
                               )}
                             />
                             <Button type="submit" disabled={isSaving}>
-                              {isSaving ? (
-                                <>
-                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 
-                                  Saving...
-                                </>
-                              ) : (
-                                "Save API Key"
-                              )}
+                              Save API Key
                             </Button>
                           </form>
                         </Form>
@@ -366,12 +323,7 @@ const AISettings = () => {
                         </div>
                       </div>
 
-                      {isCheckingKeys ? (
-                        <div className="flex items-center justify-center py-8">
-                          <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-                          <span className="ml-2">Checking for existing API key...</span>
-                        </div>
-                      ) : hasGeminiKey ? (
+                      {hasGeminiKey ? (
                         <div className="flex items-center justify-between rounded-md border p-4">
                           <div>
                             <p className="font-medium text-gray-700">Gemini API Key is set</p>
@@ -382,11 +334,7 @@ const AISettings = () => {
                             onClick={() => handleRemoveKey("gemini")}
                             disabled={isSaving}
                           >
-                            {isSaving ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              "Remove Key"
-                            )}
+                            Remove Key
                           </Button>
                         </div>
                       ) : (
@@ -413,14 +361,7 @@ const AISettings = () => {
                               )}
                             />
                             <Button type="submit" disabled={isSaving}>
-                              {isSaving ? (
-                                <>
-                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 
-                                  Saving...
-                                </>
-                              ) : (
-                                "Save API Key"
-                              )}
+                              Save API Key
                             </Button>
                           </form>
                         </Form>

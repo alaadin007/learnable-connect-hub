@@ -10,72 +10,108 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { getCurrentUserSchoolId } from "@/utils/schoolUtils";
 
-// Let's create an interface to extend school data with our new fields
+// Interface to extend school data with our fields
 interface SchoolData {
   id: string;
   name: string;
   code: string;
   created_at: string;
   updated_at: string;
-  // These are the new fields we want to add but don't exist in the DB yet
   contact_email?: string;
   description?: string;
   notifications_enabled?: boolean;
 }
 
 const SchoolSettings = () => {
-  const { profile, user } = useAuth(); // Added user to access the email
+  const { profile, user } = useAuth();
   const navigate = useNavigate();
   const [schoolName, setSchoolName] = useState("");
   const [schoolCode, setSchoolCode] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [description, setDescription] = useState("");
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isGeneratingCode, setIsGeneratingCode] = useState(false);
+  const [schoolId, setSchoolId] = useState<string | null>(null);
 
   useEffect(() => {
     // Load initial school data
     const fetchSchoolData = async () => {
-      if (!profile?.organization?.id) return;
-      
-      setIsLoading(true);
       try {
+        // First try to get school ID from profile
+        let schoolIdVar = profile?.organization?.id;
+        
+        // If not found in profile, try to get it through utility function
+        if (!schoolIdVar) {
+          schoolIdVar = await getCurrentUserSchoolId();
+        }
+        
+        if (!schoolIdVar) {
+          // As a fallback, try to find school by code if user has one in their metadata
+          const userSchoolCode = user?.user_metadata?.school_code;
+          
+          if (userSchoolCode) {
+            const { data: schoolByCode } = await supabase
+              .from("schools")
+              .select("id")
+              .eq("code", userSchoolCode)
+              .single();
+              
+            if (schoolByCode) {
+              schoolIdVar = schoolByCode.id;
+            }
+          }
+        }
+        
+        // Store the school ID for later use
+        setSchoolId(schoolIdVar);
+        
+        if (!schoolIdVar) {
+          toast.error("Could not determine your school. Please contact support.");
+          return;
+        }
+        
         // Get school information
         const { data, error } = await supabase
           .from("schools")
           .select("*")
-          .eq("id", profile.organization.id)
+          .eq("id", schoolIdVar)
           .single();
 
-        if (error) throw error;
+        if (error) {
+          console.error("Error fetching school data:", error);
+          toast.error("Failed to load school information");
+          return;
+        }
         
         if (data) {
           setSchoolName(data.name || "");
           setSchoolCode(data.code || "");
-          // For these fields, we'll use default values since they don't exist in the DB yet
-          setContactEmail(user?.email || ""); // Using user.email instead of profile.email
+          setContactEmail(data.contact_email || user?.email || "");
           setDescription(data.description || "");
-          setNotificationsEnabled(data.notifications_enabled !== false); // Default to true if undefined
+          setNotificationsEnabled(data.notifications_enabled !== false);
         }
       } catch (error) {
         console.error("Error fetching school data:", error);
         toast.error("Failed to load school information");
-      } finally {
-        setIsLoading(false);
       }
     };
 
-    fetchSchoolData();
-  }, [profile, user]); // Added user to the dependency array
+    if (user) {
+      fetchSchoolData();
+    }
+  }, [profile, user]);
 
   const handleSaveSettings = async () => {
-    if (!profile?.organization?.id) return;
+    if (!schoolId) {
+      toast.error("School information not found");
+      return;
+    }
     
     setIsSaving(true);
     try {
@@ -89,7 +125,7 @@ const SchoolSettings = () => {
           notifications_enabled: notificationsEnabled,
           updated_at: new Date().toISOString()
         })
-        .eq("id", profile.organization.id);
+        .eq("id", schoolId);
 
       if (error) throw error;
       
@@ -103,30 +139,25 @@ const SchoolSettings = () => {
   };
 
   const generateNewSchoolCode = async () => {
-    if (!profile?.organization?.id) {
+    if (!schoolId) {
       toast.error("School information not found");
       return;
     }
     
     setIsGeneratingCode(true);
     try {
-      console.log("Generating new code for school:", profile.organization.id);
-      
       // Call the Edge Function to generate a new code
       const { data, error } = await supabase.functions.invoke("generate-student-code", {
-        body: { schoolId: profile.organization.id }
+        body: { schoolId }
       });
       
       if (error) {
-        console.error("Error from edge function:", error);
         throw new Error(error.message || "Failed to generate new code");
       }
       
       if (!data || !data.code) {
         throw new Error("No code returned from server");
       }
-      
-      console.log("New code generated:", data.code);
       
       // Update the school record with the new code
       const { error: updateError } = await supabase
@@ -135,10 +166,9 @@ const SchoolSettings = () => {
           code: data.code,
           updated_at: new Date().toISOString()
         })
-        .eq("id", profile.organization.id);
+        .eq("id", schoolId);
 
       if (updateError) {
-        console.error("Error updating school code:", updateError);
         throw updateError;
       }
       
@@ -179,96 +209,78 @@ const SchoolSettings = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {isLoading ? (
-                <p>Loading school information...</p>
-              ) : (
-                <div className="space-y-6">
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="schoolName">School Name</Label>
-                      <Input 
-                        id="schoolName" 
-                        value={schoolName} 
-                        onChange={(e) => setSchoolName(e.target.value)}
-                        placeholder="Your school's name" 
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="contactEmail">Contact Email</Label>
-                      <Input 
-                        id="contactEmail" 
-                        type="email"
-                        value={contactEmail} 
-                        onChange={(e) => setContactEmail(e.target.value)}
-                        placeholder="admin@yourschool.edu" 
-                      />
-                    </div>
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="schoolName">School Name</Label>
+                    <Input 
+                      id="schoolName" 
+                      value={schoolName} 
+                      onChange={(e) => setSchoolName(e.target.value)}
+                      placeholder="Your school's name" 
+                    />
                   </div>
                   
                   <div className="space-y-2">
-                    <Label htmlFor="description">School Description</Label>
-                    <Textarea 
-                      id="description" 
-                      value={description} 
-                      onChange={(e) => setDescription(e.target.value)}
-                      placeholder="Brief description of your school" 
-                      rows={3}
+                    <Label htmlFor="contactEmail">Contact Email</Label>
+                    <Input 
+                      id="contactEmail" 
+                      type="email"
+                      value={contactEmail} 
+                      onChange={(e) => setContactEmail(e.target.value)}
+                      placeholder="admin@yourschool.edu" 
                     />
                   </div>
-                  
-                  <div className="space-y-4">
-                    <Label>School Code</Label>
-                    <div className="flex items-center space-x-2">
-                      <code className="bg-background p-3 rounded border flex-1 text-center font-mono">
-                        {schoolCode}
-                      </code>
-                      <Button 
-                        variant="outline" 
-                        onClick={generateNewSchoolCode}
-                        disabled={isGeneratingCode}
-                      >
-                        {isGeneratingCode ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Generating...
-                          </>
-                        ) : (
-                          "Generate New Code"
-                        )}
-                      </Button>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      This code is used by teachers and students to join your school.
-                      Generating a new code will invalidate the old one.
-                    </p>
-                  </div>
-                  
-                  <div className="flex items-center space-x-2">
-                    <Switch 
-                      id="notifications"
-                      checked={notificationsEnabled}
-                      onCheckedChange={setNotificationsEnabled}
-                    />
-                    <Label htmlFor="notifications">Enable email notifications</Label>
-                  </div>
-                  
-                  <Button 
-                    onClick={handleSaveSettings} 
-                    disabled={isSaving}
-                    className="gradient-bg"
-                  >
-                    {isSaving ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      "Save Settings"
-                    )}
-                  </Button>
                 </div>
-              )}
+                
+                <div className="space-y-2">
+                  <Label htmlFor="description">School Description</Label>
+                  <Textarea 
+                    id="description" 
+                    value={description} 
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Brief description of your school" 
+                    rows={3}
+                  />
+                </div>
+                
+                <div className="space-y-4">
+                  <Label>School Code</Label>
+                  <div className="flex items-center space-x-2">
+                    <code className="bg-background p-3 rounded border flex-1 text-center font-mono">
+                      {schoolCode}
+                    </code>
+                    <Button 
+                      variant="outline" 
+                      onClick={generateNewSchoolCode}
+                      disabled={isGeneratingCode}
+                    >
+                      Generate New Code
+                    </Button>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    This code is used by teachers and students to join your school.
+                    Generating a new code will invalidate the old one.
+                  </p>
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <Switch 
+                    id="notifications"
+                    checked={notificationsEnabled}
+                    onCheckedChange={setNotificationsEnabled}
+                  />
+                  <Label htmlFor="notifications">Enable email notifications</Label>
+                </div>
+                
+                <Button 
+                  onClick={handleSaveSettings} 
+                  disabled={isSaving}
+                  className="gradient-bg"
+                >
+                  Save Settings
+                </Button>
+              </div>
             </CardContent>
           </Card>
           

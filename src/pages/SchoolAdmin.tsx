@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -16,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
+import { getCurrentUserSchoolId } from "@/utils/schoolUtils";
 
 // Define the extended type for teacher invitations to include error property
 export type TeacherInvitation = {
@@ -35,17 +37,54 @@ const SchoolAdmin = () => {
   const location = useLocation();
   const [activeTab, setActiveTab] = useState("teachers");
   const { profile, userRole, user } = useAuth();
+  const [schoolInfo, setSchoolInfo] = useState<{name: string, code: string} | null>(null);
   
-  // Debug school information
+  // Load school information
   useEffect(() => {
-    if (profile) {
-      console.log("SchoolAdmin - Profile loaded:", profile);
-      console.log("School info:", profile.organization);
-      console.log("User role:", userRole);
-    }
-  }, [profile, userRole]);
+    const fetchSchoolInfo = async () => {
+      if (user) {
+        try {
+          // Try to get school ID from profile first
+          let schoolId = profile?.organization?.id;
+          
+          // If not found, try getting it through utility function
+          if (!schoolId) {
+            schoolId = await getCurrentUserSchoolId();
+          }
+          
+          if (schoolId) {
+            const { data, error } = await supabase
+              .from("schools")
+              .select("name, code")
+              .eq("id", schoolId)
+              .single();
+              
+            if (error) {
+              console.error("Error fetching school data:", error);
+              toast.error("Failed to load school information");
+            } else if (data) {
+              setSchoolInfo({
+                name: data.name,
+                code: data.code
+              });
+            }
+          } else if (user.user_metadata?.school_name && user.user_metadata?.school_code) {
+            // Fallback to user metadata if available
+            setSchoolInfo({
+              name: user.user_metadata.school_name,
+              code: user.user_metadata.school_code
+            });
+          }
+        } catch (error) {
+          console.error("Error in fetchSchoolInfo:", error);
+        }
+      }
+    };
+    
+    fetchSchoolInfo();
+  }, [user, profile]);
   
-  // Safety check for profile and organization
+  // Safety check for authentication
   if (!user) {
     // Redirect to login if not logged in
     useEffect(() => {
@@ -54,11 +93,6 @@ const SchoolAdmin = () => {
     }, []);
     return null;
   }
-  
-  // Use optional chaining for organization properties to avoid undefined errors
-  const schoolId = profile?.organization?.id || null;
-  const schoolName = profile?.organization?.name || "Not available";
-  const schoolCode = profile?.organization?.code || "Not available";
   
   // Verify correct user role
   useEffect(() => {
@@ -110,11 +144,6 @@ const SchoolAdmin = () => {
     }
   };
 
-  // Add additional debug information when no organization is found
-  if (!profile?.organization) {
-    console.warn("No organization found in profile:", profile);
-  }
-
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
@@ -137,11 +166,11 @@ const SchoolAdmin = () => {
               <div className="space-y-2">
                 <div className="flex flex-col sm:flex-row sm:items-center">
                   <span className="font-medium min-w-32">School Name:</span>
-                  <span>{profile?.organization?.name || "Not available"}</span>
+                  <span>{schoolInfo?.name || profile?.organization?.name || user?.user_metadata?.school_name || "Not available"}</span>
                 </div>
                 <div className="flex flex-col sm:flex-row sm:items-center">
                   <span className="font-medium min-w-32">School Code:</span>
-                  <span className="font-mono">{profile?.organization?.code || "Not available"}</span>
+                  <span className="font-mono">{schoolInfo?.code || profile?.organization?.code || user?.user_metadata?.school_code || "Not available"}</span>
                 </div>
                 <p className="text-sm text-muted-foreground mt-2">
                   Your school code is used to invite teachers and students to join your school.
