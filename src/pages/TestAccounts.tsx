@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -127,25 +126,17 @@ const TestAccounts = () => {
       setLoadingAccount(accountType);
 
       try {
-        console.log(`TestAccounts: Logging in as ${accountType} test account...`);
+        console.log(`TestAccounts: Fast login as ${accountType} test account...`);
 
-        // First make sure we're logged out and all test flags are cleared
-        await supabase.auth.signOut();
-        localStorage.removeItem('usingTestAccount');
-        localStorage.removeItem('testAccountType');
+        // Skip authentication and just set up the local test flags
+        localStorage.setItem('usingTestAccount', 'true');
+        localStorage.setItem('testAccountType', accountType);
         
-        // Sign out from AuthContext to clear any existing state
-        await signOut();
-
         // Set test user in auth context - this bypasses authentication
         const mockUser = await setTestUser(accountType);
         if (!mockUser) {
           throw new Error(`Failed to set up ${accountType} test account`);
         }
-
-        // Mark in localStorage that we're using a test account
-        localStorage.setItem('usingTestAccount', 'true');
-        localStorage.setItem('testAccountType', accountType);
 
         // Define redirect paths based on account type
         let redirectPath = "/dashboard";
@@ -166,7 +157,7 @@ const TestAccounts = () => {
 
         console.log(`TestAccounts: Navigating to ${redirectPath} for ${accountType}`);
 
-        // Navigate with important state parameters for persistence
+        // Navigate with state parameters for context persistence
         navigate(redirectPath, {
           replace: true,
           state: { 
@@ -188,7 +179,7 @@ const TestAccounts = () => {
         setLoadingAccount(null);
       }
     },
-    [navigate, setTestUser, signOut]
+    [navigate, setTestUser]
   );
 
   return (

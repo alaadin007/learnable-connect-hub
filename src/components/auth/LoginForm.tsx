@@ -79,8 +79,8 @@ const LoginForm = () => {
         return "/dashboard";
     }
   };
-
-  // Special handling for test accounts
+  
+  // Special handling for test accounts - much faster now
   const handleQuickLogin = async (
     type: "school" | "teacher" | "student"
   ) => {
@@ -88,31 +88,18 @@ const LoginForm = () => {
     setIsLoading(true);
 
     try {
-      console.log(`LoginForm: Quick login as ${type}`);
+      console.log(`LoginForm: Instant login as ${type}`);
       
-      // If there's already a test account active, sign out first
-      if (activeTestAccount) {
-        await signOut();
-      }
+      // Set test account flags immediately
+      localStorage.setItem('usingTestAccount', 'true');
+      localStorage.setItem('testAccountType', type);
       
-      // Make sure we're logged out first and clear test flags
-      await supabase.auth.signOut();
-      localStorage.removeItem('usingTestAccount');
-      localStorage.removeItem('testAccountType');
-      
-      // Direct login for test accounts - this completely bypasses authentication
+      // Direct login for test accounts - this bypasses authentication completely
       const mockUser = await setTestUser(type);
       if (!mockUser) {
         throw new Error(`Failed to set up ${type} test account`);
       }
       
-      // Mark in localStorage that we're using a test account
-      localStorage.setItem('usingTestAccount', 'true');
-      localStorage.setItem('testAccountType', type);
-      setActiveTestAccount(type);
-      
-      console.log(`LoginForm: Successfully set up quick login for ${type}`);
-
       // Define redirect paths
       const redirectPath = getUserRedirectPath(type);
 

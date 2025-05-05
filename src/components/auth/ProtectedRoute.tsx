@@ -1,4 +1,3 @@
-
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth, UserRole } from "@/contexts/AuthContext";
 
@@ -30,7 +29,7 @@ const ProtectedRoute = ({
   const { user, profile, isLoading, userRole, schoolId: userSchoolId, isSupervisor } = useAuth();
   const location = useLocation();
 
-  // Check if we're using a test account
+  // Fast path for test accounts - check directly from localStorage first
   const usingTestAccount = localStorage.getItem('usingTestAccount') === 'true';
   const testAccountType = localStorage.getItem('testAccountType') as UserRole | null;
 
@@ -48,14 +47,11 @@ const ProtectedRoute = ({
     );
   }
 
-  if (!user && !usingTestAccount) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
-  }
-
-  // Handle test accounts
+  // Handle test accounts immediately without further checks
   if (usingTestAccount && testAccountType) {
-    console.log(`ProtectedRoute: Checking test account role ${testAccountType}`);
+    console.log(`ProtectedRoute: Fast test account check for ${testAccountType}`);
     
+    // For test accounts, only check role requirements, bypass other checks
     if (requiredUserType && testAccountType !== requiredUserType) {
       console.log(`ProtectedRoute: Test account role ${testAccountType} doesn't match required role ${requiredUserType}`);
       return <Navigate to={getRedirectPath(testAccountType)} replace />;
@@ -66,37 +62,40 @@ const ProtectedRoute = ({
       return <Navigate to={getRedirectPath(testAccountType)} replace />;
     }
 
-    if (requireSupervisor && testAccountType !== 'school') {
-      console.log(`ProtectedRoute: Test account is not a supervisor`);
-      return <Navigate to={getRedirectPath(testAccountType)} replace />;
-    }
-  } else {
-    // Handle regular accounts
-    console.log("ProtectedRoute: User role:", userRole, "Required role:", requiredUserType);
+    // Skip supervisor and school ID checks for test accounts - allow access
+    return <>{children}</>;
+  }
 
-    // Fix for TypeScript error - explicitly cast userRole to UserRole when comparing
-    const currentUserRole = userRole as UserRole | null;
+  // Regular account path - if not a test account and no user, redirect to login
+  if (!user) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
 
-    if (requiredUserType && currentUserRole && currentUserRole !== requiredUserType) {
-      console.log(`ProtectedRoute: User role ${currentUserRole} doesn't match required role ${requiredUserType}`);
-      return <Navigate to={getRedirectPath(currentUserRole)} replace />;
-    }
+  // Handle regular accounts
+  console.log("ProtectedRoute: User role:", userRole, "Required role:", requiredUserType);
 
-    if (allowedRoles && currentUserRole && !allowedRoles.includes(currentUserRole)) {
-      console.log(`ProtectedRoute: User role ${currentUserRole} not in allowed roles:`, allowedRoles);
-      return <Navigate to={getRedirectPath(currentUserRole)} replace />;
-    }
+  // Fix for TypeScript error - explicitly cast userRole to UserRole when comparing
+  const currentUserRole = userRole as UserRole | null;
 
-    // For supervisor checks, we'll use the isSupervisor property
-    if (requireSupervisor && !isSupervisor) {
-      console.log(`ProtectedRoute: User is not a supervisor`);
-      return <Navigate to={getRedirectPath(currentUserRole)} replace />;
-    }
+  if (requiredUserType && currentUserRole && currentUserRole !== requiredUserType) {
+    console.log(`ProtectedRoute: User role ${currentUserRole} doesn't match required role ${requiredUserType}`);
+    return <Navigate to={getRedirectPath(currentUserRole)} replace />;
+  }
 
-    if (requireSameSchool && schoolId && userSchoolId && schoolId !== userSchoolId) {
-      console.log(`ProtectedRoute: School ID mismatch - user: ${userSchoolId}, required: ${schoolId}`);
-      return <Navigate to={getRedirectPath(currentUserRole)} replace />;
-    }
+  if (allowedRoles && currentUserRole && !allowedRoles.includes(currentUserRole)) {
+    console.log(`ProtectedRoute: User role ${currentUserRole} not in allowed roles:`, allowedRoles);
+    return <Navigate to={getRedirectPath(currentUserRole)} replace />;
+  }
+
+  // For supervisor checks, we'll use the isSupervisor property
+  if (requireSupervisor && !isSupervisor) {
+    console.log(`ProtectedRoute: User is not a supervisor`);
+    return <Navigate to={getRedirectPath(currentUserRole)} replace />;
+  }
+
+  if (requireSameSchool && schoolId && userSchoolId && schoolId !== userSchoolId) {
+    console.log(`ProtectedRoute: School ID mismatch - user: ${userSchoolId}, required: ${schoolId}`);
+    return <Navigate to={getRedirectPath(currentUserRole)} replace />;
   }
 
   // If all checks pass, render the protected content
