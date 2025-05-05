@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -101,33 +102,55 @@ const LoginForm = () => {
       // Since we've updated signIn to return the auth response, we can check for errors here
       if (response.error) throw response.error;
 
+      // Get current user after successful login
       const { data: { user } } = await supabase.auth.getUser();
 
       if (user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("user_type, full_name, organization(id, name)")
-          .eq("id", user.id)
-          .single();
+        try {
+          // Get user profile with organization data
+          const { data: profile, error: profileError } = await supabase
+            .from("profiles")
+            .select("user_type, full_name, school_code, organization:schools(id, name, code)")
+            .eq("id", user.id)
+            .single();
 
-        console.log("LoginForm: User profile fetched:", profile);
+          if (profileError) {
+            console.error("Error fetching user profile:", profileError);
+            toast.error("Error fetching user profile");
+            setIsLoading(false);
+            return;
+          }
 
-        const redirectPath =
-          profile?.user_type === "school"
-            ? "/admin"
-            : profile?.user_type === "teacher"
-            ? "/teacher/analytics"
-            : "/dashboard";
+          console.log("LoginForm: User profile fetched:", profile);
 
-        toast.success("Login successful", {
-          description: `Welcome back, ${
-            profile?.full_name || user.user_metadata?.full_name || email
-          }!`,
-        });
+          // Determine redirect path based on user type
+          const redirectPath =
+            profile?.user_type === "school"
+              ? "/admin"
+              : profile?.user_type === "teacher"
+              ? "/teacher/analytics"
+              : "/dashboard";
 
-        navigate(redirectPath, { replace: true });
+          toast.success("Login successful", {
+            description: `Welcome back, ${
+              profile?.full_name || user.user_metadata?.full_name || email
+            }!`,
+          });
+
+          // Ensure we're passing preserveContext to prevent redirect loops
+          navigate(redirectPath, { 
+            replace: true,
+            state: { 
+              fromNavigation: true,
+              preserveContext: true
+            }
+          });
+        } catch (profileError) {
+          console.error("Error processing profile:", profileError);
+          toast.error("Error loading user profile");
+        }
       } else {
-        // fallback
+        // fallback for unexpected case
         toast.success("Login successful");
         navigate("/dashboard");
       }

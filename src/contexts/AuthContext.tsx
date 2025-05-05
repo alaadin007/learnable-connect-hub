@@ -1,3 +1,4 @@
+
 import React, {
   createContext,
   useState,
@@ -133,7 +134,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       // Fix the type issue by using a ternary operator to ensure boolean value
       setIsSuperviser(
         profileData.user_type === "superviser" || 
-        (profileData.user_type === "school" && !!safeProfileData.organization?.id)
+        (profileData.user_type === "school" && safeProfileData.organization?.id ? true : false)
       );
       setSchoolId(safeProfileData.organization?.id || null);
 
