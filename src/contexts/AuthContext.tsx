@@ -409,14 +409,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = useCallback(async () => {
     try {
-      // Clear test user data
+      // Clear test user data first
       localStorage.removeItem("testUser");
       localStorage.removeItem("testUserRole");
       localStorage.removeItem("testUserIndex");
-
-      // Sign out from Supabase
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
 
       // Clear all state immediately
       setUser(null);
@@ -426,8 +422,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsSupervisor(false);
       setIsTestUser(false);
 
-      // Direct navigation to login page without timeout
+      // Sign out from Supabase
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+
+      // No timeouts or spinners - direct navigation
       navigate("/login");
+      return true;
     } catch (error) {
       console.error("Logout error:", error);
       toast.error(`Logout failed: ${(error as Error).message}`);

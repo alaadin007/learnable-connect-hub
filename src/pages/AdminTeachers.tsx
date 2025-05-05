@@ -7,16 +7,18 @@ import TeacherManagement from "@/components/school-admin/TeacherManagement";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
 import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 const AdminTeachers = () => {
   const navigate = useNavigate();
   const { userRole } = useAuth();
 
-  // Verify correct user role and redirect if needed
+  // Verify correct user role and redirect if needed - but with improved error handling
   React.useEffect(() => {
     if (userRole && userRole !== "school") {
-      console.log(`AdminTeachers: Redirecting user with role ${userRole} to dashboard`);
-      navigate("/dashboard", { state: { fromRoleRedirect: true } });
+      console.log(`AdminTeachers: Unauthorized access by user with role ${userRole}`);
+      toast.error("You don't have permission to access this page");
+      navigate("/dashboard", { replace: true });
     }
   }, [userRole, navigate]);
   
@@ -30,7 +32,7 @@ const AdminTeachers = () => {
               variant="outline" 
               size="sm" 
               className="flex items-center gap-1"
-              onClick={() => navigate('/admin', { state: { fromNavigation: true, preserveContext: true } })}
+              onClick={() => navigate('/admin', { replace: true })}
             >
               <ArrowLeft className="h-4 w-4" />
               Back to Admin

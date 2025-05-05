@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -18,8 +19,7 @@ const Navbar = () => {
 
   const handleLogout = useCallback(async () => {
     try {
-      console.log("Navbar: Logout requested");
-      // Direct logout without spinners
+      // Direct logout without spinners or delays
       await signOut();
       toast.success("Logged out successfully");
       navigate("/login");

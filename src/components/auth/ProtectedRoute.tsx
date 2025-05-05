@@ -2,6 +2,7 @@
 import React from "react";
 import { Navigate, useLocation, Outlet } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 interface ProtectedRouteProps {
   children?: React.ReactNode;
@@ -20,7 +21,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   requireSameSchool = false,
   redirectTo = "/login",
 }) => {
-  const { user, userRole, isSupervisor, schoolId, isLoading, isTestUser } = useAuth();
+  const { user, userRole, isSupervisor, schoolId, isTestUser } = useAuth();
   const location = useLocation();
   
   // For test users, bypass all permission checks
@@ -29,7 +30,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <>{children || <Outlet />}</>;
   }
   
-  // If no user or still loading auth state, redirect
+  // If no user, redirect immediately
   if (!user) {
     console.log("ProtectedRoute: No user detected, access denied");
     return <Navigate to={redirectTo} replace state={{ from: location.pathname }} />;
@@ -38,24 +39,28 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   // Check role requirements
   if (requiredRole && userRole !== requiredRole) {
     console.log(`Access denied: Required role ${requiredRole}, user has ${userRole}`);
+    toast.error("You don't have permission to access this page");
     return <Navigate to="/unauthorized" replace state={{ from: location.pathname }} />;
   }
   
   // Check allowed roles
   if (allowedRoles && allowedRoles.length > 0 && (!userRole || !allowedRoles.includes(userRole))) {
     console.log(`Access denied: User role ${userRole} not in allowed roles [${allowedRoles.join(", ")}]`);
+    toast.error("You don't have permission to access this page");
     return <Navigate to="/unauthorized" replace state={{ from: location.pathname }} />;
   }
 
   // Check supervisor requirement
   if (requireSupervisor && !isSupervisor) {
     console.log("Access denied: Supervisor privileges required");
+    toast.error("This action requires supervisor privileges");
     return <Navigate to="/unauthorized" replace state={{ from: location.pathname }} />;
   }
 
   // Check school requirement
   if (requireSameSchool && !schoolId) {
     console.log("Access denied: School association required");
+    toast.error("You need to be associated with a school to access this page");
     return <Navigate to="/unauthorized" replace state={{ from: location.pathname }} />;
   }
   
