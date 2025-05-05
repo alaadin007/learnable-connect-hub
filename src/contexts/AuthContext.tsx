@@ -95,21 +95,27 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         return null;
       }
 
-      // Safely access nested properties
+      // Create a safe version of the profile data with proper type handling
       const safeProfileData: UserProfile = {
         id: profileData.id,
         user_type: profileData.user_type,
         full_name: profileData.full_name,
         school_code: profileData.school_code,
-        organization: profileData.organization
-          ? {
-              // Handle potentially undefined organization data
-              id: profileData.organization?.id || "",
-              name: profileData.organization?.name || "",
-              code: profileData.organization?.code || "",
-            }
-          : null,
+        organization: null, // Default to null
       };
+      
+      // Only set organization data if it exists and has the expected structure
+      if (profileData.organization && 
+          typeof profileData.organization === 'object' && 
+          'id' in profileData.organization && 
+          'name' in profileData.organization && 
+          'code' in profileData.organization) {
+        safeProfileData.organization = {
+          id: String(profileData.organization.id || ""),
+          name: String(profileData.organization.name || ""),
+          code: String(profileData.organization.code || ""),
+        };
+      }
 
       setProfile(safeProfileData);
       setUserRole(profileData.user_type || null);
