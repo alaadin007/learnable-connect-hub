@@ -73,13 +73,16 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess, disabled = false }) 
     setUploadError(null);
     
     try {
+      // First, make sure the storage bucket exists
+      await supabase.functions.invoke('setup-document-storage');
+      
       // Generate a unique storage path to prevent file name collisions
       const fileExt = file.name.split('.').pop();
       const fileName = `${uuidv4()}.${fileExt}`;
       const filePath = `${user.id}/${fileName}`;
       
       // Upload file to storage
-      const { error: uploadError } = await supabase
+      const { error: uploadError, data: uploadData } = await supabase
         .storage
         .from('user-content')
         .upload(filePath, file, {
@@ -88,11 +91,14 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess, disabled = false }) 
         });
       
       if (uploadError) {
+        console.error("Storage upload error:", uploadError);
         throw new Error(uploadError.message);
       }
       
+      console.log("File uploaded successfully:", uploadData);
+      
       // Store file metadata in the database
-      const { error: dbError } = await supabase
+      const { error: dbError, data: docData } = await supabase
         .from('documents')
         .insert({
           user_id: user.id,
@@ -101,16 +107,27 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess, disabled = false }) 
           file_type: file.type,
           file_size: file.size,
           processing_status: 'pending'
-        });
+        })
+        .select()
+        .single();
         
       if (dbError) {
+        console.error("Database error:", dbError);
         throw new Error(dbError.message);
       }
 
+      console.log("Document record created:", docData);
+
       // Trigger document processing
-      await supabase.functions.invoke('process-document', {
+      const { error: processError } = await supabase.functions.invoke('process-document', {
         body: { file_path: filePath }
       });
+      
+      if (processError) {
+        console.error("Process document error:", processError);
+        // Don't throw here, we still want to show success for the upload
+        toast.warning("File uploaded but processing may be delayed");
+      }
       
       setUploadSuccess(true);
       toast.success("File uploaded successfully", {

@@ -32,6 +32,8 @@ serve(async (req) => {
       );
     }
     
+    console.log("Processing document:", file_path);
+    
     // Find the document record in the database
     const { data: documentData, error: documentError } = await supabaseClient
       .from('documents')
@@ -54,18 +56,31 @@ serve(async (req) => {
     }
     
     // Update document status to processing
-    await supabaseClient
+    const { error: updateError } = await supabaseClient
       .from('documents')
       .update({ processing_status: 'processing' })
       .eq('id', documentData.id);
     
+    if (updateError) {
+      console.error("Error updating document status:", updateError);
+    }
+    
     try {
+      // Check if the file exists in storage
+      const { data: fileData, error: fileError } = await supabaseClient
+        .storage
+        .from('user-content')
+        .download(file_path);
+      
+      if (fileError) {
+        throw new Error(`File storage error: ${fileError.message}`);
+      }
+      
       // Simplified mock document processing
       // In a real implementation, you would process the document content here
-      // For now, we'll just simulate processing by adding a document_content record
       
       // Create dummy content record
-      const { data: contentData, error: contentError } = await supabaseClient
+      const { error: contentError } = await supabaseClient
         .from('document_content')
         .insert({
           document_id: documentData.id,
@@ -77,11 +92,15 @@ serve(async (req) => {
         throw contentError;
       }
       
-      // Mark document as processed - ensure we use the correct string literal for status
-      await supabaseClient
+      // Mark document as processed
+      const { error: completeError } = await supabaseClient
         .from('documents')
         .update({ processing_status: 'completed' })
         .eq('id', documentData.id);
+      
+      if (completeError) {
+        console.error("Error marking document as completed:", completeError);
+      }
       
       return new Response(
         JSON.stringify({ 
@@ -97,7 +116,7 @@ serve(async (req) => {
     } catch (processingError) {
       console.error("Error processing document:", processingError);
       
-      // Mark document as failed - ensure we use the correct string literal for status
+      // Mark document as failed
       await supabaseClient
         .from('documents')
         .update({ processing_status: 'error' })
@@ -121,7 +140,7 @@ serve(async (req) => {
       { 
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" }
-      }
-    );
-  }
+        }
+      );
+    }
 });

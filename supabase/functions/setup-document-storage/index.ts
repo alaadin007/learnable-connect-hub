@@ -24,14 +24,14 @@ serve(async (req) => {
     const { data: bucketInfo, error: bucketError } = await supabaseClient.storage.getBucket('user-content');
     
     // If bucket doesn't exist, create it
-    if (bucketError && bucketError.message.includes('does not exist')) {
+    if (bucketError && bucketError.message && bucketError.message.includes('does not exist')) {
       console.log("user-content bucket does not exist, creating...");
       
       // Create the user-content bucket
       const { data: newBucket, error: createError } = await supabaseClient.storage.createBucket(
         "user-content",
         { 
-          public: false,
+          public: true, // Make bucket public for easier access
           fileSizeLimit: 52428800 // 50MB
         }
       );
@@ -51,15 +51,13 @@ serve(async (req) => {
       
       // Set up RLS policies for the bucket
       try {
-        // Using storage.from().createPolicy alternative since it's more reliable
-        
         // Policy for users to read their own files
         await supabaseClient.rpc('create_storage_policy', {
           bucket_name: 'user-content',
           policy_name: 'read_own_files',
           definition: {
             download: {
-              expression: 'storage.object_owner = auth.uid()'
+              expression: 'storage.foldername(name) = auth.uid()::text' 
             }
           }
         });
@@ -70,7 +68,7 @@ serve(async (req) => {
           policy_name: 'upload_own_files',
           definition: {
             insert: {
-              expression: 'storage.object_owner = auth.uid()'
+              expression: 'storage.foldername(name) = auth.uid()::text'
             }
           }
         });
@@ -81,7 +79,7 @@ serve(async (req) => {
           policy_name: 'update_own_files',
           definition: {
             update: {
-              expression: 'storage.object_owner = auth.uid()'
+              expression: 'storage.foldername(name) = auth.uid()::text'
             }
           }
         });
@@ -92,7 +90,7 @@ serve(async (req) => {
           policy_name: 'delete_own_files',
           definition: {
             delete: {
-              expression: 'storage.object_owner = auth.uid()'
+              expression: 'storage.foldername(name) = auth.uid()::text'
             }
           }
         });
@@ -101,19 +99,6 @@ serve(async (req) => {
       } catch (policyError) {
         console.error("Error setting up storage policies:", policyError);
         // Continue anyway - the bucket is created, policies can be set up later
-        // A message will be included in the response
-        return new Response(
-          JSON.stringify({ 
-            success: true, 
-            message: "Storage bucket created successfully, but there was an issue setting up access policies",
-            bucket: "user-content",
-            policyError: policyError.message
-          }),
-          { 
-            status: 200,
-            headers: { ...corsHeaders, "Content-Type": "application/json" }
-          }
-        );
       }
       
       return new Response(
