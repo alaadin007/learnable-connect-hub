@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
@@ -161,18 +160,32 @@ const AdminAnalytics = () => {
     }
   }, [schoolId]);
 
-  // Optimized to fetch students data only once
+  // Fetch students data when schoolId is available
   useEffect(() => {
     if (schoolId) {
       const fetchStudents = async () => {
         try {
+          // Get total count first
+          const { count, error: countError } = await supabase
+            .from('students')
+            .select('*', { count: 'exact', head: true })
+            .eq('school_id', schoolId);
+            
+          if (countError) throw countError;
+          
+          // If too many students, limit the query
+          const limit = count && count > 500 ? 50 : 500;
+          
+          // Fetch student profiles with name information
           const { data, error } = await supabase
             .from('students')
-            .select('id, profiles:profiles!inner(full_name)')
+            .select('id, profiles(full_name)')
             .eq('school_id', schoolId)
-            .limit(100);  // Limiting to 100 students to reduce query volume
+            .limit(limit);
+            
+          if (error) throw error;
           
-          if (!error && data && data.length > 0) {
+          if (data && data.length > 0) {
             const formattedStudents = data.map(student => ({
               id: student.id,
               name: student.profiles?.full_name || `Student ${student.id.substring(0, 4)}`
@@ -181,6 +194,7 @@ const AdminAnalytics = () => {
           }
         } catch (e) {
           console.error("Error fetching students:", e);
+          // Keep using default students data on error
         }
       };
       
@@ -191,7 +205,8 @@ const AdminAnalytics = () => {
   // Use React Query with optimized settings to reduce requests
   const { 
     data: summary = initialSummaryData,
-    refetch: refetchSummary
+    refetch: refetchSummary,
+    isLoading: isSummaryLoading
   } = useQuery({
     queryKey: ['analytics-summary', schoolId, filters.dateRange],
     queryFn: () => fetchAnalyticsSummary(schoolId, filters),
@@ -203,7 +218,8 @@ const AdminAnalytics = () => {
   // Optimized query for session logs
   const {
     data: sessions = initialSessionData,
-    refetch: refetchSessions
+    refetch: refetchSessions,
+    isLoading: isSessionsLoading
   } = useQuery({
     queryKey: ['session-logs', schoolId, filters],
     queryFn: () => fetchSessionLogs(schoolId, filters),
@@ -215,7 +231,8 @@ const AdminAnalytics = () => {
   // Optimized query for topics data
   const {
     data: topics = initialTopicsData,
-    refetch: refetchTopics
+    refetch: refetchTopics,
+    isLoading: isTopicsLoading
   } = useQuery({
     queryKey: ['topics', schoolId, filters],
     queryFn: () => fetchTopics(schoolId, filters),
@@ -227,7 +244,8 @@ const AdminAnalytics = () => {
   // Optimized query for study time data
   const {
     data: studyTime = initialStudyTimeData,
-    refetch: refetchStudyTime
+    refetch: refetchStudyTime,
+    isLoading: isStudyTimeLoading
   } = useQuery({
     queryKey: ['study-time', schoolId, filters],
     queryFn: () => fetchStudyTime(schoolId, filters),
@@ -236,92 +254,40 @@ const AdminAnalytics = () => {
     initialData: initialStudyTimeData
   });
 
-  // Optimized query for school performance data with proper data transformation
+  // Optimized query for school performance data
   const {
     data: schoolPerformanceData = initialPerformanceData,
-    refetch: refetchSchoolPerformance
+    refetch: refetchSchoolPerformance,
+    isLoading: isSchoolPerformanceLoading
   } = useQuery({
     queryKey: ['school-performance', schoolId, filters],
-    queryFn: async () => {
-      try {
-        const data = await fetchSchoolPerformance(schoolId, filters);
-        
-        // Transform data to match expected format
-        return {
-          monthlyData: data.monthlyData.map(item => ({
-            month: item.month,
-            score: item.avg_monthly_score || 0
-          })),
-          summary: {
-            averageScore: data.summary?.avg_score || 0,
-            trend: data.summary?.avg_score > 80 ? 'up' : 'down',
-            changePercentage: 2 // Default value when real data doesn't provide this
-          }
-        };
-      } catch (error) {
-        console.error("Error fetching school performance:", error);
-        return initialPerformanceData;
-      }
-    },
+    queryFn: () => fetchSchoolPerformance(schoolId, filters),
     staleTime: 30 * 60 * 1000,
     enabled: !!schoolId && activeTab === "performance",
     initialData: initialPerformanceData
   });
 
-  // Optimized query for teacher performance data with proper data transformation
+  // Optimized query for teacher performance data
   const {
     data: teacherPerformanceData = initialTeacherData,
-    refetch: refetchTeacherPerformance
+    refetch: refetchTeacherPerformance,
+    isLoading: isTeacherPerformanceLoading
   } = useQuery({
     queryKey: ['teacher-performance', schoolId, filters],
-    queryFn: async () => {
-      try {
-        const data = await fetchTeacherPerformance(schoolId, filters);
-        
-        // Transform to match expected format
-        return data.map((teacher, index) => ({
-          id: index + 1,
-          name: teacher.teacher_name || `Teacher ${index + 1}`,
-          students: teacher.students_assessed || 0,
-          avgScore: teacher.avg_student_score || 0,
-          trend: teacher.avg_student_score > 80 ? 'up' : 'down'
-        }));
-      } catch (error) {
-        console.error("Error fetching teacher performance:", error);
-        return initialTeacherData;
-      }
-    },
+    queryFn: () => fetchTeacherPerformance(schoolId, filters),
     staleTime: 30 * 60 * 1000,
     enabled: !!schoolId && activeTab === "performance",
     initialData: initialTeacherData
   });
 
-  // Optimized query for student performance data with proper data transformation
+  // Optimized query for student performance data
   const {
     data: studentPerformanceData = initialStudentData,
-    refetch: refetchStudentPerformance
+    refetch: refetchStudentPerformance,
+    isLoading: isStudentPerformanceLoading
   } = useQuery({
     queryKey: ['student-performance', schoolId, filters],
-    queryFn: async () => {
-      try {
-        const data = await fetchStudentPerformance(schoolId, filters);
-        
-        // Transform to match expected format
-        return data.map(student => ({
-          id: student.student_id || '',
-          name: student.student_name || '',
-          assessments: student.assessments_taken || 0,
-          avgScore: student.avg_score || 0,
-          timeSpent: `${Math.round((student.avg_time_spent_seconds || 0) / 60)} min`,
-          completionRate: student.completion_rate || 0,
-          strengths: student.top_strengths ? student.top_strengths.split(', ') : [],
-          weaknesses: student.top_weaknesses ? student.top_weaknesses.split(', ') : []
-        }));
-      } catch (error) {
-        console.error("Error fetching student performance:", error);
-        return initialStudentData;
-      }
-    },
+    queryFn: () => fetchStudentPerformance(schoolId, filters),
     staleTime: 30 * 60 * 1000,
     enabled: !!schoolId && activeTab === "performance",
     initialData: initialStudentData
@@ -409,7 +375,7 @@ const AdminAnalytics = () => {
               </TabsList>
 
               <TabsContent value="engagement" className="space-y-6 mt-6">
-                <AnalyticsSummaryCards summary={summary} isLoading={false} />
+                <AnalyticsSummaryCards summary={summary} isLoading={isSummaryLoading} />
                 
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between">
@@ -433,7 +399,7 @@ const AdminAnalytics = () => {
                       sessions={sessions} 
                       title="Recent Learning Sessions" 
                       description="Details of student learning sessions"
-                      isLoading={false}
+                      isLoading={isSessionsLoading}
                     />
                   </CardContent>
                 </Card>
@@ -443,13 +409,13 @@ const AdminAnalytics = () => {
                     data={topics}
                     title="Most Studied Topics"
                     description="Top 10 topics students are currently studying"
-                    isLoading={false}
+                    isLoading={isTopicsLoading}
                   />
                   <StudyTimeChart
                     data={studyTime}
                     title="Student Study Time"
                     description="Weekly study time per student"
-                    isLoading={false}
+                    isLoading={isStudyTimeLoading}
                   />
                 </div>
               </TabsContent>
@@ -458,15 +424,15 @@ const AdminAnalytics = () => {
                 <SchoolPerformancePanel
                   monthlyData={schoolPerformanceData.monthlyData}
                   summary={schoolPerformanceData.summary}
-                  isLoading={false}
+                  isLoading={isSchoolPerformanceLoading}
                 />
                 <TeacherPerformanceTable
                   data={teacherPerformanceData}
-                  isLoading={false}
+                  isLoading={isTeacherPerformanceLoading}
                 />
                 <StudentPerformanceTable
                   data={studentPerformanceData}
-                  isLoading={false}
+                  isLoading={isStudentPerformanceLoading}
                 />
               </TabsContent>
             </Tabs>
