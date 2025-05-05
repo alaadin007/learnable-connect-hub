@@ -26,6 +26,12 @@ const Documents: React.FC = () => {
     }
   }, [user, navigate]);
 
+  // Set up initial state - assume storage is available to avoid loading indicators
+  const [storageStatus, setStorageStatus] = useState({
+    ready: true,
+    error: null as string | null
+  });
+
   // Setup storage on page load to make sure it exists
   useEffect(() => {
     if (user) {
@@ -34,56 +40,59 @@ const Documents: React.FC = () => {
         .then(({ data, error }) => {
           if (error) {
             console.error("Failed to initialize storage:", error);
+            setStorageStatus({
+              ready: false,
+              error: `Failed to initialize storage: ${error.message}`
+            });
           } else {
             console.log("Storage initialization result:", data);
+            setStorageStatus({
+              ready: true,
+              error: null
+            });
           }
         })
         .catch(err => {
           console.error("Error initializing storage:", err);
+          setStorageStatus({
+            ready: false,
+            error: "Failed to connect to storage service"
+          });
         });
     }
   }, [user]);
 
-  // Check storage status but don't wait for it
-  const { 
-    data: storageStatus, 
-    error: storageError, 
-    refetch: recheckStorage,
-    isError
-  } = useQuery({
-    queryKey: ['storageStatus', user?.id],
-    queryFn: async () => {
-      if (!user) return { status: 'unknown', error: null };
+  // Handle retrying storage initialization
+  const retryStorageSetup = async () => {
+    if (!user) return;
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('setup-document-storage');
       
-      try {
-        console.log("Checking bucket status");
-        const { data, error } = await supabase.functions.invoke('setup-document-storage');
-        
-        if (error) {
-          console.error("Failed to setup document storage:", error);
-          return { status: 'error', error: 'Could not initialize document storage: ' + error.message };
-        }
-        
-        console.log("Successfully confirmed user-content bucket");
-        return { status: 'available', error: null };
-      } catch (e) {
-        console.error("Exception creating bucket:", e);
-        return { status: 'error', error: 'Failed to setup document storage' };
+      if (error) {
+        console.error("Failed to initialize storage on retry:", error);
+        setStorageStatus({
+          ready: false,
+          error: `Failed to initialize storage: ${error.message}`
+        });
+        return;
       }
-    },
-    enabled: !!user,
-    staleTime: 30 * 60 * 1000,
-    retry: 1,
-    refetchOnWindowFocus: false
-  });
-
-  // Format error message for display
-  const errorMessage = isError ? 
-    (storageError instanceof Error ? storageError.message : 'Storage connection error') : 
-    storageStatus?.error || null;
-
-  // Check if user has access to storage
-  const hasStorageAccess = !isError && errorMessage === null;
+      
+      console.log("Storage setup successful on retry:", data);
+      setStorageStatus({
+        ready: true,
+        error: null
+      });
+      
+      toast.success("Document storage is now ready");
+    } catch (err) {
+      console.error("Error retrying storage setup:", err);
+      setStorageStatus({
+        ready: false,
+        error: "Failed to connect to storage service"
+      });
+    }
+  };
 
   if (!user) {
     return null; // Redirect handled in useEffect
@@ -111,7 +120,7 @@ const Documents: React.FC = () => {
             </AlertDescription>
           </Alert>
 
-          {errorMessage && (
+          {storageStatus.error && (
             <Alert className="mb-6 bg-red-50 border-red-200" variant="destructive" role="alert">
               <AlertCircle className="h-4 w-4 text-red-500" />
               <AlertTitle className="text-red-700">Connection Error</AlertTitle>
@@ -121,7 +130,7 @@ const Documents: React.FC = () => {
                   variant="outline" 
                   size="sm" 
                   className="ml-2 border-red-200 hover:bg-red-100" 
-                  onClick={() => recheckStorage()}
+                  onClick={retryStorageSetup}
                 >
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Try Again
@@ -143,13 +152,13 @@ const Documents: React.FC = () => {
                 <TabsContent value="upload" role="tabpanel" tabIndex={0}>
                   <FileUpload 
                     onSuccess={() => setActiveTab('list')} 
-                    disabled={!hasStorageAccess}
+                    disabled={!storageStatus.ready}
                   />
                 </TabsContent>
                 <TabsContent value="list" role="tabpanel" tabIndex={0}>
                   <FileList 
-                    disabled={!hasStorageAccess}
-                    storageError={errorMessage}
+                    disabled={!storageStatus.ready}
+                    storageError={storageStatus.error}
                   />
                 </TabsContent>
               </Tabs>

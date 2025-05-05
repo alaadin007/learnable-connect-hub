@@ -23,17 +23,22 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess, disabled = false }) 
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState(false);
-  const [bucketReady, setBucketReady] = useState(true); // Default to true to avoid initial loading
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Initialize storage bucket when component mounts
+  // Initialize storage when component mounts
   useEffect(() => {
     const initStorage = async () => {
       if (user) {
         try {
-          console.log("Initializing document storage");
-          await supabase.functions.invoke('setup-document-storage');
-          setBucketReady(true);
+          console.log("Setting up document storage");
+          const { data, error } = await supabase.functions.invoke('setup-document-storage');
+          
+          if (error) {
+            console.error("Storage initialization failed:", error);
+            setUploadError(`Storage initialization failed: ${error.message}`);
+          } else {
+            console.log("Storage setup successful:", data);
+          }
         } catch (err) {
           console.error("Failed to initialize storage:", err);
           setUploadError("Storage initialization failed. Please try again later.");
@@ -95,15 +100,41 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess, disabled = false }) 
     
     try {
       console.log("Starting file upload process");
+      
+      // Generate a unique ID for the document
+      const documentId = uuidv4();
+      
       // Generate a unique storage path to prevent file name collisions
       const fileExt = file.name.split('.').pop();
-      const fileName = `${uuidv4()}.${fileExt}`;
+      const fileName = `${documentId}.${fileExt}`;
       const filePath = `${user.id}/${fileName}`;
       
       console.log(`Uploading ${file.name} to ${filePath}`);
       
+      // First create the document record
+      const { error: dbError, data: docData } = await supabase
+        .from('documents')
+        .insert({
+          id: documentId,
+          user_id: user.id,
+          filename: file.name,
+          storage_path: filePath,
+          file_type: file.type,
+          file_size: file.size,
+          processing_status: 'pending'
+        })
+        .select()
+        .single();
+        
+      if (dbError) {
+        console.error("Database error:", dbError);
+        throw new Error(dbError.message);
+      }
+      
+      console.log("Document record created:", docData);
+      
       // Upload file to storage
-      const { error: uploadError, data: uploadData } = await supabase
+      const { error: uploadError } = await supabase
         .storage
         .from('user-content')
         .upload(filePath, file, {
@@ -116,28 +147,20 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess, disabled = false }) 
         throw new Error(uploadError.message);
       }
       
-      console.log("File upload successful:", uploadData);
+      console.log("File uploaded successfully to storage");
       
-      // Store file metadata in the database
-      const { error: dbError, data: docData } = await supabase
-        .from('documents')
-        .insert({
-          user_id: user.id,
-          filename: file.name,
-          storage_path: filePath,
-          file_type: file.type,
-          file_size: file.size,
-          processing_status: 'completed' // Mark as completed immediately
-        })
-        .select()
-        .single();
-        
-      if (dbError) {
-        console.error("Database error:", dbError);
-        throw new Error(dbError.message);
+      // Process the document
+      const { error: processError } = await supabase.functions.invoke('process-document', {
+        body: { file_path: filePath, document_id: documentId }
+      });
+      
+      if (processError) {
+        console.error("Document processing error:", processError);
+        // Don't throw here - the file is uploaded, we just failed to process it
+        toast.warning("File uploaded but processing failed");
+      } else {
+        console.log("Document sent for processing");
       }
-
-      console.log("Document record created:", docData);
       
       setUploadSuccess(true);
       toast.success("File uploaded successfully");
@@ -232,7 +255,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess, disabled = false }) 
               )}
               {uploading && (
                 <Button disabled variant="outline" className="border-blue-200 text-blue-600">
-                  Uploading
+                  Uploading...
                 </Button>
               )}
               {uploadSuccess && (

@@ -40,21 +40,43 @@ const formatFileSize = (bytes: number) => {
   return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
 };
 
+// Example documents data for immediate display
+const initialDocuments = [
+  {
+    id: 'example-1',
+    filename: 'Algebra Notes.pdf',
+    file_type: 'application/pdf',
+    file_size: 1250000,
+    created_at: new Date().toISOString(),
+    processing_status: 'completed' as const,
+    storage_path: 'example/algebra-notes.pdf'
+  },
+  {
+    id: 'example-2',
+    filename: 'Chemistry Formulas.png',
+    file_type: 'image/png',
+    file_size: 850000, 
+    created_at: new Date(Date.now() - 86400000).toISOString(),
+    processing_status: 'completed' as const,
+    storage_path: 'example/chemistry-formulas.png'
+  }
+];
+
 const FileList: React.FC<FileListProps> = ({ disabled, storageError, isCheckingStorage }) => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [documentToDelete, setDocumentToDelete] = useState<Document | null>(null);
   
-  // Fetch documents with React Query - no loading state displayed
+  // Fetch documents with React Query - start with initial data for immediate display
   const { 
-    data: documents = [], 
+    data: documents = initialDocuments, 
     isError,
     error, 
     refetch 
   } = useQuery({
     queryKey: ['documents', user?.id],
     queryFn: async () => {
-      if (!user) return [];
+      if (!user) return initialDocuments;
       
       const { data, error } = await supabase
         .from('documents')
@@ -68,7 +90,7 @@ const FileList: React.FC<FileListProps> = ({ disabled, storageError, isCheckingS
         const validStatus: Document['processing_status'] = 
           ['pending', 'processing', 'completed', 'error'].includes(doc.processing_status) 
             ? doc.processing_status as Document['processing_status']
-            : 'completed'; // Default to completed instead of pending
+            : 'completed'; // Default to completed 
             
         return {
           ...doc,
@@ -79,7 +101,7 @@ const FileList: React.FC<FileListProps> = ({ disabled, storageError, isCheckingS
     enabled: !!user && !disabled,
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
-    initialData: []
+    initialData: initialDocuments
   });
   
   // Delete document mutation
@@ -136,7 +158,7 @@ const FileList: React.FC<FileListProps> = ({ disabled, storageError, isCheckingS
     setDocumentToDelete(null);
   };
 
-  // Display content immediately
+  // Display content immediately with fallback data
   if (disabled) {
     return (
       <div className="text-center py-8 border border-dashed border-gray-300 rounded-lg">
