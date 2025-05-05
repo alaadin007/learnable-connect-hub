@@ -87,6 +87,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   // Function to fetch and set user profile
   const fetchProfile = useCallback(async (userId: string) => {
     try {
+      console.log("Fetching profile for user:", userId);
       const { data: profileData, error } = await supabase
         .from("profiles")
         .select("*, organization:schools(id, name, code)")
@@ -180,6 +181,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   useEffect(() => {
     // Set loading state
     setLoading(true);
+    console.log("Initializing auth state...");
 
     // Check if we already have a test account in localStorage
     const usingTestAccount = localStorage.getItem('usingTestAccount') === 'true';
@@ -243,6 +245,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     // Get session from URL if available
     const setSession = async () => {
       try {
+        console.log("Checking for existing session...");
         // Check for existing session
         const {
           data: { session },
@@ -250,6 +253,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
 
         // Set user state based on session
         if (session?.user) {
+          console.log("Existing session found for user:", session.user.id);
           setUser(session.user);
           try {
             await fetchProfile(session.user.id);
@@ -264,6 +268,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
               }
             }
           }
+        } else {
+          console.log("No existing session found");
         }
       } catch (error) {
         console.error("Error during session check:", error);
@@ -272,16 +278,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       }
     };
 
-    // Call immediately
-    setSession();
-
-    // Subscribe to auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    // First set up auth change listener before checking current session
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log("Auth state changed:", event);
 
       if (session?.user) {
+        console.log("User in session:", session.user.email);
         setUser(session.user);
         try {
           await fetchProfile(session.user.id);
@@ -299,6 +301,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       } else {
         // Only clear user/profile if not using test account
         if (!usingTestAccount) {
+          console.log("No user in session, clearing user data");
           setUser(null);
           setProfile(null);
           setUserRole(null);
@@ -307,6 +310,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
 
       setLoading(false);
     });
+
+    // Then check current session
+    setSession();
 
     // Cleanup subscription
     return () => {
@@ -317,6 +323,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   // Sign up functionality
   const signUp = async (email: string, password: string) => {
     try {
+      console.log("Signing up user:", email);
       const {
         data: { user, session },
         error,
@@ -338,6 +345,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
 
   // Sign in functionality
   const signIn = async (email: string, password?: string) => {
+    console.log("Attempting sign in for:", email);
+    
     // Special handling for test accounts
     if (email.includes(".test@learnable.edu")) {
       let type: "school" | "teacher" | "student" = "student";
@@ -362,8 +371,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     }
     
     try {
+      // Special handling for specific account
+      if (email === "salman.k.786000@gmail.com" && password) {
+        console.log("Using direct auth for specific account");
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+        if (error) {
+          console.error("Sign in error for specific account:", error);
+          throw error;
+        }
+
+        return { data, error: null };
+      }
+      
       if (!password) {
         // Sign in with magic link
+        console.log("Sending magic link to:", email);
         const { error } = await supabase.auth.signInWithOtp({
           email,
         });
@@ -375,15 +401,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         return { data: { user: null, session: null }, error: null };
       }
 
-      // Sign in with credentials
+      // Standard sign in with credentials
+      console.log("Signing in with email/password");
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) {
+        console.error("Sign in error:", error);
         throw error;
       }
+
+      console.log("Sign in successful:", data.user?.id);
 
       // If successful login but metadata is missing user_type, try to get it from profile
       if (data?.user && (!data.user.user_metadata?.user_type || !data.user.user_metadata?.school_code)) {
@@ -395,6 +425,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
             .single();
           
           if (!profileError && profileData) {
+            console.log("Retrieved profile data for user:", profileData);
             // Update user metadata with profile data
             const updatedMetadata = {
               ...data.user.user_metadata,
@@ -433,6 +464,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   // Sign out functionality
   const signOut = async () => {
     try {
+      console.log("Signing out user");
       // Check if we're using a test account
       const usingTestAccount = localStorage.getItem('usingTestAccount') === 'true';
       
@@ -483,6 +515,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     schoolIndex = 0
   ) => {
     try {
+      console.log(`Setting up test user of type ${type}`);
       // Create a consistent test school ID
       const testSchoolId = `test-school-${schoolIndex}`;
       
@@ -529,24 +562,49 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       // Generate test data for this user (sessions, etc) - only for non-school roles
       if (type !== 'school') {
         try {
-          // Using a Promise that is properly handled with try-catch
-          const generateTestData = async () => {
-            try {
-              await supabase.rpc("populatetestaccountwithsessions", {
-                userid: mockUser.id,
-                schoolid: testSchoolId,
-                num_sessions: 5
-              });
-              console.log("Created test sessions data");
-            } catch (error) {
-              console.warn("Failed to create test session data:", error);
-            }
+          // Using a proper promise handling approach
+          console.log("Generating test data for user");
+          
+          // We'll wrap this in a proper promise with try/catch
+          const generateData = () => {
+            return new Promise<void>((resolve) => {
+              try {
+                // Using a timeout to avoid blocking the UI
+                setTimeout(() => {
+                  // We'll use a simple fetch here to avoid the issue with supabase.rpc
+                  fetch(`${supabase.supabaseUrl}/rest/v1/rpc/populatetestaccountwithsessions`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'apikey': supabase.supabaseKey,
+                      'Authorization': `Bearer ${supabase.supabaseKey}`
+                    },
+                    body: JSON.stringify({
+                      userid: mockUser.id,
+                      schoolid: testSchoolId,
+                      num_sessions: 5
+                    })
+                  }).then(() => {
+                    console.log("Created test sessions data");
+                    resolve();
+                  }).catch(error => {
+                    console.warn("Failed to create test session data:", error);
+                    resolve(); // Still resolve to not block the flow
+                  });
+                }, 100);
+              } catch (error) {
+                console.warn("Error setting up test data:", error);
+                resolve(); // Still resolve to not block the flow
+              }
+            });
           };
           
-          // Execute the function without awaiting
-          generateTestData();
+          // Execute but don't await - fire and forget
+          generateData();
+          
         } catch (error) {
           console.warn("Error setting up test data:", error);
+          // Don't throw here, we want to continue even if this fails
         }
       }
     } catch (error) {

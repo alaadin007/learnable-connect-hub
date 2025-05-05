@@ -53,6 +53,7 @@ const LoginForm = () => {
     schoolIndex = 0
   ) => {
     setLoginError(null);
+    setIsLoading(true);
 
     try {
       console.log(`LoginForm: Quick login as ${type}`);
@@ -107,6 +108,8 @@ const LoginForm = () => {
       // Clear any partial test account state on error
       localStorage.removeItem('usingTestAccount');
       localStorage.removeItem('testAccountType');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -118,62 +121,46 @@ const LoginForm = () => {
       toast.error("Please enter both email and password");
       return;
     }
+    
     setIsLoading(true);
+    console.log(`LoginForm: Attempting login for ${email}`);
 
     try {
-      // Handle test accounts - direct login without authentication
-      if (email.includes(".test@learnable.edu")) {
-        let type: "school" | "teacher" | "student" = "student";
-        if (email.startsWith("school")) type = "school";
-        else if (email.startsWith("teacher")) type = "teacher";
-
-        console.log(`LoginForm: Setting up test user of type ${type}`);
-        
-        // Make sure we're logged out first and clear test flags
-        await supabase.auth.signOut();
-        localStorage.removeItem('usingTestAccount');
-        localStorage.removeItem('testAccountType');
-        
-        // Set up test user - this bypasses authentication
-        await setTestUser(type);
-        
-        // Mark in localStorage that we're using a test account
-        localStorage.setItem('usingTestAccount', 'true');
-        localStorage.setItem('testAccountType', type);
-        
-        console.log(`LoginForm: Successfully set up test user of type ${type}`);
-
-        const redirectPath = type === "school"
-          ? "/admin"
-          : type === "teacher"
-          ? "/teacher/analytics"
-          : "/dashboard";
-
-        toast.success("Login successful", {
-          description: `Welcome, ${
-            type === "school"
-              ? "School Admin"
-              : type === "teacher"
-              ? "Teacher"
-              : "Student"
-          }!`,
+      // Handle for the specific troublesome account - special case for salman.k.786000@gmail.com
+      if (email === "salman.k.786000@gmail.com") {
+        console.log("Login form: Using direct auth for specific account");
+        // Direct Supabase auth to bypass any middleware issues
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password
         });
 
-        console.log(`LoginForm: Redirecting test user to ${redirectPath}`);
-        navigate(redirectPath, { 
-          replace: true, 
-          state: { 
-            fromTestAccounts: true, 
-            accountType: type,
-            preserveContext: true,
-            timestamp: Date.now()
-          } 
-        });
-        setIsLoading(false);
-        return;
+        if (error) {
+          console.error("Login error for specific account:", error);
+          throw error;
+        }
+
+        if (data?.user) {
+          console.log("Login successful for specific account:", data.user.id);
+          
+          // Explicitly set user data in local storage to ensure it's available
+          localStorage.setItem('supabase.auth.token', JSON.stringify({
+            access_token: data.session?.access_token,
+            refresh_token: data.session?.refresh_token
+          }));
+          
+          toast.success("Login successful");
+          
+          // Force a refresh of the auth state
+          setTimeout(() => {
+            navigate("/dashboard", { replace: true });
+          }, 500);
+          
+          return;
+        }
       }
-
-      // Regular user login flow
+      
+      // Regular user login flow for other accounts
       const response = await signIn(email, password);
       
       // Since we've updated signIn to return the auth response, we can check for errors here
@@ -278,12 +265,11 @@ const LoginForm = () => {
       console.error("Login error:", error);
       setLoginError(error.message);
 
-      if (error.message.includes("Email not confirmed")) {
+      if (error.message?.includes("Email not confirmed")) {
         toast.error("Email not verified", {
-          description:
-            "Please check your inbox and spam folder for the verification email.",
+          description: "Please check your inbox and spam folder for the verification email.",
         });
-      } else if (error.message.includes("Invalid login credentials")) {
+      } else if (error.message?.includes("Invalid login credentials")) {
         toast.error("Login failed", {
           description: "Invalid email or password. Please try again.",
         });
@@ -311,8 +297,7 @@ const LoginForm = () => {
         toast.error("Failed to send password reset email: " + error.message);
       } else {
         toast.success("Password reset email sent", {
-          description:
-            "Please check your inbox and spam folder for the reset link.",
+          description: "Please check your inbox and spam folder for the reset link.",
         });
       }
     } catch (error: any) {
@@ -355,6 +340,7 @@ const LoginForm = () => {
                     type="button"
                     onClick={() => handleQuickLogin("school")}
                     className="text-sm text-blue-800 font-semibold hover:text-blue-900 bg-blue-100 px-3 py-1 rounded-full transition-colors duration-200"
+                    disabled={isLoading}
                   >
                     Admin Login
                   </button>
@@ -362,6 +348,7 @@ const LoginForm = () => {
                     type="button"
                     onClick={() => handleQuickLogin("teacher")}
                     className="text-sm text-green-800 font-semibold hover:text-green-900 bg-green-100 px-3 py-1 rounded-full transition-colors duration-200"
+                    disabled={isLoading}
                   >
                     Teacher Login
                   </button>
@@ -369,6 +356,7 @@ const LoginForm = () => {
                     type="button"
                     onClick={() => handleQuickLogin("student")}
                     className="text-sm text-purple-800 font-semibold hover:text-purple-900 bg-purple-100 px-3 py-1 rounded-full transition-colors duration-200"
+                    disabled={isLoading}
                   >
                     Student Login
                   </button>
@@ -394,6 +382,7 @@ const LoginForm = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 autoComplete="email"
+                disabled={isLoading}
               />
             </div>
             <div className="space-y-2">
@@ -403,6 +392,7 @@ const LoginForm = () => {
                   type="button"
                   onClick={handleResetPassword}
                   className="text-sm text-learnable-blue hover:underline"
+                  disabled={isLoading}
                 >
                   Forgot password?
                 </button>
@@ -414,15 +404,28 @@ const LoginForm = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 autoComplete="current-password"
+                disabled={isLoading}
               />
             </div>
             <Button
               type="submit"
-              className="w-full gradient-bg"
+              className="w-full gradient-bg transition-all duration-300 relative overflow-hidden"
               disabled={isLoading}
               aria-busy={isLoading}
             >
-              {isLoading ? "Logging in..." : "Log in"}
+              {isLoading ? (
+                <>
+                  <span className="inline-flex items-center">
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Logging in...
+                  </span>
+                </>
+              ) : (
+                "Log in"
+              )}
             </Button>
           </form>
         </CardContent>
