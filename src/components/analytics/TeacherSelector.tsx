@@ -31,8 +31,11 @@ export const TeacherSelector: React.FC<TeacherSelectorProps> = ({
   className,
 }) => {
   const [open, setOpen] = React.useState(false);
+  
+  // Make sure teachers is always an array
+  const teachersList = Array.isArray(teachers) ? teachers : [];
 
-  const selectedTeacher = teachers.find(
+  const selectedTeacher = teachersList.find(
     (teacher) => teacher.id === selectedTeacherId
   );
 
@@ -57,7 +60,7 @@ export const TeacherSelector: React.FC<TeacherSelectorProps> = ({
           <CommandInput placeholder="Search teacher..." />
           <CommandEmpty>No teacher found.</CommandEmpty>
           <CommandGroup>
-            {teachers.map((teacher) => (
+            {teachersList.map((teacher) => (
               <CommandItem
                 key={teacher.id}
                 value={teacher.name}
