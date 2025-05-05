@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -6,6 +5,7 @@ import { Menu, X, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useRBAC } from "@/contexts/RBACContext";
 
 const Navbar = () => {
   const { user, signOut, profile } = useAuth();
@@ -14,6 +14,7 @@ const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const isMobile = useIsMobile();
+  const { hasRole, hasAnyRole } = useRBAC();
 
   // Set loaded status after initial render to prevent flickering
   useEffect(() => {
@@ -58,33 +59,45 @@ const Navbar = () => {
       ];
     }
 
-    switch (profileUserType) {
-      case "school":
-        return [
-          { name: "Dashboard", href: "/dashboard" },
-          { name: "School Admin", href: "/admin" },
-          { name: "Teachers", href: "/admin/teacher-management" },
-          { name: "Analytics", href: "/admin/analytics" },
-          { name: "Chat", href: "/chat" },
-          { name: "Documents", href: "/documents" },
-        ];
-      case "teacher":
-        return [
-          { name: "Dashboard", href: "/dashboard" },
-          { name: "Students", href: "/teacher/students" },
-          { name: "Analytics", href: "/teacher/analytics" },
-          { name: "Chat", href: "/chat" },
-          { name: "Documents", href: "/documents" },
-        ];
-      default:
-        // student or other user types
-        return [
-          { name: "Dashboard", href: "/dashboard" },
-          { name: "Chat", href: "/chat" },
-          { name: "Documents", href: "/documents" },
-        ];
+    // Use RBAC to determine navigation links
+    const links = [
+      { name: "Dashboard", href: "/dashboard" },
+    ];
+
+    // School admin links
+    if (hasRole('school_admin')) {
+      links.push(
+        { name: "School Admin", href: "/admin" },
+        { name: "Teachers", href: "/admin/teacher-management" },
+        { name: "Students", href: "/admin/students" },
+        { name: "Analytics", href: "/admin/analytics" }
+      );
     }
-  }, [profileUserType, isLoggedIn, isTestAccountsPage]);
+
+    // Teacher links (both regular and supervisors)
+    if (hasAnyRole(['teacher', 'teacher_supervisor'])) {
+      links.push(
+        { name: "Students", href: "/teacher/students" },
+        { name: "Analytics", href: "/teacher/analytics" }
+      );
+    }
+
+    // Student links
+    if (hasRole('student')) {
+      links.push(
+        { name: "Assessments", href: "/student/assessments" },
+        { name: "Progress", href: "/student/progress" }
+      );
+    }
+
+    // Common links for all authenticated users
+    links.push(
+      { name: "Chat", href: "/chat" },
+      { name: "Documents", href: "/documents" }
+    );
+
+    return links;
+  }, [isLoggedIn, isTestAccountsPage, hasRole, hasAnyRole]);
 
   const navLinks = getNavLinks();
 

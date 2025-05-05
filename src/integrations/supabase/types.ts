@@ -920,6 +920,30 @@ export type Database = {
         }
         Relationships: []
       }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       most_studied_topics: {
@@ -1187,6 +1211,13 @@ export type Database = {
         Args: { token: string; user_id?: string }
         Returns: boolean
       }
+      assign_role: {
+        Args: {
+          user_id_param: string
+          role_param: Database["public"]["Enums"]["app_role"]
+        }
+        Returns: boolean
+      }
       check_if_email_exists: {
         Args: { input_email: string }
         Returns: boolean
@@ -1307,9 +1338,21 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      get_user_roles: {
+        Args: Record<PropertyKey, never>
+        Returns: Database["public"]["Enums"]["app_role"][]
+      }
       get_user_school_id: {
         Args: Record<PropertyKey, never> | { user_id?: string }
         Returns: string
+      }
+      has_any_role: {
+        Args: { _roles: Database["public"]["Enums"]["app_role"][] }
+        Returns: boolean
+      }
+      has_role: {
+        Args: { _role: Database["public"]["Enums"]["app_role"] }
+        Returns: boolean
       }
       increment_session_query_count: {
         Args: { log_id: string }
@@ -1331,6 +1374,13 @@ export type Database = {
         Args: { userid: string; schoolid: string; num_sessions?: number }
         Returns: undefined
       }
+      remove_role: {
+        Args: {
+          user_id_param: string
+          role_param: Database["public"]["Enums"]["app_role"]
+        }
+        Returns: boolean
+      }
       update_session_topic: {
         Args: { log_id: string; topic: string }
         Returns: undefined
@@ -1350,7 +1400,12 @@ export type Database = {
       }
     }
     Enums: {
-      [_ in never]: never
+      app_role:
+        | "school_admin"
+        | "teacher_supervisor"
+        | "teacher"
+        | "student"
+        | "system_admin"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1465,6 +1520,14 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: [
+        "school_admin",
+        "teacher_supervisor",
+        "teacher",
+        "student",
+        "system_admin",
+      ],
+    },
   },
 } as const
