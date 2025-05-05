@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -55,7 +56,7 @@ type AccountType = "school" | "teacher" | "student";
 
 const TestAccounts = () => {
   const navigate = useNavigate();
-  const { setTestUser } = useAuth();
+  const { setTestUser, signOut } = useAuth();
   const [loadingAccount, setLoadingAccount] = useState<AccountType | null>(null);
   const [dataCreationLoading, setDataCreationLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -65,16 +66,20 @@ const TestAccounts = () => {
     const clearPreviousSessions = async () => {
       try {
         await supabase.auth.signOut();
+        // Clear any previous test account flags
         localStorage.removeItem('usingTestAccount');
         localStorage.removeItem('testAccountType');
         console.log("TestAccounts: Cleared previous sessions on page load");
+        
+        // Also clear out state in AuthContext
+        await signOut();
       } catch (error) {
         console.error("Error clearing sessions:", error);
       }
     };
 
     clearPreviousSessions();
-  }, []);
+  }, [signOut]);
 
   const createTestAccounts = useCallback(async () => {
     try {
@@ -123,6 +128,9 @@ const TestAccounts = () => {
         await supabase.auth.signOut();
         localStorage.removeItem('usingTestAccount');
         localStorage.removeItem('testAccountType');
+        
+        // Sign out from AuthContext to clear any existing state
+        await signOut();
 
         // Set test user in auth context - this bypasses authentication
         const mockUser = await setTestUser(accountType);
@@ -175,7 +183,7 @@ const TestAccounts = () => {
         setLoadingAccount(null);
       }
     },
-    [navigate, setTestUser]
+    [navigate, setTestUser, signOut]
   );
 
   return (
@@ -221,7 +229,7 @@ const TestAccounts = () => {
           <Alert className="mb-6 bg-amber-50" role="region" aria-label="Test accounts information">
             <Info className="h-4 w-4" aria-hidden="true" />
             <AlertDescription>
-              All test accounts are automatically authenticated - just click login to access the platform with the selected role!
+              Select a test account to instantly access the platform as that role. Only one test account can be active at a time.
             </AlertDescription>
           </Alert>
 
@@ -246,11 +254,14 @@ const TestAccounts = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {Object.entries(TEST_ACCOUNTS).map(([type, account]) => {
               const accountType = type as AccountType;
+              const isActive = localStorage.getItem('testAccountType') === accountType;
 
               return (
                 <div
                   key={type}
-                  className="border rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow"
+                  className={`border rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow ${
+                    isActive ? "ring-2 ring-offset-2 ring-learnable-blue bg-blue-50" : ""
+                  }`}
                 >
                   <div className="flex items-start mb-4">
                     {accountType === "school" && <School className="h-5 w-5 text-blue-600 mt-1 mr-2" aria-hidden="true" />}
@@ -310,6 +321,8 @@ const TestAccounts = () => {
                         </svg>
                         Logging in...
                       </span>
+                    ) : isActive ? (
+                      `Already Active - Continue as ${account.role}`
                     ) : (
                       `Login as ${account.role}`
                     )}

@@ -1,3 +1,4 @@
+
 import React, {
   createContext,
   useState,
@@ -83,6 +84,83 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [isSupervisor, setIsSupervisor] = useState(false);
   const [schoolId, setSchoolId] = useState<string | null>(null);
   const navigate = useNavigate();
+
+  // Define setTestUser before it's used in signIn
+  const setTestUser = useCallback(
+    async (type: UserRole, schoolIndex = 0): Promise<User> => {
+      try {
+        const testSchoolId = `test-school-${schoolIndex}`;
+
+        const testProfile: UserProfile = {
+          id: `test-${type}-${Date.now()}`,
+          user_type: type,
+          full_name: `Test ${type.charAt(0).toUpperCase() + type.slice(1)}`,
+          school_code: TEST_SCHOOL_CODE,
+          organization:
+            type === "school"
+              ? {
+                  id: testSchoolId,
+                  name: `Test School ${schoolIndex}`,
+                  code: TEST_SCHOOL_CODE,
+                }
+              : null,
+        };
+
+        setProfile(testProfile);
+        setUserRole(type);
+        setIsSupervisor(type === "school");
+        setSchoolId(testSchoolId);
+
+        const mockUser = {
+          id: testProfile.id,
+          email: `${type}.test@learnable.edu`,
+          user_metadata: {
+            full_name: testProfile.full_name,
+            user_type: type,
+            school_code: TEST_SCHOOL_CODE,
+          },
+          app_metadata: {},
+          aud: "authenticated",
+          created_at: new Date().toISOString(),
+        } as User;
+
+        setUser(mockUser);
+
+        if (type !== "school") {
+          try {
+            // Fire and forget test data creation
+            setTimeout(() => {
+              fetch(`${SUPABASE_PUBLIC_URL}/rest/v1/rpc/populatetestaccountwithsessions`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  apikey: SUPABASE_PUBLIC_KEY,
+                  Authorization: `Bearer ${SUPABASE_PUBLIC_KEY}`,
+                },
+                body: JSON.stringify({
+                  userid: mockUser.id,
+                  schoolid: testSchoolId,
+                  num_sessions: 5,
+                }),
+              }).then(() => {
+                console.log("Created test sessions data");
+              }).catch(error => {
+                console.warn("Failed to create test session data:", error);
+              });
+            }, 100);
+          } catch (error) {
+            console.warn("Error setting up test data:", error);
+          }
+        }
+
+        return mockUser;
+      } catch (error) {
+        console.error("Error setting test user:", error);
+        throw error;
+      }
+    },
+    []
+  );
 
   // Fetch user profile
   const fetchProfile = useCallback(
@@ -442,82 +520,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       await refreshProfile();
     },
     [user, refreshProfile]
-  );
-
-  const setTestUser = useCallback(
-    async (type: UserRole, schoolIndex = 0): Promise<User> => {
-      try {
-        const testSchoolId = `test-school-${schoolIndex}`;
-
-        const testProfile: UserProfile = {
-          id: `test-${type}-${Date.now()}`,
-          user_type: type,
-          full_name: `Test ${type.charAt(0).toUpperCase() + type.slice(1)}`,
-          school_code: TEST_SCHOOL_CODE,
-          organization:
-            type === "school"
-              ? {
-                  id: testSchoolId,
-                  name: `Test School ${schoolIndex}`,
-                  code: TEST_SCHOOL_CODE,
-                }
-              : null,
-        };
-
-        setProfile(testProfile);
-        setUserRole(type);
-        setIsSupervisor(type === "school");
-        setSchoolId(testSchoolId);
-
-        const mockUser = {
-          id: testProfile.id,
-          email: `${type}.test@learnable.edu`,
-          user_metadata: {
-            full_name: testProfile.full_name,
-            user_type: type,
-            school_code: TEST_SCHOOL_CODE,
-          },
-          app_metadata: {},
-          aud: "authenticated",
-          created_at: new Date().toISOString(),
-        } as User;
-
-        setUser(mockUser);
-
-        if (type !== "school") {
-          try {
-            // Fire and forget test data creation
-            setTimeout(() => {
-              fetch(`${SUPABASE_PUBLIC_URL}/rest/v1/rpc/populatetestaccountwithsessions`, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  apikey: SUPABASE_PUBLIC_KEY,
-                  Authorization: `Bearer ${SUPABASE_PUBLIC_KEY}`,
-                },
-                body: JSON.stringify({
-                  userid: mockUser.id,
-                  schoolid: testSchoolId,
-                  num_sessions: 5,
-                }),
-              }).then(() => {
-                console.log("Created test sessions data");
-              }).catch(error => {
-                console.warn("Failed to create test session data:", error);
-              });
-            }, 100);
-          } catch (error) {
-            console.warn("Error setting up test data:", error);
-          }
-        }
-
-        return mockUser;
-      } catch (error) {
-        console.error("Error setting test user:", error);
-        throw error;
-      }
-    },
-    []
   );
 
   const contextValue = useMemo(() => ({
