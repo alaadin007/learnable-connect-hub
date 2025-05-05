@@ -1,12 +1,11 @@
-
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { 
   MessageSquare, BarChart3, Users, School, FileText, Settings, 
-  ChevronDown, User, Loader2
+  ChevronDown, User
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { 
@@ -19,7 +18,6 @@ import {
 } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 
 // Mock Data for Test Accounts
 const MOCK_DATA = {
@@ -40,48 +38,16 @@ const MOCK_DATA = {
 };
 
 const Dashboard = () => {
-  const { userRole, profile, isTestUser, isLoading, user, refreshProfile } = useAuth();
+  const { userRole, profile, isTestUser, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [isVerifying, setIsVerifying] = useState(false);
 
   // Determine data source: real profile or mock
   const currentProfile = isTestUser && MOCK_DATA[userRole] ? MOCK_DATA[userRole] : profile;
 
-  // Verify role on component mount
-  useEffect(() => {
-    const verifyUserRole = async () => {
-      if (user && !isTestUser) {
-        setIsVerifying(true);
-        try {
-          // Real-time check for user role in database
-          const { data: dbProfile, error } = await supabase
-            .from('profiles')
-            .select('user_type')
-            .eq('id', user.id)
-            .single();
-          
-          if (error) throw error;
-          
-          // If cached role doesn't match database role, refresh profile
-          if (dbProfile && userRole !== dbProfile.user_type) {
-            console.log(`Dashboard - Role mismatch detected. Cached: ${userRole}, DB: ${dbProfile.user_type}`);
-            await refreshProfile();
-          }
-        } catch (error) {
-          console.error("Error verifying user role:", error);
-        } finally {
-          setIsVerifying(false);
-        }
-      }
-    };
-    
-    verifyUserRole();
-  }, [user, userRole, isTestUser, refreshProfile]);
-
   useEffect(() => {
     // Check authentication status
-    if (!isLoading && !user) {
+    if (!user) {
       toast.error("You must be logged in to view this page");
       navigate("/login", { state: { from: location.pathname } });
       return;
@@ -90,22 +56,7 @@ const Dashboard = () => {
     // Debug information for profile
     console.log("Dashboard - Auth info:", { userRole, isTestUser });
     console.log("Profile data:", profile);
-  }, [isLoading, user, userRole, profile, navigate, location.pathname]);
-
-  if (isLoading || isVerifying) {
-    return (
-      <>
-        <Navbar />
-        <main className="flex min-h-screen items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-gray-600 text-lg">Loading your dashboard...</p>
-          </div>
-        </main>
-        <Footer />
-      </>
-    );
-  }
+  }, [user, userRole, profile, navigate, location.pathname]);
 
   if (!currentProfile) {
     return (
@@ -261,26 +212,6 @@ const Dashboard = () => {
 
 const SchoolAdminDashboard: React.FC<{ profile: any }> = ({ profile }) => {
   const navigate = useNavigate();
-  const { refreshProfile } = useAuth();
-  const [isVerifyingSchool, setIsVerifyingSchool] = useState(false);
-  
-  // Verify school data on mount
-  useEffect(() => {
-    const verifySchoolData = async () => {
-      if (!profile?.organization) {
-        setIsVerifyingSchool(true);
-        try {
-          await refreshProfile();
-        } catch (error) {
-          console.error("Failed to refresh school profile:", error);
-        } finally {
-          setIsVerifyingSchool(false);
-        }
-      }
-    };
-    
-    verifySchoolData();
-  }, [profile, refreshProfile]);
 
   const handleQuickActionSelect = (action: string) => {
     const routes: Record<string, string> = {
@@ -313,26 +244,19 @@ const SchoolAdminDashboard: React.FC<{ profile: any }> = ({ profile }) => {
               <CardDescription>Your school details</CardDescription>
             </CardHeader>
             <CardContent>
-              {isVerifyingSchool ? (
-                <div className="flex items-center space-x-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Loading school details...</span>
+              <div className="space-y-2">
+                <div className="flex flex-col sm:flex-row sm:items-center">
+                  <span className="font-medium min-w-32">School Name:</span>
+                  <span>{profile.organization?.name ?? "Not available"}</span>
                 </div>
-              ) : (
-                <div className="space-y-2">
-                  <div className="flex flex-col sm:flex-row sm:items-center">
-                    <span className="font-medium min-w-32">School Name:</span>
-                    <span>{profile.organization?.name ?? "Not available"}</span>
-                  </div>
-                  <div className="flex flex-col sm:flex-row sm:items-center">
-                    <span className="font-medium min-w-32">School Code:</span>
-                    <span className="font-mono">{profile.organization?.code ?? "Not available"}</span>
-                  </div>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Your school code is used to invite teachers and students.
-                  </p>
+                <div className="flex flex-col sm:flex-row sm:items-center">
+                  <span className="font-medium min-w-32">School Code:</span>
+                  <span className="font-mono">{profile.organization?.code ?? "Not available"}</span>
                 </div>
-              )}
+                <p className="text-sm text-muted-foreground mt-2">
+                  Your school code is used to invite teachers and students.
+                </p>
+              </div>
             </CardContent>
           </Card>
 

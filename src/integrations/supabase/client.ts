@@ -107,8 +107,20 @@ export const generateRandomSchoolCode = (): string => {
   return result;
 };
 
-// Function to validate user role access
-export const validateRoleAccess = async (userId: string | undefined, requiredRole: string | string[] | undefined): Promise<boolean> => {
+// Fast role access validation using cached values first, with option to skip DB check
+export const validateRoleAccess = (userRole: string | null, requiredRole: string | string[] | undefined): boolean => {
+  if (!userRole || !requiredRole) return false;
+  
+  // For simple role validation, use the cached userRole
+  if (Array.isArray(requiredRole)) {
+    return requiredRole.includes(userRole);
+  } else {
+    return userRole === requiredRole;
+  }
+};
+
+// Original DB-based validation for special cases (if cached values might be stale)
+export const validateRoleAccessDB = async (userId: string | undefined, requiredRole: string | string[] | undefined): Promise<boolean> => {
   if (!userId || !requiredRole) return false;
   
   try {

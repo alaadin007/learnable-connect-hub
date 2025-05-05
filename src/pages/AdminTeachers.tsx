@@ -10,33 +10,15 @@ import { useAuth } from "@/contexts/AuthContext";
 
 const AdminTeachers = () => {
   const navigate = useNavigate();
-  const { userRole, isLoading } = useAuth();
+  const { userRole } = useAuth();
 
-  // Verify correct user role when auth is loaded
+  // Verify correct user role and redirect if needed
   React.useEffect(() => {
-    console.log("AdminTeachers: Auth check", { userRole, isLoading });
-    
-    if (!isLoading && userRole && userRole !== "school") {
+    if (userRole && userRole !== "school") {
       console.log(`AdminTeachers: Redirecting user with role ${userRole} to dashboard`);
       navigate("/dashboard", { state: { fromRoleRedirect: true } });
     }
-  }, [userRole, navigate, isLoading]);
-  
-  // Show loading state during authentication
-  if (isLoading) {
-    return (
-      <>
-        <Navbar />
-        <main className="flex-grow bg-learnable-super-light py-8">
-          <div className="container mx-auto px-4 text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
-            <p className="text-xl">Verifying your admin access...</p>
-          </div>
-        </main>
-        <Footer />
-      </>
-    );
-  }
+  }, [userRole, navigate]);
   
   return (
     <div className="min-h-screen flex flex-col">

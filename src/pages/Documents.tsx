@@ -15,21 +15,19 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
 const Documents: React.FC = () => {
-  const { user, userRole } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('upload');
-  const [redirecting, setRedirecting] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [storageStatus, setStorageStatus] = useState<'unknown' | 'available' | 'error'>('unknown');
+  const [isChecking, setIsChecking] = useState(false);
 
   // Redirect if not logged in
   useEffect(() => {
-    if (!user && !redirecting) {
-      setRedirecting(true);
+    if (!user) {
       navigate('/login', { state: { from: '/documents' } });
     }
-  }, [user, navigate, redirecting]);
+  }, [user, navigate]);
 
   // Check storage status on component mount
   useEffect(() => {
@@ -39,10 +37,26 @@ const Documents: React.FC = () => {
           const { data, error } = await supabase.storage.getBucket('user-content');
           if (error) {
             console.warn("Storage service warning:", error);
-            // Don't set error state immediately, we'll try to work around it
+            
             if (error.message.includes('does not exist')) {
-              // Bucket might not exist yet - this is not a critical error for the user
-              setStorageStatus('error');
+              // Try to create the bucket automatically since it doesn't exist
+              try {
+                const { error: createError } = await supabase
+                  .storage
+                  .createBucket('user-content', { public: false });
+                  
+                if (createError) {
+                  setStorageStatus('error');
+                  setError('Could not initialize document storage: ' + createError.message);
+                } else {
+                  console.log('Successfully created user-content bucket');
+                  setStorageStatus('available');
+                  setError(null);
+                }
+              } catch (createErr) {
+                setStorageStatus('error');
+                setError('Failed to initialize document storage');
+              }
             } else {
               setStorageStatus('error');
               setError('Storage service unavailable');
@@ -64,7 +78,7 @@ const Documents: React.FC = () => {
 
   // Function to check storage bucket connection
   const checkStorageConnection = async () => {
-    setIsLoading(true);
+    setIsChecking(true);
     setError(null);
     
     try {
@@ -101,18 +115,12 @@ const Documents: React.FC = () => {
       setStorageStatus('error');
       toast.error('Could not connect to document storage');
     } finally {
-      setIsLoading(false);
+      setIsChecking(false);
     }
   };
 
   if (!user) {
-    return (
-      <div className="flex justify-center items-center h-screen" role="status" aria-live="polite">
-        <div className="flex flex-col items-center gap-2">
-          <p className="text-lg font-medium text-gray-700">Redirecting to login...</p>
-        </div>
-      </div>
-    );
+    return null; // Redirect handled in useEffect
   }
 
   return (
@@ -148,9 +156,9 @@ const Documents: React.FC = () => {
                   size="sm" 
                   className="ml-2 border-red-200 hover:bg-red-100" 
                   onClick={checkStorageConnection}
-                  disabled={isLoading}
+                  disabled={isChecking}
                 >
-                  {isLoading ? (
+                  {isChecking ? (
                     <>
                       <RefreshCw className="h-4 w-4 mr-2" />
                       Reconnecting...
