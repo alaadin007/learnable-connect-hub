@@ -1,10 +1,16 @@
-
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -12,8 +18,22 @@ import { toast } from "sonner";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Mail, User, ArrowLeft, Copy, UserPlus, RefreshCw } from "lucide-react";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import {
+  Mail,
+  ArrowLeft,
+  Copy,
+  UserPlus,
+  RefreshCw,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
   Table,
@@ -23,12 +43,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { getCurrentUserSchoolId } from "@/utils/schoolUtils";
 
-// Define the schema for student invite form
+// Define the schema for student invite form with "email" method (not "invite")
 const addStudentSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address" }).optional(),
-  method: z.enum(["invite", "code"], {
+  method: z.enum(["email", "code"], {
     required_error: "Please select a method",
   }),
 });
@@ -52,11 +71,11 @@ const AdminStudents = () => {
   const [generatedCode, setGeneratedCode] = useState("");
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isGeneratingCode, setIsGeneratingCode] = useState(false);
-  
+
   // Get the schoolId properly
   const userProfileId = user?.id || null;
   const schoolId = authSchoolId || profile?.organization?.id || null;
-  
+
   console.log("AdminStudents: Using user ID:", userProfileId);
   console.log("AdminStudents: Using school ID:", schoolId);
 
@@ -67,22 +86,22 @@ const AdminStudents = () => {
       method: "code",
     },
   });
-  
+
   const selectedMethod = form.watch("method");
 
   // Load student invites
   useEffect(() => {
     let isMounted = true;
-    
+
     const fetchInvites = async () => {
       if (!schoolId) {
         console.log("No school ID available, cannot fetch invites");
         return;
       }
-      
+
       try {
         console.log("Fetching invites for school ID:", schoolId);
-        
+
         // Try to fetch from student_invites table
         const { data: studentInvites, error: studentInviteError } = await supabase
           .from("student_invites")
@@ -90,8 +109,7 @@ const AdminStudents = () => {
           .eq("school_id", schoolId)
           .order("created_at", { ascending: false })
           .limit(10);
-          
-        // Only update state if component is still mounted
+
         if (isMounted) {
           if (studentInvites && studentInvites.length > 0) {
             console.log("Found student invites:", studentInvites);
@@ -100,7 +118,7 @@ const AdminStudents = () => {
           } else {
             console.log("No student invites found or error:", studentInviteError);
           }
-          
+
           // Fallback to teacher_invitations table for display
           const { data, error } = await supabase
             .from("teacher_invitations")
@@ -113,17 +131,16 @@ const AdminStudents = () => {
             console.error("Error fetching teacher invitations:", error);
             throw error;
           }
-          
-          // Convert teacher_invitations to our StudentInvite type
-          const studentInviteData: StudentInvite[] = (data || []).map(invite => ({
+
+          const studentInviteData: StudentInvite[] = (data || []).map((invite) => ({
             id: invite.id,
             email: invite.email,
             code: null,
             created_at: invite.created_at,
             expires_at: invite.expires_at,
-            status: invite.status
+            status: invite.status,
           }));
-          
+
           console.log("Using teacher invitations as fallback:", studentInviteData);
           setInvites(studentInviteData);
         }
@@ -135,12 +152,10 @@ const AdminStudents = () => {
       }
     };
 
-    // Only fetch if we have a schoolId
     if (schoolId) {
       fetchInvites();
     }
-    
-    // Cleanup function to prevent state updates after unmount
+
     return () => {
       isMounted = false;
     };
@@ -151,34 +166,41 @@ const AdminStudents = () => {
       toast.error("You must be logged in with a school account to invite students");
       return;
     }
-    
+
     setIsLoading(true);
-    
+
     try {
-      if (values.method === "invite" && values.email) {
+      if (values.method === "email" && values.email) {
         console.log("Creating email invitation for:", values.email);
-        
-        // Call our invite-student edge function with proper headers
+
+        const { data: { session } } = await supabase.auth.getSession();
+
+        if (!session) {
+          throw new Error("You must be logged in");
+        }
+
         const { data, error } = await supabase.functions.invoke("invite-student", {
-          body: { 
-            method: "email", 
-            email: values.email 
-          }
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            method: "email",
+            email: values.email,
+          }),
         });
 
         if (error) {
           console.error("Error from invite-student function:", error);
           throw error;
         }
-        
+
         console.log("Invitation created:", data);
         toast.success(`Invitation sent to ${values.email}`);
         form.reset();
+        setGeneratedCode(""); // clear code if any previously generated
       }
-      
-      // Refresh the invites list
-      setRefreshTrigger(prev => prev + 1);
-      
+
+      setRefreshTrigger((prev) => prev + 1);
     } catch (error: any) {
       console.error("Error inviting student:", error);
       toast.error(error.message || "Failed to invite student");
@@ -192,55 +214,47 @@ const AdminStudents = () => {
       toast.error("No code available to copy");
       return;
     }
-    
     navigator.clipboard.writeText(generatedCode);
     toast.success("Code copied to clipboard!");
   };
-  
+
   const handleRefresh = () => {
-    setRefreshTrigger(prev => prev + 1);
+    setRefreshTrigger((prev) => prev + 1);
     toast.success("Refreshing student invitations...");
   };
 
   const generateInviteCode = async () => {
     setIsGeneratingCode(true);
-    
+
     try {
       console.log("Calling invite-student edge function with method: code");
-      
-      // Get the auth token for the request
+
       const { data: { session } } = await supabase.auth.getSession();
-      
+
       if (!session) {
-        throw new Error("No active session found");
+        throw new Error("You must be logged in");
       }
-      
-      // Use invite-student function with proper headers
+
       const { data, error } = await supabase.functions.invoke("invite-student", {
-        body: { method: "code" }
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ method: "code" }),
       });
-      
+
       if (error) {
         console.error("Error from invite-student function:", error);
         throw new Error(error.message || "Failed to generate invitation code");
       }
-      
-      if (!data) {
-        throw new Error("No data returned from the server");
+
+      if (!data || !data.code) {
+        throw new Error("Invalid response received from server");
       }
-      
-      console.log("Generated invite code response:", data);
-      
-      if (!data.code) {
-        console.error("Invalid response format:", data);
-        throw new Error("Code not found in server response");
-      }
-      
+
       setGeneratedCode(data.code);
       toast.success("Student invitation code generated");
-      
-      // Refresh the invites list
-      setRefreshTrigger(prev => prev + 1);
+
+      setRefreshTrigger((prev) => prev + 1);
     } catch (error: any) {
       console.error("Error generating invite code:", error);
       toast.error(error.message || "Failed to generate invitation code");
@@ -255,24 +269,17 @@ const AdminStudents = () => {
       <main className="flex-grow bg-learnable-super-light py-8">
         <div className="container mx-auto px-4">
           <div className="flex items-center gap-4 mb-6">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="flex items-center gap-1"
-              onClick={() => navigate('/admin')}
-            >
+            <Button variant="outline" size="sm" className="flex items-center gap-1" onClick={() => navigate("/admin")}>
               <ArrowLeft className="h-4 w-4" />
               Back to Admin
             </Button>
             <h1 className="text-3xl font-bold gradient-text">Student Management</h1>
           </div>
-          
+
           <Card>
             <CardHeader>
               <CardTitle>Add New Student</CardTitle>
-              <CardDescription>
-                Invite a student via email or generate a code
-              </CardDescription>
+              <CardDescription>Invite a student via email or generate a code</CardDescription>
             </CardHeader>
             <CardContent>
               <Form {...form}>
@@ -286,38 +293,34 @@ const AdminStudents = () => {
                         <FormControl>
                           <RadioGroup
                             onValueChange={field.onChange}
-                            defaultValue={field.value}
+                            value={field.value}
                             className="flex flex-col space-y-1"
                           >
                             <FormItem className="flex items-center space-x-3 space-y-0">
                               <FormControl>
-                                <RadioGroupItem value="invite" />
+                                <RadioGroupItem value="email" />
                               </FormControl>
-                              <FormLabel className="font-normal">
-                                Invite via Email
-                              </FormLabel>
+                              <FormLabel className="font-normal">Invite via Email</FormLabel>
                             </FormItem>
                             <FormItem className="flex items-center space-x-3 space-y-0">
                               <FormControl>
                                 <RadioGroupItem value="code" />
                               </FormControl>
-                              <FormLabel className="font-normal">
-                                Generate Invitation Code
-                              </FormLabel>
+                              <FormLabel className="font-normal">Generate Invitation Code</FormLabel>
                             </FormItem>
                           </RadioGroup>
                         </FormControl>
                         <FormDescription>
-                          {selectedMethod === "invite" 
-                            ? "The student will receive an email invitation to join your school." 
+                          {selectedMethod === "email"
+                            ? "The student will receive an email invitation to join your school."
                             : "You will receive a code that you can share with students."}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                  
-                  {selectedMethod === "invite" && (
+
+                  {selectedMethod === "email" && (
                     <FormField
                       control={form.control}
                       name="email"
@@ -332,7 +335,7 @@ const AdminStudents = () => {
                       )}
                     />
                   )}
-                  
+
                   {selectedMethod === "code" && (
                     <div>
                       <Button
@@ -344,7 +347,7 @@ const AdminStudents = () => {
                         <UserPlus className="mr-2 h-4 w-4" />
                         {isGeneratingCode ? "Generating..." : "Generate Code"}
                       </Button>
-                      
+
                       {generatedCode && (
                         <div className="p-4 mt-4 bg-muted rounded-lg">
                           <p className="font-semibold mb-2">Invitation Code:</p>
@@ -363,13 +366,9 @@ const AdminStudents = () => {
                       )}
                     </div>
                   )}
-                  
-                  {selectedMethod === "invite" && (
-                    <Button 
-                      type="submit" 
-                      className="gradient-bg" 
-                      disabled={isLoading}
-                    >
+
+                  {selectedMethod === "email" && (
+                    <Button type="submit" className="gradient-bg" disabled={isLoading}>
                       <Mail className="mr-2 h-4 w-4" />
                       {isLoading ? "Sending..." : "Send Invitation"}
                     </Button>
@@ -378,14 +377,12 @@ const AdminStudents = () => {
               </Form>
             </CardContent>
           </Card>
-          
+
           <Card className="mt-6">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle>Student Invitations</CardTitle>
-                <CardDescription>
-                  Recent student invitations and codes
-                </CardDescription>
+                <CardDescription>Recent student invitations and codes</CardDescription>
               </div>
               <Button variant="outline" size="sm" onClick={handleRefresh} className="flex items-center gap-2">
                 <RefreshCw className="h-4 w-4" />
@@ -408,26 +405,24 @@ const AdminStudents = () => {
                       {invites.map((invite) => (
                         <TableRow key={invite.id}>
                           <TableCell>
-                            {invite.email || 
-                             <code className="bg-muted p-1 rounded text-xs font-mono">
-                               {invite.code || 'N/A'}
-                             </code>
-                            }
+                            {invite.email || (
+                              <code className="bg-muted p-1 rounded text-xs font-mono">
+                                {invite.code || "N/A"}
+                              </code>
+                            )}
                           </TableCell>
+                          <TableCell>{new Date(invite.created_at).toLocaleDateString()}</TableCell>
+                          <TableCell>{new Date(invite.expires_at).toLocaleDateString()}</TableCell>
                           <TableCell>
-                            {new Date(invite.created_at).toLocaleDateString()}
-                          </TableCell>
-                          <TableCell>
-                            {new Date(invite.expires_at).toLocaleDateString()}
-                          </TableCell>
-                          <TableCell>
-                            <span className={`text-xs font-medium px-2 py-0.5 rounded ${
-                              invite.status === "pending"
-                                ? "bg-yellow-100 text-yellow-800"
-                                : invite.status === "accepted"
-                                ? "bg-green-100 text-green-800"
-                                : "bg-red-100 text-red-800"
-                            }`}>
+                            <span
+                              className={`text-xs font-medium px-2 py-0.5 rounded ${
+                                invite.status === "pending"
+                                  ? "bg-yellow-100 text-yellow-800"
+                                  : invite.status === "accepted"
+                                  ? "bg-green-100 text-green-800"
+                                  : "bg-red-100 text-red-800"
+                              }`}
+                            >
                               {invite.status.charAt(0).toUpperCase() + invite.status.slice(1)}
                             </span>
                           </TableCell>
@@ -441,9 +436,7 @@ const AdminStudents = () => {
               )}
             </CardContent>
             <CardFooter>
-              <p className="text-xs text-muted-foreground">
-                Student invitations expire after 7 days.
-              </p>
+              <p className="text-xs text-muted-foreground">Student invitations expire after 7 days.</p>
             </CardFooter>
           </Card>
         </div>
