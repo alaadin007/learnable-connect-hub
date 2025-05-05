@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -185,9 +184,9 @@ const AdminStudents = () => {
     setIsLoading(true);
     
     try {
-      // Direct invocation of the function when button is clicked
-      const { data, error } = await supabase.functions.invoke("invite-student", {
-        body: { method: "code" }
+      // Use our dedicated generate-student-code function
+      const { data, error } = await supabase.functions.invoke("generate-student-code", {
+        body: {} // No body needed, the function gets school_id from the authenticated user
       });
       
       if (error) {
