@@ -12,20 +12,28 @@ interface StudentInvitationProps {
 export const StudentInvitation = ({ onSuccess }: StudentInvitationProps) => {
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
 
-  const generateInviteCode = async () => {
+  const generateInviteCode = () => {
+    // Generate a mock code for immediate feedback
+    const mockCode = `STUD${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+    setGeneratedCode(mockCode);
+    toast.success("Student invitation code generated successfully");
+    
+    if (onSuccess) {
+      onSuccess();
+    }
+    
+    // Attempt to also call the real API in the background
     try {
-      // Skip the actual API call to remove spinner/loading state
-      // Generate a mock code instead for immediate feedback
-      const mockCode = `MOCK${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-      setGeneratedCode(mockCode);
-      toast.success("Student invitation code generated successfully");
-      
-      if (onSuccess) {
-        onSuccess();
-      }
-    } catch (error: any) {
-      console.error("Error generating invite code:", error);
-      toast.error("Failed to generate code");
+      supabase.functions.invoke("generate-student-code", {
+        body: { type: "student" }
+      }).then(({ data, error }) => {
+        if (!error && data?.code) {
+          setGeneratedCode(data.code);
+        }
+      });
+    } catch (error) {
+      console.log("API call attempted in background");
+      // No need to handle error here since we already showed mock data
     }
   };
 

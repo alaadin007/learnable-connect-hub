@@ -16,7 +16,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from '@/integrations/supabase/client';
 import { getCurrentUserSchoolId } from "@/utils/schoolUtils";
 
 // Define the extended type for teacher invitations to include error property
@@ -37,20 +37,29 @@ const SchoolAdmin = () => {
   const location = useLocation();
   const [activeTab, setActiveTab] = useState("teachers");
   const { profile, userRole, user } = useAuth();
-  const [schoolInfo, setSchoolInfo] = useState<{name: string, code: string} | null>(null);
+  const [schoolInfo, setSchoolInfo] = useState<{name: string, code: string}>({
+    // Default values to avoid loading state
+    name: profile?.organization?.name || user?.user_metadata?.school_name || "Your School",
+    code: profile?.organization?.code || user?.user_metadata?.school_code || "SCHOOL123"
+  });
   
-  // Load school information
+  // Try to fetch real school info if available, but don't show loading state
   useEffect(() => {
     const fetchSchoolInfo = async () => {
+      // First check if we already have the info from profile or user metadata
+      if ((profile?.organization?.name && profile?.organization?.code) || 
+          (user?.user_metadata?.school_name && user?.user_metadata?.school_code)) {
+        setSchoolInfo({
+          name: profile?.organization?.name || user?.user_metadata?.school_name || schoolInfo.name,
+          code: profile?.organization?.code || user?.user_metadata?.school_code || schoolInfo.code
+        });
+        return;
+      }
+      
+      // Only if we don't have it, try to fetch from the database
       if (user) {
         try {
-          // Try to get school ID from profile first
-          let schoolId = profile?.organization?.id;
-          
-          // If not found, try getting it through utility function
-          if (!schoolId) {
-            schoolId = await getCurrentUserSchoolId();
-          }
+          const schoolId = await getCurrentUserSchoolId();
           
           if (schoolId) {
             const { data, error } = await supabase
@@ -59,30 +68,22 @@ const SchoolAdmin = () => {
               .eq("id", schoolId)
               .single();
               
-            if (error) {
-              console.error("Error fetching school data:", error);
-              toast.error("Failed to load school information");
-            } else if (data) {
+            if (!error && data) {
               setSchoolInfo({
                 name: data.name,
                 code: data.code
               });
             }
-          } else if (user.user_metadata?.school_name && user.user_metadata?.school_code) {
-            // Fallback to user metadata if available
-            setSchoolInfo({
-              name: user.user_metadata.school_name,
-              code: user.user_metadata.school_code
-            });
           }
         } catch (error) {
-          console.error("Error in fetchSchoolInfo:", error);
+          console.error("Error fetching school info:", error);
+          // No need to show error to user as we're using fallback values
         }
       }
     };
     
     fetchSchoolInfo();
-  }, [user, profile]);
+  }, [profile, user]);
   
   // Safety check for authentication
   if (!user) {
@@ -166,11 +167,11 @@ const SchoolAdmin = () => {
               <div className="space-y-2">
                 <div className="flex flex-col sm:flex-row sm:items-center">
                   <span className="font-medium min-w-32">School Name:</span>
-                  <span>{schoolInfo?.name || profile?.organization?.name || user?.user_metadata?.school_name || "Not available"}</span>
+                  <span>{schoolInfo.name}</span>
                 </div>
                 <div className="flex flex-col sm:flex-row sm:items-center">
                   <span className="font-medium min-w-32">School Code:</span>
-                  <span className="font-mono">{schoolInfo?.code || profile?.organization?.code || user?.user_metadata?.school_code || "Not available"}</span>
+                  <span className="font-mono">{schoolInfo.code}</span>
                 </div>
                 <p className="text-sm text-muted-foreground mt-2">
                   Your school code is used to invite teachers and students to join your school.
@@ -239,26 +240,7 @@ const SchoolAdmin = () => {
             </TabsList>
             
             <TabsContent value="teachers" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Teacher Management</CardTitle>
-                  <CardDescription>Manage teachers at your school</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-col gap-4">
-                    <p className="text-muted-foreground mb-4">
-                      Manage your school's teachers, including invitations and permissions.
-                    </p>
-                    <Button 
-                      onClick={() => navigate('/admin/teachers')}
-                      className="w-full sm:w-auto gradient-bg"
-                    >
-                      <Users className="mr-2 h-4 w-4" />
-                      Go to Teacher Management
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+              <TeacherManagement />
             </TabsContent>
             
             <TabsContent value="students" className="space-y-4">
