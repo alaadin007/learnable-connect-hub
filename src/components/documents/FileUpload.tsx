@@ -1,9 +1,9 @@
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useDropzone } from 'react-dropzone';
-import { Upload, FileText, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import { Upload, FileText, AlertCircle, CheckCircle2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
@@ -23,7 +23,33 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess, disabled = false }) 
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [bucketReady, setBucketReady] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Initialize storage bucket when component mounts
+  useEffect(() => {
+    const initStorage = async () => {
+      if (user) {
+        try {
+          console.log("Initializing document storage");
+          const { data, error } = await supabase.functions.invoke('setup-document-storage');
+          
+          if (error) {
+            console.error("Error initializing storage:", error);
+            setUploadError("Storage initialization failed. Please try again later.");
+          } else {
+            console.log("Storage initialization result:", data);
+            setBucketReady(true);
+          }
+        } catch (err) {
+          console.error("Failed to initialize storage:", err);
+          setUploadError("Storage initialization failed. Please try again later.");
+        }
+      }
+    };
+
+    initStorage();
+  }, [user]);
 
   const resetUploadState = () => {
     setFile(null);
@@ -67,19 +93,24 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess, disabled = false }) 
   });
 
   const handleUpload = async () => {
-    if (!file || !user) return;
+    if (!file || !user || !bucketReady) {
+      if (!bucketReady) {
+        setUploadError("Storage not yet initialized. Please wait a moment and try again.");
+      }
+      return;
+    }
 
     setUploading(true);
     setUploadError(null);
     
     try {
-      // First, make sure the storage bucket exists
-      await supabase.functions.invoke('setup-document-storage');
-      
+      console.log("Starting file upload process");
       // Generate a unique storage path to prevent file name collisions
       const fileExt = file.name.split('.').pop();
       const fileName = `${uuidv4()}.${fileExt}`;
       const filePath = `${user.id}/${fileName}`;
+      
+      console.log(`Uploading ${file.name} to ${filePath}`);
       
       // Upload file to storage
       const { error: uploadError, data: uploadData } = await supabase
@@ -95,7 +126,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess, disabled = false }) 
         throw new Error(uploadError.message);
       }
       
-      console.log("File uploaded successfully:", uploadData);
+      console.log("File upload successful:", uploadData);
       
       // Store file metadata in the database
       const { error: dbError, data: docData } = await supabase
@@ -125,14 +156,13 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess, disabled = false }) 
       
       if (processError) {
         console.error("Process document error:", processError);
-        // Don't throw here, we still want to show success for the upload
         toast.warning("File uploaded but processing may be delayed");
+      } else {
+        console.log("Document processing started");
       }
       
       setUploadSuccess(true);
-      toast.success("File uploaded successfully", {
-        description: "It will be processed and available for use shortly."
-      });
+      toast.success("File uploaded successfully");
       
       // Call success callback
       if (onSuccess) {
@@ -154,6 +184,10 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess, disabled = false }) 
     if (fileInputRef.current) {
       fileInputRef.current.click();
     }
+  };
+
+  const clearSelectedFile = () => {
+    setFile(null);
   };
 
   return (
@@ -202,15 +236,24 @@ const FileUpload: React.FC<FileUploadProps> = ({ onSuccess, disabled = false }) 
                 {(file.size / (1024 * 1024)).toFixed(2)} MB • {file.type.split('/')[1].toUpperCase()}
               </p>
             </div>
-            <div className="ml-4">
+            <div className="flex items-center space-x-2">
               {!uploading && !uploadSuccess && (
-                <Button onClick={handleUpload} disabled={disabled || uploading || uploadSuccess}>
-                  Upload
-                </Button>
+                <>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    className="text-gray-500 hover:text-red-500"
+                    onClick={clearSelectedFile}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                  <Button onClick={handleUpload} disabled={disabled || uploading || uploadSuccess}>
+                    Upload
+                  </Button>
+                </>
               )}
               {uploading && (
-                <Button disabled className="bg-blue-400">
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Button disabled variant="outline" className="border-blue-200 text-blue-600">
                   Uploading...
                 </Button>
               )}

@@ -26,11 +26,28 @@ const Documents: React.FC = () => {
     }
   }, [user, navigate]);
 
-  // Check storage status using React Query for better caching and reduced DB calls
+  // Setup storage on page load to make sure it exists
+  useEffect(() => {
+    if (user) {
+      console.log("Initializing document storage on page load");
+      supabase.functions.invoke('setup-document-storage')
+        .then(({ data, error }) => {
+          if (error) {
+            console.error("Failed to initialize storage:", error);
+          } else {
+            console.log("Storage initialization result:", data);
+          }
+        })
+        .catch(err => {
+          console.error("Error initializing storage:", err);
+        });
+    }
+  }, [user]);
+
+  // Check storage status but don't wait for it
   const { 
     data: storageStatus, 
     error: storageError, 
-    isLoading: checkingStorage,
     refetch: recheckStorage,
     isError
   } = useQuery({
@@ -39,49 +56,25 @@ const Documents: React.FC = () => {
       if (!user) return { status: 'unknown', error: null };
       
       try {
-        // Check if a bucket exists by trying to access it rather than listing all buckets
-        // This reduces unnecessary DB calls
-        const { data: bucketInfo, error: bucketError } = await supabase
-          .storage
-          .getBucket('user-content');
+        console.log("Checking bucket status");
+        const { data, error } = await supabase.functions.invoke('setup-document-storage');
         
-        if (bucketError && bucketError.message.includes('does not exist')) {
-          console.log("user-content bucket does not exist, attempting to create");
-          
-          try {
-            // Call the setup-document-storage edge function to create bucket with proper policies
-            const { data, error } = await supabase.functions.invoke('setup-document-storage');
-            
-            if (error) {
-              console.error("Failed to setup document storage:", error);
-              return { status: 'error', error: 'Could not initialize document storage: ' + error.message };
-            }
-            
-            console.log("Successfully created user-content bucket");
-            return { status: 'available', error: null };
-          } catch (e) {
-            console.error("Exception creating bucket:", e);
-            return { status: 'error', error: 'Failed to setup document storage' };
-          }
+        if (error) {
+          console.error("Failed to setup document storage:", error);
+          return { status: 'error', error: 'Could not initialize document storage: ' + error.message };
         }
         
-        if (bucketError) {
-          console.error("Error checking bucket:", bucketError);
-          return { status: 'error', error: 'Storage service unavailable: ' + bucketError.message };
-        }
-        
-        // If we get here, the bucket exists
-        console.log("user-content bucket exists");
+        console.log("Successfully confirmed user-content bucket");
         return { status: 'available', error: null };
-      } catch (err) {
-        console.error("Storage connection error:", err);
-        return { status: 'error', error: 'Failed to connect to document storage' };
+      } catch (e) {
+        console.error("Exception creating bucket:", e);
+        return { status: 'error', error: 'Failed to setup document storage' };
       }
     },
     enabled: !!user,
-    staleTime: 30 * 60 * 1000, // Consider data fresh for 30 minutes
+    staleTime: 30 * 60 * 1000,
     retry: 1,
-    refetchOnWindowFocus: false // Prevent refetches when window regains focus
+    refetchOnWindowFocus: false
   });
 
   // Format error message for display
@@ -90,7 +83,7 @@ const Documents: React.FC = () => {
     storageStatus?.error || null;
 
   // Check if user has access to storage
-  const hasStorageAccess = storageStatus?.status === 'available';
+  const hasStorageAccess = !isError && errorMessage === null;
 
   if (!user) {
     return null; // Redirect handled in useEffect
@@ -118,7 +111,7 @@ const Documents: React.FC = () => {
             </AlertDescription>
           </Alert>
 
-          {errorMessage && storageStatus?.status === 'error' && (
+          {errorMessage && (
             <Alert className="mb-6 bg-red-50 border-red-200" variant="destructive" role="alert">
               <AlertCircle className="h-4 w-4 text-red-500" />
               <AlertTitle className="text-red-700">Connection Error</AlertTitle>
@@ -129,19 +122,9 @@ const Documents: React.FC = () => {
                   size="sm" 
                   className="ml-2 border-red-200 hover:bg-red-100" 
                   onClick={() => recheckStorage()}
-                  disabled={checkingStorage}
                 >
-                  {checkingStorage ? (
-                    <>
-                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                      Reconnecting...
-                    </>
-                  ) : (
-                    <>
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      Try Again
-                    </>
-                  )}
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Try Again
                 </Button>
               </AlertDescription>
             </Alert>
@@ -160,14 +143,13 @@ const Documents: React.FC = () => {
                 <TabsContent value="upload" role="tabpanel" tabIndex={0}>
                   <FileUpload 
                     onSuccess={() => setActiveTab('list')} 
-                    disabled={!hasStorageAccess || checkingStorage}
+                    disabled={!hasStorageAccess}
                   />
                 </TabsContent>
                 <TabsContent value="list" role="tabpanel" tabIndex={0}>
                   <FileList 
                     disabled={!hasStorageAccess}
                     storageError={errorMessage}
-                    isCheckingStorage={checkingStorage}
                   />
                 </TabsContent>
               </Tabs>

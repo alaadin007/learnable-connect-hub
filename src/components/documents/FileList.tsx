@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { FileText, Trash2, AlertCircle, RefreshCw, Loader2, Check, XCircle } from 'lucide-react';
+import { FileText, Trash2, AlertCircle, RefreshCw, Check, XCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import {
   AlertDialog,
@@ -18,7 +18,6 @@ import {
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
-// Update the Document interface to properly validate the processing_status
 interface Document {
   id: string;
   filename: string;
@@ -46,11 +45,10 @@ const FileList: React.FC<FileListProps> = ({ disabled, storageError, isCheckingS
   const queryClient = useQueryClient();
   const [documentToDelete, setDocumentToDelete] = useState<Document | null>(null);
   
-  // Fetch documents with React Query for efficient caching
+  // Fetch documents with React Query 
   const { 
-    data: documents, 
-    isLoading, 
-    isError, 
+    data: documents = [], 
+    isError,
     error, 
     refetch 
   } = useQuery({
@@ -66,13 +64,11 @@ const FileList: React.FC<FileListProps> = ({ disabled, storageError, isCheckingS
         
       if (error) throw new Error(error.message);
       
-      // Validate and transform the processing_status to ensure it matches our expected types
       return (data || []).map(doc => {
-        // Ensure processing_status is one of our valid enum values
         const validStatus: Document['processing_status'] = 
           ['pending', 'processing', 'completed', 'error'].includes(doc.processing_status) 
             ? doc.processing_status as Document['processing_status']
-            : 'pending'; // Default to pending if invalid
+            : 'pending';
             
         return {
           ...doc,
@@ -81,8 +77,9 @@ const FileList: React.FC<FileListProps> = ({ disabled, storageError, isCheckingS
       });
     },
     enabled: !!user && !disabled,
-    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
-    refetchOnWindowFocus: false // Don't refetch when focus is regained
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    initialData: []
   });
   
   // Delete document mutation
@@ -109,7 +106,6 @@ const FileList: React.FC<FileListProps> = ({ disabled, storageError, isCheckingS
       return document;
     },
     onSuccess: (deletedDoc) => {
-      // Update cache with optimistic UI update
       queryClient.setQueryData(['documents', user?.id], (oldData: Document[] | undefined) => {
         if (!oldData) return [];
         return oldData.filter(doc => doc.id !== deletedDoc.id);
@@ -140,22 +136,13 @@ const FileList: React.FC<FileListProps> = ({ disabled, storageError, isCheckingS
     setDocumentToDelete(null);
   };
 
-  // Handle various states
+  // Display content immediately instead of loading states
   if (disabled) {
     return (
       <div className="text-center py-8 border border-dashed border-gray-300 rounded-lg">
         <AlertCircle className="mx-auto h-8 w-8 text-amber-500 mb-2" />
         <p className="text-gray-600">Document storage is currently unavailable.</p>
         {storageError && <p className="text-sm text-red-500 mt-2">{storageError}</p>}
-      </div>
-    );
-  }
-
-  if (isLoading || isCheckingStorage) {
-    return (
-      <div className="text-center py-12">
-        <Loader2 className="mx-auto h-8 w-8 text-blue-500 animate-spin mb-4" />
-        <p className="text-gray-600">Loading your documents...</p>
       </div>
     );
   }
@@ -180,7 +167,7 @@ const FileList: React.FC<FileListProps> = ({ disabled, storageError, isCheckingS
     );
   }
 
-  if (!documents || documents.length === 0) {
+  if (documents.length === 0) {
     return (
       <div className="text-center py-12 border border-dashed border-gray-300 rounded-lg">
         <FileText className="mx-auto h-10 w-10 text-gray-400 mb-3" />
@@ -201,13 +188,13 @@ const FileList: React.FC<FileListProps> = ({ disabled, storageError, isCheckingS
           className="text-blue-600"
           onClick={() => refetch()}
         >
-          <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
+          <RefreshCw className="h-4 w-4 mr-1" />
           Refresh
         </Button>
       </div>
       
       <div className="overflow-hidden bg-white rounded-md border divide-y">
-        {documents?.map((doc) => (
+        {documents.map((doc) => (
           <div key={doc.id} className="p-4 hover:bg-gray-50 flex items-center">
             <div className="flex-shrink-0 mr-4">
               <FileText className="h-8 w-8 text-blue-500" />
@@ -223,13 +210,11 @@ const FileList: React.FC<FileListProps> = ({ disabled, storageError, isCheckingS
                 <span className="flex items-center">
                   {doc.processing_status === 'pending' && (
                     <>
-                      <Loader2 className="h-3 w-3 text-amber-500 animate-spin mr-1" />
                       <span className="text-amber-600">Pending</span>
                     </>
                   )}
                   {doc.processing_status === 'processing' && (
                     <>
-                      <Loader2 className="h-3 w-3 text-blue-500 animate-spin mr-1" />
                       <span className="text-blue-600">Processing</span>
                     </>
                   )}
@@ -277,14 +262,7 @@ const FileList: React.FC<FileListProps> = ({ disabled, storageError, isCheckingS
               onClick={handleDeleteConfirm} 
               className="bg-red-500 hover:bg-red-600 focus:ring-red-500"
             >
-              {isDeleting ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Deleting...
-                </>
-              ) : (
-                'Delete'
-              )}
+              {isDeleting ? 'Deleting...' : 'Delete'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

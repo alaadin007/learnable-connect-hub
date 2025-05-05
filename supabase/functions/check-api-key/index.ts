@@ -18,6 +18,8 @@ serve(async (req: Request) => {
   }
 
   try {
+    console.log("Starting check-api-key function");
+    
     // Get authorization token
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
@@ -48,6 +50,7 @@ serve(async (req: Request) => {
     try {
       const body = await req.json();
       provider = body.provider;
+      console.log(`Checking API key for provider: ${provider}`);
     } catch (error) {
       console.error("Error parsing request body:", error);
       return new Response(
@@ -63,7 +66,7 @@ serve(async (req: Request) => {
       );
     }
 
-    // Check if user has API key for the provider
+    // Check if user has API key for the provider - using maybeSingle() for better error handling
     const { data, error } = await supabaseClient
       .from('user_api_keys')
       .select('id')
@@ -71,11 +74,19 @@ serve(async (req: Request) => {
       .eq('provider', provider)
       .maybeSingle();
 
-    console.log(`Checked API key for user ${user.id}, provider ${provider}, result:`, { hasKey: !!data, error: !!error });
+    if (error) {
+      console.error(`Error checking API key for user ${user.id}, provider ${provider}:`, error);
+      return new Response(
+        JSON.stringify({ error: "Failed to check API key status", details: error.message }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log(`API key check result for user ${user.id}, provider ${provider}:`, { hasKey: !!data });
 
     // Return whether API key exists
     return new Response(
-      JSON.stringify({ exists: !!data }),
+      JSON.stringify({ exists: !!data, userId: user.id }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {

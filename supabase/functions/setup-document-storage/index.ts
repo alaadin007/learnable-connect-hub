@@ -14,136 +14,105 @@ serve(async (req) => {
   }
   
   try {
+    console.log("Starting setup-document-storage function");
+    
     // Create Supabase client with admin privileges
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
-    
-    // Check if the user-content bucket exists first before trying to create it
-    const { data: bucketInfo, error: bucketError } = await supabaseClient.storage.getBucket('user-content');
+
+    // Check if the user-content bucket exists
+    let { data: bucketInfo, error: bucketError } = await supabaseClient.storage.getBucket('user-content');
     
     // If bucket doesn't exist, create it
-    if (bucketError && bucketError.message && bucketError.message.includes('does not exist')) {
-      console.log("user-content bucket does not exist, creating...");
+    if (bucketError && bucketError.message.includes('does not exist')) {
+      console.log("Creating user-content bucket...");
       
-      // Create the user-content bucket
+      // Create the user-content bucket (making it public)
       const { data: newBucket, error: createError } = await supabaseClient.storage.createBucket(
         "user-content",
         { 
-          public: true, // Make bucket public for easier access
+          public: true, 
           fileSizeLimit: 52428800 // 50MB
         }
       );
       
       if (createError) {
-        console.error("Failed to create bucket:", createError);
+        console.error("Error creating bucket:", createError);
         return new Response(
           JSON.stringify({ error: "Failed to create storage bucket", details: createError }),
-          { 
-            status: 500,
-            headers: { ...corsHeaders, "Content-Type": "application/json" }
-          }
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
       
-      console.log("Created user-content bucket:", newBucket);
-      
-      // Set up RLS policies for the bucket
+      console.log("Created user-content bucket successfully");
+      bucketInfo = newBucket;
+
       try {
-        // Policy for users to read their own files
-        await supabaseClient.rpc('create_storage_policy', {
-          bucket_name: 'user-content',
-          policy_name: 'read_own_files',
-          definition: {
-            download: {
-              expression: 'storage.foldername(name) = auth.uid()::text' 
-            }
-          }
-        });
-        
-        // Policy for users to upload their own files
-        await supabaseClient.rpc('create_storage_policy', {
-          bucket_name: 'user-content',
-          policy_name: 'upload_own_files',
-          definition: {
-            insert: {
-              expression: 'storage.foldername(name) = auth.uid()::text'
-            }
-          }
-        });
-        
+        // Setup simple public access policy - everyone can download
+        await supabaseClient.query(`
+          CREATE POLICY "Allow public read access" 
+          ON storage.objects 
+          FOR SELECT 
+          USING (bucket_id = 'user-content');
+        `);
+
+        // Policy for authenticated users to upload
+        await supabaseClient.query(`
+          CREATE POLICY "Allow authenticated users to upload" 
+          ON storage.objects 
+          FOR INSERT 
+          TO authenticated 
+          WITH CHECK (bucket_id = 'user-content');
+        `);
+
         // Policy for users to update their own files
-        await supabaseClient.rpc('create_storage_policy', {
-          bucket_name: 'user-content',
-          policy_name: 'update_own_files',
-          definition: {
-            update: {
-              expression: 'storage.foldername(name) = auth.uid()::text'
-            }
-          }
-        });
-        
+        await supabaseClient.query(`
+          CREATE POLICY "Allow users to update own files" 
+          ON storage.objects 
+          FOR UPDATE 
+          TO authenticated 
+          USING (bucket_id = 'user-content' AND owner = auth.uid());
+        `);
+
         // Policy for users to delete their own files
-        await supabaseClient.rpc('create_storage_policy', {
-          bucket_name: 'user-content',
-          policy_name: 'delete_own_files',
-          definition: {
-            delete: {
-              expression: 'storage.foldername(name) = auth.uid()::text'
-            }
-          }
-        });
+        await supabaseClient.query(`
+          CREATE POLICY "Allow users to delete own files" 
+          ON storage.objects 
+          FOR DELETE 
+          TO authenticated 
+          USING (bucket_id = 'user-content' AND owner = auth.uid());
+        `);
         
-        console.log("Set up storage policies successfully");
+        console.log("Storage policies created successfully");
       } catch (policyError) {
-        console.error("Error setting up storage policies:", policyError);
-        // Continue anyway - the bucket is created, policies can be set up later
+        console.error("Error creating storage policies:", policyError);
+        // Continue anyway - the bucket is created
       }
-      
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          message: "Storage bucket created successfully",
-          bucket: "user-content" 
-        }),
-        { 
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" }
-        }
-      );
     } else if (bucketError) {
-      // Some other error occurred when checking for the bucket
       console.error("Error checking bucket:", bucketError);
       return new Response(
         JSON.stringify({ error: "Failed to check storage bucket", details: bucketError }),
-        { 
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" }
-        }
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    } else {
+      console.log("user-content bucket already exists");
     }
-    
-    // Bucket already exists
+
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: "Storage bucket already exists",
+        message: bucketInfo ? "Storage bucket ready" : "Storage bucket already exists",
         bucket: "user-content" 
       }),
-      { 
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" }
-      }
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
     console.error("Unexpected error:", error);
     return new Response(
       JSON.stringify({ error: "An unexpected error occurred", details: error.message }),
-      { 
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" }
-      }
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });

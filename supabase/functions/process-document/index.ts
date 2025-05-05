@@ -14,25 +14,31 @@ serve(async (req) => {
   }
   
   try {
+    console.log("Starting process-document function");
+    
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
     
     // Parse the request body
-    const { file_path } = await req.json();
-    
-    if (!file_path) {
+    let file_path;
+    try {
+      const body = await req.json();
+      file_path = body.file_path;
+      
+      if (!file_path) {
+        throw new Error("file_path is missing");
+      }
+      
+      console.log("Processing document:", file_path);
+    } catch (parseError) {
+      console.error("Error parsing request:", parseError);
       return new Response(
-        JSON.stringify({ error: "file_path is required" }),
-        { 
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" }
-        }
+        JSON.stringify({ error: "Invalid request. file_path is required." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-    
-    console.log("Processing document:", file_path);
     
     // Find the document record in the database
     const { data: documentData, error: documentError } = await supabaseClient
@@ -41,17 +47,11 @@ serve(async (req) => {
       .eq('storage_path', file_path)
       .single();
     
-    if (documentError || !documentData) {
+    if (documentError) {
       console.error("Error finding document:", documentError);
       return new Response(
-        JSON.stringify({ 
-          error: "Document not found in database",
-          details: documentError?.message 
-        }),
-        { 
-          status: 404,
-          headers: { ...corsHeaders, "Content-Type": "application/json" }
-        }
+        JSON.stringify({ error: "Document not found in database", details: documentError.message }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
     
@@ -73,13 +73,14 @@ serve(async (req) => {
         .download(file_path);
       
       if (fileError) {
+        console.error("File storage error:", fileError);
         throw new Error(`File storage error: ${fileError.message}`);
       }
       
-      // Simplified mock document processing
-      // In a real implementation, you would process the document content here
+      console.log("File downloaded successfully, size:", fileData.size);
       
-      // Create dummy content record
+      // For simplicity, we'll just create a content record immediately
+      // In a real application, you'd process the document content here
       const { error: contentError } = await supabaseClient
         .from('document_content')
         .insert({
@@ -89,8 +90,11 @@ serve(async (req) => {
         });
       
       if (contentError) {
+        console.error("Error creating content record:", contentError);
         throw contentError;
       }
+      
+      console.log("Document content record created successfully");
       
       // Mark document as processed
       const { error: completeError } = await supabaseClient
@@ -100,6 +104,8 @@ serve(async (req) => {
       
       if (completeError) {
         console.error("Error marking document as completed:", completeError);
+      } else {
+        console.log("Document marked as completed");
       }
       
       return new Response(
@@ -108,10 +114,7 @@ serve(async (req) => {
           message: "Document processed successfully",
           document_id: documentData.id
         }),
-        { 
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" }
-        }
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     } catch (processingError) {
       console.error("Error processing document:", processingError);
@@ -127,20 +130,14 @@ serve(async (req) => {
           error: "Failed to process document", 
           details: processingError.message 
         }),
-        { 
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" }
-        }
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
   } catch (error) {
     console.error("Unexpected error:", error);
     return new Response(
       JSON.stringify({ error: "An unexpected error occurred", details: error.message }),
-      { 
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" }
-        }
-      );
-    }
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
 });
