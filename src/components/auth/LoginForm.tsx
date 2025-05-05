@@ -63,7 +63,7 @@ const LoginForm = () => {
     if (userRole) {
       console.log("LoginForm: User role already set, redirecting to appropriate dashboard:", userRole);
       const redirectPath = getUserRedirectPath(userRole);
-      navigate(redirectPath);
+      navigate(redirectPath, { replace: true });
     }
   }, [userRole, navigate]);
 
@@ -91,7 +91,7 @@ const LoginForm = () => {
     try {
       console.log(`LoginForm: Instant login as ${type}`);
       
-      // Set test account flags immediately
+      // Set test account flags immediately in localStorage
       localStorage.setItem('usingTestAccount', 'true');
       localStorage.setItem('testAccountType', type);
       
@@ -159,7 +159,7 @@ const LoginForm = () => {
         setActiveTestAccount(null);
       }
       
-      // Special handling for test accounts
+      // Special handling for test accounts using email format
       if (email.includes(".test@learnable.edu")) {
         let type: "school" | "teacher" | "student" = "student";
         if (email.startsWith("school")) type = "school";
@@ -168,6 +168,18 @@ const LoginForm = () => {
         await handleQuickLogin(type);
         return;
       }
+      
+      // Detect role from email pattern to speed up login process
+      let detectedRole = null;
+      if (email.toLowerCase().includes("school") || email.toLowerCase().includes("admin")) {
+        detectedRole = "school";
+      } else if (email.toLowerCase().includes("teacher")) {
+        detectedRole = "teacher";
+      } else {
+        detectedRole = "student";
+      }
+      
+      console.log(`LoginForm: Detected potential role from email pattern: ${detectedRole}`);
       
       // Handle normal login with credentials - optimized for instant login
       const { data, error } = await signIn(email, password);
@@ -178,33 +190,30 @@ const LoginForm = () => {
       }
 
       if (data?.user) {
-        console.log("Login successful:", data.user.id);
+        console.log("Login successful for:", data.user.id);
         
         // Determine user type and redirect accordingly
-        let userType: string | null = null;
-        let userName: string | null = null;
+        let userType = null;
+        let userName = null;
         
         // First try to get from user metadata - fastest path
         if (data.user.user_metadata) {
-          userType = data.user.user_metadata.user_type;
-          userName = data.user.user_metadata.full_name;
+          userType = data.user.user_metadata.user_type || detectedRole;
+          userName = data.user.user_metadata.full_name || email.split('@')[0];
         }
         
-        // If not in metadata, try to get from profile - only if needed
+        // If still no userType, use the detected role
         if (!userType) {
+          userType = detectedRole;
+          
+          // Try to update user metadata with the detected role
           try {
-            const { data: profile, error: profileError } = await supabase
-              .from("profiles")
-              .select("user_type, full_name")
-              .eq("id", data.user.id)
-              .single();
-
-            if (!profileError && profile) {
-              userType = profile.user_type;
-              userName = profile.full_name || userName;
-            }
-          } catch (profileError) {
-            console.error("Error fetching user profile:", profileError);
+            await supabase.auth.updateUser({
+              data: { user_type: detectedRole }
+            });
+            console.log(`Updated user metadata with detected role: ${detectedRole}`);
+          } catch (err) {
+            console.warn("Could not update user metadata:", err);
           }
         }
         
@@ -212,7 +221,7 @@ const LoginForm = () => {
         const redirectPath = userType ? getUserRedirectPath(userType) : "/dashboard";
           
         toast.success("Login successful", {
-          description: `Welcome back, ${userName || email}!`,
+          description: `Welcome back, ${userName || email.split('@')[0]}!`,
         });
         
         navigate(redirectPath, { 

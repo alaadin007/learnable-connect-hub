@@ -85,6 +85,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [schoolId, setSchoolId] = useState<string | null>(null);
   const navigate = useNavigate();
 
+  // Helper function to detect role from email
+  const detectRoleFromEmail = (email: string): UserRole => {
+    if (email.toLowerCase().includes("school") || email.toLowerCase().includes("admin")) {
+      return "school";
+    } else if (email.toLowerCase().includes("teacher")) {
+      return "teacher";
+    } else {
+      return "student";
+    }
+  };
+
   // Fetch user profile
   const fetchProfile = useCallback(
     async (userId: string): Promise<UserProfile | null> => {
@@ -113,9 +124,28 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               organization: null,
             };
 
-            if (userType) {
-              setUserRole(userType as UserRole);
-              setIsSupervisor(userType === "school");
+            // If no user_type in metadata, try to detect from email
+            if (!userType && user.email) {
+              const detectedRole = detectRoleFromEmail(user.email);
+              fallbackProfile.user_type = detectedRole;
+              
+              // Try to update user metadata with detected role
+              try {
+                await supabase.auth.updateUser({
+                  data: { 
+                    ...user.user_metadata,
+                    user_type: detectedRole 
+                  }
+                });
+                console.log(`Updated user metadata with detected role: ${detectedRole}`);
+              } catch (err) {
+                console.warn("Could not update user metadata:", err);
+              }
+            }
+
+            if (fallbackProfile.user_type) {
+              setUserRole(fallbackProfile.user_type);
+              setIsSupervisor(fallbackProfile.user_type === "school");
             }
 
             setProfile(fallbackProfile);
@@ -155,7 +185,29 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         setProfile(safeProfileData);
 
-        if (profileData.user_type) {
+        // If no user_type in profile but we have an email, try to detect role
+        if (!profileData.user_type && user?.email) {
+          const detectedRole = detectRoleFromEmail(user.email);
+          safeProfileData.user_type = detectedRole;
+          
+          // Try to update both profile and user metadata with detected role
+          try {
+            await supabase.from("profiles").update({ user_type: detectedRole }).eq("id", userId);
+            
+            await supabase.auth.updateUser({
+              data: { 
+                ...user.user_metadata,
+                user_type: detectedRole 
+              }
+            });
+            console.log(`Updated profile and user metadata with detected role: ${detectedRole}`);
+          } catch (err) {
+            console.warn("Could not update profile or user metadata:", err);
+          }
+          
+          setUserRole(detectedRole);
+          setIsSupervisor(detectedRole === "school" && !!safeProfileData.organization?.id);
+        } else if (profileData.user_type) {
           // Cast to UserRole type to ensure type safety
           const typedUserRole = profileData.user_type as UserRole;
           setUserRole(typedUserRole);
@@ -192,6 +244,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             full_name: user.user_metadata.full_name || null,
             school_code: user.user_metadata.school_code || null,
           };
+
+          // If no user_type in metadata but we have an email, try to detect role
+          if (!fallbackProfile.user_type && user.email) {
+            const detectedRole = detectRoleFromEmail(user.email);
+            fallbackProfile.user_type = detectedRole;
+            
+            // Try to update user metadata with detected role
+            try {
+              await supabase.auth.updateUser({
+                data: { 
+                  ...user.user_metadata,
+                  user_type: detectedRole 
+                }
+              });
+              console.log(`Updated user metadata with detected role: ${detectedRole}`);
+            } catch (updateErr) {
+              console.warn("Could not update user metadata:", updateErr);
+            }
+          }
 
           setUserRole(fallbackProfile.user_type);
           setIsSupervisor(fallbackProfile.user_type === "school");
@@ -361,6 +432,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               if (ut) {
                 setUserRole(ut as UserRole);
                 setIsSupervisor(ut === "school");
+              } else if (session.user.email) {
+                // If no user_type in metadata, try to detect from email
+                const detectedRole = detectRoleFromEmail(session.user.email);
+                setUserRole(detectedRole);
+                setIsSupervisor(detectedRole === "school");
+                
+                // Try to update user metadata with detected role
+                try {
+                  await supabase.auth.updateUser({
+                    data: { 
+                      ...session.user.user_metadata,
+                      user_type: detectedRole 
+                    }
+                  });
+                  console.log(`Updated user metadata with detected role: ${detectedRole}`);
+                } catch (err) {
+                  console.warn("Could not update user metadata:", err);
+                }
               }
             }
           }
@@ -384,6 +473,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             if (ut) {
               setUserRole(ut as UserRole);
               setIsSupervisor(ut === "school");
+            } else if (session.user.email) {
+              // If no user_type in metadata, try to detect from email
+              const detectedRole = detectRoleFromEmail(session.user.email);
+              setUserRole(detectedRole);
+              setIsSupervisor(detectedRole === "school");
+              
+              // Try to update user metadata with detected role
+              try {
+                await supabase.auth.updateUser({
+                  data: { 
+                    ...session.user.user_metadata,
+                    user_type: detectedRole 
+                  }
+                });
+                console.log(`Updated user metadata with detected role: ${detectedRole}`);
+              } catch (err) {
+                console.warn("Could not update user metadata:", err);
+              }
             }
           }
         }
@@ -407,7 +514,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const signUp = useCallback(
     async (email: string, password: string) => {
       try {
-        const { data, error } = await supabase.auth.signUp({ email, password });
+        // Detect potential role from email
+        const potentialRoleFromEmail = detectRoleFromEmail(email);
+        console.log(`SignUp: Detected potential role from email pattern: ${potentialRoleFromEmail}`);
+        
+        // Include detected role in user metadata during signup
+        const { data, error } = await supabase.auth.signUp({ 
+          email, 
+          password,
+          options: {
+            data: {
+              user_type: potentialRoleFromEmail
+            }
+          }
+        });
+        
         if (error) throw error;
         return { user: data?.user || null, session: data?.session || null, error: null };
       } catch (error: any) {
@@ -443,15 +564,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       try {
-        // Special case for a specific email omitted for brevity, implement as needed
-
-        if (!password) {
-          const { error } = await supabase.auth.signInWithOtp({ email });
-          if (error) throw error;
-          return { data: { user: null, session: null }, error: null };
-        }
-
-        // Use a faster method to sign in with email pattern recognition
+        // Detect potential role from email
         const potentialRoleFromEmail = email.toLowerCase().includes("school") 
           ? "school" 
           : email.toLowerCase().includes("teacher") 
@@ -460,6 +573,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         console.log(`SignIn: Detected potential role from email pattern: ${potentialRoleFromEmail}`);
         
+        if (!password) {
+          const { error } = await supabase.auth.signInWithOtp({ email });
+          if (error) throw error;
+          return { data: { user: null, session: null }, error: null };
+        }
+
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
         if (error) throw error;
