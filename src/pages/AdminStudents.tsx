@@ -203,7 +203,14 @@ const AdminStudents = () => {
         body: { method: "code" }
       });
       
-      if (error) throw error;
+      if (error) {
+        console.error("Error generating invite code:", error);
+        throw error;
+      }
+      
+      if (!data || !data.code) {
+        throw new Error("No code returned from the server");
+      }
       
       console.log("Generated invite code:", data);
       setGeneratedCode(data.code);
@@ -303,55 +310,47 @@ const AdminStudents = () => {
                     />
                   )}
                   
-                  {generatedCode && selectedMethod === "code" && (
-                    <div className="p-4 bg-muted rounded-lg">
-                      <p className="font-semibold mb-2">Invitation Code:</p>
-                      <div className="flex items-center gap-2">
-                        <code className="bg-background p-2 rounded border flex-1 text-center text-lg font-mono">
-                          {generatedCode}
-                        </code>
-                        <Button type="button" variant="outline" size="sm" onClick={copyInviteCode}>
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <p className="text-sm text-muted-foreground mt-2">
-                        Share this code with students to join your school
-                      </p>
-                    </div>
-                  )}
-                  
-                  <div className="flex space-x-2">
-                    <Button 
-                      type="submit" 
-                      className="gradient-bg" 
-                      disabled={isLoading}
-                    >
-                      {selectedMethod === "invite" ? (
-                        <>
-                          <Mail className="mr-2 h-4 w-4" />
-                          {isLoading ? "Sending..." : "Send Invitation"}
-                        </>
-                      ) : (
-                        <>
-                          <UserPlus className="mr-2 h-4 w-4" />
-                          {isLoading ? "Generating..." : "Generate Code"}
-                        </>
-                      )}
-                    </Button>
-                    
-                    {selectedMethod === "code" && (
+                  {selectedMethod === "code" && (
+                    <div>
                       <Button
                         type="button"
-                        variant="default"
-                        className="bg-learnable-light-blue text-white hover:bg-learnable-blue"
+                        className="gradient-bg"
                         onClick={generateInviteCode}
                         disabled={isLoading}
                       >
                         <UserPlus className="mr-2 h-4 w-4" />
                         {isLoading ? "Generating..." : "Generate Code"}
                       </Button>
-                    )}
-                  </div>
+                      
+                      {generatedCode && (
+                        <div className="p-4 mt-4 bg-muted rounded-lg">
+                          <p className="font-semibold mb-2">Invitation Code:</p>
+                          <div className="flex items-center gap-2">
+                            <code className="bg-background p-2 rounded border flex-1 text-center text-lg font-mono">
+                              {generatedCode}
+                            </code>
+                            <Button type="button" variant="outline" size="sm" onClick={copyInviteCode}>
+                              <Copy className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          <p className="text-sm text-muted-foreground mt-2">
+                            Share this code with students to join your school
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {selectedMethod === "invite" && (
+                    <Button 
+                      type="submit" 
+                      className="gradient-bg" 
+                      disabled={isLoading}
+                    >
+                      <Mail className="mr-2 h-4 w-4" />
+                      {isLoading ? "Sending..." : "Send Invitation"}
+                    </Button>
+                  )}
                 </form>
               </Form>
             </CardContent>
