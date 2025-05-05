@@ -1,6 +1,6 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { createSessionLog, endSessionLog, updateSessionTopic as updateTopic } from "./databaseUtils";
 
 // Log session start in Supabase
 const logSessionStart = async (topic?: string, userId?: string): Promise<string | null> => {
@@ -12,18 +12,9 @@ const logSessionStart = async (topic?: string, userId?: string): Promise<string 
       return null;
     }
     
-    // If not testing with a mock userId, use the edge function
+    // If not testing with a mock userId, use the database function
     if (!userId) {
-      const { data, error } = await supabase.functions.invoke("create-session-log", {
-        body: { topic: topic || "General Chat" }
-      });
-
-      if (error) {
-        console.error("Error starting session:", error);
-        return null;
-      }
-
-      return data?.logId || null;
+      return await createSessionLog(topic || "General Chat");
     } else {
       // For test accounts, we need special handling
       // First get the school ID for this user
@@ -70,15 +61,7 @@ const logSessionEnd = async (sessionId?: string, performanceData?: any): Promise
       return;
     }
 
-    // Call the endpoint to end the session
-    const { error } = await supabase.functions.invoke("end-session", {
-      body: { logId: sessionId, performanceData }
-    });
-
-    if (error) {
-      console.error("Error ending session:", error);
-      return;
-    }
+    await endSessionLog(sessionId, performanceData);
 
     // Clear the active session from localStorage if it matches
     const activeSessionId = localStorage.getItem("activeSessionId");
@@ -98,14 +81,7 @@ const updateSessionTopic = async (sessionId: string, topic: string): Promise<voi
       return;
     }
 
-    // Call the endpoint to update the session topic
-    const { error } = await supabase.functions.invoke("update-session", {
-      body: { logId: sessionId, topic }
-    });
-
-    if (error) {
-      console.error("Error updating session topic:", error);
-    }
+    await updateTopic(sessionId, topic);
   } catch (error) {
     console.error("Error updating session topic:", error);
   }
@@ -175,6 +151,94 @@ const sessionLogger = {
   updateSessionTopic,
   incrementQueryCount,
   hasActiveSession
+};
+
+// Function to generate mock analytics data for test accounts
+export const getMockAnalyticsData = (schoolId: string, options?: { startDate?: string, endDate?: string }) => {
+  // Constants to generate consistent data
+  const NUM_STUDENTS = 12;
+  const NUM_SESSIONS = 35;
+  const AVG_MINUTES = 22;
+  const NUM_QUERIES = 105;
+  
+  // Generate mock sessions
+  const sessions = Array(NUM_SESSIONS).fill(null).map((_, i) => ({
+    id: `mock-session-${i}`,
+    userId: `student-${i % NUM_STUDENTS + 1}`,
+    userName: `Student ${i % NUM_STUDENTS + 1}`,
+    startTime: new Date(Date.now() - i * 86400000).toISOString(),
+    endTime: new Date(Date.now() - i * 86400000 + 30 * 60000).toISOString(),
+    duration: Math.floor(Math.random() * 45) + 10,
+    topicOrContent: ['Algebra equations', 'World War II', 'Chemical reactions', 'Shakespeare', 'Programming'][i % 5],
+    numQueries: Math.floor(Math.random() * 10) + 3,
+    queries: Math.floor(Math.random() * 10) + 3
+  }));
+  
+  // Generate mock topics
+  const topicNames = ['Algebra equations', 'World War II', 'Chemical reactions', 'Shakespeare', 'Programming'];
+  const topics = topicNames.map((name, i) => ({
+    topic: name,
+    name,
+    count: Math.floor(Math.random() * 15) + 5,
+    value: Math.floor(Math.random() * 15) + 5
+  }));
+  
+  // Generate mock study time
+  const studyTime = Array(NUM_STUDENTS).fill(null).map((_, i) => ({
+    studentName: `Student ${i + 1}`,
+    name: `Student ${i + 1}`,
+    hours: Math.floor(Math.random() * 5) + 1,
+    week: 1,
+    year: new Date().getFullYear()
+  }));
+  
+  // Return mock data object
+  return {
+    summary: {
+      activeStudents: NUM_STUDENTS,
+      totalSessions: NUM_SESSIONS,
+      totalQueries: NUM_QUERIES,
+      avgSessionMinutes: AVG_MINUTES
+    },
+    sessions,
+    topics,
+    studyTime
+  };
+};
+
+// Function to populate test account with sessions
+export const populateTestAccountWithSessions = async (userId: string, schoolId: string, numSessions = 5) => {
+  try {
+    // Skip calls for non-test users or if missing required IDs
+    if (!userId || !schoolId) {
+      return { success: false, message: "Missing user ID or school ID" };
+    }
+    
+    // Detect if this is a test account
+    const isTest = userId.startsWith('test-') || schoolId.startsWith('test-');
+    if (!isTest) {
+      // Only create test sessions for test accounts
+      return { success: false, message: "Not a test account" };
+    }
+    
+    console.log(`Creating test sessions for ${userId} in school ${schoolId}`);
+    
+    // Use the database function directly
+    const { error, data } = await supabase.functions.invoke("populate-test-performance", {
+      body: { userId, schoolId, numSessions }
+    });
+    
+    if (error) {
+      console.error("Error creating test sessions:", error);
+      return { success: false, message: error.message };
+    }
+    
+    console.log("Test sessions created successfully:", data);
+    return { success: true, data };
+  } catch (error) {
+    console.error("Error in populateTestAccountWithSessions:", error);
+    return { success: false, message: error.message };
+  }
 };
 
 export default sessionLogger;
