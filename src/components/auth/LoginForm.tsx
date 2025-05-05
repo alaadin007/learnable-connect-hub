@@ -126,63 +126,33 @@ const LoginForm = () => {
     console.log(`LoginForm: Attempting login for ${email}`);
 
     try {
-      // Handle for the specific troublesome account - special case for salman.k.786000@gmail.com
-      if (email === "salman.k.786000@gmail.com") {
-        console.log("Login form: Using direct auth for specific account");
-        // Direct Supabase auth to bypass any middleware issues
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password
-        });
+      // Direct Supabase auth to ensure consistent login experience for all accounts
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
 
-        if (error) {
-          console.error("Login error for specific account:", error);
-          throw error;
-        }
-
-        if (data?.user) {
-          console.log("Login successful for specific account:", data.user.id);
-          
-          // Explicitly set user data in local storage to ensure it's available
-          localStorage.setItem('supabase.auth.token', JSON.stringify({
-            access_token: data.session?.access_token,
-            refresh_token: data.session?.refresh_token
-          }));
-          
-          toast.success("Login successful");
-          
-          // Force a refresh of the auth state
-          setTimeout(() => {
-            navigate("/dashboard", { replace: true });
-          }, 500);
-          
-          return;
-        }
+      if (error) {
+        console.error("Login error:", error);
+        throw error;
       }
-      
-      // Regular user login flow for other accounts
-      const response = await signIn(email, password);
-      
-      // Since we've updated signIn to return the auth response, we can check for errors here
-      if (response.error) throw response.error;
 
-      // Get current user after successful login
-      const { data: { user } } = await supabase.auth.getUser();
-
-      if (user) {
+      if (data?.user) {
+        console.log("Login successful:", data.user.id);
+        
         try {
           // Get user profile with organization data
           const { data: profile, error: profileError } = await supabase
             .from("profiles")
             .select("user_type, full_name, school_code, organization:schools(id, name, code)")
-            .eq("id", user.id)
+            .eq("id", data.user.id)
             .single();
 
           if (profileError) {
             console.error("Error fetching user profile:", profileError);
             
             // Fall back to user metadata if profile fetch fails
-            const userType = user.user_metadata?.user_type;
+            const userType = data.user.user_metadata?.user_type;
             if (userType) {
               const redirectPath =
                 userType === "school"
@@ -192,7 +162,7 @@ const LoginForm = () => {
                   : "/dashboard";
                   
               toast.success("Login successful", {
-                description: `Welcome back, ${user.user_metadata?.full_name || email}!`,
+                description: `Welcome back, ${data.user.user_metadata?.full_name || email}!`,
               });
               
               navigate(redirectPath, { 
@@ -202,11 +172,11 @@ const LoginForm = () => {
                   preserveContext: true
                 }
               });
-              setIsLoading(false);
               return;
             } else {
-              toast.error("Error loading user profile");
-              setIsLoading(false);
+              // If both profile and metadata fail, use a general success message and redirect to dashboard
+              toast.success("Login successful");
+              navigate("/dashboard", { replace: true });
               return;
             }
           }
@@ -223,11 +193,10 @@ const LoginForm = () => {
 
           toast.success("Login successful", {
             description: `Welcome back, ${
-              profile?.full_name || user.user_metadata?.full_name || email
+              profile?.full_name || data.user.user_metadata?.full_name || email
             }!`,
           });
 
-          // Ensure we're passing preserveContext to prevent redirect loops
           navigate(redirectPath, { 
             replace: true,
             state: { 
@@ -238,28 +207,10 @@ const LoginForm = () => {
         } catch (profileError) {
           console.error("Error processing profile:", profileError);
           
-          // Fall back to user metadata if profile processing fails
-          if (user.user_metadata?.user_type) {
-            const redirectPath =
-              user.user_metadata.user_type === "school"
-                ? "/admin"
-                : user.user_metadata.user_type === "teacher"
-                ? "/teacher/analytics"
-                : "/dashboard";
-                
-            toast.success("Login successful", {
-              description: `Welcome back, ${user.user_metadata?.full_name || email}!`,
-            });
-            
-            navigate(redirectPath, { replace: true });
-          } else {
-            toast.error("Error loading user profile");
-          }
+          // Default redirect if everything fails
+          toast.success("Login successful");
+          navigate("/dashboard", { replace: true });
         }
-      } else {
-        // fallback for unexpected case
-        toast.success("Login successful");
-        navigate("/dashboard");
       }
     } catch (error: any) {
       console.error("Login error:", error);
@@ -268,6 +219,10 @@ const LoginForm = () => {
       if (error.message?.includes("Email not confirmed")) {
         toast.error("Email not verified", {
           description: "Please check your inbox and spam folder for the verification email.",
+          action: {
+            label: "Resend",
+            onClick: () => handleResendVerification(),
+          },
         });
       } else if (error.message?.includes("Invalid login credentials")) {
         toast.error("Login failed", {
@@ -276,6 +231,33 @@ const LoginForm = () => {
       } else {
         toast.error(`Login failed: ${error.message}`);
       }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    if (!email) {
+      toast.error("Please enter your email address");
+      return;
+    }
+    
+    setIsLoading(true);
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+      });
+      
+      if (error) {
+        toast.error("Failed to resend verification email: " + error.message);
+      } else {
+        toast.success("Verification email sent", {
+          description: "Please check your inbox and spam folder for the verification link.",
+        });
+      }
+    } catch (error: any) {
+      toast.error("An error occurred: " + error.message);
     } finally {
       setIsLoading(false);
     }

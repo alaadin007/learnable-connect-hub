@@ -44,4 +44,3 @@ export type TeacherInvitationResult = {
 // Export the URL and key for direct access without using the protected properties
 export const SUPABASE_PUBLIC_URL = SUPABASE_URL;
 export const SUPABASE_PUBLIC_KEY = SUPABASE_PUBLISHABLE_KEY;
-
