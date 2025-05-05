@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -182,7 +181,8 @@ const LoginForm = () => {
       console.log(`LoginForm: Detected potential role from email pattern: ${detectedRole}`);
       
       // Handle normal login with credentials - optimized for instant login
-      const { data, error } = await signIn(email, password);
+      const result = await signIn(email, password);
+      const { data, error } = result;
       
       if (error) {
         console.error("Login error:", error);

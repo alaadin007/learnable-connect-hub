@@ -92,7 +92,6 @@ export default function AcceptInvitation() {
     }
   };
 
-  // ... keep existing code (the rest of the component rendering)
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">

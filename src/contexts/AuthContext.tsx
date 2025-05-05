@@ -26,8 +26,10 @@ interface AuthContextProps {
   isSupervisor: boolean;
   schoolId: string | null;
   signUp: (email: string, password: string) => Promise<void>;
-  signIn: (email: string, password: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<{ data: any, error: any }>;
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
+  setTestUser: (type: "school" | "teacher" | "student") => Promise<boolean>;
   isLoading: boolean;
   error: string | null;
 }
@@ -116,10 +118,59 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
 
-      return data;
+      return data as Profile;
     } catch (error) {
       console.error('Error in fetchProfile:', error);
       return null;
+    }
+  };
+
+  // Refresh user profile data
+  const refreshProfile = async () => {
+    if (user) {
+      const profileData = await fetchProfile(user.id);
+      if (profileData) {
+        setProfile(profileData as Profile);
+        setUserRole(profileData.user_type as UserRole);
+      }
+    }
+  };
+
+  // Set up a test user without authentication (for demo purposes)
+  const setTestUser = async (type: "school" | "teacher" | "student"): Promise<boolean> => {
+    try {
+      console.log(`Setting up test ${type} user`);
+      
+      // Create a mock user and profile
+      const mockUser = {
+        id: `test-${type}-${Date.now()}`,
+        email: `${type}.test@learnable.edu`,
+        user_metadata: { user_type: type }
+      } as User;
+      
+      const mockProfile = {
+        id: mockUser.id,
+        user_type: type as UserRole,
+        full_name: `Test ${type.charAt(0).toUpperCase() + type.slice(1)} User`,
+        school_code: 'TEST123',
+        school_name: 'Test School'
+      };
+      
+      // Set up the test user state
+      setUser(mockUser);
+      setProfile(mockProfile);
+      setUserRole(type as UserRole);
+      
+      // Set supervisor status based on type
+      setIsSupervisor(type === 'school');
+      
+      // Set mock school ID
+      setSchoolId('test-school-id');
+      
+      return true;
+    } catch (error) {
+      console.error('Error setting up test user:', error);
+      return false;
     }
   };
 
@@ -141,8 +192,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               setTimeout(async () => {
                 const profileData = await fetchProfile(session.user.id);
                 if (profileData) {
-                  setProfile(profileData);
-                  setUserRole(profileData.user_type);
+                  setProfile(profileData as Profile);
+                  setUserRole(profileData.user_type as UserRole);
                 }
               }, 0);
             } else {
@@ -162,8 +213,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (session?.user) {
           const profileData = await fetchProfile(session.user.id);
           if (profileData) {
-            setProfile(profileData);
-            setUserRole(profileData.user_type);
+            setProfile(profileData as Profile);
+            setUserRole(profileData.user_type as UserRole);
           }
         }
         
@@ -202,12 +253,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signIn = async (email: string, password: string) => {
     try {
       setError(null);
-      const { error } = await supabase.auth.signInWithPassword({
+      return await supabase.auth.signInWithPassword({
         email,
         password,
       });
-      
-      if (error) throw error;
     } catch (error: any) {
       console.error('Sign in error:', error);
       setError(error.message);
@@ -238,6 +287,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signUp,
     signIn,
     signOut,
+    refreshProfile,
+    setTestUser,
     isLoading,
     error,
   };
