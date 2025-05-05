@@ -8,15 +8,15 @@ import StudentInvitation from "@/components/school-admin/StudentInvitation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Users, BarChart2, ChevronDown, Settings, User, MessageSquare, FileText, RefreshCw } from "lucide-react";
-import { toast } from "sonner";
+import { Users, BarChart2, ChevronDown, Settings, User, MessageSquare, FileText, RefreshCw } from 'lucide-react';
+import { toast } from 'sonner';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { getCurrentSchoolInfo } from "@/utils/schoolUtils";
+import { getCurrentSchoolInfo } from '@/utils/schoolUtils';
 import { School } from "@/components/analytics/types";
 
 export type TeacherInvitation = {
