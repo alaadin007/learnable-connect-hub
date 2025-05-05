@@ -1188,9 +1188,21 @@ export type Database = {
         Args: { topic?: string }
         Returns: string
       }
+      create_student_invitation: {
+        Args: { school_id_param: string }
+        Returns: {
+          code: string
+          expires_at: string
+          invite_id: string
+        }[]
+      }
       end_session_log: {
         Args: { log_id: string; performance_data?: Json }
         Returns: undefined
+      }
+      generate_invitation_code: {
+        Args: Record<PropertyKey, never>
+        Returns: string
       }
       generate_invitation_token: {
         Args: Record<PropertyKey, never>
@@ -1199,6 +1211,15 @@ export type Database = {
       generate_school_code: {
         Args: Record<PropertyKey, never>
         Returns: string
+      }
+      get_current_school_info: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          school_id: string
+          school_name: string
+          school_code: string
+          contact_email: string
+        }[]
       }
       get_school_improvement_metrics: {
         Args: { p_school_id: string; p_months_to_include?: number }

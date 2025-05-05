@@ -84,8 +84,7 @@ export const getCurrentUserSchoolId = async (): Promise<string | null> => {
 export const getCurrentSchoolInfo = async () => {
   try {
     // Use the database function to get current school info
-    const { data, error } = await supabase
-      .rpc("get_current_school_info");
+    const { data, error } = await supabase.rpc("get_current_school_info");
       
     if (error) {
       console.error("Error fetching school info:", error);
