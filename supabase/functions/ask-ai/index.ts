@@ -48,6 +48,15 @@ serve(async (req: Request) => {
       );
     }
 
+    // Get user ID from auth
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+    if (userError || !user) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Increment query count for session if provided
     if (sessionId) {
       try {
@@ -68,53 +77,39 @@ serve(async (req: Request) => {
       }
     }
 
-    // Call OpenAI API
-    const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
-    if (!openaiApiKey) {
-      return new Response(
-        JSON.stringify({ error: "OpenAI API key not configured" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    // Check for API keys
+    // Try to get OpenAI API key first
+    let { data: openaiKeyData } = await supabaseClient
+      .from('user_api_keys')
+      .select('api_key')
+      .eq('user_id', user.id)
+      .eq('provider', 'openai')
+      .maybeSingle();
+
+    if (openaiKeyData?.api_key) {
+      // Call OpenAI API with user's key
+      return await callOpenAI(openaiKeyData.api_key, question, context);
     }
-
-    // Construct the prompt with context if available
-    const systemPrompt = context 
-      ? `You are an educational AI assistant helping a student learn. Use this context to inform your answers: ${context}`
-      : "You are an educational AI assistant helping a student learn. Be helpful, accurate, and encouraging.";
-
-    const openaiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${openaiApiKey}`
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: question }
-        ],
-        temperature: 0.7
-      })
-    });
-
-    if (!openaiResponse.ok) {
-      const errorData = await openaiResponse.json();
-      console.error("OpenAI API error:", errorData);
-      return new Response(
-        JSON.stringify({ error: "Error calling OpenAI API", details: errorData }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    
+    // Try Gemini if OpenAI key not found
+    let { data: geminiKeyData } = await supabaseClient
+      .from('user_api_keys')
+      .select('api_key')
+      .eq('user_id', user.id)
+      .eq('provider', 'gemini')
+      .maybeSingle();
+      
+    if (geminiKeyData?.api_key) {
+      // Call Gemini API with user's key
+      return await callGemini(geminiKeyData.api_key, question, context);
     }
-
-    const openaiData = await openaiResponse.json();
-    const answer = openaiData.choices[0].message.content;
-
-    // Return the response
+    
+    // No API keys found
     return new Response(
-      JSON.stringify({ answer }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({ error: "No AI provider API key found. Please configure an API key in settings." }),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
+
   } catch (error) {
     console.error("Unhandled error:", error);
     return new Response(
@@ -123,3 +118,89 @@ serve(async (req: Request) => {
     );
   }
 });
+
+async function callOpenAI(apiKey: string, question: string, context: string) {
+  // Construct the prompt with context if available
+  const systemPrompt = context 
+    ? `You are an educational AI assistant helping a student learn. Use this context to inform your answers: ${context}`
+    : "You are an educational AI assistant helping a student learn. Be helpful, accurate, and encouraging.";
+
+  const openaiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: question }
+      ],
+      temperature: 0.7
+    })
+  });
+
+  if (!openaiResponse.ok) {
+    const errorData = await openaiResponse.json();
+    console.error("OpenAI API error:", errorData);
+    return new Response(
+      JSON.stringify({ error: "Error calling OpenAI API", details: errorData }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  const openaiData = await openaiResponse.json();
+  const answer = openaiData.choices[0].message.content;
+
+  return new Response(
+    JSON.stringify({ answer }),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+  );
+}
+
+async function callGemini(apiKey: string, question: string, context: string) {
+  // Construct the prompt with context if available
+  const prompt = context 
+    ? `Context: ${context}\n\nQuestion: ${question}`
+    : question;
+
+  const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      contents: [
+        {
+          parts: [
+            {
+              text: "You are an educational AI assistant helping a student learn. Be helpful, accurate, and encouraging. " + prompt
+            }
+          ]
+        }
+      ],
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 800
+      }
+    })
+  });
+
+  if (!geminiResponse.ok) {
+    const errorData = await geminiResponse.json();
+    console.error("Gemini API error:", errorData);
+    return new Response(
+      JSON.stringify({ error: "Error calling Gemini API", details: errorData }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  const geminiData = await geminiResponse.json();
+  const answer = geminiData.candidates[0].content.parts[0].text;
+
+  return new Response(
+    JSON.stringify({ answer }),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+  );
+}

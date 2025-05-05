@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, Loader2, Info, X } from "lucide-react";
+import { Send, Loader2, Info, X, Key } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,6 +9,7 @@ import TypingIndicator from "./TypingIndicator";
 import VoiceRecorder from "./VoiceRecorder";
 import TextToSpeech from "./TextToSpeech";
 import { sessionLogger } from "@/utils/sessionLogger";
+import { Link } from "react-router-dom";
 
 interface Message {
   id: string;
@@ -40,8 +40,44 @@ const AIChatInterface: React.FC<AIChatInterfaceProps> = ({
   const [isTyping, setIsTyping] = useState(false);
   const [topic, setTopic] = useState(initialTopic);
   const [showTips, setShowTips] = useState(false);
+  const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  
+  // Check if user has API key configured
+  useEffect(() => {
+    const checkApiKey = async () => {
+      if (!user) return;
+      
+      try {
+        // Check for OpenAI key first, then Gemini
+        const { data: openaiData, error: openaiError } = await supabase.functions.invoke("check-api-key", {
+          body: { provider: "openai" }
+        });
+        
+        if (!openaiError && openaiData?.exists) {
+          setHasApiKey(true);
+          return;
+        }
+        
+        const { data: geminiData, error: geminiError } = await supabase.functions.invoke("check-api-key", {
+          body: { provider: "gemini" }
+        });
+        
+        if (!geminiError && geminiData?.exists) {
+          setHasApiKey(true);
+          return;
+        }
+        
+        setHasApiKey(false);
+      } catch (error) {
+        console.error("Error checking API keys:", error);
+        setHasApiKey(false);
+      }
+    };
+    
+    checkApiKey();
+  }, [user]);
   
   // Start session on component mount
   useEffect(() => {
@@ -99,6 +135,12 @@ const AIChatInterface: React.FC<AIChatInterfaceProps> = ({
 
   const sendMessage = useCallback(async () => {
     if (!input.trim()) return;
+    
+    // Prevent sending if API key is not configured
+    if (hasApiKey === false) {
+      toast.error("API key not configured. Please set up your API key in AI settings.");
+      return;
+    }
     
     const userMessage = input.trim();
     setInput("");
@@ -185,7 +227,7 @@ const AIChatInterface: React.FC<AIChatInterfaceProps> = ({
       setIsLoading(false);
       setIsTyping(false);
     }
-  }, [input, initialContext, sessionId, topic, autoSaveHistory]);
+  }, [input, initialContext, sessionId, topic, autoSaveHistory, hasApiKey]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -204,6 +246,34 @@ const AIChatInterface: React.FC<AIChatInterfaceProps> = ({
   const toggleTips = () => {
     setShowTips(!showTips);
   };
+
+  // Show API key configuration message if no API key is set
+  if (hasApiKey === false) {
+    return (
+      <div className="flex flex-col h-full bg-white rounded-md overflow-hidden border shadow-sm">
+        <div className="p-3 bg-learnable-super-light border-b flex justify-between items-center">
+          <div className="flex items-center space-x-2">
+            <h3 className="font-medium text-gray-800">AI Learning Assistant</h3>
+          </div>
+        </div>
+        
+        <div className="flex-1 flex items-center justify-center p-8">
+          <div className="text-center max-w-md mx-auto">
+            <Key className="w-16 h-16 text-amber-500 mx-auto mb-4" />
+            <h3 className="text-xl font-medium text-gray-800 mb-2">API Key Required</h3>
+            <p className="text-gray-600 mb-6">
+              To use the AI chat functionality, you need to set up an API key for OpenAI or Google Gemini.
+            </p>
+            <Link to="/ai-settings">
+              <Button className="bg-blue-500 hover:bg-blue-600">
+                Configure API Key
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full bg-white rounded-md overflow-hidden border shadow-sm">
