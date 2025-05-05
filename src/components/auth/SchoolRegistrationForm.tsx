@@ -48,6 +48,7 @@ const SchoolRegistrationForm: React.FC = () => {
   const [registeredEmail, setRegisteredEmail] = React.useState<string | null>(null);
   const [existingEmailError, setExistingEmailError] = React.useState<string | null>(null);
   const [existingUserRole, setExistingUserRole] = React.useState<string | null>(null);
+  const [registrationError, setRegistrationError] = React.useState<string | null>(null);
 
   // Initialize form
   const form = useForm<SchoolRegistrationFormValues>({
@@ -165,6 +166,7 @@ const SchoolRegistrationForm: React.FC = () => {
     setIsLoading(true);
     setExistingEmailError(null);
     setExistingUserRole(null);
+    setRegistrationError(null);
     
     try {
       // Display toast notification that registration is in progress
@@ -194,6 +196,13 @@ const SchoolRegistrationForm: React.FC = () => {
       }
       
       // Call our edge function to register the school
+      console.log("Calling register-school function with data:", {
+        schoolName: data.schoolName,
+        adminEmail: data.adminEmail,
+        adminFullName: data.adminFullName,
+        // Not logging password
+      });
+      
       const { data: responseData, error } = await supabase.functions.invoke("register-school", {
         body: {
           schoolName: data.schoolName,
@@ -208,6 +217,7 @@ const SchoolRegistrationForm: React.FC = () => {
 
       if (error) {
         console.error("School registration error:", error);
+        setRegistrationError(error.message || "Unknown error from edge function");
         
         // Check if this is an "email already exists" error
         const errorMessage = error.message || "";
@@ -237,8 +247,11 @@ const SchoolRegistrationForm: React.FC = () => {
         return;
       }
 
+      console.log("Edge function response:", responseData);
+
       if (responseData?.error) {
         console.error("Server error:", responseData.error, responseData.details);
+        setRegistrationError(responseData.error || "Unknown server error");
         
         // Handle specific error cases
         if (responseData.error === "Email already registered" || 
@@ -309,10 +322,12 @@ const SchoolRegistrationForm: React.FC = () => {
           );
         }
       } else {
+        setRegistrationError("Registration did not complete successfully");
         toast.error(`Registration failed: ${responseData.error || "Unknown error"}`);
       }
     } catch (error: any) {
       console.error("Unexpected error:", error);
+      setRegistrationError(error.message || "Unknown error during registration");
       toast.error(`An unexpected error occurred: ${error.message || "Unknown error"}`);
     } finally {
       setIsLoading(false);
@@ -393,6 +408,16 @@ const SchoolRegistrationForm: React.FC = () => {
               {existingUserRole ? ` as a ${existingUserRole} account` : ''}.
               Please use a different email or <a href="/login" className="font-medium underline">login</a> if this is your account.
               Each user can only have one role in the system.
+            </AlertDescription>
+          </Alert>
+        )}
+        
+        {registrationError && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Registration Error</AlertTitle>
+            <AlertDescription>
+              {registrationError}
             </AlertDescription>
           </Alert>
         )}
