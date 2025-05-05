@@ -1,3 +1,4 @@
+
 import React, {
   createContext,
   useState,
@@ -106,10 +107,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       // Safely check for organization data with proper null handling
       if (profileData.organization && 
           typeof profileData.organization === 'object') {
-        // Create a safe organization object by checking each property individually
-        const orgId = profileData.organization.id ? String(profileData.organization.id) : "";
-        const orgName = profileData.organization.name ? String(profileData.organization.name) : "";
-        const orgCode = profileData.organization.code ? String(profileData.organization.code) : "";
+        // Use optional chaining and nullish coalescing to safely access properties
+        const orgId = profileData.organization?.id ? String(profileData.organization?.id) : "";
+        const orgName = profileData.organization?.name ? String(profileData.organization?.name) : "";
+        const orgCode = profileData.organization?.code ? String(profileData.organization?.code) : "";
         
         // Only set if we have all required properties
         if (orgId && orgName && orgCode) {
@@ -435,3 +436,4 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>
   );
 };
+
