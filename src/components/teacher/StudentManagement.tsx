@@ -133,15 +133,25 @@ const StudentManagement = () => {
   const generateInviteCode = async () => {
     setIsGeneratingCode(true);
     try {
-      // Call the invite-student function directly
+      console.log("Calling invite-student edge function with method: code");
+      
+      // Call the invite-student function directly with better error handling
       const { data, error } = await supabase.functions.invoke('invite-student', {
         body: { method: 'code' }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error from invite-student function:", error);
+        throw error;
+      }
       
-      if (!data || !data.code) {
-        throw new Error('No code returned from the server');
+      if (!data) {
+        throw new Error('No data returned from the server');
+      }
+      
+      if (!data.code) {
+        console.error("Invalid response format:", data);
+        throw new Error('Code not found in server response');
       }
       
       console.log("Generated code response:", data);
@@ -164,7 +174,9 @@ const StudentManagement = () => {
 
     setIsSending(true);
     try {
-      // Use the invite-student function for email invites too
+      console.log("Calling invite-student edge function for email invite:", newStudentEmail);
+      
+      // Use the invite-student function for email invites with better error handling
       const { data, error } = await supabase.functions.invoke('invite-student', {
         body: {
           method: 'email',
@@ -172,8 +184,16 @@ const StudentManagement = () => {
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error from invite-student function:", error);
+        throw error;
+      }
       
+      if (!data) {
+        throw new Error('No response from server');
+      }
+      
+      console.log("Email invite response:", data);
       toast.success(`Invitation created for ${newStudentEmail}`);
       setNewStudentEmail('');
       setDialogOpen(false);

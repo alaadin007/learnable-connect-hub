@@ -53,12 +53,11 @@ const AdminStudents = () => {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isGeneratingCode, setIsGeneratingCode] = useState(false);
   
-  console.log("AdminStudents: User profile:", profile);
-  console.log("AdminStudents: School ID from auth context:", authSchoolId);
-  console.log("AdminStudents: Organization ID from profile:", profile?.organization?.id);
-  
   // Get the schoolId properly
+  const userProfileId = user?.id || null;
   const schoolId = authSchoolId || profile?.organization?.id || null;
+  
+  console.log("AdminStudents: Using user ID:", userProfileId);
   console.log("AdminStudents: Using school ID:", schoolId);
 
   const form = useForm<AddStudentFormValues>({
@@ -154,7 +153,10 @@ const AdminStudents = () => {
           }
         });
 
-        if (error) throw error;
+        if (error) {
+          console.error("Error from invite-student function:", error);
+          throw error;
+        }
         
         console.log("Invitation created:", data);
         toast.success(`Invitation sent to ${values.email}`);
@@ -173,6 +175,11 @@ const AdminStudents = () => {
   };
 
   const copyInviteCode = () => {
+    if (!generatedCode) {
+      toast.error("No code available to copy");
+      return;
+    }
+    
     navigator.clipboard.writeText(generatedCode);
     toast.success("Code copied to clipboard!");
   };
@@ -187,18 +194,25 @@ const AdminStudents = () => {
     setIsGeneratingCode(true);
     
     try {
-      // Use our invite-student function
+      console.log("Calling invite-student edge function with method: code");
+      
+      // Use our invite-student function with clear parameters and error handling
       const { data, error } = await supabase.functions.invoke("invite-student", {
-        body: { method: "code" } // This is all we need to send
+        body: { method: "code" }
       });
       
       if (error) {
-        console.error("Error generating invite code:", error);
+        console.error("Error from invite-student function:", error);
         throw error;
       }
       
-      if (!data || !data.code) {
-        throw new Error("No code returned from the server");
+      if (!data) {
+        throw new Error("No data returned from the server");
+      }
+      
+      if (!data.code) {
+        console.error("Invalid response format:", data);
+        throw new Error("Code not found in server response");
       }
       
       console.log("Generated invite code response:", data);
