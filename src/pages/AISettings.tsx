@@ -21,8 +21,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Key, Loader2 } from "lucide-react";
+import { AlertCircle, Key, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const apiKeySchema = z.object({
   openai_api_key: z.string().optional(),
@@ -34,11 +35,13 @@ type ApiKeyFormValues = z.infer<typeof apiKeySchema>;
 const AISettings = () => {
   const { user, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isCheckingKeys, setIsCheckingKeys] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [activeProvider, setActiveProvider] = useState<"openai" | "gemini">("openai");
   const [hasOpenAIKey, setHasOpenAIKey] = useState(false);
   const [hasGeminiKey, setHasGeminiKey] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   
   const form = useForm<ApiKeyFormValues>({
     resolver: zodResolver(apiKeySchema),
@@ -60,37 +63,57 @@ const AISettings = () => {
     const checkApiKeys = async () => {
       if (!user) return;
       
-      setIsLoading(true);
+      setIsCheckingKeys(true);
+      setError(null);
+      
       try {
-        const { data: openAIData, error: openAIError } = await supabase.functions.invoke("check-api-key", {
+        // Check for OpenAI key
+        const openAIResponse = await supabase.functions.invoke("check-api-key", {
           body: { provider: "openai" }
         });
         
-        if (!openAIError && openAIData?.exists) {
-          setHasOpenAIKey(true);
+        if (openAIResponse.error) {
+          console.error("Error checking OpenAI API key:", openAIResponse.error);
+          setError(`Error checking OpenAI key: ${openAIResponse.error.message || 'Unknown error'}`);
+        } else {
+          setHasOpenAIKey(openAIResponse.data?.exists || false);
         }
         
-        const { data: geminiData, error: geminiError } = await supabase.functions.invoke("check-api-key", {
+        // Check for Gemini key
+        const geminiResponse = await supabase.functions.invoke("check-api-key", {
           body: { provider: "gemini" }
         });
         
-        if (!geminiError && geminiData?.exists) {
-          setHasGeminiKey(true);
+        if (geminiResponse.error) {
+          console.error("Error checking Gemini API key:", geminiResponse.error);
+          if (!error) {
+            setError(`Error checking Gemini key: ${geminiResponse.error.message || 'Unknown error'}`);
+          }
+        } else {
+          setHasGeminiKey(geminiResponse.data?.exists || false);
         }
       } catch (error) {
         console.error("Error checking API keys:", error);
+        setError(`Failed to check API keys: ${error.message || 'Unknown error'}`);
       } finally {
+        setIsCheckingKeys(false);
         setIsLoading(false);
       }
     };
     
-    checkApiKeys();
-  }, [user]);
+    if (user && !authLoading) {
+      checkApiKeys();
+    } else if (!authLoading) {
+      setIsLoading(false);
+    }
+  }, [user, authLoading]);
 
   const onSubmit = async (values: ApiKeyFormValues) => {
     if (!user) return;
     
     setIsSaving(true);
+    setError(null);
+    
     try {
       // Save API key based on active provider
       const provider = activeProvider;
@@ -102,12 +125,12 @@ const AISettings = () => {
         return;
       }
       
-      const { error } = await supabase.functions.invoke("save-api-key", {
+      const response = await supabase.functions.invoke("save-api-key", {
         body: { provider, apiKey }
       });
       
-      if (error) {
-        throw error;
+      if (response.error) {
+        throw new Error(response.error.message || "Unknown error");
       }
       
       // Update state to show key exists
@@ -122,6 +145,7 @@ const AISettings = () => {
       toast.success(`${provider.charAt(0).toUpperCase() + provider.slice(1)} API key saved successfully`);
     } catch (error) {
       console.error("Error saving API key:", error);
+      setError(`Failed to save API key: ${error.message || 'Unknown error'}`);
       toast.error("Failed to save API key. Please try again.");
     } finally {
       setIsSaving(false);
@@ -132,13 +156,15 @@ const AISettings = () => {
     if (!user) return;
     
     setIsSaving(true);
+    setError(null);
+    
     try {
-      const { error } = await supabase.functions.invoke("remove-api-key", {
+      const response = await supabase.functions.invoke("remove-api-key", {
         body: { provider }
       });
       
-      if (error) {
-        throw error;
+      if (response.error) {
+        throw new Error(response.error.message || "Unknown error");
       }
       
       // Update state to show key doesn't exist
@@ -151,11 +177,26 @@ const AISettings = () => {
       toast.success(`${provider.charAt(0).toUpperCase() + provider.slice(1)} API key removed successfully`);
     } catch (error) {
       console.error("Error removing API key:", error);
+      setError(`Failed to remove API key: ${error.message || 'Unknown error'}`);
       toast.error("Failed to remove API key. Please try again.");
     } finally {
       setIsSaving(false);
     }
   };
+
+  const renderLoadingState = () => (
+    <div className="space-y-4 p-4">
+      <div className="flex items-center gap-2">
+        <Skeleton className="h-7 w-40" />
+      </div>
+      <Skeleton className="h-20 w-full" />
+      <div className="space-y-3">
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-10 w-2/3" />
+        <Skeleton className="h-10 w-1/3" />
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -181,9 +222,24 @@ const AISettings = () => {
             </CardHeader>
             <CardContent>
               {isLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-                  <span className="ml-2">Loading your API key settings...</span>
+                <div className="py-6">
+                  {renderLoadingState()}
+                </div>
+              ) : error ? (
+                <div className="flex items-center p-4 bg-red-50 border border-red-200 rounded-md text-red-700">
+                  <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0" />
+                  <div>
+                    <h4 className="font-medium">Error loading API key settings</h4>
+                    <p className="text-sm">{error}</p>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      className="mt-2 text-red-700 border-red-300"
+                      onClick={() => window.location.reload()}
+                    >
+                      Retry
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 <Tabs 
@@ -222,7 +278,12 @@ const AISettings = () => {
                         </div>
                       </div>
 
-                      {hasOpenAIKey ? (
+                      {isCheckingKeys ? (
+                        <div className="flex items-center justify-center py-8">
+                          <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+                          <span className="ml-2">Checking for existing API key...</span>
+                        </div>
+                      ) : hasOpenAIKey ? (
                         <div className="flex items-center justify-between rounded-md border p-4">
                           <div>
                             <p className="font-medium text-gray-700">OpenAI API Key is set</p>
@@ -305,7 +366,12 @@ const AISettings = () => {
                         </div>
                       </div>
 
-                      {hasGeminiKey ? (
+                      {isCheckingKeys ? (
+                        <div className="flex items-center justify-center py-8">
+                          <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+                          <span className="ml-2">Checking for existing API key...</span>
+                        </div>
+                      ) : hasGeminiKey ? (
                         <div className="flex items-center justify-between rounded-md border p-4">
                           <div>
                             <p className="font-medium text-gray-700">Gemini API Key is set</p>

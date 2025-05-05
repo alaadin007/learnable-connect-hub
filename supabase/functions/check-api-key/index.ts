@@ -36,14 +36,25 @@ serve(async (req: Request) => {
     // Get user ID from auth
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
     if (userError || !user) {
+      console.error("User authentication error:", userError);
       return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
+        JSON.stringify({ error: "Unauthorized", details: userError?.message }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     // Get request data
-    const { provider } = await req.json();
+    let provider;
+    try {
+      const body = await req.json();
+      provider = body.provider;
+    } catch (error) {
+      console.error("Error parsing request body:", error);
+      return new Response(
+        JSON.stringify({ error: "Invalid request body", details: error.message }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
     
     if (!provider) {
       return new Response(
@@ -59,6 +70,8 @@ serve(async (req: Request) => {
       .eq('user_id', user.id)
       .eq('provider', provider)
       .maybeSingle();
+
+    console.log(`Checked API key for user ${user.id}, provider ${provider}, result:`, { hasKey: !!data, error: !!error });
 
     // Return whether API key exists
     return new Response(
