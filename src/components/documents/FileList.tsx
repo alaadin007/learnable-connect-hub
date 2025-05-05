@@ -18,6 +18,7 @@ import {
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
+// Update the Document interface to properly validate the processing_status
 interface Document {
   id: string;
   filename: string;
@@ -64,7 +65,20 @@ const FileList: React.FC<FileListProps> = ({ disabled, storageError, isCheckingS
         .order('created_at', { ascending: false });
         
       if (error) throw new Error(error.message);
-      return data || [];
+      
+      // Validate and transform the processing_status to ensure it matches our expected types
+      return (data || []).map(doc => {
+        // Ensure processing_status is one of our valid enum values
+        const validStatus: Document['processing_status'] = 
+          ['pending', 'processing', 'completed', 'error'].includes(doc.processing_status) 
+            ? doc.processing_status as Document['processing_status']
+            : 'pending'; // Default to pending if invalid
+            
+        return {
+          ...doc,
+          processing_status: validStatus
+        } as Document;
+      });
     },
     enabled: !!user && !disabled,
     staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
@@ -193,7 +207,7 @@ const FileList: React.FC<FileListProps> = ({ disabled, storageError, isCheckingS
       </div>
       
       <div className="overflow-hidden bg-white rounded-md border divide-y">
-        {documents.map((doc) => (
+        {documents?.map((doc) => (
           <div key={doc.id} className="p-4 hover:bg-gray-50 flex items-center">
             <div className="flex-shrink-0 mr-4">
               <FileText className="h-8 w-8 text-blue-500" />

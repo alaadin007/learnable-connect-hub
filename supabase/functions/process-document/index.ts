@@ -77,7 +77,7 @@ serve(async (req) => {
         throw contentError;
       }
       
-      // Mark document as processed
+      // Mark document as processed - ensure we use the correct string literal for status
       await supabaseClient
         .from('documents')
         .update({ processing_status: 'completed' })
@@ -97,7 +97,7 @@ serve(async (req) => {
     } catch (processingError) {
       console.error("Error processing document:", processingError);
       
-      // Mark document as failed
+      // Mark document as failed - ensure we use the correct string literal for status
       await supabaseClient
         .from('documents')
         .update({ processing_status: 'error' })
