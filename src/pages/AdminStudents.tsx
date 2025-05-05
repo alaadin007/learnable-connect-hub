@@ -69,9 +69,8 @@ const AdminStudents = () => {
   
   const selectedMethod = form.watch("method");
 
-  // Load student invites - with debounce to prevent excessive API calls
+  // Load student invites
   useEffect(() => {
-    // Use a local variable to track if the component is mounted
     let isMounted = true;
     
     const fetchInvites = async () => {
@@ -158,7 +157,7 @@ const AdminStudents = () => {
       if (values.method === "invite" && values.email) {
         console.log("Creating email invitation for:", values.email);
         
-        // Call our invite-student edge function
+        // Call our invite-student edge function with proper headers
         const { data, error } = await supabase.functions.invoke("invite-student", {
           body: { 
             method: "email", 
@@ -209,7 +208,7 @@ const AdminStudents = () => {
     try {
       console.log("Calling invite-student edge function with method: code");
       
-      // Use our invite-student function with clear parameters and error handling
+      // Use invite-student function with proper headers
       const { data, error } = await supabase.functions.invoke("invite-student", {
         body: { method: "code" }
       });
