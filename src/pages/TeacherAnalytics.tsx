@@ -1,11 +1,9 @@
-
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { DatePickerWithRange } from "@/components/ui/date-range-picker";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -29,6 +27,8 @@ import {
 } from "@/components/analytics/types";
 import SessionsTable from "@/components/analytics/SessionsTable";
 import { AnalyticsSummaryCards } from "@/components/analytics/AnalyticsSummaryCards";
+import { DatePickerWithRange } from "@/components/ui/date-range-picker";
+import { AnalyticsExport } from "@/components/analytics/AnalyticsExport";
 
 const TeacherAnalytics = () => {
   const { user, profile, userRole } = useAuth();

@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { format, subDays } from 'date-fns';
 import { AnalyticsFilters, AnalyticsSummary, SessionData, TopicData, StudyTimeData } from '@/components/analytics/types';
@@ -64,7 +63,7 @@ export const fetchSessionLogs = async (schoolId: string | null, filters: Analyti
     const fromDate = filters.dateRange?.from ? filters.dateRange.from.toISOString() : null;
     const toDate = filters.dateRange?.to ? filters.dateRange.to.toISOString() : null;
     
-    // Build the query
+    // Build the query - using a join instead of a nested select
     let query = supabase
       .from('session_logs')
       .select(`
@@ -75,7 +74,7 @@ export const fetchSessionLogs = async (schoolId: string | null, filters: Analyti
         session_end,
         topic_or_content_used,
         num_queries,
-        profiles(full_name)
+        profiles!inner(full_name)
       `)
       .eq('school_id', schoolId)
       .order('session_start', { ascending: false })
@@ -117,7 +116,7 @@ export const fetchSessionLogs = async (schoolId: string | null, filters: Analyti
         durationMinutes = Math.round((end.getTime() - start.getTime()) / (1000 * 60));
       }
       
-      // Get student name from the profiles join
+      // Get student name safely from the join results
       const studentName = session.profiles?.full_name || 'Unknown Student';
       
       // Parse topics as array or use single topic
@@ -379,7 +378,7 @@ export const fetchStudents = async (schoolId: string | null) => {
       .from('students')
       .select(`
         id,
-        profiles(full_name)
+        profiles!inner(full_name)
       `)
       .eq('school_id', schoolId);
     
@@ -410,7 +409,7 @@ export const fetchTeachers = async (schoolId: string | null) => {
       .from('teachers')
       .select(`
         id,
-        profiles(full_name)
+        profiles!inner(full_name)
       `)
       .eq('school_id', schoolId);
     
@@ -427,4 +426,119 @@ export const fetchTeachers = async (schoolId: string | null) => {
     console.error("Error in fetchTeachers:", error);
     return [];
   }
+};
+
+// Add the missing export function
+export const exportAnalyticsToCSV = (
+  summary: AnalyticsSummary | null, 
+  sessions: SessionData[], 
+  topics: TopicData[], 
+  studyTime: StudyTimeData[],
+  dateRangeText: string
+) => {
+  // Escape CSV cell content to handle commas, quotes, newlines.
+  const csvEscape = (cell: string | number | null | undefined): string => {
+    if (cell == null) return "";
+    const cellStr = cell.toString();
+    const escaped = cellStr.replace(/"/g, '""');
+    if (/[",\n]/.test(cellStr)) {
+      return `"${escaped}"`;
+    }
+    return escaped;
+  };
+
+  // Format date
+  const formatDate = (dateStr?: string): string => {
+    if (!dateStr) return "";
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    return date.toISOString().slice(0, 10);
+  };
+
+  // Prepare summary data
+  const summaryData = summary ? [
+    ["Analytics Summary", ""],
+    ["Date Range", dateRangeText],
+    ["Active Students", summary.activeStudents.toString()],
+    ["Total Sessions", summary.totalSessions.toString()],
+    ["Total Queries", summary.totalQueries.toString()],
+    ["Avg Session (minutes)", summary.avgSessionMinutes.toString()],
+    ["", ""],
+  ] : [];
+  
+  // Prepare topics data
+  const topicsHeader = ["Topic", "Count"];
+  const topicsData = topics.map(topic => [
+    csvEscape(topic.topic ?? topic.name ?? "Unknown"),
+    csvEscape(topic.count ?? topic.value ?? 0)
+  ]);
+  const topicsCSV = [
+    ["Most Studied Topics", ""],
+    topicsHeader,
+    ...topicsData,
+    ["", ""],
+  ];
+  
+  // Prepare study time data
+  const studyTimeHeader = ["Student", "Hours"];
+  const studyTimeData = studyTime.map(item => [
+    csvEscape(item.student_name ?? item.studentName ?? item.name ?? "Unknown"),
+    csvEscape(
+      typeof item.total_minutes === "number"
+        ? (item.total_minutes / 60).toFixed(2)
+        : item.hours?.toString() ?? "0"
+    )
+  ]);
+  const studyTimeCSV = [
+    ["Weekly Study Time", ""],
+    studyTimeHeader,
+    ...studyTimeData,
+    ["", ""],
+  ];
+  
+  // Prepare sessions data
+  const sessionsHeader = ["Student", "Topic", "Queries", "Duration", "Date"];
+  const sessionsData = sessions.map(session => [
+    csvEscape(session.student_name ?? session.userName ?? session.student ?? "Unknown"),
+    csvEscape(
+      Array.isArray(session.topics) && session.topics.length > 0
+        ? session.topics[0]
+        : session.topicOrContent ?? session.topic ?? "General"
+    ),
+    csvEscape(session.questions_asked ?? session.numQueries ?? session.queries ?? 0),
+    csvEscape(
+      typeof session.duration_minutes === "number"
+        ? `${session.duration_minutes} min`
+        : typeof session.duration === "string"
+          ? session.duration
+          : `${session.duration ?? 0} min`
+    ),
+    csvEscape(formatDate(session.session_date ?? session.startTime ?? undefined))
+  ]);
+  const sessionsCSV = [
+    ["Session Details", ""],
+    sessionsHeader,
+    ...sessionsData
+  ];
+  
+  // Combine all data
+  const csvContent = [
+    ...summaryData,
+    ...topicsCSV,
+    ...studyTimeCSV,
+    ...sessionsCSV
+  ]
+    .map(row => row.join(","))
+    .join("\n");
+  
+  // Create and download the CSV file
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.setAttribute("href", url);
+  link.setAttribute("download", `analytics-export-${dateRangeText.replace(/\s/g, "-")}.csv`);
+  link.style.visibility = "hidden";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 };

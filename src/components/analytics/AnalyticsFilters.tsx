@@ -51,22 +51,22 @@ export function AnalyticsFilters({
         <div className="flex flex-col md:flex-row gap-4">
           <DateRangePicker
             dateRange={filters.dateRange}
-            onChange={handleDateRangeChange}
+            onDateChange={handleDateRangeChange}
           />
 
           {showStudentSelector && (
             <StudentSelector
+              selectedStudentId={filters.studentId}
+              onStudentSelect={handleStudentChange}
               students={students}
-              selectedStudent={filters.studentId}
-              onStudentChange={handleStudentChange}
             />
           )}
 
           {showTeacherSelector && (
             <TeacherSelector
+              selectedTeacherId={filters.teacherId}
+              onTeacherSelect={handleTeacherChange}
               teachers={teachers}
-              selectedTeacher={filters.teacherId}
-              onTeacherChange={handleTeacherChange}
             />
           )}
         </div>
