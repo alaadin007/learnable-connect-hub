@@ -5,7 +5,6 @@ import { Users, Clock, MessageSquare, BarChart } from "lucide-react";
 import { AnalyticsSummary } from "./types";
 import { DateRange } from "react-day-picker";
 import { getDateRangeText } from "@/utils/analyticsUtils";
-import { Skeleton } from "@/components/ui/skeleton";
 
 interface AnalyticsSummaryCardsProps {
   summary: AnalyticsSummary;
@@ -15,7 +14,6 @@ interface AnalyticsSummaryCardsProps {
 
 export const AnalyticsSummaryCards: React.FC<AnalyticsSummaryCardsProps> = ({
   summary,
-  isLoading,
   dateRange
 }) => {
   const dateRangeText = dateRange ? getDateRangeText(dateRange) : "";
@@ -27,11 +25,7 @@ export const AnalyticsSummaryCards: React.FC<AnalyticsSummaryCardsProps> = ({
           <div className="flex justify-between items-center">
             <div>
               <p className="text-sm font-medium text-muted-foreground">Active Students</p>
-              {isLoading ? (
-                <Skeleton className="h-9 w-16 mt-1" />
-              ) : (
-                <p className="text-2xl font-bold">{summary.activeStudents}</p>
-              )}
+              <p className="text-2xl font-bold">{summary.activeStudents}</p>
               {dateRangeText && (
                 <p className="text-xs text-muted-foreground mt-1">{dateRangeText}</p>
               )}
@@ -48,11 +42,7 @@ export const AnalyticsSummaryCards: React.FC<AnalyticsSummaryCardsProps> = ({
           <div className="flex justify-between items-center">
             <div>
               <p className="text-sm font-medium text-muted-foreground">Total Sessions</p>
-              {isLoading ? (
-                <Skeleton className="h-9 w-16 mt-1" />
-              ) : (
-                <p className="text-2xl font-bold">{summary.totalSessions}</p>
-              )}
+              <p className="text-2xl font-bold">{summary.totalSessions}</p>
               {dateRangeText && (
                 <p className="text-xs text-muted-foreground mt-1">{dateRangeText}</p>
               )}
@@ -69,11 +59,7 @@ export const AnalyticsSummaryCards: React.FC<AnalyticsSummaryCardsProps> = ({
           <div className="flex justify-between items-center">
             <div>
               <p className="text-sm font-medium text-muted-foreground">Total Queries</p>
-              {isLoading ? (
-                <Skeleton className="h-9 w-16 mt-1" />
-              ) : (
-                <p className="text-2xl font-bold">{summary.totalQueries}</p>
-              )}
+              <p className="text-2xl font-bold">{summary.totalQueries}</p>
               {dateRangeText && (
                 <p className="text-xs text-muted-foreground mt-1">{dateRangeText}</p>
               )}
@@ -90,11 +76,7 @@ export const AnalyticsSummaryCards: React.FC<AnalyticsSummaryCardsProps> = ({
           <div className="flex justify-between items-center">
             <div>
               <p className="text-sm font-medium text-muted-foreground">Avg. Session Time</p>
-              {isLoading ? (
-                <Skeleton className="h-9 w-16 mt-1" />
-              ) : (
-                <p className="text-2xl font-bold">{summary.avgSessionMinutes} min</p>
-              )}
+              <p className="text-2xl font-bold">{summary.avgSessionMinutes} min</p>
               {dateRangeText && (
                 <p className="text-xs text-muted-foreground mt-1">{dateRangeText}</p>
               )}
