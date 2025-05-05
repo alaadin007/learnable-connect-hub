@@ -305,6 +305,30 @@ async function createOrUpdateTestAccount(
       }
     }
 
+    // Create API keys for test accounts (like OpenAI)
+    try {
+      // Check if test API key exists
+      const { data: existingApiKey } = await supabaseAdmin.from('user_api_keys')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('provider', 'openai')
+        .maybeSingle();
+        
+      if (!existingApiKey) {
+        // Insert test API key
+        await supabaseAdmin.from('user_api_keys')
+          .insert({
+            user_id: userId,
+            provider: 'openai',
+            api_key: 'sk-test-key-for-development-purposes-only'
+          });
+        console.log(`Created test API key for user ${userId}`);
+      }
+    } catch (apiKeyError) {
+      console.error("Error creating test API key:", apiKeyError);
+      // Continue anyway as this is non-critical
+    }
+
     // Return account details for instant login
     return { 
       email,

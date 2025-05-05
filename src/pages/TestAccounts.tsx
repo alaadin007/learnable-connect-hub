@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -69,6 +70,7 @@ const TestAccounts = () => {
         localStorage.removeItem("testUser");
         localStorage.removeItem("testUserRole");
         localStorage.removeItem("testUserIndex");
+        localStorage.removeItem("activeSessionId");
         console.log("TestAccounts: Cleared previous sessions on page load");
       } catch (error) {
         console.error("Error clearing sessions:", error);
@@ -128,6 +130,7 @@ const TestAccounts = () => {
   const handleUseAccount = useCallback(
     async (accountType: AccountType) => {
       setErrorMessage(null);
+      setLoadingAccount(accountType);
       
       try {
         console.log(`TestAccounts: Setting up direct login for ${accountType} test account...`);
@@ -136,11 +139,28 @@ const TestAccounts = () => {
         localStorage.setItem("testUserRole", accountType);
         localStorage.setItem("testUserIndex", "0");
         
+        // First ensure the test account exists in the database
+        const response = await supabase.functions.invoke("create-test-accounts", {
+          body: { 
+            type: accountType,
+            schoolIndex: 0
+          },
+        });
+        
+        if (response.error) {
+          throw new Error(`Failed to set up test account: ${response.error.message}`);
+        }
+        
+        console.log("Test account setup response:", response.data);
+        
         // Pass false to setTestUser to avoid loading states
         await setTestUser(accountType, 0, false);
       } catch (error: any) {
         console.error(`Error setting up ${accountType} test account:`, error);
         setErrorMessage(`Setup failed: ${error.message || "Unknown error"}`);
+        toast.error(`Error setting up test account: ${error.message || "Unknown error"}`);
+      } finally {
+        setLoadingAccount(null);
       }
     },
     [setTestUser]
@@ -277,8 +297,16 @@ const TestAccounts = () => {
                 <Button
                   className="w-full bg-blue-700 hover:bg-blue-800"
                   onClick={() => handleUseAccount(type as AccountType)}
+                  disabled={loadingAccount !== null}
                 >
-                  {getButtonLabel(type as AccountType)}
+                  {loadingAccount === type ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Setting Up...
+                    </>
+                  ) : (
+                    getButtonLabel(type as AccountType)
+                  )}
                 </Button>
               </div>
             ))}

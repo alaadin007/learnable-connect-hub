@@ -64,6 +64,33 @@ serve(async (req: Request) => {
       });
     }
 
+    // Create a test API key for this user
+    try {
+      // Check if API key already exists
+      const { data: existingKey } = await supabaseClient
+        .from('user_api_keys')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('provider', 'openai')
+        .maybeSingle();
+
+      if (!existingKey) {
+        // Add test API key
+        await supabaseClient
+          .from('user_api_keys')
+          .insert({
+            user_id: userId,
+            provider: 'openai',
+            api_key: 'sk-test-key-for-development-purposes-only'
+          });
+        
+        console.log(`Created test API key for user ${userId}`);
+      }
+    } catch (apiKeyError) {
+      console.log("Error creating API key, continuing anyway:", apiKeyError);
+      // Non-critical, so continue with the operation
+    }
+
     return new Response(JSON.stringify({ 
       success: true, 
       message: `Created ${numSessions} mock sessions for test user`

@@ -62,6 +62,18 @@ const LoginForm = () => {
           localStorage.setItem("testUserIndex", "0");
           
           try {
+            // First ensure the test account exists in the database
+            const response = await supabase.functions.invoke("create-test-accounts", {
+              body: { 
+                type: type,
+                schoolIndex: 0
+              },
+            });
+            
+            if (response.error) {
+              throw new Error(`Failed to set up test account: ${response.error.message}`);
+            }
+            
             // Handle test account directly with setTestUser, hide loading state
             await setTestUser(type, 0, false);
             // Navigation is handled inside setTestUser
@@ -100,11 +112,24 @@ const LoginForm = () => {
       localStorage.setItem("testUserRole", accountType);
       localStorage.setItem("testUserIndex", "0");
       
+      // First ensure the test account exists in the database
+      const response = await supabase.functions.invoke("create-test-accounts", {
+        body: { 
+          type: accountType,
+          schoolIndex: 0
+        },
+      });
+      
+      if (response.error) {
+        throw new Error(`Failed to set up test account: ${response.error.message}`);
+      }
+      
       // Pass false to setTestUser to skip loading states
       await setTestUser(accountType, 0, false);
     } catch (error: any) {
       console.error("Test account setup failed:", error);
       setLoginError(`Test account setup failed: ${error.message || "Unknown error"}`);
+      toast.error(`Error setting up test account: ${error.message || "Unknown error"}`);
     }
   };
 
