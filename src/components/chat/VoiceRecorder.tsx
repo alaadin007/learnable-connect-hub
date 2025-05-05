@@ -3,7 +3,6 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Mic, Loader2, StopCircle } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 
 interface VoiceRecorderProps {
   onTranscriptionComplete: (text: string) => void;
@@ -16,6 +15,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptionComplete }
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<number | null>(null);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
 
   // Add timer for recording duration
   useEffect(() => {
@@ -41,33 +41,76 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptionComplete }
   const startRecording = useCallback(async () => {
     try {
       chunksRef.current = [];
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) {
-          chunksRef.current.push(e.data);
-        }
-      };
-      
-      mediaRecorder.onstop = async () => {
-        setIsProcessing(true);
-        const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
-        await processAudio(audioBlob);
-      };
-      
-      mediaRecorder.start();
-      setIsRecording(true);
-      toast.success("Recording started. Speak clearly into your microphone.");
+      // Check if browser supports speech recognition
+      if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
+        // Use the Speech Recognition API if available
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const recognition = new SpeechRecognition();
+        recognitionRef.current = recognition;
+        
+        recognition.continuous = true;
+        recognition.interimResults = false;
+        
+        recognition.onresult = (event) => {
+          const transcript = Array.from(event.results)
+            .map(result => result[0].transcript)
+            .join(' ');
+          
+          if (transcript) {
+            stopRecording();
+            onTranscriptionComplete(transcript);
+            toast.success("Voice input processed successfully!");
+          }
+        };
+        
+        recognition.onerror = (event) => {
+          console.error('Speech recognition error:', event.error);
+          stopRecording();
+          toast.error("Error processing voice input. Please try again.");
+        };
+        
+        recognition.start();
+        setIsRecording(true);
+        toast.success("Recording started. Speak clearly into your microphone.");
+      } else {
+        // Fallback to MediaRecorder API
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        
+        const mediaRecorder = new MediaRecorder(stream);
+        mediaRecorderRef.current = mediaRecorder;
+        
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) {
+            chunksRef.current.push(e.data);
+          }
+        };
+        
+        mediaRecorder.onstop = async () => {
+          setIsProcessing(true);
+          
+          // Create a simple alert since we can't transcribe
+          toast.info("Voice recording completed, but automatic transcription is not available in this browser.");
+          setIsProcessing(false);
+        };
+        
+        mediaRecorder.start();
+        setIsRecording(true);
+        toast.success("Recording started. Speak clearly into your microphone.");
+      }
     } catch (err) {
       console.error('Error accessing microphone:', err);
       toast.error("Could not access microphone. Please check permissions.");
     }
-  }, []);
+  }, [onTranscriptionComplete]);
 
   const stopRecording = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+      setIsRecording(false);
+    }
+    
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       
@@ -76,39 +119,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptionComplete }
       
       setIsRecording(false);
       toast.info("Processing your voice input...");
-    }
-  };
-
-  const processAudio = async (audioBlob: Blob) => {
-    try {
-      // Convert blob to base64
-      const reader = new FileReader();
-      reader.readAsDataURL(audioBlob);
-      
-      reader.onloadend = async () => {
-        const base64data = reader.result as string;
-        // Remove the data URL prefix (e.g., "data:audio/webm;base64,")
-        const base64Audio = base64data.split(',')[1];
-        
-        const { data, error } = await supabase.functions.invoke('transcribe-audio', {
-          body: { audio: base64Audio }
-        });
-        
-        if (error) throw error;
-        
-        if (data.text) {
-          onTranscriptionComplete(data.text);
-          toast.success("Voice input processed successfully!");
-        } else {
-          toast.error("Could not transcribe audio. Please try again.");
-        }
-        
-        setIsProcessing(false);
-      };
-    } catch (err) {
-      console.error('Error processing audio:', err);
-      toast.error("Error processing audio. Please try again.");
-      setIsProcessing(false);
     }
   };
 

@@ -1,7 +1,6 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { createSessionLog, endSessionLog, updateSessionTopic as updateSessionTopicDb } from "./databaseUtils";
 
 // Log session start in Supabase
 const logSessionStart = async (topic?: string, userId?: string): Promise<string | null> => {
@@ -13,41 +12,60 @@ const logSessionStart = async (topic?: string, userId?: string): Promise<string 
       return null;
     }
     
-    // If not testing with a mock userId, use the database function
-    if (!userId) {
-      return await createSessionLog(topic || "General Chat");
-    } else {
-      // For test accounts, we need special handling
-      // First get the school ID for this user
-      const { data: userData } = await supabase
-        .from('students')
-        .select('school_id')
-        .eq('id', userId)
-        .single();
-        
-      if (!userData?.school_id) {
-        console.error("No school ID found for test user");
-        return null;
-      }
-      
-      // Then create the session log directly
-      const { data: sessionData, error: sessionError } = await supabase
-        .from('session_logs')
-        .insert({
-          user_id: userId,
-          school_id: userData.school_id,
-          topic_or_content_used: topic || "General Chat"
-        })
-        .select('id')
-        .single();
-        
-      if (sessionError) {
-        console.error("Error creating test session:", sessionError);
-        return null;
-      }
-      
-      return sessionData?.id || null;
+    const currentUserId = userId || (await supabase.auth.getUser()).data.user?.id;
+    
+    if (!currentUserId) {
+      console.warn("No user ID available to log session");
+      return null;
     }
+    
+    // Get school ID for this user
+    let schoolId = null;
+    
+    // Try to get school ID from students table
+    const { data: studentData } = await supabase
+      .from('students')
+      .select('school_id')
+      .eq('id', currentUserId)
+      .single();
+      
+    if (studentData?.school_id) {
+      schoolId = studentData.school_id;
+    } else {
+      // If not a student, try teachers table
+      const { data: teacherData } = await supabase
+        .from('teachers')
+        .select('school_id')
+        .eq('id', currentUserId)
+        .single();
+        
+      if (teacherData?.school_id) {
+        schoolId = teacherData.school_id;
+      }
+    }
+    
+    if (!schoolId) {
+      console.warn("No school ID found for user");
+      return null;
+    }
+    
+    // Create the session log directly
+    const { data: sessionData, error: sessionError } = await supabase
+      .from('session_logs')
+      .insert({
+        user_id: currentUserId,
+        school_id: schoolId,
+        topic_or_content_used: topic || "General Chat"
+      })
+      .select('id')
+      .single();
+      
+    if (sessionError) {
+      console.error("Error creating session:", sessionError);
+      return null;
+    }
+    
+    return sessionData?.id || null;
   } catch (error) {
     console.error("Error starting session:", error);
     return null;
@@ -62,7 +80,19 @@ const logSessionEnd = async (sessionId?: string, performanceData?: any): Promise
       return;
     }
 
-    await endSessionLog(sessionId, performanceData);
+    // Update the session directly
+    const { error } = await supabase
+      .from('session_logs')
+      .update({ 
+        session_end: new Date().toISOString(),
+        performance_metric: performanceData
+      })
+      .eq('id', sessionId);
+
+    if (error) {
+      console.error("Error ending session:", error);
+      return;
+    }
 
     // Clear the active session from localStorage if it matches
     const activeSessionId = localStorage.getItem("activeSessionId");
@@ -82,7 +112,17 @@ const updateSessionTopic = async (sessionId: string, topic: string): Promise<voi
       return;
     }
 
-    await updateSessionTopicDb(sessionId, topic);
+    // Update topic directly
+    const { error } = await supabase
+      .from('session_logs')
+      .update({
+        topic_or_content_used: topic
+      })
+      .eq('id', sessionId);
+
+    if (error) {
+      console.error("Error updating session topic:", error);
+    }
   } catch (error) {
     console.error("Error updating session topic:", error);
   }
@@ -96,13 +136,28 @@ const incrementQueryCount = async (sessionId: string): Promise<void> => {
       return;
     }
 
-    // Call the RPC function to increment the query count
-    const { error } = await supabase.rpc("increment_session_query_count", {
-      log_id: sessionId
-    });
+    // Get current query count
+    const { data, error: getError } = await supabase
+      .from('session_logs')
+      .select('num_queries')
+      .eq('id', sessionId)
+      .single();
 
-    if (error) {
-      console.error("Error incrementing query count:", error);
+    if (getError) {
+      console.error("Error getting current query count:", getError);
+      return;
+    }
+
+    // Increment the query count
+    const { error: updateError } = await supabase
+      .from('session_logs')
+      .update({
+        num_queries: (data?.num_queries || 0) + 1
+      })
+      .eq('id', sessionId);
+
+    if (updateError) {
+      console.error("Error incrementing query count:", updateError);
     }
   } catch (error) {
     console.error("Error incrementing query count:", error);
@@ -224,16 +279,29 @@ export const populateTestAccountWithSessions = async (userId: string, schoolId: 
     
     console.log(`Creating test sessions for ${userId} in school ${schoolId}`);
     
-    // Use the database function directly
-    const { error } = await supabase.rpc("populatetestaccountwithsessions", {
-      userid: userId,
-      schoolid: schoolId,
-      num_sessions: numSessions
-    });
+    // Create test sessions directly
+    const topics = ['Algebra equations', 'World War II', 'Chemical reactions', 'Shakespeare\'s Macbeth', 'Programming basics'];
+    const now = new Date();
     
-    if (error) {
-      console.error("Error creating test sessions:", error);
-      return { success: false, message: error.message };
+    for (let i = 1; i <= numSessions; i++) {
+      try {
+        const pastDate = new Date(now);
+        pastDate.setDate(now.getDate() - i);
+        
+        // Create a session log
+        await supabase
+          .from("session_logs")
+          .insert({
+            user_id: userId,
+            school_id: schoolId,
+            topic_or_content_used: topics[i % topics.length],
+            session_start: pastDate.toISOString(),
+            session_end: new Date(pastDate.getTime() + 45 * 60000).toISOString(),
+            num_queries: Math.floor(Math.random() * 15) + 5,
+          });
+      } catch (error) {
+        console.error(`Error creating test session ${i}:`, error);
+      }
     }
     
     console.log("Test sessions created successfully");
