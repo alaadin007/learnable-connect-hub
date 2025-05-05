@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +8,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { Clock, Loader2, AlertCircle } from "lucide-react";
+import { Clock, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const LoginForm = () => {
@@ -51,7 +52,6 @@ const LoginForm = () => {
     type: "school" | "teacher" | "student",
     schoolIndex = 0
   ) => {
-    setIsLoading(true);
     setLoginError(null);
 
     try {
@@ -107,8 +107,6 @@ const LoginForm = () => {
       // Clear any partial test account state on error
       localStorage.removeItem('usingTestAccount');
       localStorage.removeItem('testAccountType');
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -171,6 +169,7 @@ const LoginForm = () => {
             timestamp: Date.now()
           } 
         });
+        setIsLoading(false);
         return;
       }
 
@@ -380,14 +379,7 @@ const LoginForm = () => {
               disabled={isLoading}
               aria-busy={isLoading}
             >
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Logging in...
-                </>
-              ) : (
-                "Log in"
-              )}
+              {isLoading ? "Logging in..." : "Log in"}
             </Button>
           </form>
         </CardContent>

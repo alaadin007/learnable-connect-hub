@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
 import { Button } from "@/components/ui/button";
-import { Info, School, Users, GraduationCap, Loader2 } from "lucide-react";
+import { Info, School, Users, GraduationCap } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -90,25 +90,24 @@ const TestAccounts = () => {
 
       if (response.error) {
         toast.error("Failed to refresh test accounts", {
-          id: "test-accounts-error",
+          id: "test-accounts-status",
         });
         console.error("Error creating test accounts:", response.error);
         return false;
       }
 
       toast.success("Test accounts refreshed successfully!", {
-        id: "test-accounts-success",
+        id: "test-accounts-status",
       });
       return true;
     } catch (error) {
       console.error("Error refreshing test accounts:", error);
       toast.error("An error occurred while refreshing test accounts", {
-        id: "test-accounts-general-error",
+        id: "test-accounts-status",
       });
       return false;
     } finally {
       setDataCreationLoading(false);
-      toast.dismiss("test-accounts-status");
     }
   }, []);
 
@@ -222,10 +221,7 @@ const TestAccounts = () => {
               disabled={dataCreationLoading}
             >
               {dataCreationLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Refreshing Test Data...
-                </>
+                "Refreshing Test Data..."
               ) : (
                 "Refresh Test Data"
               )}

@@ -1,3 +1,4 @@
+
 import React, {
   createContext,
   useState,
@@ -447,16 +448,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       // Generate test data for this user (sessions, etc) - only for non-school roles
       if (type !== 'school') {
         try {
-          // Using a properly structured promise chain
-          supabase.rpc("populatetestaccountwithsessions", {
-            userid: mockUser.id,
-            schoolid: testSchoolId,
-            num_sessions: 5
-          }).then(() => {
-            console.log("Created test sessions data");
-          }).catch(error => {
-            console.warn("Failed to create test session data:", error);
-          });
+          // Using a Promise that is properly handled with try-catch
+          const generateTestData = async () => {
+            try {
+              await supabase.rpc("populatetestaccountwithsessions", {
+                userid: mockUser.id,
+                schoolid: testSchoolId,
+                num_sessions: 5
+              });
+              console.log("Created test sessions data");
+            } catch (error) {
+              console.warn("Failed to create test session data:", error);
+            }
+          };
+          
+          // Execute the function without awaiting
+          generateTestData();
         } catch (error) {
           console.warn("Error setting up test data:", error);
         }
