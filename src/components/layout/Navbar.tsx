@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Menu, X, LogOut } from "lucide-react";
@@ -71,56 +71,52 @@ const Navbar = () => {
     ];
   }, [isLoggedIn, isTestAccountsPage]);
 
-  // Fixed isActiveLink function that handles nested routes properly
+  // Simplified isActiveLink function that handles all route patterns
   const isActiveLink = useCallback((href: string): boolean => {
     // Get the current path without query parameters
     const currentPath = location.pathname;
     
-    // Exact matches
+    // Handle default route matches
     if (href === currentPath) {
       return true;
     }
     
-    // Special case for dashboard
-    if (href === "/dashboard" && currentPath === "/dashboard") {
-      return true;
+    // Handle nested routes for admin section
+    if (href === "/admin" && currentPath.startsWith("/admin")) {
+      // Only highlight "School Admin" for /admin and /admin/settings
+      return currentPath === "/admin" || currentPath === "/admin/settings";
     }
     
-    // Special case for admin
-    if (href === "/admin" && (currentPath === "/admin" || currentPath === "/admin/settings")) {
-      return true;
-    }
-    
-    // Special case for teachers
+    // Handle specific admin routes that should highlight their own nav item
     if (href === "/admin/teachers" && currentPath === "/admin/teachers") {
       return true;
     }
     
-    // Special case for analytics
     if (href === "/admin/analytics" && currentPath === "/admin/analytics") {
       return true;
     }
     
-    // Special case for chat
-    if (href === "/chat" && (currentPath === "/chat" || currentPath.startsWith("/chat/"))) {
+    // Handle nested routes that should highlight their parent
+    if (href === "/chat" && currentPath.startsWith("/chat")) {
       return true;
     }
     
-    // Special case for documents
-    if (href === "/documents" && (currentPath === "/documents" || currentPath.startsWith("/documents/"))) {
+    if (href === "/documents" && currentPath.startsWith("/documents")) {
       return true;
     }
     
     return false;
   }, [location.pathname]);
 
-  // Updated handleNavigation to fix navigation issues
+  // Direct navigation handler without extra state
   const handleNavigation = useCallback((path: string) => {
+    // If already on the page, just close the menu
     if (location.pathname === path) {
       setIsOpen(false);
       return;
     }
     
+    // Navigate to the selected page
     navigate(path);
     setIsOpen(false);
   }, [location.pathname, navigate]);
