@@ -33,10 +33,55 @@ export interface PerformanceMetrics {
   total_submissions?: number;
 }
 
-export interface AnalyticsFilterOptions {
-  startDate?: Date;
-  endDate?: Date;
+// Adding the missing exported types that are causing errors
+
+export interface AnalyticsFilters {
+  dateRange?: {
+    from: Date;
+    to?: Date;
+  };
   studentId?: string;
   teacherId?: string;
+  schoolId?: string;
   subject?: string;
+}
+
+export interface AnalyticsSummary {
+  activeStudents: number;
+  totalSessions: number;
+  totalQueries: number;
+  avgSessionMinutes: number;
+}
+
+export interface SessionData {
+  id: string;
+  student_id?: string;
+  student_name?: string;
+  userName?: string;
+  session_date: string;
+  duration_minutes: number;
+  topic?: string;
+  topics?: string[];
+  questions_asked?: number;
+  questions_answered?: number;
+  userId?: string;
+  queries?: number;
+}
+
+export interface TopicData {
+  topic: string;
+  count: number;
+  name: string;
+  value: number;
+}
+
+export interface StudyTimeData {
+  student_id: string;
+  student_name: string;
+  total_minutes: number;
+  name?: string;
+  studentName?: string;
+  hours?: number;
+  week?: number;
+  year?: number;
 }
