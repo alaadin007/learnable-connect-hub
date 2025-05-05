@@ -36,9 +36,13 @@ const AdminStudents = () => {
 
       if (schoolIdError || !schoolId) {
         toast.error("Could not determine school ID");
+        console.error("Error getting school ID:", schoolIdError);
         setLoading(false);
         return;
       }
+      
+      // Log the school ID for debugging
+      console.log("AdminStudents: School ID retrieved:", schoolId);
       
       // Fetch all students from this school
       const { data: studentsData, error: studentsError } = await supabase
@@ -53,11 +57,12 @@ const AdminStudents = () => {
         return;
       }
 
+      // Log the raw students data for debugging
+      console.log("AdminStudents: Raw students data:", studentsData);
+      
       // Now fetch the profiles data separately with only the columns that exist
       const studentIds = studentsData.map(student => student.id);
       
-      // Based on the error, the profiles table doesn't have an 'email' column directly
-      // Let's query only for the columns we know exist
       const { data: profilesData, error: profilesError } = await supabase
         .from("profiles")
         .select("id, full_name")
@@ -70,6 +75,9 @@ const AdminStudents = () => {
         return;
       }
 
+      // Log the profiles data for debugging
+      console.log("AdminStudents: Profiles data:", profilesData);
+
       // Combine the data from the two queries
       const formattedStudents: Student[] = studentsData.map(student => {
         const profile = profilesData?.find(p => p.id === student.id);
@@ -79,11 +87,12 @@ const AdminStudents = () => {
           status: student.status || "pending",
           created_at: student.created_at,
           full_name: profile?.full_name || "No name",
-          // Since email doesn't exist in profiles table, we'll use the id as email (which is the user's id)
-          email: student.id || "No email",
+          // Use the user's ID as email since it's not directly available
+          email: student.id,
         };
       });
 
+      console.log("AdminStudents: Formatted students:", formattedStudents);
       setStudents(formattedStudents);
     } catch (error) {
       console.error("Error fetching students:", error);
