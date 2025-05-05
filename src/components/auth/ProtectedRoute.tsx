@@ -73,7 +73,7 @@ const ProtectedRoute = ({
     console.log("ProtectedRoute: User role:", userRole, "Required role:", requiredUserType);
 
     // If we require a specific user type and the user doesn't have it
-    // Ensure we're comparing the same types by casting userRole to UserRole if it exists
+    // Safely handle userRole by ensuring it's treated as UserRole type when it exists
     if (requiredUserType && userRole) {
       const typedUserRole = userRole as UserRole;
       if (typedUserRole !== requiredUserType) {
