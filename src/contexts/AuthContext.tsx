@@ -173,7 +173,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             const enhancedProfile = {
               ...profileData,
               organization: {
-                id: schoolData?.id || null, // Make sure the id is set here
+                id: null, // Initially set to null, we'll update it after fetching school data
                 name: profileData.school_name,
                 code: profileData.school_code
               }
@@ -253,6 +253,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             const enhancedProfile = {
               ...profileData,
               organization: {
+                id: null, // Initially set to null, we'll update it after fetching school data
                 name: profileData.school_name,
                 code: profileData.school_code
               }
