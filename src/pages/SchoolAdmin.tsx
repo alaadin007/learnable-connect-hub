@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -17,8 +16,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { supabase } from '@/integrations/supabase/client';
-import { getCurrentUserSchoolId, getSchoolInfo } from "@/utils/schoolUtils";
+import { getCurrentSchoolInfo } from "@/utils/schoolUtils";
 import { School } from "@/components/analytics/types";
 
 export type TeacherInvitation = {
@@ -53,63 +51,20 @@ const SchoolAdmin = () => {
       const loadingState = isRefreshing ? setIsRefreshing : setIsLoading;
       loadingState(true);
       
-      // Try to get school ID from various sources
-      const schoolId = await getCurrentUserSchoolId();
+      const schoolData = await getCurrentSchoolInfo();
       
-      if (schoolId) {
-        const schoolData = await getSchoolInfo(schoolId);
-        
-        if (schoolData) {
-          setSchoolInfo({
-            id: schoolData.id,
-            name: schoolData.name || "Not available",
-            code: schoolData.code || "Not available"
-          });
-        } else {
-          // Fallback to profile data
-          if (profile?.organization?.name && profile?.organization?.code) {
-            setSchoolInfo({
-              id: profile.organization.id || '',
-              name: profile.organization.name,
-              code: profile.organization.code
-            });
-          } else if (user?.user_metadata?.school_name && user?.user_metadata?.school_code) {
-            // Fallback to user metadata
-            setSchoolInfo({
-              id: '',
-              name: user.user_metadata.school_name,
-              code: user.user_metadata.school_code
-            });
-          } else {
-            // Last resort - query directly from the teachers table
-            if (user?.id) {
-              const { data: teacherData } = await supabase
-                .from('teachers')
-                .select('school_id')
-                .eq('id', user.id)
-                .single();
-              
-              if (teacherData?.school_id) {
-                const { data: directSchoolData } = await supabase
-                  .from('schools')
-                  .select('*')
-                  .eq('id', teacherData.school_id)
-                  .single();
-                
-                if (directSchoolData) {
-                  setSchoolInfo({
-                    id: directSchoolData.id,
-                    name: directSchoolData.name,
-                    code: directSchoolData.code
-                  });
-                }
-              }
-            }
-          }
-        }
+      if (schoolData) {
+        setSchoolInfo({
+          id: schoolData.school_id || '',
+          name: schoolData.school_name || "Not available",
+          code: schoolData.school_code || "Not available"
+        });
+      } else {
+        toast.error("Could not fetch school information");
       }
     } catch (error) {
       console.error("Error fetching school info:", error);
+      toast.error("Failed to load school information");
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -118,7 +73,7 @@ const SchoolAdmin = () => {
   
   useEffect(() => {
     fetchSchoolInfo();
-  }, [profile, user]);
+  }, []);
   
   // Safety check for authentication
   useEffect(() => {

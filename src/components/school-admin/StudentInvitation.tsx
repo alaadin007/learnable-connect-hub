@@ -19,6 +19,7 @@ export const StudentInvitation = ({ onSuccess }: StudentInvitationProps) => {
       setIsLoading(true);
       setError(null);
       
+      // Use the updated function that calls the database function directly
       const { code, error } = await generateStudentInviteCode();
       
       if (error) {

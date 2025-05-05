@@ -79,7 +79,28 @@ export const getCurrentUserSchoolId = async (): Promise<string | null> => {
 };
 
 /**
- * Get comprehensive information about a school
+ * Get comprehensive information about a school directly from the database
+ */
+export const getCurrentSchoolInfo = async () => {
+  try {
+    // Use the database function to get current school info
+    const { data, error } = await supabase
+      .rpc("get_current_school_info");
+      
+    if (error) {
+      console.error("Error fetching school info:", error);
+      throw error;
+    }
+    
+    return data?.[0] || null;
+  } catch (error) {
+    console.error("Error getting current school info:", error);
+    return null;
+  }
+};
+
+/**
+ * Get school information by ID
  */
 export const getSchoolInfo = async (schoolId: string) => {
   try {
@@ -125,56 +146,32 @@ export const getSchoolInfoByCode = async (schoolCode: string) => {
 };
 
 /**
- * Generate a student invitation code and store it in the database
+ * Generate a student invitation code directly using the database function
  */
 export const generateStudentInviteCode = async (): Promise<{ code: string; error: null | string }> => {
   try {
-    // Get the current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return { code: "", error: "No authenticated user found" };
-    }
-    
     // Get the school ID for the current user
     const schoolId = await getCurrentUserSchoolId();
     if (!schoolId) {
       return { code: "", error: "Could not determine school ID" };
     }
     
-    // Generate a random 8-character invitation code
-    const generateCode = () => {
-      // Use characters that are less likely to be confused with each other
-      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-      let code = "";
-      for (let i = 0; i < 8; i++) {
-        code += chars.charAt(Math.floor(Math.random() * chars.length));
-      }
-      return code;
-    };
-    
-    const inviteCode = generateCode();
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7); // Set expiry to 7 days from now
-    
-    // Store the code in the student_invites table
+    // Call the database function to generate an invite code
     const { data, error } = await supabase
-      .from("student_invites")
-      .insert({
-        school_id: schoolId,
-        code: inviteCode,
-        expires_at: expiresAt.toISOString()
-        // Removing the 'status' property since it's not in the expected type
-        // The database might have a default value for this column
-      })
-      .select()
-      .single();
+      .rpc("create_student_invitation", {
+        school_id_param: schoolId
+      });
       
     if (error) {
       console.error("Failed to create invitation:", error);
       return { code: "", error: "Failed to create invitation" };
     }
     
-    return { code: inviteCode, error: null };
+    if (!data || data.length === 0) {
+      return { code: "", error: "No invitation code returned" };
+    }
+    
+    return { code: data[0].code, error: null };
   } catch (error: any) {
     console.error("Error generating invite code:", error);
     return { code: "", error: error.message || "An unexpected error occurred" };
@@ -625,4 +622,54 @@ const generateRandomSchoolCode = (): string => {
     result += chars[Math.floor(Math.random() * chars.length)];
   }
   return result;
+};
+
+/**
+ * Validate if a user has the required role
+ */
+export const validateRoleAccess = (userRole: string | null, requiredRole: string | string[] | undefined): boolean => {
+  if (!userRole || !requiredRole) return false;
+  
+  // For simple role validation, use the cached userRole
+  if (Array.isArray(requiredRole)) {
+    return requiredRole.includes(userRole);
+  } else {
+    return userRole === requiredRole;
+  }
+};
+
+/**
+ * Validate if a user has the required role by checking the database
+ */
+export const validateRoleAccessDB = async (userId: string | undefined, requiredRole: string | string[] | undefined): Promise<boolean> => {
+  if (!userId || !requiredRole) return false;
+  
+  try {
+    // Get user profile to check role
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('user_type')
+      .eq('id', userId)
+      .single();
+    
+    if (error) {
+      console.error("Role validation error:", error.message);
+      return false;
+    }
+    
+    if (!profile) {
+      console.warn("No profile found for user:", userId);
+      return false;
+    }
+    
+    // Check if user has required role
+    if (Array.isArray(requiredRole)) {
+      return requiredRole.includes(profile.user_type);
+    } else {
+      return profile.user_type === requiredRole;
+    }
+  } catch (error) {
+    console.error('Error validating role access:', error);
+    return false;
+  }
 };

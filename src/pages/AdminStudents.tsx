@@ -145,6 +145,7 @@ const AdminStudents = () => {
     }
 
     try {
+      // Use the database function to generate a code
       const { code, error } = await generateStudentInviteCode();
       
       if (error) {
