@@ -1,12 +1,23 @@
 
 import React from "react";
+import { cn } from "@/lib/utils";
 
-const TypingIndicator: React.FC = () => {
+interface TypingIndicatorProps {
+  className?: string;
+}
+
+const TypingIndicator = ({ className }: TypingIndicatorProps) => {
   return (
-    <div className="flex items-center space-x-1 my-2 px-4">
-      <div className="h-2 w-2 bg-gray-400 rounded-full animate-pulse" style={{ animationDelay: "0ms" }}></div>
-      <div className="h-2 w-2 bg-gray-400 rounded-full animate-pulse" style={{ animationDelay: "300ms" }}></div>
-      <div className="h-2 w-2 bg-gray-400 rounded-full animate-pulse" style={{ animationDelay: "600ms" }}></div>
+    <div className={cn("flex items-center space-x-1 px-3 py-2", className)}>
+      <div className="text-muted-foreground text-sm">AI is typing</div>
+      <div className="flex space-x-1">
+        <div className="h-2 w-2 rounded-full bg-blue-500 animate-bounce" 
+             style={{ animationDelay: "0ms" }} />
+        <div className="h-2 w-2 rounded-full bg-blue-500 animate-bounce" 
+             style={{ animationDelay: "150ms" }} />
+        <div className="h-2 w-2 rounded-full bg-blue-500 animate-bounce" 
+             style={{ animationDelay: "300ms" }} />
+      </div>
     </div>
   );
 };

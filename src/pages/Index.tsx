@@ -14,6 +14,7 @@ const Index = () => {
         <Hero />
         <Features />
         <Testimonials />
+        {/* Add more sections as needed */}
       </main>
       <Footer />
     </div>

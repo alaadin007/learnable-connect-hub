@@ -34,17 +34,17 @@ const Hero = () => {
       
       <div className="relative z-10 container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center max-w-3xl mx-auto">
-          <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight mb-6">
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight mb-6 animate-fade-in">
             <span className="gradient-text">LearnAble</span>
           </h1>
-          <p className="text-xl sm:text-2xl md:text-3xl text-learnable-gray mb-10">
+          <p className="text-xl sm:text-2xl md:text-3xl text-learnable-gray mb-10 animate-fade-in delay-100">
             Empowering education through intelligent conversations
           </p>
-          <p className="text-lg text-learnable-gray mb-12">
+          <p className="text-lg text-learnable-gray mb-12 animate-fade-in delay-200">
             Connect students and teachers with AI-powered learning tools designed for schools
           </p>
           
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center animate-slide-in">
             <Button asChild className="gradient-bg text-white font-semibold px-8 py-6 text-lg">
               <Link to="/register">Get Started</Link>
             </Button>

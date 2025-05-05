@@ -1,8 +1,17 @@
 
 import React from "react";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SessionData } from "./types";
-import { format, parseISO } from "date-fns";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface SessionsTableProps {
   sessions: SessionData[];
@@ -11,61 +20,74 @@ interface SessionsTableProps {
   isLoading?: boolean;
 }
 
-const SessionsTable: React.FC<SessionsTableProps> = ({
-  sessions,
-  title,
-  description,
+const SessionsTable = ({ 
+  sessions, 
+  title = "Recent Sessions", 
+  description = "Latest student learning sessions",
   isLoading = false
-}) => {
-  if (isLoading) {
-    return (
-      <div className="text-center p-6 text-muted-foreground">
-        Loading sessions data...
-      </div>
-    );
-  }
-
+}: SessionsTableProps) => {
   return (
-    <>
-      {sessions.length === 0 ? (
-        <div className="text-center p-6 text-muted-foreground">
-          No sessions found
-        </div>
-      ) : (
-        <div className="overflow-x-auto">
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+          </div>
+        ) : (
           <Table>
+            <TableCaption>A list of recent learning sessions</TableCaption>
             <TableHeader>
               <TableRow>
                 <TableHead>Student</TableHead>
-                <TableHead>Date</TableHead>
                 <TableHead>Topic</TableHead>
-                <TableHead>Duration</TableHead>
                 <TableHead>Queries</TableHead>
+                <TableHead>Duration</TableHead>
+                <TableHead>Date</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sessions.map((session) => (
-                <TableRow key={session.id}>
-                  <TableCell className="font-medium">
-                    {session.student_name || session.userName || "Unknown"}
+              {sessions.length > 0 ? (
+                sessions.map((session) => (
+                  <TableRow key={session.id}>
+                    <TableCell className="font-medium">
+                      {session.student_name || session.userName || session.student || "Unknown"}
+                    </TableCell>
+                    <TableCell>
+                      {session.topics?.[0] || session.topicOrContent || session.topic || "General"}
+                    </TableCell>
+                    <TableCell>
+                      {session.questions_asked || session.numQueries || session.queries || 0}
+                    </TableCell>
+                    <TableCell>
+                      {typeof session.duration_minutes === 'number' ? 
+                        `${session.duration_minutes} min` : 
+                        (typeof session.duration === 'string' ? 
+                          session.duration : 
+                          `${session.duration || 0} min`)}
+                    </TableCell>
+                    <TableCell>
+                      {session.session_date || session.startTime || "N/A"}
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center h-24">
+                    No sessions recorded yet
                   </TableCell>
-                  <TableCell>
-                    {format(parseISO(session.session_date), "MMM d, yyyy")}
-                  </TableCell>
-                  <TableCell>
-                    {session.topic || (session.topics && session.topics.length > 0 
-                      ? session.topics.join(", ") 
-                      : "Not specified")}
-                  </TableCell>
-                  <TableCell>{session.duration_minutes} min</TableCell>
-                  <TableCell>{session.questions_asked || session.queries || 0}</TableCell>
                 </TableRow>
-              ))}
+              )}
             </TableBody>
           </Table>
-        </div>
-      )}
-    </>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 

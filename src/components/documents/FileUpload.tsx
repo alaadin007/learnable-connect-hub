@@ -1,287 +1,316 @@
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Upload, FileCheck, AlertCircle } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import { Card, CardContent } from '@/components/ui/card';
+import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { useDropzone } from 'react-dropzone';
-import { Upload, FileText, AlertCircle, CheckCircle2, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { toast } from 'sonner';
-import { v4 as uuidv4 } from 'uuid';
 
-const ALLOWED_FILE_TYPES = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
-const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const ALLOWED_FILE_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
+const ALLOWED_FILE_EXTENSIONS = ['.pdf', '.jpg', '.jpeg', '.png'];
 
-interface FileUploadProps {
-  onSuccess?: () => void;
-}
-
-const FileUpload: React.FC<FileUploadProps> = ({ onSuccess }) => {
-  const { user } = useAuth();
+const FileUpload: React.FC = () => {
   const [file, setFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const [uploadSuccess, setUploadSuccess] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [processingStatus, setProcessingStatus] = useState<string | null>(null);
+  const [dragActive, setDragActive] = useState(false);
+  const { toast } = useToast();
+  const { user } = useAuth();
 
-  const resetUploadState = () => {
-    setFile(null);
-    setUploadError(null);
-    setUploadSuccess(false);
+  const validateFile = (file: File): { valid: boolean; message?: string } => {
+    if (!file) return { valid: false, message: 'No file selected.' };
+    
+    // Check file size
+    if (file.size > MAX_FILE_SIZE) {
+      return { 
+        valid: false, 
+        message: `File too large. Maximum size is ${MAX_FILE_SIZE / (1024 * 1024)}MB.` 
+      };
+    }
+    
+    // Check file type
+    const fileExt = '.' + file.name.split('.').pop()?.toLowerCase();
+    if (!ALLOWED_FILE_EXTENSIONS.includes(fileExt)) {
+      return { 
+        valid: false, 
+        message: `Invalid file type. Allowed types: ${ALLOWED_FILE_EXTENSIONS.join(', ')}` 
+      };
+    }
+    
+    return { valid: true };
   };
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    resetUploadState();
-    if (acceptedFiles.length > 0) {
-      const selectedFile = acceptedFiles[0];
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files && event.target.files[0]) {
+      const selectedFile = event.target.files[0];
+      const validation = validateFile(selectedFile);
       
-      // Validate file type
-      if (!ALLOWED_FILE_TYPES.includes(selectedFile.type)) {
-        setUploadError('Unsupported file format. Please upload a PDF, PNG, or JPEG file.');
-        return;
-      }
-      
-      // Validate file size
-      if (selectedFile.size > MAX_FILE_SIZE) {
-        setUploadError('File exceeds the maximum size limit of 50MB.');
+      if (!validation.valid) {
+        toast({
+          title: 'Invalid File',
+          description: validation.message,
+          variant: 'destructive'
+        });
         return;
       }
       
       setFile(selectedFile);
     }
-  }, []);
+  };
 
-  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
-    onDrop,
-    disabled: uploading,
-    accept: {
-      'application/pdf': ['.pdf'],
-      'image/png': ['.png'],
-      'image/jpeg': ['.jpg', '.jpeg']
-    },
-    maxSize: MAX_FILE_SIZE,
-    multiple: false,
-    noClick: true, // Disable click to prevent double opening of file dialog
-    noKeyboard: true // Disable keyboard to prevent keyboard activation
-  });
+  const handleDrag = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setDragActive(true);
+    } else if (e.type === 'dragleave') {
+      setDragActive(false);
+    }
+  };
 
-  const processDocument = async (documentId: string, filePath: string) => {
-    try {
-      // Create a mock document content entry directly in the database
-      const { error: contentError } = await supabase
-        .from("document_content")
-        .insert({
-          document_id: documentId,
-          content: `This is extracted content from document ${documentId}. 
-                    In a real implementation, we would extract text from the file.`,
-          processing_status: "completed"
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const selectedFile = e.dataTransfer.files[0];
+      const validation = validateFile(selectedFile);
+      
+      if (!validation.valid) {
+        toast({
+          title: 'Invalid File',
+          description: validation.message,
+          variant: 'destructive'
         });
-        
-      if (contentError) {
-        console.error("Error creating document content:", contentError);
         return;
       }
-
-      // Update document status to completed
-      await supabase
-        .from("documents")
-        .update({ processing_status: "completed" })
-        .eq("id", documentId);
-    } catch (error) {
-      console.error("Error processing document:", error);
       
-      // Update document status to failed on error
-      await supabase
-        .from("documents")
-        .update({ processing_status: "failed" })
-        .eq("id", documentId);
+      setFile(selectedFile);
+    }
+  };
+  
+  // Function to trigger content processing after upload
+  const triggerContentProcessing = async (documentId: string) => {
+    try {
+      setProcessingStatus('pending');
+      
+      const { error } = await supabase.functions.invoke('process-document', {
+        body: { document_id: documentId }
+      });
+      
+      if (error) {
+        console.error('Error triggering document processing:', error);
+        setProcessingStatus('error');
+        toast({
+          title: 'Processing Failed',
+          description: 'Failed to process document content. Please try again.',
+          variant: 'destructive'
+        });
+      } else {
+        setProcessingStatus('processing');
+      }
+    } catch (err) {
+      console.error('Error calling process-document function:', err);
+      setProcessingStatus('error');
     }
   };
 
   const handleUpload = async () => {
-    if (!file || !user) {
+    if (!file || !user) return;
+    
+    const validation = validateFile(file);
+    if (!validation.valid) {
+      toast({
+        title: 'Invalid File',
+        description: validation.message,
+        variant: 'destructive'
+      });
       return;
     }
-
-    setUploading(true);
-    setUploadError(null);
+    
+    setIsUploading(true);
+    setUploadProgress(0);
+    setProcessingStatus(null);
     
     try {
-      console.log("Starting file upload process");
-      
-      // Generate a unique ID for the document
-      const documentId = uuidv4();
-      
-      // Generate a unique storage path to prevent file name collisions
+      // Create a unique file path using user ID
       const fileExt = file.name.split('.').pop();
-      const fileName = `${documentId}.${fileExt}`;
-      const filePath = `${user.id}/${fileName}`;
+      const filePath = `${user.id}/${Date.now()}_${file.name}`;
+
+      // Create a new XMLHttpRequest to track upload progress
+      const xhr = new XMLHttpRequest();
       
-      console.log(`Uploading ${file.name} to ${filePath}`);
+      // Setup progress tracking
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable) {
+          const percent = (event.loaded / event.total) * 100;
+          setUploadProgress(percent);
+        }
+      });
+
+      // Upload to Supabase Storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('user-content')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false,
+        });
       
-      // First create the document record
-      const { error: dbError, data: docData } = await supabase
+      if (uploadError) {
+        throw new Error(uploadError.message);
+      }
+      
+      // Store metadata in documents table
+      const { data: metadataData, error: metadataError } = await supabase
         .from('documents')
         .insert({
-          id: documentId,
           user_id: user.id,
           filename: file.name,
-          storage_path: filePath,
           file_type: file.type,
           file_size: file.size,
+          storage_path: filePath,
           processing_status: 'pending'
         })
         .select()
         .single();
-        
-      if (dbError) {
-        console.error("Database error:", dbError);
-        throw new Error(dbError.message);
+      
+      if (metadataError) {
+        // If metadata storage fails, attempt to delete the uploaded file
+        await supabase.storage.from('user-content').remove([filePath]);
+        throw new Error(metadataError.message);
       }
       
-      console.log("Document record created:", docData);
+      // Trigger content processing
+      await triggerContentProcessing(metadataData.id);
       
-      // Upload file to storage
-      const { error: uploadError } = await supabase
-        .storage
-        .from('user-content')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: false
-        });
+      toast({
+        title: 'Upload Successful',
+        description: `${file.name} has been uploaded and is being processed.`
+      });
       
-      if (uploadError) {
-        console.error("Storage upload error:", uploadError);
-        throw new Error(uploadError.message);
-      }
+      setFile(null);
+      // Reset file input by clearing the form
+      const fileInput = document.getElementById('file-upload') as HTMLInputElement;
+      if (fileInput) fileInput.value = '';
       
-      console.log("File uploaded successfully to storage");
-      
-      // Process the document directly without edge function
-      await processDocument(documentId, filePath);
-      
-      setUploadSuccess(true);
-      toast.success("File uploaded successfully");
-      
-      // Call success callback
-      if (onSuccess) {
-        onSuccess();
-      }
     } catch (error) {
-      const errMsg = error instanceof Error ? error.message : 'Failed to upload file';
-      console.error('Upload error:', error);
-      setUploadError(errMsg);
-      toast.error("Upload failed", {
-        description: errMsg
+      toast({
+        title: 'Upload Failed',
+        description: error instanceof Error ? error.message : 'An unknown error occurred',
+        variant: 'destructive'
       });
     } finally {
-      setUploading(false);
+      setIsUploading(false);
+      setUploadProgress(0);
     }
   };
 
-  const handleButtonClick = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
+  // Get status message based on processing state
+  const getProcessingStatusMessage = () => {
+    switch (processingStatus) {
+      case 'pending':
+        return 'Starting document processing...';
+      case 'processing':
+        return 'Extracting text from document...';
+      case 'error':
+        return 'Error processing document content.';
+      default:
+        return null;
     }
-  };
-
-  const clearSelectedFile = () => {
-    setFile(null);
   };
 
   return (
-    <div className="space-y-4">
-      <div
-        {...getRootProps()}
-        className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
-          isDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-blue-400'
-        } ${uploading ? 'opacity-60 cursor-not-allowed' : ''}`}
+    <div className="space-y-6">
+      <div 
+        className={`
+          border-2 border-dashed rounded-lg p-8 text-center cursor-pointer
+          ${dragActive ? 'border-primary bg-primary/5' : 'border-gray-300 hover:border-primary'}
+          transition-colors
+        `} 
+        onDragEnter={handleDrag}
+        onDragLeave={handleDrag}
+        onDragOver={handleDrag}
+        onDrop={handleDrop}
+        onClick={() => document.getElementById('file-upload')?.click()}
       >
-        <input 
-          {...getInputProps()} 
-          ref={fileInputRef}
-        />
-        
-        <div className="flex flex-col items-center justify-center">
-          <Upload className="h-10 w-10 text-blue-500 mb-4" />
-          <p className="text-lg font-medium">
-            {isDragActive ? 'Drop your file here' : 'Drop your file here'}
-          </p>
-          <p className="text-sm text-gray-500 mt-2">or click to browse from your computer</p>
-          
-          <Button
-            type="button"
-            variant="outline"
-            className="mt-4"
-            onClick={handleButtonClick}
-            disabled={uploading}
-          >
-            Choose file
-          </Button>
-          
-          <p className="text-xs text-gray-400 mt-4">
-            Supported formats: PDF, PNG, JPEG. Maximum size: 50MB.
-          </p>
-        </div>
-      </div>
-      
-      {file && (
-        <div className="bg-gray-50 p-4 rounded-md">
-          <div className="flex items-start">
-            <FileText className="h-6 w-6 text-blue-500 mr-2 flex-shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="font-medium text-sm truncate">{file.name}</p>
-              <p className="text-xs text-gray-500">
-                {(file.size / (1024 * 1024)).toFixed(2)} MB • {file.type.split('/')[1].toUpperCase()}
-              </p>
-            </div>
-            <div className="flex items-center space-x-2">
-              {!uploading && !uploadSuccess && (
-                <>
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                    className="text-gray-500 hover:text-red-500"
-                    onClick={clearSelectedFile}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                  <Button onClick={handleUpload} disabled={uploading || uploadSuccess}>
-                    Upload
-                  </Button>
-                </>
-              )}
-              {uploading && (
-                <Button disabled variant="outline" className="border-blue-200 text-blue-600">
-                  Uploading...
-                </Button>
-              )}
-              {uploadSuccess && (
-                <Button variant="outline" disabled className="border-green-400 text-green-600">
-                  <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" />
-                  Uploaded
-                </Button>
-              )}
-            </div>
+        <Upload className="h-10 w-10 mx-auto mb-3 text-gray-400" />
+        <Label htmlFor="file-upload" className="block mb-2 font-medium">
+          {file ? file.name : 'Click or drag file to upload'}
+        </Label>
+        <p className="text-sm text-gray-500 mb-2">
+          PDF, JPG or PNG (max. {MAX_FILE_SIZE / (1024 * 1024)}MB)
+        </p>
+        {file && (
+          <div className="mt-2 flex items-center justify-center gap-2 text-sm font-medium text-green-600">
+            <FileCheck className="h-4 w-4" />
+            <span>File selected</span>
           </div>
-        </div>
+        )}
+        <Input 
+          id="file-upload"
+          type="file" 
+          className="hidden" 
+          onChange={handleFileChange} 
+          accept={ALLOWED_FILE_TYPES.join(',')}
+        />
+      </div>
+
+      {file && (
+        <Card className="overflow-hidden">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="truncate pr-2">
+                <p className="font-medium truncate">{file.name}</p>
+                <p className="text-sm text-gray-500">
+                  {(file.size / 1024).toFixed(1)} KB
+                </p>
+              </div>
+              <Button
+                onClick={handleUpload}
+                disabled={isUploading}
+                className="ml-2 whitespace-nowrap"
+              >
+                {isUploading ? 'Uploading...' : 'Upload File'}
+              </Button>
+            </div>
+            
+            {isUploading && (
+              <div className="mt-4">
+                <Progress value={uploadProgress} className="h-2" />
+                <p className="text-xs text-gray-500 text-right mt-1">
+                  {Math.round(uploadProgress)}%
+                </p>
+              </div>
+            )}
+            
+            {processingStatus && (
+              <div className="mt-4 flex items-center text-sm">
+                {processingStatus === 'processing' && (
+                  <Progress className="h-2 mr-2 w-20" value={null} />
+                )}
+                <span className={`
+                  ${processingStatus === 'error' ? 'text-red-500' : 'text-amber-600'}
+                `}>
+                  {getProcessingStatusMessage()}
+                </span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
-      
-      {uploadError && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{uploadError}</AlertDescription>
-        </Alert>
-      )}
-      
-      {uploadSuccess && (
-        <Alert className="bg-green-50 text-green-800 border-green-200">
-          <CheckCircle2 className="h-4 w-4 text-green-500" />
-          <AlertDescription className="text-green-700">
-            File successfully uploaded and ready to use.
-          </AlertDescription>
-        </Alert>
-      )}
+
+      <div className="text-sm flex items-center text-gray-500 mt-2">
+        <AlertCircle className="h-4 w-4 mr-2" />
+        <span>Files are private and only visible to you</span>
+      </div>
     </div>
   );
 };

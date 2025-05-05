@@ -4,6 +4,7 @@ import Footer from "@/components/landing/Footer";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -30,377 +31,288 @@ import { toast } from "sonner";
 import { SchoolPerformancePanel } from "@/components/analytics/SchoolPerformancePanel";
 import { TeacherPerformanceTable } from "@/components/analytics/TeacherPerformanceTable";
 import { StudentPerformanceTable } from "@/components/analytics/StudentPerformancePanel";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from '@/integrations/supabase/client';
-
-// Initial data for immediate display
-const initialSummaryData = {
-  activeStudents: 15,
-  totalSessions: 42,
-  totalQueries: 128,
-  avgSessionMinutes: 18
-};
-
-const initialSessionData = [
-  {
-    id: 'session-1',
-    student_name: 'John Doe',
-    session_date: new Date().toISOString(),
-    duration_minutes: 25,
-    topics: ['Algebra'],
-    topic: 'Algebra',
-    questions_asked: 8,
-  },
-  {
-    id: 'session-2',
-    student_name: 'Jane Smith',
-    session_date: new Date(Date.now() - 86400000).toISOString(),
-    duration_minutes: 18,
-    topics: ['Chemistry'],
-    topic: 'Chemistry',
-    questions_asked: 6,
-  }
-];
-
-const initialTopicsData = [
-  { topic: 'Algebra', count: 8, name: 'Algebra', value: 8 },
-  { topic: 'Chemistry', count: 6, name: 'Chemistry', value: 6 },
-  { topic: 'History', count: 10, name: 'History', value: 10 },
-  { topic: 'Biology', count: 5, name: 'Biology', value: 5 }
-];
-
-const initialStudyTimeData = [
-  { student_id: 'student-1', student_name: 'John Doe', total_minutes: 180, hours: 3 },
-  { student_id: 'student-2', student_name: 'Jane Smith', total_minutes: 120, hours: 2 },
-  { student_id: 'student-3', student_name: 'Mike Brown', total_minutes: 210, hours: 3.5 }
-];
-
-// Adapt initial data to match expected components format
-const initialPerformanceData = {
-  monthlyData: [
-    { month: new Date().toISOString().split('T')[0], score: 85 },
-    { month: new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0], score: 82 }
-  ],
-  summary: {
-    averageScore: 83,
-    trend: 'up',
-    changePercentage: 3
-  }
-};
-
-// Adapted teacher data format to match component expectations
-const initialTeacherData = [
-  { 
-    id: 1,
-    name: 'Ms. Johnson',
-    students: 8,
-    avgScore: 86,
-    trend: 'up'
-  },
-  { 
-    id: 2,
-    name: 'Mr. Smith',
-    students: 10,
-    avgScore: 79,
-    trend: 'down'
-  }
-];
-
-// Adapted student data format to match component expectations
-const initialStudentData = [
-  {
-    id: 'student-1',
-    name: 'John Doe',
-    assessments: 8,
-    avgScore: 88,
-    timeSpent: '20 min',
-    completionRate: 87.5,
-    strengths: ['Algebra', 'Geometry'],
-    weaknesses: ['Calculus']
-  },
-  {
-    id: 'student-2',
-    name: 'Jane Smith',
-    assessments: 7,
-    avgScore: 92,
-    timeSpent: '15 min',
-    completionRate: 100,
-    strengths: ['Chemistry', 'Biology'],
-    weaknesses: ['Physics']
-  }
-];
 
 const AdminAnalytics = () => {
-  const { profile, user } = useAuth();
-  const [activeTab, setActiveTab] = useState<string>("engagement");
+  const { profile, schoolId: authSchoolId } = useAuth();
+
+  // Explicitly typing states
+  const [summary, setSummary] = useState<{
+    activeStudents: number;
+    totalSessions: number;
+    totalQueries: number;
+    avgSessionMinutes: number;
+  } | null>(null);
+
+  const [sessions, setSessions] = useState<SessionData[]>([]);
+  const [topics, setTopics] = useState<TopicData[]>([]);
+  const [studyTime, setStudyTime] = useState<StudyTimeData[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
   const [filters, setFilters] = useState<FiltersType>({
     dateRange: {
       from: new Date(new Date().setDate(new Date().getDate() - 30)),
       to: new Date(),
-    }
+    },
+    schoolId: "", // Initialize schoolId in filters
   });
-  const [students, setStudents] = useState<Student[]>([
-    { id: '1', name: 'Student 1' },
-    { id: '2', name: 'Student 2' },
-    { id: '3', name: 'Student 3' }
-  ]);
-  const [isLoadingStudents, setIsLoadingStudents] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<string>("engagement");
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [initialLoad, setInitialLoad] = useState<boolean>(true);
+  const [retryCount, setRetryCount] = useState<number>(0);
+  const [dataError, setDataError] = useState<boolean>(false);
+  const [dataLoaded, setDataLoaded] = useState<boolean>(false);
 
-  // Derive schoolId with memo to avoid unnecessary recalculation
+  // Performance metrics state
+  const [schoolPerformanceData, setSchoolPerformanceData] = useState<any[]>([]);
+  const [schoolPerformanceSummary, setSchoolPerformanceSummary] = useState<any>(null);
+  const [teacherPerformanceData, setTeacherPerformanceData] = useState<any[]>([]);
+  const [studentPerformanceData, setStudentPerformanceData] = useState<any[]>([]);
+
+  // Derive schoolId with memo
   const schoolId = useMemo(() => {
-    return profile?.organization?.id || 'test-school-id';
-  }, [profile?.organization?.id]);
+    return authSchoolId || profile?.organization?.id || 'test';
+  }, [authSchoolId, profile?.organization?.id]);
   
-  // Update filters when schoolId changes
+  // Fetch students - mock implementation
+  const fetchStudents = useCallback(async () => {
+    try {
+      const mockStudents = [
+        { id: '1', name: 'Student 1' },
+        { id: '2', name: 'Student 2' },
+        { id: '3', name: 'Student 3' },
+      ];
+      setStudents(mockStudents);
+    } catch (error) {
+      console.error("Error fetching students:", error);
+    }
+  }, []);
+
+  // Generate mock data - only called once after initial load if real data is empty
+  const generateMockData = useCallback(() => {
+    if (!summary) {
+      setSummary({
+        activeStudents: 15,
+        totalSessions: 42,
+        totalQueries: 128,
+        avgSessionMinutes: 18,
+      });
+    }
+    if (sessions.length === 0) {
+      const mockSessions: SessionData[] = Array(5).fill(null).map((_, i) => ({
+        id: `mock-session-${i}`,
+        student_id: `student-${i % 3 + 1}`,
+        student_name: `Student ${i % 3 + 1}`,
+        session_date: new Date(Date.now() - i * 86400000).toISOString(),
+        duration_minutes: Math.floor(Math.random() * 45) + 10,
+        topics: ['Math', 'Science', 'History', 'English', 'Geography'][i % 5].split(','),
+        questions_asked: Math.floor(Math.random() * 10) + 3,
+        questions_answered: Math.floor(Math.random() * 8) + 2,
+        userId: `student-${i % 3 + 1}`,
+        userName: `Student ${i % 3 + 1}`,
+        topic: ['Math', 'Science', 'History', 'English', 'Geography'][i % 5],
+        queries: Math.floor(Math.random() * 10) + 3,
+      }));
+      setSessions(mockSessions);
+    }
+    if (topics.length === 0) {
+      setTopics([
+        { topic: 'Math', count: 15, name: 'Math', value: 15 },
+        { topic: 'Science', count: 12, name: 'Science', value: 12 },
+        { topic: 'History', count: 8, name: 'History', value: 8 },
+        { topic: 'English', count: 7, name: 'English', value: 7 },
+        { topic: 'Geography', count: 5, name: 'Geography', value: 5 },
+      ]);
+    }
+    if (studyTime.length === 0) {
+      setStudyTime([
+        { student_id: 'student-1', student_name: 'Student 1', total_minutes: 240, name: 'Student 1', studentName: 'Student 1', hours: 4, week: 1, year: 2023 },
+        { student_id: 'student-2', student_name: 'Student 2', total_minutes: 180, name: 'Student 2', studentName: 'Student 2', hours: 3, week: 1, year: 2023 },
+        { student_id: 'student-3', student_name: 'Student 3', total_minutes: 150, name: 'Student 3', studentName: 'Student 3', hours: 2.5, week: 1, year: 2023 },
+      ]);
+    }
+    if (activeTab === "performance" && schoolPerformanceData.length === 0) {
+      setSchoolPerformanceData([
+        { month: 'Jan', score: 78 },
+        { month: 'Feb', score: 82 },
+        { month: 'Mar', score: 85 },
+      ]);
+      setSchoolPerformanceSummary({
+        averageScore: 82,
+        trend: 'up',
+        changePercentage: 5,
+      });
+      setTeacherPerformanceData([
+        { id: 1, name: 'Teacher 1', students: 10, avgScore: 82, trend: 'up' },
+        { id: 2, name: 'Teacher 2', students: 8, avgScore: 78, trend: 'down' },
+      ]);
+      setStudentPerformanceData([
+        { id: 1, name: 'Student 1', teacher: 'Teacher 1', avgScore: 85, trend: 'up', subjects: ['Math', 'Science'] },
+        { id: 2, name: 'Student 2', teacher: 'Teacher 1', avgScore: 79, trend: 'steady', subjects: ['English', 'History'] },
+      ]);
+    }
+    
+    // Mark data as loaded
+    setDataLoaded(true);
+  }, [summary, sessions, topics, studyTime, activeTab, schoolPerformanceData.length]);
+
+  const loadAnalyticsData = useCallback(async () => {
+    // Only show loading state on initial load
+    if (!initialLoad) {
+      setIsLoading(true);
+    }
+    
+    setDataError(false);
+
+    try {
+      setFilters((prev) => ({
+        ...prev,
+        schoolId,
+      }));
+
+      // Fetch data in parallel with separate try/catch blocks to prevent unnecessary state clearing
+      const promises = [];
+
+      // Summary data
+      promises.push(
+        fetchAnalyticsSummary(schoolId, filters)
+          .then(summaryData => setSummary(summaryData))
+          .catch(err => {
+            console.error("Error fetching summary data:", err);
+            // Don't clear previous data
+          })
+      );
+
+      // Session data
+      promises.push(
+        fetchSessionLogs(schoolId, filters)
+          .then(sessionData => {
+            if (Array.isArray(sessionData) && sessionData.length > 0) {
+              setSessions(sessionData);
+            }
+            // Keep previous sessions if no new data
+          })
+          .catch(err => {
+            console.error("Error fetching session data:", err);
+            // Don't clear previous sessions
+          })
+      );
+
+      // Topic data
+      promises.push(
+        fetchTopics(schoolId, filters)
+          .then(topicData => {
+            if (Array.isArray(topicData) && topicData.length > 0) {
+              setTopics(topicData);
+            }
+            // Keep previous topics if no new data
+          })
+          .catch(err => {
+            console.error("Error fetching topic data:", err);
+            // Don't clear previous topics
+          })
+      );
+
+      // Study time data
+      promises.push(
+        fetchStudyTime(schoolId, filters)
+          .then(studyTimeData => {
+            if (Array.isArray(studyTimeData) && studyTimeData.length > 0) {
+              setStudyTime(studyTimeData);
+            }
+            // Keep previous study time if no new data
+          })
+          .catch(err => {
+            console.error("Error fetching study time data:", err);
+            // Don't clear previous study time
+          })
+      );
+
+      // Only fetch performance data when on performance tab
+      if (activeTab === "performance") {
+        // School performance
+        promises.push(
+          fetchSchoolPerformance(schoolId, filters)
+            .then(schoolPerformance => {
+              if (schoolPerformance?.monthlyData && Array.isArray(schoolPerformance.monthlyData)) {
+                setSchoolPerformanceData(schoolPerformance.monthlyData);
+                setSchoolPerformanceSummary(schoolPerformance?.summary || null);
+              }
+            })
+            .catch(err => {
+              console.error("Error fetching school performance:", err);
+              // Don't clear previous data
+            })
+        );
+
+        // Teacher performance
+        promises.push(
+          fetchTeacherPerformance(schoolId, filters)
+            .then(teacherPerformance => {
+              if (Array.isArray(teacherPerformance) && teacherPerformance.length > 0) {
+                setTeacherPerformanceData(teacherPerformance);
+              }
+            })
+            .catch(err => {
+              console.error("Error fetching teacher performance:", err);
+              // Don't clear previous data
+            })
+        );
+
+        // Student performance
+        promises.push(
+          fetchStudentPerformance(schoolId, filters)
+            .then(studentPerformance => {
+              if (Array.isArray(studentPerformance) && studentPerformance.length > 0) {
+                setStudentPerformanceData(studentPerformance);
+              }
+            })
+            .catch(err => {
+              console.error("Error fetching student performance:", err);
+              // Don't clear previous data
+            })
+        );
+      }
+
+      // Wait for all promises to complete
+      await Promise.allSettled(promises);
+
+      // Generate mock data for any missing data
+      generateMockData();
+      
+    } catch (error: any) {
+      console.error("Error loading analytics data:", error);
+      setDataError(true);
+      toast.error("Failed to load analytics data. Showing mock data instead.");
+      
+      // Generate mock data on error
+      generateMockData();
+    } finally {
+      setIsLoading(false);
+      setInitialLoad(false);
+      setDataLoaded(true);
+    }
+  }, [schoolId, filters, activeTab, initialLoad, generateMockData]);
+
+  const handleRefreshData = useCallback(() => {
+    setRetryCount((count) => count + 1);
+  }, []);
+
   useEffect(() => {
     if (schoolId) {
-      setFilters(prevFilters => ({
+      setFilters((prevFilters) => ({
         ...prevFilters,
         schoolId,
       }));
-    }
-  }, [schoolId]);
-
-  // Fetch students data when schoolId is available
-  useEffect(() => {
-    if (schoolId) {
-      const fetchStudents = async () => {
-        try {
-          setIsLoadingStudents(true);
-          
-          // Get total count first
-          const { count, error: countError } = await supabase
-            .from('students')
-            .select('*', { count: 'exact', head: true })
-            .eq('school_id', schoolId);
-            
-          if (countError) throw countError;
-          
-          // If too many students, limit the query
-          const limit = count && count > 500 ? 50 : 500;
-          
-          // Fetch student data with a safer approach
-          const { data, error } = await supabase
-            .from('students')
-            .select('id, school_id')
-            .eq('school_id', schoolId)
-            .limit(limit);
-            
-          if (error) throw error;
-          
-          // If we have student data, get their profile information
-          if (data && data.length > 0) {
-            // Get profile information for students
-            const studentProfiles = await Promise.all(
-              data.map(async (student) => {
-                const { data: profileData, error: profileError } = await supabase
-                  .from('profiles')
-                  .select('full_name')
-                  .eq('id', student.id)
-                  .single();
-                
-                // Return formatted student with name (if profile exists) or fallback
-                return {
-                  id: student.id,
-                  name: profileError || !profileData ? 
-                    `Student ${student.id.substring(0, 4)}` : 
-                    profileData.full_name || `Student ${student.id.substring(0, 4)}`
-                };
-              })
-            );
-            
-            setStudents(studentProfiles);
-          }
-        } catch (e) {
-          console.error("Error fetching students:", e);
-          toast.error("Failed to load students data");
-          // Keep using default students data on error
-        } finally {
-          setIsLoadingStudents(false);
-        }
-      };
-      
       fetchStudents();
     }
-  }, [schoolId]);
+  }, [schoolId, fetchStudents]);
 
-  // Use React Query with optimized settings to reduce requests
-  const { 
-    data: summary = initialSummaryData,
-    refetch: refetchSummary,
-    isLoading: isSummaryLoading
-  } = useQuery({
-    queryKey: ['analytics-summary', schoolId, filters.dateRange],
-    queryFn: () => fetchAnalyticsSummary(schoolId, filters),
-    staleTime: 15 * 60 * 1000, // Consider data fresh for 15 minutes
-    enabled: !!schoolId,
-    initialData: initialSummaryData
-  });
-
-  // Optimized query for session logs
-  const {
-    data: sessions = initialSessionData,
-    refetch: refetchSessions,
-    isLoading: isSessionsLoading
-  } = useQuery({
-    queryKey: ['session-logs', schoolId, filters],
-    queryFn: () => fetchSessionLogs(schoolId, filters),
-    staleTime: 15 * 60 * 1000,
-    enabled: !!schoolId && activeTab === "engagement",
-    initialData: initialSessionData
-  });
-
-  // Optimized query for topics data
-  const {
-    data: topics = initialTopicsData,
-    refetch: refetchTopics,
-    isLoading: isTopicsLoading
-  } = useQuery({
-    queryKey: ['topics', schoolId, filters],
-    queryFn: () => fetchTopics(schoolId, filters),
-    staleTime: 20 * 60 * 1000,
-    enabled: !!schoolId && activeTab === "engagement",
-    initialData: initialTopicsData
-  });
-
-  // Optimized query for study time data
-  const {
-    data: studyTime = initialStudyTimeData,
-    refetch: refetchStudyTime,
-    isLoading: isStudyTimeLoading
-  } = useQuery({
-    queryKey: ['study-time', schoolId, filters],
-    queryFn: () => fetchStudyTime(schoolId, filters),
-    staleTime: 20 * 60 * 1000,
-    enabled: !!schoolId && activeTab === "engagement",
-    initialData: initialStudyTimeData
-  });
-
-  // Function to transform API data to match component expectations
-  const transformSchoolPerformanceData = (apiData: any) => {
-    // Create transformed monthly data with expected property names
-    const monthlyData = apiData.monthlyData.map((item: any) => ({
-      month: item.month,
-      score: item.avg_monthly_score || 0,
-    }));
-
-    // Create transformed summary with expected property names
-    const summary = {
-      averageScore: apiData.summary.avg_score || 0,
-      trend: apiData.summary.score_improvement_rate > 0 ? 'up' : 'down',
-      changePercentage: Math.abs(apiData.summary.score_improvement_rate || 0)
-    };
-
-    return {
-      monthlyData,
-      summary
-    };
-  };
-
-  // Optimized query for school performance data
-  const {
-    data: apiSchoolPerformanceData, 
-    refetch: refetchSchoolPerformance,
-    isLoading: isSchoolPerformanceLoading
-  } = useQuery({
-    queryKey: ['school-performance', schoolId, filters],
-    queryFn: () => fetchSchoolPerformance(schoolId, filters),
-    staleTime: 30 * 60 * 1000,
-    enabled: !!schoolId && activeTab === "performance",
-  });
-  
-  // Transform the API data to match component expectations
-  const schoolPerformanceData = useMemo(() => 
-    apiSchoolPerformanceData ? 
-    transformSchoolPerformanceData(apiSchoolPerformanceData) : 
-    initialPerformanceData
-  , [apiSchoolPerformanceData]);
-
-  // Function to transform teacher data
-  const transformTeacherData = (apiData: any[]) => {
-    return apiData.map((teacher: any) => ({
-      id: teacher.teacher_id,
-      name: teacher.teacher_name || 'Unknown',
-      students: teacher.students_assessed || 0,
-      avgScore: teacher.avg_student_score || 0,
-      trend: (teacher.avg_student_score > 75) ? 'up' : 'down'
-    }));
-  };
-
-  // Optimized query for teacher performance data
-  const {
-    data: apiTeacherPerformanceData,
-    refetch: refetchTeacherPerformance,
-    isLoading: isTeacherPerformanceLoading
-  } = useQuery({
-    queryKey: ['teacher-performance', schoolId, filters],
-    queryFn: () => fetchTeacherPerformance(schoolId, filters),
-    staleTime: 30 * 60 * 1000,
-    enabled: !!schoolId && activeTab === "performance",
-  });
-  
-  // Transform the API data to match component expectations
-  const teacherPerformanceData = useMemo(() => 
-    apiTeacherPerformanceData ? 
-    transformTeacherData(apiTeacherPerformanceData) : 
-    initialTeacherData
-  , [apiTeacherPerformanceData]);
-
-  // Function to transform student data
-  const transformStudentData = (apiData: any[]) => {
-    return apiData.map((student: any) => ({
-      id: student.student_id || '',
-      name: student.student_name || 'Unknown',
-      teacher: '', // This field isn't in the API response but is expected by the component
-      assessments: student.assessments_taken || 0,
-      avgScore: student.avg_score || 0,
-      timeSpent: `${Math.round((student.avg_time_spent_seconds || 0) / 60)} min`,
-      completionRate: student.completion_rate || 0,
-      strengths: student.top_strengths ? student.top_strengths.split(', ') : [],
-      weaknesses: student.top_weaknesses ? student.top_weaknesses.split(', ') : [],
-      trend: (student.avg_score > 75) ? 'up' : 'down',
-      subjects: [] // Add empty array for expected subjects field
-    }));
-  };
-
-  // Optimized query for student performance data
-  const {
-    data: apiStudentPerformanceData,
-    refetch: refetchStudentPerformance,
-    isLoading: isStudentPerformanceLoading
-  } = useQuery({
-    queryKey: ['student-performance', schoolId, filters],
-    queryFn: () => fetchStudentPerformance(schoolId, filters),
-    staleTime: 30 * 60 * 1000,
-    enabled: !!schoolId && activeTab === "performance",
-  });
-  
-  // Transform the API data to match component expectations
-  const studentPerformanceData = useMemo(() => 
-    apiStudentPerformanceData ? 
-    transformStudentData(apiStudentPerformanceData) : 
-    initialStudentData
-  , [apiStudentPerformanceData]);
-
-  // Optimized refresh function to only refetch data based on active tab
-  const handleRefreshData = () => {
-    refetchSummary();
-    
-    if (activeTab === "engagement") {
-      refetchSessions();
-      refetchTopics();
-      refetchStudyTime();
-      toast.success("Engagement metrics refreshed");
-    } else if (activeTab === "performance") {
-      refetchSchoolPerformance();
-      refetchTeacherPerformance();
-      refetchStudentPerformance();
-      toast.success("Performance metrics refreshed");
-    }
-  };
+  useEffect(() => {
+    loadAnalyticsData();
+  }, [loadAnalyticsData, retryCount, activeTab]);
 
   const handleFiltersChange = useCallback((newFilters: FiltersType) => {
     setFilters(newFilters);
+    setRetryCount((prev) => prev + 1);
   }, []);
 
   const handleTabChange = useCallback((value: string) => {
@@ -408,6 +320,9 @@ const AdminAnalytics = () => {
   }, []);
 
   const dateRangeText = useMemo(() => getDateRangeText(filters.dateRange), [filters.dateRange]);
+
+  // Show loading state only on initial load
+  const showLoading = initialLoad && isLoading && !dataLoaded;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -428,11 +343,11 @@ const AdminAnalytics = () => {
               <div className="space-y-2">
                 <div className="flex flex-col sm:flex-row sm:items-center">
                   <span className="font-medium min-w-32">Name:</span>
-                  <span className="text-foreground">{profile?.organization?.name || "Crescent School"}</span>
+                  <span className="text-foreground">{profile?.organization?.name || "Test School"}</span>
                 </div>
                 <div className="flex flex-col sm:flex-row sm:items-center">
                   <span className="font-medium min-w-32">Code:</span>
-                  <span className="text-foreground">{profile?.organization?.code || "CRES123"}</span>
+                  <span className="text-foreground">{profile?.organization?.code || "TEST123"}</span>
                 </div>
               </div>
             </CardContent>
@@ -446,86 +361,98 @@ const AdminAnalytics = () => {
               showTeacherSelector={true}
               students={students}
             />
-            <Button 
-              onClick={handleRefreshData} 
-              variant="outline" 
-              className="flex items-center"
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
+            <Button onClick={handleRefreshData} variant="outline" className="flex items-center" disabled={isLoading}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
               Refresh
             </Button>
           </div>
 
-          <div className="space-y-6">
-            <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-              <TabsList className="grid w-full max-w-md grid-cols-2">
-                <TabsTrigger value="engagement">Engagement Metrics</TabsTrigger>
-                <TabsTrigger value="performance">Performance Metrics</TabsTrigger>
-              </TabsList>
+          {showLoading ? (
+            <div className="space-y-4">
+              <Skeleton className="w-full h-40" />
+              <Skeleton className="w-full h-40" />
+              <Skeleton className="w-full h-60" />
+            </div>
+          ) : dataError && !dataLoaded ? (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error!</AlertTitle>
+              <AlertDescription>
+                Failed to load analytics data. Please try again or check your connection.
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <div className="space-y-6">
+              <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+                <TabsList className="grid w-full max-w-md grid-cols-2">
+                  <TabsTrigger value="engagement">Engagement Metrics</TabsTrigger>
+                  <TabsTrigger value="performance">Performance Metrics</TabsTrigger>
+                </TabsList>
 
-              <TabsContent value="engagement" className="space-y-6 mt-6">
-                <AnalyticsSummaryCards summary={summary} isLoading={isSummaryLoading} />
-                
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between">
-                    <div className="space-y-1">
-                      <CardTitle className="text-xl font-bold">Recent Learning Sessions</CardTitle>
-                      <CardDescription>
-                        Details of student learning sessions
-                        {filters.dateRange && <span className="ml-2">({dateRangeText})</span>}
-                      </CardDescription>
-                    </div>
-                    <AnalyticsExport 
-                      summary={summary} 
-                      sessions={sessions}
-                      topics={topics}
-                      studyTimes={studyTime}
-                      dateRangeText={dateRangeText}
+                <TabsContent value="engagement" className="space-y-6 mt-6">
+                  <AnalyticsSummaryCards summary={summary} isLoading={false} />
+                  
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between">
+                      <div className="space-y-1">
+                        <CardTitle className="text-xl font-bold">Recent Learning Sessions</CardTitle>
+                        <CardDescription>
+                          Details of student learning sessions
+                          {filters.dateRange && <span className="ml-2">({dateRangeText})</span>}
+                        </CardDescription>
+                      </div>
+                      <AnalyticsExport 
+                        summary={summary} 
+                        sessions={sessions}
+                        topics={topics}
+                        studyTimes={studyTime}
+                        dateRangeText={dateRangeText}
+                      />
+                    </CardHeader>
+                    <CardContent>
+                      <SessionsTable 
+                        sessions={sessions} 
+                        title="Recent Learning Sessions" 
+                        description="Details of student learning sessions"
+                        isLoading={false} // Never show loading state after initial load
+                      />
+                    </CardContent>
+                  </Card>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <TopicsChart
+                      data={topics}
+                      title="Most Studied Topics"
+                      description="Top 10 topics students are currently studying"
+                      isLoading={false} // Never show loading state after initial load
                     />
-                  </CardHeader>
-                  <CardContent>
-                    <SessionsTable 
-                      sessions={sessions} 
-                      title="Recent Learning Sessions" 
-                      description="Details of student learning sessions"
-                      isLoading={isSessionsLoading}
+                    <StudyTimeChart
+                      data={studyTime}
+                      title="Student Study Time"
+                      description="Weekly study time per student"
+                      isLoading={false} // Never show loading state after initial load
                     />
-                  </CardContent>
-                </Card>
+                  </div>
+                </TabsContent>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <TopicsChart
-                    data={topics}
-                    title="Most Studied Topics"
-                    description="Top 10 topics students are currently studying"
-                    isLoading={isTopicsLoading}
+                <TabsContent value="performance" className="space-y-6 mt-6">
+                  <SchoolPerformancePanel
+                    monthlyData={schoolPerformanceData}
+                    summary={schoolPerformanceSummary}
+                    isLoading={false} // Never show loading state after initial load
                   />
-                  <StudyTimeChart
-                    data={studyTime}
-                    title="Student Study Time"
-                    description="Weekly study time per student"
-                    isLoading={isStudyTimeLoading}
+                  <TeacherPerformanceTable
+                    data={teacherPerformanceData}
+                    isLoading={false} // Never show loading state after initial load
                   />
-                </div>
-              </TabsContent>
-
-              <TabsContent value="performance" className="space-y-6 mt-6">
-                <SchoolPerformancePanel
-                  monthlyData={schoolPerformanceData.monthlyData}
-                  summary={schoolPerformanceData.summary}
-                  isLoading={isSchoolPerformanceLoading}
-                />
-                <TeacherPerformanceTable
-                  data={teacherPerformanceData}
-                  isLoading={isTeacherPerformanceLoading}
-                />
-                <StudentPerformanceTable
-                  data={studentPerformanceData}
-                  isLoading={isStudentPerformanceLoading}
-                />
-              </TabsContent>
-            </Tabs>
-          </div>
+                  <StudentPerformanceTable
+                    data={studentPerformanceData}
+                    isLoading={false} // Never show loading state after initial load
+                  />
+                </TabsContent>
+              </Tabs>
+            </div>
+          )}
         </div>
       </main>
       <Footer />

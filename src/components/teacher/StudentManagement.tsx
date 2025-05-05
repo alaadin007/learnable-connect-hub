@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,7 +28,6 @@ import { Copy, Loader2, UserPlus, Mail, Clock, AlertCircle, Check, X } from 'luc
 import { Badge } from "@/components/ui/badge";
 import { format } from 'date-fns';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getCurrentUserSchoolId, generateStudentInviteCode } from '@/utils/schoolUtils';
 
 type Student = {
   id: string;
@@ -46,7 +46,7 @@ type StudentInvite = {
 };
 
 const StudentManagement = () => {
-  const { user, profile, schoolId: authSchoolId } = useAuth();
+  const { user, profile, schoolId } = useAuth();
   const [students, setStudents] = useState<Student[]>([]);
   const [invites, setInvites] = useState<StudentInvite[]>([]);
   const [newStudentEmail, setNewStudentEmail] = useState('');
@@ -56,65 +56,30 @@ const StudentManagement = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [inviteMethod, setInviteMethod] = useState<'email' | 'code'>('email');
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
-  const [codeGenerationError, setCodeGenerationError] = useState<string | null>(null);
-  
-  // Get the school ID properly with error handling
-  const [currentSchoolId, setCurrentSchoolId] = useState<string | null>(authSchoolId || null);
 
   useEffect(() => {
-    const getSchoolId = async () => {
-      if (!currentSchoolId) {
-        try {
-          const schoolId = await getCurrentUserSchoolId();
-          if (schoolId) {
-            setCurrentSchoolId(schoolId);
-          } else {
-            console.error("Could not determine school ID");
-            toast.error("Failed to retrieve school information");
-          }
-        } catch (error) {
-          console.error("Error fetching school ID:", error);
-        }
-      }
-    };
-    
-    if (!currentSchoolId) {
-      getSchoolId();
-    } else {
+    if (schoolId) {
       fetchStudents();
       fetchInvites();
     }
-  }, [currentSchoolId]);
+  }, [schoolId]);
 
   const fetchStudents = async () => {
-    if (!currentSchoolId) {
-      console.error("No school ID available, cannot fetch students");
-      return;
-    }
-    
     setIsLoading(true);
     try {
-      console.log("Fetching students for school ID:", currentSchoolId);
-      
       // First get all student IDs for this school
       const { data: studentData, error: studentError } = await supabase
         .from('students')
         .select('id')
-        .eq('school_id', currentSchoolId);
+        .eq('school_id', schoolId);
 
-      if (studentError) {
-        console.error("Error fetching student IDs:", studentError);
-        throw studentError;
-      }
+      if (studentError) throw studentError;
 
       if (!studentData || studentData.length === 0) {
-        console.log("No students found for this school");
         setStudents([]);
         setIsLoading(false);
         return;
       }
-      
-      console.log(`Found ${studentData.length} students, fetching profiles...`);
 
       // Then get profile data for these students
       const studentIds = studentData.map(s => s.id);
@@ -123,23 +88,15 @@ const StudentManagement = () => {
         .select('id, full_name, created_at')
         .in('id', studentIds);
 
-      if (profileError) {
-        console.error("Error fetching student profiles:", profileError);
-        throw profileError;
-      }
-      
-      console.log(`Retrieved ${profileData?.length || 0} student profiles`);
+      if (profileError) throw profileError;
 
       // Format student data with profile info
-      const formattedStudents = (profileData || []).map(profile => {
-        const studentId = profile.id;
-        return {
-          id: studentId,
-          full_name: profile.full_name,
-          email: studentId, // Using ID as placeholder since we can't access auth.users
-          created_at: profile.created_at
-        };
-      });
+      const formattedStudents = (profileData || []).map(profile => ({
+        id: profile.id,
+        full_name: profile.full_name,
+        email: profile.id, // Using ID as placeholder since we can't access auth.users
+        created_at: profile.created_at
+      }));
 
       setStudents(formattedStudents);
     } catch (error) {
@@ -151,28 +108,23 @@ const StudentManagement = () => {
   };
 
   const fetchInvites = async () => {
-    if (!currentSchoolId) {
-      console.error("No school ID available, cannot fetch invites");
+    if (!schoolId || !user?.id) {
       return;
     }
     
     try {
-      console.log("Fetching student invites for school ID:", currentSchoolId);
+      const response = await fetch(`https://ldlgckwkdsvrfuymidrr.supabase.co/rest/v1/student_invites?select=id,code,email,created_at,expires_at,status&school_id=eq.${schoolId}&teacher_id=eq.${user.id}&order=created_at.desc`, {
+        headers: {
+          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxkbGdja3drZHN2cmZ1eW1pZHJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDYwNTc2NzksImV4cCI6MjA2MTYzMzY3OX0.kItrTMcKThMXuwNDClYNTGkEq-1EVVldq1vFw7ZsKx0',
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ''}`
+        }
+      });
       
-      // Added throttling control to prevent excessive requests
-      const { data: inviteData, error } = await supabase
-        .from('student_invites')
-        .select('id, code, email, created_at, expires_at, status')
-        .eq('school_id', currentSchoolId)
-        .order('created_at', { ascending: false })
-        .limit(10); // Limit the number of results to prevent large data transfers
-        
-      if (error) {
-        console.error("Error fetching student invites:", error);
-        throw error;
+      if (!response.ok) {
+        throw new Error('Failed to fetch invites');
       }
       
-      console.log(`Retrieved ${inviteData?.length || 0} student invites`);
+      const inviteData = await response.json();
       setInvites(inviteData as StudentInvite[]);
     } catch (error) {
       console.error('Error fetching invites:', error);
@@ -182,37 +134,25 @@ const StudentManagement = () => {
 
   const generateInviteCode = async () => {
     setIsGeneratingCode(true);
-    setCodeGenerationError(null);
-    
     try {
-      console.log("Generating student invite code...");
+      const { data, error } = await supabase.functions.invoke('generate-student-invite', {
+        body: { method: 'code' }
+      });
+
+      if (error) throw error;
       
-      // Use the database function to generate a code
-      const { code, error } = await generateStudentInviteCode();
-      
-      if (error) {
-        throw new Error(error);
-      }
-      
-      console.log("Generated code:", code);
-      setGeneratedCode(code);
+      setGeneratedCode(data.code);
       toast.success("Invite code generated successfully");
       fetchInvites();
     } catch (error: any) {
       console.error('Error generating invite code:', error);
       toast.error(error.message || 'Failed to generate invite code');
-      setCodeGenerationError(error.message || "Failed to generate code");
     } finally {
       setIsGeneratingCode(false);
     }
   };
 
   const sendEmailInvite = async () => {
-    if (!currentSchoolId) {
-      toast.error('School information not found');
-      return;
-    }
-    
     if (!newStudentEmail.trim()) {
       toast.error('Please enter a valid email address');
       return;
@@ -220,20 +160,14 @@ const StudentManagement = () => {
 
     setIsSending(true);
     try {
-      // Create a direct database entry for the email invitation
-      const { error } = await supabase
-        .from('student_invites')
-        .insert({
-          school_id: currentSchoolId,
-          email: newStudentEmail.trim(),
-          status: 'pending',
-          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 days
-        });
+      const { data, error } = await supabase.functions.invoke('generate-student-invite', {
+        body: {
+          method: 'email',
+          email: newStudentEmail.trim()
+        }
+      });
 
-      if (error) {
-        console.error("Error creating student email invite:", error);
-        throw error;
-      }
+      if (error) throw error;
       
       toast.success(`Invitation created for ${newStudentEmail}`);
       setNewStudentEmail('');
@@ -258,16 +192,11 @@ const StudentManagement = () => {
     }
 
     try {
-      // Delete the student record directly
-      const { error: deleteError } = await supabase
-        .from("students")
-        .delete()
-        .eq("id", studentId);
-        
-      if (deleteError) {
-        console.error("Error deleting student:", deleteError);
-        throw deleteError;
-      }
+      const { data, error } = await supabase.functions.invoke('revoke-student-access', {
+        body: { student_id: studentId }
+      });
+
+      if (error) throw error;
 
       toast.success(`Student access revoked successfully`);
       fetchStudents();
@@ -289,59 +218,6 @@ const StudentManagement = () => {
         return <Badge variant="outline">{status}</Badge>;
     }
   };
-
-  const renderCodeGenerationContent = () => (
-    <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">
-        Generate a code that students can use to join your class.
-      </p>
-      {generatedCode ? (
-        <div className="mt-4">
-          <Label>Invite Code</Label>
-          <div className="flex items-center mt-1">
-            <div className="bg-muted p-2 rounded-l-md font-mono border border-r-0 flex-1 text-center">
-              {generatedCode}
-            </div>
-            <Button 
-              type="button" 
-              variant="outline" 
-              className="rounded-l-none"
-              onClick={() => handleCopyCode(generatedCode)}
-            >
-              <Copy className="h-4 w-4" />
-            </Button>
-          </div>
-          <p className="text-sm text-green-600 mt-2">
-            Share this code with your students
-          </p>
-        </div>
-      ) : (
-        <>
-          <Button 
-            type="button" 
-            onClick={generateInviteCode}
-            disabled={isGeneratingCode}
-            className="w-full"
-          >
-            {isGeneratingCode ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Generating...
-              </>
-            ) : (
-              'Generate New Code'
-            )}
-          </Button>
-          
-          {codeGenerationError && (
-            <p className="text-sm text-red-600 mt-2">
-              {codeGenerationError}
-            </p>
-          )}
-        </>
-      )}
-    </div>
-  );
 
   return (
     <div className="space-y-6">
@@ -385,7 +261,48 @@ const StudentManagement = () => {
                   </div>
                 </TabsContent>
                 <TabsContent value="code" className="pt-4">
-                  {renderCodeGenerationContent()}
+                  <div className="space-y-4">
+                    <p className="text-sm text-muted-foreground">
+                      Generate a code that students can use to join your class.
+                    </p>
+                    {generatedCode ? (
+                      <div className="mt-4">
+                        <Label>Invite Code</Label>
+                        <div className="flex items-center mt-1">
+                          <div className="bg-muted p-2 rounded-l-md font-mono border border-r-0 flex-1">
+                            {generatedCode}
+                          </div>
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            className="rounded-l-none"
+                            onClick={() => handleCopyCode(generatedCode)}
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <p className="text-sm text-green-600 mt-2">
+                          Share this code with your students
+                        </p>
+                      </div>
+                    ) : (
+                      <Button 
+                        type="button" 
+                        onClick={generateInviteCode}
+                        disabled={isGeneratingCode}
+                        className="w-full"
+                      >
+                        {isGeneratingCode ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Generating...
+                          </>
+                        ) : (
+                          'Generate New Code'
+                        )}
+                      </Button>
+                    )}
+                  </div>
                 </TabsContent>
               </Tabs>
             </div>

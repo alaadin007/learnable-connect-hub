@@ -6,19 +6,9 @@ import { Button } from "@/components/ui/button";
 import TeacherManagement from "@/components/school-admin/TeacherManagement";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
-import { useAuth } from "@/contexts/AuthContext";
 
 const AdminTeacherManagement = () => {
   const navigate = useNavigate();
-  const { userRole } = useAuth();
-
-  // Verify correct user role and redirect if needed
-  React.useEffect(() => {
-    if (userRole && userRole !== "school_admin" && userRole !== "school") {
-      console.log(`AdminTeacherManagement: Redirecting user with role ${userRole} to dashboard`);
-      navigate("/dashboard", { state: { fromRoleRedirect: true } });
-    }
-  }, [userRole, navigate]);
   
   return (
     <div className="min-h-screen flex flex-col">

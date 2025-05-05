@@ -1,42 +1,37 @@
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Menu, X, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { toast } from "sonner";
 
 const Navbar = () => {
   const { user, signOut, profile } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
   const isMobile = useIsMobile();
+
+  // Set loaded status after initial render to prevent flickering
+  useEffect(() => {
+    setIsLoaded(true);
+  }, []);
 
   const toggleMenu = () => setIsOpen((open) => !open);
 
   const handleLogout = useCallback(async () => {
-    try {
-      await signOut();
-      toast.success("Logged out successfully");
-      navigate("/login");
-    } catch (error) {
-      console.error("Logout error:", error);
-      toast.error("Failed to log out. Please try again.");
-    }
+    await signOut();
+    navigate("/");
+    setIsOpen(false);
   }, [signOut, navigate]);
 
   const handleBackToTestAccounts = useCallback(async () => {
-    try {
-      await signOut();
-      navigate("/test-accounts");
-      setIsOpen(false);
-    } catch (error) {
-      console.error("Error returning to test accounts:", error);
-      toast.error("Failed to return to test accounts");
-    }
+    await signOut();
+    navigate("/test-accounts");
+    setIsOpen(false);
   }, [signOut, navigate]);
 
   const isTestAccount = user?.email?.includes(".test@learnable.edu") || user?.id?.startsWith("test-");
@@ -45,6 +40,9 @@ const Navbar = () => {
     location.pathname === path || location.pathname.startsWith("/invitation/")
   );
   const isLoggedIn = !!user && !isPublicPage && !isAuthPage;
+
+  const profileUserType = profile?.user_type ?? null;
+
   const isTestAccountsPage = location.pathname === "/test-accounts";
 
   const getNavLinks = useCallback(() => {
@@ -60,71 +58,96 @@ const Navbar = () => {
       ];
     }
 
-    // Navigation links for logged-in users
-    return [
-      { name: "Dashboard", href: "/dashboard" },
-      { name: "School Admin", href: "/admin" },
-      { name: "Teachers", href: "/admin/teachers" },
-      { name: "Analytics", href: "/admin/analytics" },
-      { name: "Chat", href: "/chat" },
-      { name: "Documents", href: "/documents" },
-      { name: "AI Settings", href: "/ai-settings" },
-    ];
-  }, [isLoggedIn, isTestAccountsPage]);
+    switch (profileUserType) {
+      case "school":
+        return [
+          { name: "Dashboard", href: "/dashboard" },
+          { name: "School Admin", href: "/admin" },
+          { name: "Teachers", href: "/admin/teacher-management" },
+          { name: "Analytics", href: "/admin/analytics" },
+          { name: "Chat", href: "/chat" },
+          { name: "Documents", href: "/documents" },
+        ];
+      case "teacher":
+        return [
+          { name: "Dashboard", href: "/dashboard" },
+          { name: "Students", href: "/teacher/students" },
+          { name: "Analytics", href: "/teacher/analytics" },
+          { name: "Chat", href: "/chat" },
+          { name: "Documents", href: "/documents" },
+        ];
+      default:
+        // student or other user types
+        return [
+          { name: "Dashboard", href: "/dashboard" },
+          { name: "Chat", href: "/chat" },
+          { name: "Documents", href: "/documents" },
+        ];
+    }
+  }, [profileUserType, isLoggedIn, isTestAccountsPage]);
 
-  // Fix the isActiveLink function to work correctly for all routes
+  const navLinks = getNavLinks();
+
   const isActiveLink = useCallback((href: string): boolean => {
     const currentPath = location.pathname;
-    
-    // For exact matches
-    if (href === currentPath) {
-      return true;
+
+    switch (href) {
+      case "/dashboard":
+        return currentPath === "/dashboard";
+      case "/admin":
+        // Active for /admin exactly but not for known subpaths handled separately
+        return currentPath === "/admin";
+      case "/admin/teacher-management":
+      case "/admin/analytics":
+      case "/admin/students":
+      case "/teacher/students":
+      case "/teacher/analytics":
+        return currentPath === href;
+      case "/chat":
+        return currentPath === "/chat" || currentPath.startsWith("/chat/");
+      case "/documents":
+        return currentPath === "/documents" || currentPath.startsWith("/documents/");
+      default:
+        return currentPath === href;
     }
-    
-    // For admin section
-    if (href === "/admin" && currentPath.startsWith("/admin")) {
-      // Only highlight "School Admin" for /admin and /admin/settings
-      return currentPath === "/admin" || currentPath === "/admin/settings";
-    }
-    
-    // For specific admin routes
-    if (href === "/admin/teachers" && currentPath === "/admin/teachers") {
-      return true;
-    }
-    
-    if (href === "/admin/analytics" && currentPath === "/admin/analytics") {
-      return true;
-    }
-    
-    // For nested routes
-    if (href === "/chat" && currentPath.startsWith("/chat")) {
-      return true;
-    }
-    
-    if (href === "/documents" && currentPath.startsWith("/documents")) {
-      return true;
-    }
-    
-    if (href === "/ai-settings" && currentPath.startsWith("/ai-settings")) {
-      return true;
-    }
-    
-    return false;
   }, [location.pathname]);
 
-  // Direct navigation handler
   const handleNavigation = useCallback((path: string) => {
     if (location.pathname === path) {
       setIsOpen(false);
       return;
     }
     
-    navigate(path);
+    // Add state to prevent redirection loops and preserve navigation context
+    navigate(path, { 
+      state: { 
+        fromNavigation: true,
+        preserveContext: true,
+        timestamp: Date.now() // Add timestamp to ensure state is unique
+      } 
+    });
     setIsOpen(false);
   }, [location.pathname, navigate]);
 
   if (isTestAccountsPage) {
+    // optionally hide navbar entirely on test accounts page:
     return null;
+  }
+
+  // Don't render until we've determined loading state to prevent flickering
+  if (!isLoaded) {
+    return (
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
+        <div className="container mx-auto px-4 sm:px-6">
+          <div className="flex justify-between items-center h-16">
+            {/* Minimal placeholder during initial load */}
+            <div className="flex-shrink-0">
+              <span className="ml-2 text-xl font-bold gradient-text">LearnAble</span>
+            </div>
+          </div>
+        </div>
+      </header>
+    );
   }
 
   return (
@@ -152,7 +175,7 @@ const Navbar = () => {
 
           {/* Desktop nav */}
           <nav className="hidden md:flex space-x-8">
-            {getNavLinks().map((link) => (
+            {navLinks.map((link) => (
               <button
                 key={link.name}
                 onClick={() => handleNavigation(link.href)}
@@ -232,7 +255,7 @@ const Navbar = () => {
       >
         <div className="px-4 space-y-4 divide-y divide-gray-100 h-full overflow-y-auto">
           <div className="space-y-1">
-            {getNavLinks().map((link) => (
+            {navLinks.map((link) => (
               <button
                 key={link.name}
                 onClick={() => handleNavigation(link.href)}

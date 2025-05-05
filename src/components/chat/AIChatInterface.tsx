@@ -1,385 +1,298 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useRef, useEffect } from "react";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, Loader2, Info, X, Key } from "lucide-react";
+import { MessageCircle, Send, Timer } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import TypingIndicator from "./TypingIndicator";
+import sessionLogger from "@/utils/sessionLogger";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 import VoiceRecorder from "./VoiceRecorder";
 import TextToSpeech from "./TextToSpeech";
-import { sessionLogger } from "@/utils/sessionLogger";
-import { Link } from "react-router-dom";
 
 interface Message {
-  id: string;
   role: "user" | "assistant" | "system";
   content: string;
+  timestamp: Date;
 }
 
 interface AIChatInterfaceProps {
-  initialContext?: string;
-  placeholder?: string;
-  initialTopic?: string;
-  enableLongTermMemory?: boolean;
-  autoSaveHistory?: boolean;
+  topic?: string;
+  documentId?: string;
+  initialPrompt?: string;
 }
 
 const AIChatInterface: React.FC<AIChatInterfaceProps> = ({
-  initialContext = "",
-  placeholder = "Type your question here...",
-  initialTopic = "General Study Help",
-  enableLongTermMemory = false,
-  autoSaveHistory = false,
+  topic,
+  documentId,
+  initialPrompt
 }) => {
-  const { user } = useAuth();
-  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
+  const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [isTyping, setIsTyping] = useState(false);
-  const [topic, setTopic] = useState(initialTopic);
-  const [showTips, setShowTips] = useState(false);
-  const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
-  const inputRef = useRef<HTMLTextAreaElement | null>(null);
-  
-  // Check if user has API key configured
+  const [model, setModel] = useState<string>("gpt-4o-mini");
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { user } = useAuth();
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Start a new session when the component mounts
   useEffect(() => {
-    const checkApiKey = async () => {
-      if (!user) return;
-      
+    let isMounted = true; // to avoid setting state if unmounted
+
+    const startNewSession = async () => {
       try {
-        // Check for OpenAI key first, then Gemini
-        const { data: openaiData, error: openaiError } = await supabase.functions.invoke("check-api-key", {
-          body: { provider: "openai" }
-        });
-        
-        if (!openaiError && openaiData?.exists) {
-          setHasApiKey(true);
-          return;
-        }
-        
-        const { data: geminiData, error: geminiError } = await supabase.functions.invoke("check-api-key", {
-          body: { provider: "gemini" }
-        });
-        
-        if (!geminiError && geminiData?.exists) {
-          setHasApiKey(true);
-          return;
-        }
-        
-        setHasApiKey(false);
-      } catch (error) {
-        console.error("Error checking API keys:", error);
-        setHasApiKey(false);
-      }
-    };
-    
-    checkApiKey();
-  }, [user]);
-  
-  // Start session on component mount
-  useEffect(() => {
-    const startSession = async () => {
-      // Only start a session if the user is logged in
-      if (!user) return;
-      
-      try {
-        const logId = await sessionLogger.startSession({ topic });
-        if (logId) {
-          console.log("Started session with ID:", logId);
-          setSessionId(logId);
+        const newSessionId = await sessionLogger.startSession(topic);
+        if (isMounted && newSessionId) {
+          setSessionId(newSessionId);
+          if (initialPrompt) {
+            setMessages([
+              { role: "system", content: initialPrompt, timestamp: new Date() }
+            ]);
+          }
         }
       } catch (error) {
-        console.error("Failed to start session:", error);
+        console.error("Error starting session:", error);
       }
     };
-    
-    startSession();
-    
-    // End session on component unmount
+
+    startNewSession();
+
+    return () => {
+      isMounted = false;
+      if (sessionId) {
+        sessionLogger.endSession(sessionId).catch(console.error);
+      }
+    };
+  // Here sessionId is a dependency but it is set asynchronously, so 
+  // the cleanup may not see the updated sessionId; to fix:
+  // either omit it here (and send endSession in separate effect) or
+  // move endSession to separate useEffect tracking sessionId.
+  }, [topic, initialPrompt]);
+
+  // To fix the cleanup for session end - better separate effect:
+  useEffect(() => {
     return () => {
       if (sessionId) {
-        sessionLogger.endSession()
-          .then(success => {
-            if (success) {
-              console.log("Ended session successfully");
-            }
-          })
-          .catch(error => {
-            console.error("Failed to end session:", error);
-          });
+        sessionLogger.endSession(sessionId).catch(console.error);
       }
     };
-  }, [user, topic]);
+  }, [sessionId]);
 
-  // Update topic in session logger if topic changes
+  // Scroll to bottom when messages change
   useEffect(() => {
-    if (topic && sessionId && sessionLogger.isSessionActive()) {
-      sessionLogger.updateTopic(topic);
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [topic, sessionId]);
-
-  // Scroll to bottom whenever messages change
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Focus input on initial load
-  useEffect(() => {
-    if (inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, []);
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
 
-  const sendMessage = useCallback(async () => {
-    if (!input.trim()) return;
-    
-    // Prevent sending if API key is not configured
-    if (hasApiKey === false) {
-      toast.error("API key not configured. Please set up your API key in AI settings.");
-      return;
-    }
-    
-    const userMessage = input.trim();
+    if (!input.trim() && !initialPrompt) return;
+
+    const userMessage = input.trim() || initialPrompt;
     setInput("");
-    
-    // Generate unique IDs for messages
-    const userMessageId = `user-${Date.now()}`;
-    const assistantMessageId = `assistant-${Date.now()}`;
-    
-    // Add user message to state
-    setMessages(prevMessages => [
-      ...prevMessages, 
-      { id: userMessageId, role: "user", content: userMessage }
-    ]);
-    
+
+    setMessages(prev => [...prev, {
+      role: "user",
+      content: userMessage,
+      timestamp: new Date()
+    }]);
+
     setIsLoading(true);
-    setIsTyping(true);
-    
+
     try {
-      // Log query in session
-      if (sessionId) {
-        sessionLogger.logQuery();
+      if (topic && sessionId) {
+        await sessionLogger.updateSessionTopic(sessionId, topic);
       }
 
-      // Call the Edge Function to get AI response
       const { data, error } = await supabase.functions.invoke("ask-ai", {
         body: {
           question: userMessage,
-          sessionId,
-          context: initialContext,
-          topic
+          topic,
+          documentId,
+          sessionId
         }
       });
 
-      if (error) {
-        throw new Error(`Error from Edge Function: ${error.message}`);
+      if (error) throw new Error(error.message);
+
+      setMessages(prev => [...prev, {
+        role: "assistant",
+        content: data.response,
+        timestamp: new Date()
+      }]);
+
+      if (data.model) {
+        setModel(data.model);
       }
 
-      // Add assistant message to state
-      const aiResponse = data.answer || "Sorry, I couldn't generate a response.";
-      setMessages(prevMessages => [
-        ...prevMessages,
-        { id: assistantMessageId, role: "assistant", content: aiResponse }
-      ]);
-
-      // Save to conversation history if enabled
-      if (autoSaveHistory) {
-        try {
-          await supabase.functions.invoke("save-chat-message", {
-            body: {
-              conversationId: sessionId || undefined,
-              sender: "user",
-              content: userMessage,
-              topic,
-            }
-          });
-          
-          await supabase.functions.invoke("save-chat-message", {
-            body: {
-              conversationId: sessionId || undefined,
-              sender: "assistant",
-              content: aiResponse,
-              topic,
-            }
-          });
-        } catch (saveError) {
-          console.error("Failed to save messages to history:", saveError);
-          // Continue even if saving fails
-        }
+      if (sessionId) {
+        await sessionLogger.incrementQueryCount(sessionId);
       }
     } catch (error) {
-      console.error("Error sending message:", error);
-      toast.error("Failed to get response. Please try again.");
-      
-      // Add error message to state
-      setMessages(prevMessages => [
-        ...prevMessages,
-        { 
-          id: assistantMessageId, 
-          role: "assistant", 
-          content: "Sorry, I encountered an error processing your request. Please try again." 
-        }
-      ]);
+      console.error("Error getting AI response:", error);
+      toast.error("Failed to get a response from the AI.");
+
+      setMessages(prev => [...prev, {
+        role: "system",
+        content: "Sorry, I couldn't process your request. Please try again later.",
+        timestamp: new Date()
+      }]);
     } finally {
       setIsLoading(false);
-      setIsTyping(false);
     }
-  }, [input, initialContext, sessionId, topic, autoSaveHistory, hasApiKey]);
+  };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      sendMessage();
+      handleSubmit();
     }
   };
 
-  const handleVoiceInput = (transcript: string) => {
-    setInput(prevInput => prevInput + " " + transcript);
-    if (inputRef.current) {
-      inputRef.current.focus();
+  const adjustTextareaHeight = () => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
     }
   };
 
-  const toggleTips = () => {
-    setShowTips(!showTips);
+  const handleTranscriptionComplete = (text: string) => {
+    setInput(text);
   };
 
-  // Show API key configuration message if no API key is set
-  if (hasApiKey === false) {
-    return (
-      <div className="flex flex-col h-full bg-white rounded-md overflow-hidden border shadow-sm">
-        <div className="p-3 bg-learnable-super-light border-b flex justify-between items-center">
-          <div className="flex items-center space-x-2">
-            <h3 className="font-medium text-gray-800">AI Learning Assistant</h3>
-          </div>
-        </div>
-        
-        <div className="flex-1 flex items-center justify-center p-8">
-          <div className="text-center max-w-md mx-auto">
-            <Key className="w-16 h-16 text-amber-500 mx-auto mb-4" />
-            <h3 className="text-xl font-medium text-gray-800 mb-2">API Key Required</h3>
-            <p className="text-gray-600 mb-6">
-              To use the AI chat functionality, you need to set up an API key for OpenAI or Google Gemini.
-            </p>
-            <Link to="/ai-settings">
-              <Button className="bg-blue-500 hover:bg-blue-600">
-                Configure API Key
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
 
   return (
-    <div className="flex flex-col h-full bg-white rounded-md overflow-hidden border shadow-sm">
-      {/* Chat header */}
-      <div className="p-3 bg-learnable-super-light border-b flex justify-between items-center">
-        <div className="flex items-center space-x-2">
-          <h3 className="font-medium text-gray-800">AI Learning Assistant</h3>
-          <div className="px-2 py-0.5 rounded bg-blue-100 text-blue-800 text-xs font-medium">
-            {topic}
-          </div>
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-gray-500 hover:text-gray-700"
-          onClick={toggleTips}
-        >
-          {showTips ? <X size={16} /> : <Info size={16} />}
-        </Button>
-      </div>
+    <Card className="flex flex-col h-full">
+      <CardHeader className="pb-0">
+        <CardTitle className="text-xl flex items-center gap-2">
+          <MessageCircle className="h-5 w-5" />
+          AI Learning Assistant
+          {topic && (
+            <Badge variant="outline" className="ml-2">
+              Topic: {topic}
+            </Badge>
+          )}
+        </CardTitle>
+        <CardDescription>
+          Ask questions and get help with your studies
+        </CardDescription>
+      </CardHeader>
 
-      {/* Tips section */}
-      {showTips && (
-        <div className="p-3 bg-blue-50 border-b">
-          <h4 className="font-medium text-blue-800 mb-1">Tips for better results:</h4>
-          <ul className="text-sm text-blue-700 space-y-1 pl-4 list-disc">
-            <li>Be specific with your questions</li>
-            <li>Provide context about what you're studying</li>
-            <li>Ask follow-up questions to go deeper</li>
-            <li>Request examples if something is unclear</li>
-          </ul>
-        </div>
-      )}
+      <CardContent className="flex-grow overflow-hidden pt-4">
+        <ScrollArea className="h-[calc(100vh-320px)] pr-4">
+          <div className="space-y-4 mb-4">
+            {messages.length === 0 && !initialPrompt && (
+              <div className="text-center text-muted-foreground p-8">
+                <MessageCircle className="h-12 w-12 mx-auto mb-2 opacity-20" />
+                <p>Start a conversation with the AI assistant</p>
+              </div>
+            )}
 
-      {/* Messages container */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.length === 0 ? (
-          <div className="text-center text-gray-500 my-12">
-            <p className="mb-2">👋 Hi there! How can I help you learn today?</p>
-            <p className="text-sm">Ask me anything about your studies.</p>
-          </div>
-        ) : (
-          messages.map((message) => (
-            <div
-              key={message.id}
-              className={`flex ${
-                message.role === "user" ? "justify-end" : "justify-start"
-              }`}
-            >
+            {messages.map((message, index) => (
               <div
-                className={`max-w-3/4 rounded-lg px-4 py-2 ${
+                key={index}
+                className={`flex flex-col ${
                   message.role === "user"
-                    ? "bg-blue-500 text-white"
-                    : "bg-gray-100 text-gray-800"
+                    ? "items-end"
+                    : message.role === "system"
+                    ? "items-center"
+                    : "items-start"
                 }`}
               >
-                <div className="prose prose-sm">
-                  {message.content.split("\n").map((line, i) => (
-                    <React.Fragment key={i}>
-                      {line}
-                      {i < message.content.split("\n").length - 1 && <br />}
-                    </React.Fragment>
-                  ))}
-                </div>
-                {message.role === "assistant" && (
-                  <div className="mt-2 flex justify-end">
-                    <TextToSpeech text={message.content} />
+                <div className="flex items-start gap-2">
+                  <div
+                    className={`max-w-[85%] rounded-lg p-3 ${
+                      message.role === "user"
+                        ? "bg-primary text-primary-foreground"
+                        : message.role === "system"
+                        ? "bg-muted text-muted-foreground text-center"
+                        : "bg-secondary text-secondary-foreground"
+                    }`}
+                  >
+                    <div className="whitespace-pre-wrap">{message.content}</div>
+                    <div 
+                      className={`text-xs mt-1 ${
+                        message.role === "user" 
+                          ? "text-primary-foreground/70" 
+                          : message.role === "system"
+                          ? "text-muted-foreground"
+                          : "text-secondary-foreground/70"
+                      } flex justify-end`}
+                    >
+                      {formatTime(message.timestamp)}
+                    </div>
                   </div>
-                )}
+                  
+                  {message.role === "assistant" && (
+                    <TextToSpeech text={message.content} />
+                  )}
+                </div>
               </div>
-            </div>
-          ))
-        )}
-        {isTyping && <TypingIndicator />}
-        <div ref={messagesEndRef} />
-      </div>
+            ))}
 
-      {/* Input area */}
-      <div className="border-t p-3 bg-gray-50">
-        <div className="flex space-x-2">
-          <Textarea
-            ref={inputRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={placeholder}
-            className="flex-1 min-h-[60px] resize-none"
-            disabled={isLoading}
-          />
-          <div className="flex flex-col space-y-2">
-            <Button
-              onClick={sendMessage}
-              disabled={!input.trim() || isLoading}
-              className="bg-blue-500 hover:bg-blue-600"
-            >
-              {isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Send className="h-4 w-4" />
-              )}
-            </Button>
-            <VoiceRecorder onTranscription={handleVoiceInput} />
+            {isLoading && (
+              <div className="flex items-start">
+                <div className="max-w-[85%] rounded-lg p-4 bg-muted">
+                  <div className="flex items-center space-x-4">
+                    <Skeleton className="h-5 w-5" />
+                    <Skeleton className="h-4 w-32" />
+                  </div>
+                  <Skeleton className="h-4 w-full mt-2" />
+                  <Skeleton className="h-4 w-3/4 mt-2" />
+                </div>
+              </div>
+            )}
+
+            <div ref={messagesEndRef} />
           </div>
-        </div>
-      </div>
-    </div>
+        </ScrollArea>
+      </CardContent>
+
+      <CardFooter className="border-t pt-4">
+        <form onSubmit={handleSubmit} className="w-full space-y-2">
+          <div className="w-full flex items-center space-x-2">
+            <Textarea
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => {
+                setInput(e.target.value);
+                adjustTextareaHeight();
+              }}
+              onKeyDown={handleKeyDown}
+              placeholder="Type your question here..."
+              className="flex-1 resize-none min-h-[40px]"
+              disabled={isLoading}
+              rows={1}
+            />
+            <VoiceRecorder onTranscriptionComplete={handleTranscriptionComplete} />
+            <Button 
+              type="submit" 
+              size="icon" 
+              disabled={isLoading || (!input.trim() && !initialPrompt)}
+            >
+              <Send className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="flex justify-between items-center text-xs text-muted-foreground">
+            <div className="flex items-center">
+              <Timer className="h-3 w-3 mr-1" />
+              {sessionId ? "Session active" : "Starting session..."}
+            </div>
+            <div>Model: {model}</div>
+          </div>
+        </form>
+      </CardFooter>
+    </Card>
   );
 };
 

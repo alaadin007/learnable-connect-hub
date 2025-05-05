@@ -21,8 +21,8 @@ const NotFound = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="text-center max-w-md px-4">
-        <h1 className="text-7xl font-bold mb-4 text-blue-600">404</h1>
-        <p className="text-2xl text-gray-700 mb-6">Oops! Page not found</p>
+        <h1 className="text-7xl font-bold mb-4 gradient-text">404</h1>
+        <p className="text-2xl text-gray-600 mb-6">Oops! Page not found</p>
         <p className="text-gray-500 mb-8">
           The page you're looking for doesn't exist or has been moved.
         </p>
@@ -39,7 +39,7 @@ const NotFound = () => {
           
           <Button 
             onClick={goHome}
-            className="flex items-center gap-2 w-full sm:w-auto bg-blue-600 hover:bg-blue-700" 
+            className="flex items-center gap-2 w-full sm:w-auto gradient-bg" 
           >
             <Home className="h-4 w-4" />
             Return to Home

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/landing/Footer';
@@ -10,66 +9,28 @@ import FileUpload from '@/components/documents/FileUpload';
 import FileList from '@/components/documents/FileList';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
 
 const Documents: React.FC = () => {
-  const { user, profile } = useAuth();
+  const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('upload');
-  
+  const [redirecting, setRedirecting] = useState(false);
+
   // Redirect if not logged in
   useEffect(() => {
-    if (!user) {
+    if (!user && !redirecting) {
+      setRedirecting(true);
       navigate('/login', { state: { from: '/documents' } });
     }
-  }, [user, navigate]);
-
-  // Ensure storage bucket exists
-  useEffect(() => {
-    if (user) {
-      const initializeStorage = async () => {
-        try {
-          // Check if user-content bucket exists
-          const { data: buckets, error: bucketsError } = await supabase
-            .storage
-            .listBuckets();
-            
-          if (bucketsError) {
-            console.error("Error listing buckets:", bucketsError);
-            return;
-          }
-          
-          // Create the bucket if it doesn't exist
-          const userContentBucket = buckets?.find(b => b.name === 'user-content');
-          
-          if (!userContentBucket) {
-            // Create bucket directly
-            const { error: createError } = await supabase
-              .storage
-              .createBucket('user-content', {
-                public: false,
-                fileSizeLimit: 52428800 // 50MB
-              });
-              
-            if (createError) {
-              console.error("Error creating bucket:", createError);
-            } else {
-              console.log("User-content bucket created successfully");
-            }
-          }
-        } catch (err) {
-          console.error("Error initializing storage:", err);
-        }
-      };
-      
-      initializeStorage();
-    }
-  }, [user]);
+  }, [user, navigate, redirecting]);
 
   if (!user) {
-    return null; // Redirect handled in useEffect
+    return (
+      <div className="flex justify-center items-center h-screen" role="status" aria-live="polite">
+        {/* Consider replacing with spinner or skeleton */}
+        Loading your documents page...
+      </div>
+    );
   }
 
   return (
@@ -94,20 +55,18 @@ const Documents: React.FC = () => {
             </AlertDescription>
           </Alert>
 
-          <Card className="mb-8 shadow-sm">
+          <Card className="mb-8">
             <CardHeader className="pb-0">
               <CardTitle>Learning Materials</CardTitle>
             </CardHeader>
             <CardContent className="pt-6">
               <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="mb-6 w-full sm:w-auto" role="tablist">
-                  <TabsTrigger value="upload" role="tab" aria-selected={activeTab === 'upload'} className="flex-1 sm:flex-initial">Upload New</TabsTrigger>
-                  <TabsTrigger value="list" role="tab" aria-selected={activeTab === 'list'} className="flex-1 sm:flex-initial">My Files</TabsTrigger>
+                <TabsList className="mb-6" role="tablist">
+                  <TabsTrigger value="upload" role="tab" aria-selected={activeTab === 'upload'}>Upload New</TabsTrigger>
+                  <TabsTrigger value="list" role="tab" aria-selected={activeTab === 'list'}>My Files</TabsTrigger>
                 </TabsList>
                 <TabsContent value="upload" role="tabpanel" tabIndex={0}>
-                  <FileUpload 
-                    onSuccess={() => setActiveTab('list')} 
-                  />
+                  <FileUpload />
                 </TabsContent>
                 <TabsContent value="list" role="tabpanel" tabIndex={0}>
                   <FileList />
@@ -125,7 +84,7 @@ const Documents: React.FC = () => {
                 { title: '3. Chat', description: 'Ask questions in the chat about your documents and receive contextual responses.' },
                 { title: '4. Voice Input', description: 'Use the microphone button in chat to ask questions by speaking instead of typing.' },
               ].map((item, idx) => (
-                <Card key={idx} className="hover:shadow-md transition-shadow">
+                <Card key={idx}>
                   <CardContent className="p-6">
                     <h3 className="font-medium text-lg mb-2">{item.title}</h3>
                     <p className="text-sm text-gray-600">{item.description}</p>

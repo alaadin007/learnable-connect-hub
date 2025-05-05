@@ -19,70 +19,15 @@ export const supabase = createClient<Database>(
       detectSessionInUrl: true,
       flowType: 'pkce', // Use PKCE flow for more security but better compatibility
       debug: process.env.NODE_ENV === 'development', // Enable debug mode in development
-    },
-    global: {
-      // Set reasonable timeouts for fetches
-      fetch: (url, options) => {
-        const timeout = 15000; // 15 seconds - reduced timeout for faster feedback
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), timeout);
-        
-        return fetch(url, {
-          ...options,
-          signal: controller.signal,
-          headers: {
-            ...options?.headers,
-            'X-Client-Info': 'learning-platform-web-app', // Add client identifier for better tracking
-          },
-        })
-        .then(response => {
-          clearTimeout(timeoutId);
-          return response;
-        })
-        .catch(error => {
-          clearTimeout(timeoutId);
-          console.error('Supabase fetch error:', error);
-          throw error;
-        });
-      }
     }
   }
 );
 
-// Improved error handling for supabase operations
-supabase.auth.onAuthStateChange((event, session) => {
-  if (event === 'SIGNED_OUT') {
-    console.log('User signed out');
-    // Clear any local session data
-    localStorage.removeItem('lastActiveRole');
-    localStorage.removeItem('lastActiveSchool');
-    localStorage.removeItem('testUser');
-    localStorage.removeItem('testUserRole');
-    localStorage.removeItem('testUserIndex');
-  } else if (event === 'SIGNED_IN') {
-    console.log('User signed in');
-  }
-});
-
-// Enhanced helper function to detect test accounts
-export const isTestAccount = (email: string | null | undefined): boolean => {
+// Helper function to detect test accounts
+export const isTestAccount = (email: string): boolean => {
   // Used to identify development test accounts which get special handling
   if (!email) return false;
-  
-  // Check email domains and patterns
-  return email.endsWith('@testschool.edu') || 
-         email.endsWith('.test@learnable.edu') || 
-         email.includes('test') || 
-         email.includes('demo') ||
-         email === 'school.test@learnable.edu' ||
-         email === 'teacher.test@learnable.edu' ||
-         email === 'student.test@learnable.edu';
-};
-
-// Check if a school or user ID is a test entity
-export const isTestEntity = (id: string | null | undefined): boolean => {
-  if (!id) return false;
-  return id.startsWith('test-') || id.includes('test');
+  return email.endsWith('@testschool.edu') || email.endsWith('.test@learnable.edu');
 };
 
 // Default test school code - used when creating test accounts
@@ -95,60 +40,3 @@ export type TeacherInvitationResult = {
   school_name: string;
   email: string;
 }
-
-// Function to generate a random school code
-export const generateRandomSchoolCode = (): string => {
-  // Use a combination of uppercase letters and numbers to create a unique code
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Removed confusing chars like 0, O, 1, I
-  let result = '';
-  for (let i = 0; i < 8; i++) {
-    result += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return result;
-};
-
-// Fast role access validation using cached values first, with option to skip DB check
-export const validateRoleAccess = (userRole: string | null, requiredRole: string | string[] | undefined): boolean => {
-  if (!userRole || !requiredRole) return false;
-  
-  // For simple role validation, use the cached userRole
-  if (Array.isArray(requiredRole)) {
-    return requiredRole.includes(userRole);
-  } else {
-    return userRole === requiredRole;
-  }
-};
-
-// Original DB-based validation for special cases (if cached values might be stale)
-export const validateRoleAccessDB = async (userId: string | undefined, requiredRole: string | string[] | undefined): Promise<boolean> => {
-  if (!userId || !requiredRole) return false;
-  
-  try {
-    // Get user profile to check role
-    const { data: profile, error } = await supabase
-      .from('profiles')
-      .select('user_type')
-      .eq('id', userId)
-      .single();
-    
-    if (error) {
-      console.error("Role validation error:", error.message);
-      return false;
-    }
-    
-    if (!profile) {
-      console.warn("No profile found for user:", userId);
-      return false;
-    }
-    
-    // Check if user has required role
-    if (Array.isArray(requiredRole)) {
-      return requiredRole.includes(profile.user_type);
-    } else {
-      return profile.user_type === requiredRole;
-    }
-  } catch (error) {
-    console.error('Error validating role access:', error);
-    return false;
-  }
-};

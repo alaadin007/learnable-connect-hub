@@ -10,7 +10,7 @@ import { Send, Loader2, MessageCircle, Paperclip } from 'lucide-react';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
 import { Badge } from '@/components/ui/badge';
-import { sessionLogger, SessionLogOptions, PerformanceMetric } from '@/utils/sessionLogger';
+import sessionLogger from '@/utils/sessionLogger';
 import VoiceRecorder from './VoiceRecorder';
 import TextToSpeech from './TextToSpeech';
 
@@ -45,8 +45,7 @@ const PersistentChatInterface: React.FC<PersistentChatInterfaceProps> = ({
   useEffect(() => {
     const startNewSession = async () => {
       try {
-        const options: SessionLogOptions = topic ? { topic } : {};
-        const newSessionId = await sessionLogger.startSession(options);
+        const newSessionId = await sessionLogger.startSession(topic);
         if (newSessionId) {
           setSessionId(newSessionId);
         }
@@ -59,8 +58,7 @@ const PersistentChatInterface: React.FC<PersistentChatInterfaceProps> = ({
 
     return () => {
       if (sessionId) {
-        const metrics: PerformanceMetric = {}; // Empty performance metrics for chat
-        sessionLogger.endSession(metrics);
+        sessionLogger.endSession(sessionId);
       }
     };
   }, [topic]);
@@ -164,7 +162,7 @@ const PersistentChatInterface: React.FC<PersistentChatInterfaceProps> = ({
       const aiMessage = {
         id: uuidv4(),
         role: 'assistant' as const,
-        content: aiData.answer,
+        content: aiData.response,
         timestamp: new Date().toISOString()
       };
       

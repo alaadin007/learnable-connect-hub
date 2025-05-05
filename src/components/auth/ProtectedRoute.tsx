@@ -1,71 +1,73 @@
 
-import React from "react";
-import { Navigate, useLocation, Outlet } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
-import { toast } from "sonner";
+import { Navigate, useLocation } from "react-router-dom";
+import { useAuth, UserRole } from "@/contexts/AuthContext";
 
 interface ProtectedRouteProps {
-  children?: React.ReactNode;
-  requiredRole?: string;
-  allowedRoles?: string[];
+  children: React.ReactNode;
+  requiredUserType?: UserRole;
   requireSupervisor?: boolean;
   requireSameSchool?: boolean;
-  redirectTo?: string;
+  schoolId?: string;
+  allowedRoles?: Array<UserRole>;
 }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
-  children,
-  requiredRole,
-  allowedRoles,
+const ProtectedRoute = ({ 
+  children, 
+  requiredUserType,
+  allowedRoles, 
   requireSupervisor = false,
   requireSameSchool = false,
-  redirectTo = "/login",
-}) => {
-  const { user, userRole, isSupervisor = false, schoolId, isTestUser = false } = useAuth();
+  schoolId
+}: ProtectedRouteProps) => {
+  const { user, profile, isSuperviser, isLoading, userRole, schoolId: userSchoolId } = useAuth();
   const location = useLocation();
-  
-  // For test users, bypass all permission checks
-  if (isTestUser) {
-    console.log(`Test user with role ${userRole} accessing area. All permissions granted for testing.`);
-    return <>{children || <Outlet />}</>;
+
+  if (isLoading) {
+    return <div className="flex items-center justify-center h-screen">Loading...</div>;
   }
-  
-  // If no user, redirect immediately
+
+  // Not logged in
   if (!user) {
-    console.log("ProtectedRoute: No user detected, access denied");
-    return <Navigate to={redirectTo} replace state={{ from: location.pathname }} />;
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Check role requirements
-  if (requiredRole && userRole !== requiredRole) {
-    console.log(`Access denied: Required role ${requiredRole}, user has ${userRole}`);
-    toast.error("You don't have permission to access this page");
-    return <Navigate to="/unauthorized" replace state={{ from: location.pathname }} />;
-  }
-  
-  // Check allowed roles
-  if (allowedRoles && allowedRoles.length > 0 && (!userRole || !allowedRoles.includes(userRole))) {
-    console.log(`Access denied: User role ${userRole} not in allowed roles [${allowedRoles.join(", ")}]`);
-    toast.error("You don't have permission to access this page");
-    return <Navigate to="/unauthorized" replace state={{ from: location.pathname }} />;
+  // If we require a specific user type and the user doesn't have it
+  if (requiredUserType && userRole !== requiredUserType) {
+    // Redirect based on user role instead of generic dashboard
+    const redirectPath = userRole === 'school' ? '/admin' : 
+                        userRole === 'teacher' ? '/teacher/analytics' : 
+                        '/dashboard';
+    return <Navigate to={redirectPath} replace />;
   }
 
-  // Check supervisor requirement
-  if (requireSupervisor && !isSupervisor) {
-    console.log("Access denied: Supervisor privileges required");
-    toast.error("This action requires supervisor privileges");
-    return <Navigate to="/unauthorized" replace state={{ from: location.pathname }} />;
+  // If we require specific roles and the user doesn't have one of them
+  if (allowedRoles && userRole && !allowedRoles.includes(userRole)) {
+    // Redirect based on user role instead of generic dashboard
+    const redirectPath = userRole === 'school' ? '/admin' : 
+                        userRole === 'teacher' ? '/teacher/analytics' : 
+                        '/dashboard';
+    return <Navigate to={redirectPath} replace />;
   }
 
-  // Check school requirement
-  if (requireSameSchool && !schoolId) {
-    console.log("Access denied: School association required");
-    toast.error("You need to be associated with a school to access this page");
-    return <Navigate to="/unauthorized" replace state={{ from: location.pathname }} />;
+  // If we require supervisor access and the user isn't a supervisor
+  if (requireSupervisor && !isSuperviser) {
+    // Redirect based on user role instead of generic dashboard
+    const redirectPath = userRole === 'school' ? '/admin' : 
+                        userRole === 'teacher' ? '/teacher/analytics' : 
+                        '/dashboard';
+    return <Navigate to={redirectPath} replace />;
   }
-  
-  // User is authorized, render children or Outlet
-  return <>{children || <Outlet />}</>;
+
+  // If we require same school access and the school IDs don't match
+  if (requireSameSchool && schoolId && userSchoolId && schoolId !== userSchoolId) {
+    // Redirect based on user role
+    const redirectPath = userRole === 'school' ? '/admin' : 
+                        userRole === 'teacher' ? '/teacher/analytics' : 
+                        '/dashboard';
+    return <Navigate to={redirectPath} replace />;
+  }
+
+  return <>{children}</>;
 };
 
 export default ProtectedRoute;

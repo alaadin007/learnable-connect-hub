@@ -13,7 +13,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 const TEST_ACCOUNTS = {
   school: {
     email: "school.test@learnable.edu",
-    password: "test123456",
+    password: "school123",
     role: "School Admin",
     description: "Access the school administrator dashboard and manage teachers",
     features: [
@@ -26,7 +26,7 @@ const TEST_ACCOUNTS = {
   },
   teacher: {
     email: "teacher.test@learnable.edu",
-    password: "test123456",
+    password: "teacher123",
     role: "Teacher",
     description: "Access teacher analytics and student management",
     features: [
@@ -39,7 +39,7 @@ const TEST_ACCOUNTS = {
   },
   student: {
     email: "student.test@learnable.edu",
-    password: "test123456",
+    password: "student123",
     role: "Student",
     description: "Access student dashboard with learning tools",
     features: [
@@ -60,17 +60,12 @@ const TestAccounts = () => {
   const [loadingAccount, setLoadingAccount] = useState<AccountType | null>(null);
   const [dataCreationLoading, setDataCreationLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
 
   // Clear any existing sessions when arriving at the test accounts page
   useEffect(() => {
     const clearPreviousSessions = async () => {
       try {
         await supabase.auth.signOut();
-        localStorage.removeItem("testUser");
-        localStorage.removeItem("testUserRole");
-        localStorage.removeItem("testUserIndex");
-        localStorage.removeItem("activeSessionId");
         console.log("TestAccounts: Cleared previous sessions on page load");
       } catch (error) {
         console.error("Error clearing sessions:", error);
@@ -83,198 +78,87 @@ const TestAccounts = () => {
   const createTestAccounts = useCallback(async () => {
     try {
       setDataCreationLoading(true);
-      setErrorMessage(null);
-      setRefreshing(true);
       toast.loading("Refreshing test accounts...", {
         id: "test-accounts-status",
       });
 
-      // Create test accounts directly with database operations
-      const schoolType = "school";
-      const teacherType = "teacher";
-      const studentType = "student";
-      
-      // Create test school
-      const schoolId = `test-school-0`;
-      const schoolCode = "TEST0";
-      const schoolName = "Test School";
-      
-      // Create school code
-      const { error: schoolCodeError } = await supabase.from('school_codes')
-        .upsert({
-          code: schoolCode,
-          school_name: schoolName,
-          active: true
+      // Check if create-test-accounts function is available in Supabase config
+      const response = await supabase.functions.invoke("create-test-accounts", {
+        body: { createAccounts: true },
+      });
+
+      if (response.error) {
+        toast.error("Failed to refresh test accounts", {
+          id: "test-accounts-error",
         });
-      
-      if (schoolCodeError) {
-        console.error("Error creating school code:", schoolCodeError);
-      }
-      
-      // Create or update school
-      const { error: schoolError } = await supabase.from('schools')
-        .upsert({
-          id: schoolId,
-          name: schoolName,
-          code: schoolCode
-        });
-      
-      if (schoolError) {
-        console.error("Error creating school:", schoolError);
-      }
-      
-      // Create test users with stable IDs
-      const testUsers = [
-        {
-          id: `test-${schoolType}-0`,
-          user_type: schoolType,
-          full_name: `Test School Admin`,
-          school_code: schoolCode,
-          school_name: schoolName
-        },
-        {
-          id: `test-${teacherType}-0`,
-          user_type: teacherType,
-          full_name: `Test Teacher`,
-          school_code: schoolCode,
-          school_name: schoolName
-        },
-        {
-          id: `test-${studentType}-0`,
-          user_type: studentType,
-          full_name: `Test Student`,
-          school_code: schoolCode,
-          school_name: schoolName
-        }
-      ];
-      
-      // Create or update profiles
-      for (const user of testUsers) {
-        const { error: profileError } = await supabase.from('profiles')
-          .upsert({
-            id: user.id,
-            user_type: user.user_type,
-            full_name: user.full_name,
-            school_code: user.school_code,
-            school_name: user.school_name
-          });
-        
-        if (profileError) {
-          console.error(`Error creating profile for ${user.user_type}:`, profileError);
-        }
-      }
-      
-      // Set up school admin as teacher with supervisor status
-      const { error: adminTeacherError } = await supabase.from('teachers')
-        .upsert({
-          id: `test-${schoolType}-0`,
-          school_id: schoolId,
-          is_supervisor: true
-        });
-      
-      if (adminTeacherError) {
-        console.error("Error creating admin teacher:", adminTeacherError);
-      }
-      
-      // Create teacher
-      const { error: teacherError } = await supabase.from('teachers')
-        .upsert({
-          id: `test-${teacherType}-0`,
-          school_id: schoolId,
-          is_supervisor: false
-        });
-      
-      if (teacherError) {
-        console.error("Error creating teacher:", teacherError);
-      }
-      
-      // Create student
-      const { error: studentError } = await supabase.from('students')
-        .upsert({
-          id: `test-${studentType}-0`,
-          school_id: schoolId
-        });
-      
-      if (studentError) {
-        console.error("Error creating student:", studentError);
-      }
-      
-      // Create test API keys
-      for (const user of testUsers) {
-        const { error: apiKeyError } = await supabase.from('user_api_keys')
-          .upsert({
-            user_id: user.id,
-            provider: 'openai',
-            api_key: 'sk-test-key-for-development-purposes-only'
-          });
-        
-        if (apiKeyError) {
-          console.error(`Error creating API key for ${user.user_type}:`, apiKeyError);
-        }
-      }
-      
-      // Generate mock session data for student
-      try {
-        const { error: rpcError } = await supabase.rpc('populatetestaccountwithsessions', {
-          userid: `test-${studentType}-0`,
-          schoolid: schoolId,
-          num_sessions: 5
-        });
-        
-        if (rpcError) {
-          console.error("Error generating test sessions:", rpcError);
-        }
-      } catch (sessionError) {
-        console.error("Failed to call populate sessions function:", sessionError);
+        console.error("Error creating test accounts:", response.error);
+        return false;
       }
 
       toast.success("Test accounts refreshed successfully!", {
         id: "test-accounts-success",
       });
       return true;
-    } catch (error: any) {
-      const errorMsg = `Error refreshing test accounts: ${error.message || "Unknown error"}`;
-      console.error(errorMsg, error);
-      toast.error(errorMsg, {
+    } catch (error) {
+      console.error("Error refreshing test accounts:", error);
+      toast.error("An error occurred while refreshing test accounts", {
         id: "test-accounts-general-error",
       });
-      setErrorMessage(errorMsg);
       return false;
     } finally {
       setDataCreationLoading(false);
-      setRefreshing(false);
       toast.dismiss("test-accounts-status");
     }
   }, []);
 
-  // Updated for direct database operations instead of using edge functions
   const handleUseAccount = useCallback(
     async (accountType: AccountType) => {
       setErrorMessage(null);
       setLoadingAccount(accountType);
-      
+      const account = TEST_ACCOUNTS[accountType];
+
       try {
-        console.log(`TestAccounts: Setting up direct login for ${accountType} test account...`);
+        console.log(`TestAccounts: Logging in as ${accountType} test account...`);
         
-        // Immediately store role for quicker detection
-        localStorage.setItem("testUserRole", accountType);
-        localStorage.setItem("testUserIndex", "0");
+        // First set test user in auth context
+        await setTestUser(accountType);
         
-        // Create or ensure test account exists
-        const userId = `test-${accountType}-0`;
-        const schoolId = "test-school-0";
+        // Immediately show success toast so user gets feedback
+        toast.success(`Logged in as ${account.role}`, {
+          id: `login-success-${accountType}`,
+        });
+
+        // Define redirect paths based on account type
+        let redirectPath = "/dashboard";
         
-        // Pass false to setTestUser to avoid loading states
-        await setTestUser(accountType, 0, false);
+        if (accountType === "school") {
+          redirectPath = "/admin";
+        } else if (accountType === "teacher") {
+          redirectPath = "/teacher/analytics";
+        }
+
+        console.log(`TestAccounts: Navigating to ${redirectPath} for ${accountType}`);
+        
+        // Don't add a delay here - navigate right away with proper state parameters
+        navigate(redirectPath, {
+          replace: true,
+          state: { 
+            fromTestAccounts: true,
+            accountType,
+            preserveContext: true,
+            timestamp: Date.now()
+          }
+        });
       } catch (error: any) {
         console.error(`Error setting up ${accountType} test account:`, error);
         setErrorMessage(`Setup failed: ${error.message || "Unknown error"}`);
-        toast.error(`Error setting up test account: ${error.message || "Unknown error"}`);
-      } finally {
+        toast.error(`Account setup failed: ${error.message || "Unknown error"}`);
+        
+        // Make sure to reset loading state on error
         setLoadingAccount(null);
       }
     },
-    [setTestUser]
+    [navigate, setTestUser]
   );
 
   const getAccountIcon = (accountType: AccountType) => {
@@ -288,17 +172,6 @@ const TestAccounts = () => {
     }
   };
 
-  const getButtonLabel = (accountType: AccountType) => {
-    switch (accountType) {
-      case "school":
-        return "Login as School Admin";
-      case "teacher": 
-        return "Login as Teacher";
-      case "student":
-        return "Login as Student";
-    }
-  };
-
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
@@ -308,7 +181,7 @@ const TestAccounts = () => {
         aria-busy={dataCreationLoading || loadingAccount !== null}
       >
         <div className="max-w-4xl w-full mx-auto">
-          {errorMessage && !refreshing && (
+          {errorMessage && (
             <div
               className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4"
               role="alert"
@@ -342,7 +215,7 @@ const TestAccounts = () => {
           <Alert className="mb-6 bg-amber-50" role="region" aria-label="Test accounts information">
             <Info className="h-4 w-4" aria-hidden="true" />
             <AlertDescription>
-              <strong>Instant Login:</strong> Test accounts login instantly with no authentication required - just click to access the platform with your selected role!
+              All test accounts are automatically authenticated - just click login to access the platform with the selected role!
             </AlertDescription>
           </Alert>
 
@@ -401,7 +274,7 @@ const TestAccounts = () => {
                   </ul>
                   <div className="bg-green-50 p-2 rounded-md">
                     <p className="text-green-700 text-xs font-semibold">
-                      Instant access - no authentication required
+                      Direct access - no authentication required
                     </p>
                   </div>
                 </div>
@@ -413,10 +286,10 @@ const TestAccounts = () => {
                   {loadingAccount === type ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Setting Up...
+                      Accessing...
                     </>
                   ) : (
-                    getButtonLabel(type as AccountType)
+                    `Login as ${account.role}`
                   )}
                 </Button>
               </div>

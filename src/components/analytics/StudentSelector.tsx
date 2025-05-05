@@ -1,88 +1,54 @@
-
-import * as React from "react";
-import { Check, ChevronDown, User } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-} from "@/components/ui/command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import React, { useCallback } from "react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Student } from "./types";
 
 interface StudentSelectorProps {
-  students: Student[];
+  students?: Student[];
+  selectedStudent?: Student | null;
   selectedStudentId?: string;
-  onSelect: (studentId: string | null) => void;
-  className?: string;
+  onStudentSelect?: (student: Student | null) => void;
+  onStudentChange?: (studentId: string | undefined) => void;
 }
 
-export const StudentSelector: React.FC<StudentSelectorProps> = ({
-  students,
+export function StudentSelector({ 
+  students = [], 
   selectedStudentId,
-  onSelect,
-  className,
-}) => {
-  const [open, setOpen] = React.useState(false);
-  
-  // Make sure students is always an array
-  const studentsList = Array.isArray(students) ? students : [];
+  onStudentSelect,
+  onStudentChange
+}: StudentSelectorProps) {
+  const handleSelect = useCallback(
+    (value: string) => {
+      if (value === "all") {
+        onStudentSelect?.(null);
+        onStudentChange?.(undefined);
+        return;
+      }
 
-  const selectedStudent = studentsList.find(
-    (student) => student.id === selectedStudentId
+      const student = students.find(s => s.id === value);
+      if (student) {
+        onStudentSelect?.(student);
+      }
+      onStudentChange?.(value);
+    },
+    [students, onStudentSelect, onStudentChange]
   );
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          className={cn("w-[200px] justify-between", className)}
-        >
-          <div className="flex items-center gap-2">
-            <User className="h-4 w-4 text-muted-foreground" />
-            {selectedStudent ? selectedStudent.name : "Select student"}
-          </div>
-          <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[200px] p-0">
-        <Command>
-          <CommandInput placeholder="Search student..." />
-          <CommandEmpty>No student found.</CommandEmpty>
-          <CommandGroup>
-            {studentsList.map((student) => (
-              <CommandItem
-                key={student.id}
-                value={student.name}
-                onSelect={() => {
-                  onSelect(student.id === selectedStudentId ? null : student.id);
-                  setOpen(false);
-                }}
-              >
-                <Check
-                  className={cn(
-                    "mr-2 h-4 w-4",
-                    selectedStudentId === student.id
-                      ? "opacity-100"
-                      : "opacity-0"
-                  )}
-                />
-                {student.name}
-              </CommandItem>
-            ))}
-          </CommandGroup>
-        </Command>
-      </PopoverContent>
-    </Popover>
+    <Select 
+      value={selectedStudentId ?? "all"} 
+      onValueChange={handleSelect}
+    >
+      <SelectTrigger className="w-full">
+        <SelectValue placeholder="All Students" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="all">All Students</SelectItem>
+        {students.map(student => (
+          <SelectItem key={student.id} value={student.id}>
+            {student.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
-};
+}

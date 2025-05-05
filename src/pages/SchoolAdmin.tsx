@@ -1,25 +1,24 @@
 
 import React, { useEffect, useState } from "react";
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
 import { useAuth } from "@/contexts/AuthContext";
 import TeacherManagement from "@/components/school-admin/TeacherManagement";
-import StudentInvitation from "@/components/school-admin/StudentInvitation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Users, BarChart2, ChevronDown, Settings, User, MessageSquare, FileText, RefreshCw } from 'lucide-react';
-import { toast } from 'sonner';
+import { Link, useNavigate, useLocation } from "react-router-dom";
+import { Users, BarChart2, ChevronDown, Settings, User } from "lucide-react";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { getCurrentSchoolInfo } from '@/utils/schoolUtils';
-import { School } from "@/components/analytics/types";
 
+// Define the basic type for teacher invitations
 export type TeacherInvitation = {
   id: string;
   email: string;
@@ -32,82 +31,26 @@ export type TeacherInvitation = {
 };
 
 const SchoolAdmin = () => {
+  const { profile, userRole } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [activeTab, setActiveTab] = useState("teachers");
-  const { profile, userRole, user } = useAuth();
   
-  const [schoolInfo, setSchoolInfo] = useState<School>({
-    id: '',
-    name: "Loading...",
-    code: "Loading..."
-  });
-  
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  
-  // Fetch school info directly from the database
-  const fetchSchoolInfo = async () => {
-    try {
-      const loadingState = isRefreshing ? setIsRefreshing : setIsLoading;
-      loadingState(true);
-      
-      const schoolData = await getCurrentSchoolInfo();
-      
-      if (schoolData) {
-        // Handle different return types from getCurrentSchoolInfo
-        if ('school_id' in schoolData) {
-          // This is the response from the RPC function
-          setSchoolInfo({
-            id: schoolData.school_id,
-            name: schoolData.school_name || "Not available",
-            code: schoolData.school_code || "Not available"
-          });
-        } else {
-          // This is the direct schools table response
-          setSchoolInfo({
-            id: schoolData.id,
-            name: schoolData.name || "Not available",
-            code: schoolData.code || "Not available"
-          });
-        }
-      } else {
-        toast.error("Could not fetch school information");
-      }
-    } catch (error) {
-      console.error("Error fetching school info:", error);
-      toast.error("Failed to load school information");
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  };
-  
-  useEffect(() => {
-    fetchSchoolInfo();
-  }, []);
-  
-  // Safety check for authentication
-  useEffect(() => {
-    if (!user) {
-      toast.error("You must be logged in to access this page");
-      navigate("/login", { state: { from: location.pathname } });
-    }
-  }, [user, navigate, location.pathname]);
+  // Use optional chaining for organization properties
+  const schoolId = profile?.organization?.id || null;
   
   // Verify correct user role
   useEffect(() => {
     if (userRole && userRole !== "school") {
-      console.log(`SchoolAdmin: Redirecting user with role ${userRole} to dashboard`);
-      navigate("/dashboard", { state: { fromRoleRedirect: true } });
+      navigate("/dashboard");
     }
   }, [userRole, navigate]);
 
-  // Handle Quick actions dropdown
+  // Fixed Quick actions dropdown handler to prevent navigation issues
   const handleQuickActionSelect = (action: string) => {
     switch (action) {
       case "manage-teachers":
-        navigate("/admin/teachers");
+        navigate("/admin/teacher-management");
         break;
       case "view-analytics":
         navigate("/admin/analytics");
@@ -119,13 +62,11 @@ const SchoolAdmin = () => {
         navigate("/admin/students");
         break;
       case "dashboard":
-        navigate("/dashboard");
-        break;
-      case "chat":
-        navigate("/chat");
-        break;
-      case "documents":
-        navigate("/documents");
+        // Clear any previous state and set new state to prevent redirect loops
+        navigate("/dashboard", { 
+          state: { fromNavigation: true },
+          replace: true
+        });
         break;
       default:
         break;
@@ -140,8 +81,6 @@ const SchoolAdmin = () => {
       navigate("/admin/students");
     } else if (value === "settings") {
       navigate("/admin/settings");
-    } else if (value === "teachers") {
-      navigate("/admin/teachers");
     }
   };
 
@@ -157,49 +96,28 @@ const SchoolAdmin = () => {
             </p>
           </div>
           
-          {/* School Information Card */}
           <Card className="mb-6">
-            <CardHeader className="flex flex-row items-start justify-between">
-              <div>
-                <CardTitle>School Information</CardTitle>
-                <CardDescription>Your school details</CardDescription>
-              </div>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="p-0" 
-                onClick={fetchSchoolInfo} 
-                disabled={isRefreshing}
-              >
-                <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                <span className="sr-only">Refresh</span>
-              </Button>
+            <CardHeader>
+              <CardTitle>School Information</CardTitle>
+              <CardDescription>Your school details</CardDescription>
             </CardHeader>
             <CardContent>
-              {isLoading ? (
-                <div className="space-y-2">
-                  <div className="h-6 bg-gray-100 animate-pulse rounded"></div>
-                  <div className="h-6 bg-gray-100 animate-pulse rounded"></div>
+              <div className="space-y-2">
+                <div className="flex flex-col sm:flex-row sm:items-center">
+                  <span className="font-medium min-w-32">School Name:</span>
+                  <span>{profile?.organization?.name || "Not available"}</span>
                 </div>
-              ) : (
-                <div className="space-y-2">
-                  <div className="flex flex-col sm:flex-row sm:items-center">
-                    <span className="font-medium min-w-32">School Name:</span>
-                    <span>{schoolInfo.name}</span>
-                  </div>
-                  <div className="flex flex-col sm:flex-row sm:items-center">
-                    <span className="font-medium min-w-32">School Code:</span>
-                    <span className="font-mono">{schoolInfo.code}</span>
-                  </div>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Your school code is used to invite teachers and students to join your school.
-                  </p>
+                <div className="flex flex-col sm:flex-row sm:items-center">
+                  <span className="font-medium min-w-32">School Code:</span>
+                  <span className="font-mono">{profile?.organization?.code || "Not available"}</span>
                 </div>
-              )}
+                <p className="text-sm text-muted-foreground mt-2">
+                  Your school code is used to invite teachers and students to join your school.
+                </p>
+              </div>
             </CardContent>
           </Card>
           
-          {/* Quick Actions */}
           <div className="mb-6 flex flex-wrap gap-3 justify-between items-center">
             <h2 className="text-xl font-semibold">Quick Actions</h2>
             <div className="flex flex-wrap gap-3">
@@ -231,20 +149,11 @@ const SchoolAdmin = () => {
                     <User className="mr-2 h-4 w-4" />
                     <span>Student Management</span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleQuickActionSelect("chat")}>
-                    <MessageSquare className="mr-2 h-4 w-4" />
-                    <span>Chat</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleQuickActionSelect("documents")}>
-                    <FileText className="mr-2 h-4 w-4" />
-                    <span>Documents</span>
-                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
           </div>
           
-          {/* Main Content Tabs */}
           <Tabs defaultValue="teachers" value={activeTab} onValueChange={handleTabClick} className="space-y-4">
             <TabsList className="w-full border-b">
               <TabsTrigger value="teachers" className="flex-1">
@@ -273,9 +182,8 @@ const SchoolAdmin = () => {
                     <p className="text-muted-foreground mb-4">
                       Manage your school's students, including enrollment and class assignments.
                     </p>
-                    <StudentInvitation />
                     <Button 
-                      onClick={() => navigate('/admin/students')}
+                      onClick={() => navigate('/admin/students')} 
                       className="w-full sm:w-auto gradient-bg"
                     >
                       <User className="mr-2 h-4 w-4" />
@@ -298,7 +206,7 @@ const SchoolAdmin = () => {
                       Configure your school settings, including notification preferences and school details.
                     </p>
                     <Button 
-                      onClick={() => navigate('/admin/settings')}
+                      onClick={() => navigate('/admin/settings')} 
                       className="w-full sm:w-auto gradient-bg"
                     >
                       <Settings className="mr-2 h-4 w-4" />
@@ -309,51 +217,6 @@ const SchoolAdmin = () => {
               </Card>
             </TabsContent>
           </Tabs>
-          
-          {/* Additional Cards for Chat and Documents */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Chat with AI</CardTitle>
-                <CardDescription>Get help from our AI learning assistant</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col gap-4">
-                  <p className="text-muted-foreground mb-4">
-                    Get assistance with administrative tasks and educational questions.
-                  </p>
-                  <Button 
-                    onClick={() => navigate('/chat')}
-                    className="w-full sm:w-auto gradient-bg"
-                  >
-                    <MessageSquare className="mr-2 h-4 w-4" />
-                    Go to Chat
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader>
-                <CardTitle>Documents</CardTitle>
-                <CardDescription>Upload and manage learning materials</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col gap-4">
-                  <p className="text-muted-foreground mb-4">
-                    Manage and organize educational documents for your school.
-                  </p>
-                  <Button 
-                    onClick={() => navigate('/documents')}
-                    className="w-full sm:w-auto gradient-bg"
-                  >
-                    <FileText className="mr-2 h-4 w-4" />
-                    Go to Documents
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
         </div>
       </main>
       <Footer />

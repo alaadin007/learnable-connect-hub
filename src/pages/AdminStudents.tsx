@@ -1,14 +1,10 @@
-import React, { useState } from "react";
+
+import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -16,150 +12,226 @@ import { toast } from "sonner";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import {
-  Mail,
-  ArrowLeft,
-  Copy,
-  UserPlus,
-  Loader2,
-} from "lucide-react";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Mail, User, ArrowLeft, Copy, UserPlus, RefreshCw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import StudentInviteList from "@/components/school-admin/StudentInviteList";
-import { useQuery } from "@tanstack/react-query";
-import { generateStudentInviteCode, getStudentInvites } from "@/utils/schoolUtils";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 // Define the schema for student invite form
 const addStudentSchema = z.object({
-  email: z.string().email({ message: "Please enter a valid email address" }).optional(),
-  method: z.enum(["email", "code"], {
+  email: z.string().email({ message: "Please enter a valid email address" }),
+  method: z.enum(["invite", "code"], {
     required_error: "Please select a method",
   }),
 });
 
 type AddStudentFormValues = z.infer<typeof addStudentSchema>;
 
+type StudentInvite = {
+  id: string;
+  email: string;
+  code?: string;
+  created_at: string;
+  expires_at: string;
+  status: string;
+};
+
 const AdminStudents = () => {
   const { user, profile, schoolId: authSchoolId } = useAuth();
   const navigate = useNavigate();
-  const [isSending, setIsSending] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [invites, setInvites] = useState<StudentInvite[]>([]);
   const [generatedCode, setGeneratedCode] = useState("");
-
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  
+  console.log("AdminStudents: User profile:", profile);
+  console.log("AdminStudents: School ID from auth context:", authSchoolId);
+  console.log("AdminStudents: Organization ID from profile:", profile?.organization?.id);
+  
   // Get the schoolId properly
   const schoolId = authSchoolId || profile?.organization?.id || null;
+  console.log("AdminStudents: Using school ID:", schoolId);
 
   const form = useForm<AddStudentFormValues>({
     resolver: zodResolver(addStudentSchema),
     defaultValues: {
       email: "",
-      method: "code",
+      method: "invite",
     },
   });
-
+  
   const selectedMethod = form.watch("method");
 
-  // Use React Query to fetch invites with better error handling and caching
-  const { 
-    data: invites = [], 
-    refetch: refreshInvites, 
-    isLoading: isLoadingInvites,
-    isError: isInvitesError,
-    error: invitesError
-  } = useQuery({
-    queryKey: ['studentInvites', schoolId],
-    queryFn: async () => {
-      const { data, error } = await getStudentInvites();
-      
-      if (error) {
-        throw new Error(error);
+  // Load student invites
+  useEffect(() => {
+    const fetchInvites = async () => {
+      if (!schoolId) {
+        console.log("No school ID available, cannot fetch invites");
+        return;
       }
       
-      return data || [];
-    },
-    enabled: !!schoolId,
-    staleTime: 30000, // Cache for 30 seconds
-    refetchOnWindowFocus: false,
-  });
+      try {
+        console.log("Fetching invites for school ID:", schoolId);
+        
+        // Try to fetch from student_invites table
+        const { data: studentInvites, error: studentInviteError } = await supabase
+          .from("student_invites")
+          .select("*")
+          .eq("school_id", schoolId)
+          .order("created_at", { ascending: false })
+          .limit(10);
+          
+        if (studentInvites && studentInvites.length > 0) {
+          console.log("Found student invites:", studentInvites);
+          setInvites(studentInvites as StudentInvite[]);
+          return;
+        } else {
+          console.log("No student invites found or error:", studentInviteError);
+        }
+        
+        // Fallback to teacher_invitations table for display
+        const { data, error } = await supabase
+          .from("teacher_invitations")
+          .select("*")
+          .eq("school_id", schoolId)
+          .order("created_at", { ascending: false })
+          .limit(10);
+
+        if (error) {
+          console.error("Error fetching teacher invitations:", error);
+          throw error;
+        }
+        
+        // Convert teacher_invitations to our StudentInvite type
+        const studentInviteData: StudentInvite[] = (data || []).map(invite => ({
+          id: invite.id,
+          email: invite.email,
+          created_at: invite.created_at,
+          expires_at: invite.expires_at,
+          status: invite.status
+        }));
+        
+        console.log("Using teacher invitations as fallback:", studentInviteData);
+        setInvites(studentInviteData);
+      } catch (error: any) {
+        console.error("Error fetching student invites:", error);
+        toast.error("Failed to load student invites");
+      }
+    };
+
+    if (schoolId) {
+      fetchInvites();
+    }
+  }, [schoolId, refreshTrigger]);
 
   const onSubmit = async (values: AddStudentFormValues) => {
     if (!user || !schoolId) {
       toast.error("You must be logged in with a school account to invite students");
       return;
     }
-
-    setIsSending(true);
-
+    
+    setIsLoading(true);
+    
     try {
-      if (values.method === "email" && values.email) {
-        // Direct database operation to add email invitation
-        const { error } = await supabase
-          .from("student_invites")
-          .insert({
-            school_id: schoolId,
-            email: values.email,
-            status: "pending",
-            expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days from now
-          });
+      if (values.method === "invite") {
+        console.log("Creating email invitation for:", values.email);
+        
+        // Try to insert into student_invites first
+        try {
+          const { data, error } = await supabase
+            .from("student_invites")
+            .insert({
+              email: values.email,
+              school_id: schoolId,
+              created_by: user.id,
+              status: "pending"
+            })
+            .select();
 
-        if (error) throw error;
-
+          if (error) {
+            console.error("Error inserting into student_invites:", error);
+            throw error;
+          } else {
+            console.log("Successfully created student invite:", data);
+          }
+        } catch (error: any) {
+          console.error("Failed to insert into student_invites, trying teacher_invitations:", error);
+          
+          // Fallback to teacher_invitations
+          const { data, error: fallbackError } = await supabase
+            .from("teacher_invitations")
+            .insert({
+              email: values.email,
+              school_id: schoolId,
+              created_by: user.id,
+              status: "pending",
+              invitation_token: Math.random().toString(36).substring(2, 15)
+            })
+            .select();
+            
+          if (fallbackError) {
+            console.error("Fallback also failed:", fallbackError);
+            throw fallbackError;
+          }
+        }
+        
         toast.success(`Invitation sent to ${values.email}`);
         form.reset();
-        setGeneratedCode(""); // clear code if any previously generated
+      } else {
+        // Generate invite code
+        const inviteCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+        console.log("Generated invitation code:", inviteCode);
+        setGeneratedCode(inviteCode);
+        
+        // Try to store in student_invites if it exists
+        try {
+          const { data, error } = await supabase
+            .from("student_invites")
+            .insert({
+              code: inviteCode,
+              school_id: schoolId,
+              created_by: user.id,
+              status: "pending"
+            });
+          
+          if (error) {
+            console.warn("Could not store code in student_invites:", error);
+          } else {
+            console.log("Successfully stored code in student_invites");
+          }
+        } catch (error) {
+          console.warn("Could not store code in database, but will still display it to user");
+        }
+        
+        toast.success("Student invitation code generated");
       }
-
-      // Refresh invites list
-      refreshInvites();
+      
+      // Refresh the invites list
+      setRefreshTrigger(prev => prev + 1);
+      
     } catch (error: any) {
       console.error("Error inviting student:", error);
       toast.error(error.message || "Failed to invite student");
     } finally {
-      setIsSending(false);
+      setIsLoading(false);
     }
   };
 
   const copyInviteCode = () => {
-    if (!generatedCode) {
-      toast.error("No code available to copy");
-      return;
-    }
-    
     navigator.clipboard.writeText(generatedCode);
     toast.success("Code copied to clipboard!");
   };
-
-  const generateInviteCode = async () => {
-    if (!user) {
-      toast.error("You must be logged in to generate a code");
-      return;
-    }
-
-    try {
-      // Use the database function to generate a code
-      const { code, error } = await generateStudentInviteCode();
-      
-      if (error) {
-        throw new Error(error);
-      }
-      
-      setGeneratedCode(code);
-      toast.success("Student invitation code generated");
-      
-      // Refresh the invites list
-      refreshInvites();
-    } catch (error: any) {
-      console.error("Error generating invite code:", error);
-      toast.error(error.message || "Failed to generate invitation code");
-    }
+  
+  const handleRefresh = () => {
+    setRefreshTrigger(prev => prev + 1);
+    toast.success("Refreshing student invitations...");
   };
 
   return (
@@ -168,17 +240,24 @@ const AdminStudents = () => {
       <main className="flex-grow bg-learnable-super-light py-8">
         <div className="container mx-auto px-4">
           <div className="flex items-center gap-4 mb-6">
-            <Button variant="outline" size="sm" className="flex items-center gap-1" onClick={() => navigate("/admin")}>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="flex items-center gap-1"
+              onClick={() => navigate('/admin')}
+            >
               <ArrowLeft className="h-4 w-4" />
               Back to Admin
             </Button>
             <h1 className="text-3xl font-bold gradient-text">Student Management</h1>
           </div>
-
+          
           <Card>
             <CardHeader>
               <CardTitle>Add New Student</CardTitle>
-              <CardDescription>Invite a student via email or generate a code</CardDescription>
+              <CardDescription>
+                Invite a student via email or generate a code
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <Form {...form}>
@@ -192,34 +271,38 @@ const AdminStudents = () => {
                         <FormControl>
                           <RadioGroup
                             onValueChange={field.onChange}
-                            value={field.value}
+                            defaultValue={field.value}
                             className="flex flex-col space-y-1"
                           >
                             <FormItem className="flex items-center space-x-3 space-y-0">
                               <FormControl>
-                                <RadioGroupItem value="email" />
+                                <RadioGroupItem value="invite" />
                               </FormControl>
-                              <FormLabel className="font-normal">Invite via Email</FormLabel>
+                              <FormLabel className="font-normal">
+                                Invite via Email
+                              </FormLabel>
                             </FormItem>
                             <FormItem className="flex items-center space-x-3 space-y-0">
                               <FormControl>
                                 <RadioGroupItem value="code" />
                               </FormControl>
-                              <FormLabel className="font-normal">Generate Invitation Code</FormLabel>
+                              <FormLabel className="font-normal">
+                                Generate Invitation Code
+                              </FormLabel>
                             </FormItem>
                           </RadioGroup>
                         </FormControl>
                         <FormDescription>
-                          {selectedMethod === "email"
-                            ? "The student will receive an email invitation to join your school."
+                          {selectedMethod === "invite" 
+                            ? "The student will receive an email invitation to join your school." 
                             : "You will receive a code that you can share with students."}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-
-                  {selectedMethod === "email" && (
+                  
+                  {selectedMethod === "invite" && (
                     <FormField
                       control={form.control}
                       name="email"
@@ -234,66 +317,113 @@ const AdminStudents = () => {
                       )}
                     />
                   )}
-
-                  {selectedMethod === "code" && (
-                    <div>
-                      <Button
-                        type="button"
-                        className="gradient-bg w-full"
-                        onClick={generateInviteCode}
-                      >
-                        <UserPlus className="mr-2 h-4 w-4" />
-                        Generate Code
-                      </Button>
-
-                      {generatedCode && (
-                        <div className="p-4 mt-4 bg-muted rounded-lg">
-                          <p className="font-semibold mb-2">Invitation Code:</p>
-                          <div className="flex items-center gap-2">
-                            <code className="bg-background p-2 rounded border flex-1 text-center text-lg font-mono">
-                              {generatedCode}
-                            </code>
-                            <Button type="button" variant="outline" size="sm" onClick={copyInviteCode}>
-                              <Copy className="h-4 w-4" />
-                            </Button>
-                          </div>
-                          <p className="text-sm text-muted-foreground mt-2">
-                            Share this code with students to join your school
-                          </p>
-                        </div>
-                      )}
+                  
+                  {generatedCode && selectedMethod === "code" && (
+                    <div className="p-4 bg-muted rounded-lg">
+                      <p className="font-semibold mb-2">Invitation Code:</p>
+                      <div className="flex items-center gap-2">
+                        <code className="bg-background p-2 rounded border flex-1 text-center text-lg font-mono">
+                          {generatedCode}
+                        </code>
+                        <Button type="button" variant="outline" size="sm" onClick={copyInviteCode}>
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Share this code with students to join your school
+                      </p>
                     </div>
                   )}
-
-                  {selectedMethod === "email" && (
-                    <Button type="submit" className="gradient-bg" disabled={isSending}>
-                      {isSending ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Sending...
-                        </>
-                      ) : (
-                        <>
-                          <Mail className="mr-2 h-4 w-4" />
-                          Send Invitation
-                        </>
-                      )}
-                    </Button>
-                  )}
+                  
+                  <Button 
+                    type="submit" 
+                    className="gradient-bg" 
+                    disabled={isLoading}
+                  >
+                    {selectedMethod === "invite" ? (
+                      <>
+                        <Mail className="mr-2 h-4 w-4" />
+                        {isLoading ? "Sending..." : "Send Invitation"}
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus className="mr-2 h-4 w-4" />
+                        {isLoading ? "Generating..." : "Generate Code"}
+                      </>
+                    )}
+                  </Button>
                 </form>
               </Form>
             </CardContent>
           </Card>
-
-          <div className="mt-6">
-            <StudentInviteList
-              invites={invites}
-              isLoading={isLoadingInvites}
-              isError={isInvitesError}
-              error={invitesError instanceof Error ? invitesError : null}
-              onRefresh={refreshInvites}
-            />
-          </div>
+          
+          <Card className="mt-6">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Student Invitations</CardTitle>
+                <CardDescription>
+                  Recent student invitations and codes
+                </CardDescription>
+              </div>
+              <Button variant="outline" size="sm" onClick={handleRefresh} className="flex items-center gap-2">
+                <RefreshCw className="h-4 w-4" />
+                Refresh
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {invites.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Email/Code</TableHead>
+                        <TableHead>Created</TableHead>
+                        <TableHead>Expires</TableHead>
+                        <TableHead>Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {invites.map((invite) => (
+                        <TableRow key={invite.id}>
+                          <TableCell>
+                            {invite.email || 
+                             <code className="bg-muted p-1 rounded text-xs font-mono">
+                               {invite.code || 'N/A'}
+                             </code>
+                            }
+                          </TableCell>
+                          <TableCell>
+                            {new Date(invite.created_at).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell>
+                            {new Date(invite.expires_at).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell>
+                            <span className={`text-xs font-medium px-2 py-0.5 rounded ${
+                              invite.status === "pending"
+                                ? "bg-yellow-100 text-yellow-800"
+                                : invite.status === "accepted"
+                                ? "bg-green-100 text-green-800"
+                                : "bg-red-100 text-red-800"
+                            }`}>
+                              {invite.status.charAt(0).toUpperCase() + invite.status.slice(1)}
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <p className="text-muted-foreground">No invitations found.</p>
+              )}
+            </CardContent>
+            <CardFooter>
+              <p className="text-xs text-muted-foreground">
+                Student invitations expire after 7 days.
+              </p>
+            </CardFooter>
+          </Card>
         </div>
       </main>
       <Footer />

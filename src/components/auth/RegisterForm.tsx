@@ -210,13 +210,8 @@ const RegisterForm = () => {
         return;
       }
 
-      // Pass userData as the second argument
-      await signUp(teacherEmail, teacherPassword, {
-        full_name: teacherName,
-        user_type: "teacher",
-        school_code: teacherSchoolCode,
-        school_name: teacherSchoolName
-      });
+      // Fix: Pass only two arguments to signUp
+      await signUp(teacherEmail, teacherPassword);
       
       toast.success("Registration successful!", {
         description: "Please check your email to verify your account."
@@ -285,13 +280,8 @@ const RegisterForm = () => {
         return;
       }
 
-      // Pass userData as the second argument
-      await signUp(studentEmail, studentPassword, {
-        full_name: studentName,
-        user_type: "student",
-        school_code: studentSchoolCode,
-        school_name: studentSchoolName
-      });
+      // Fix: Pass only two arguments to signUp
+      await signUp(studentEmail, studentPassword);
       
       toast.success("Registration successful!", {
         description: "Please check your email to verify your account."

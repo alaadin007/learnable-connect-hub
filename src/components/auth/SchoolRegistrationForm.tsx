@@ -1,12 +1,13 @@
 
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import * as z from "zod";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { useNavigate, Link, useLocation } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Loader2, Mail, AlertTriangle, Info, AlertCircle } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+
 import {
   Form,
   FormControl,
@@ -14,56 +15,43 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-  FormDescription,
 } from "@/components/ui/form";
-import { Card, CardContent } from "@/components/ui/card";
-import { supabase } from "@/integrations/supabase/client";
-import { Loader2, AlertCircle, Mail, CheckCircle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { resendVerificationEmail } from "@/utils/authHelpers";
 
-const schoolFormSchema = z
-  .object({
-    schoolName: z.string().min(2, { message: "School name must be at least 2 characters." }),
-    adminFullName: z.string().min(2, { message: "Full name must be at least 2 characters." }),
-    adminEmail: z.string().email({ message: "Please enter a valid email address." }),
-    adminPassword: z.string().min(8, { message: "Password must be at least 8 characters." }),
-    confirmPassword: z.string(),
-  })
-  .refine((data) => data.adminPassword === data.confirmPassword, {
-    message: "Passwords don't match",
-    path: ["confirmPassword"],
-  });
+// Define form schema with validations
+const schoolRegistrationSchema = z.object({
+  schoolName: z.string().min(3, "School name must be at least 3 characters"),
+  adminFullName: z.string().min(3, "Full name must be at least 3 characters"),
+  adminEmail: z.string().email("Please enter a valid email address"),
+  adminPassword: z
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .regex(
+      /^(?=.*[A-Za-z])(?=.*\d).*$/,
+      "Password must contain at least one letter and one number"
+    ),
+  confirmPassword: z.string(),
+}).refine(data => data.adminPassword === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"], 
+});
 
-type SchoolFormValues = z.infer<typeof schoolFormSchema>;
+type SchoolRegistrationFormValues = z.infer<typeof schoolRegistrationSchema>;
 
-const SchoolRegistrationForm = () => {
-  const location = useLocation();
-  const [isLoading, setIsLoading] = useState(false);
-  const [serverError, setServerError] = useState<string | null>(null);
-  const [emailError, setEmailError] = useState<string | null>(null);
-  const [existingRole, setExistingRole] = useState<string | null>(null);
-  const [registrationSuccess, setRegistrationSuccess] = useState(false);
-  const [verificationEmail, setVerificationEmail] = useState("");
-  const [registeredUserId, setRegisteredUserId] = useState<string | null>(null);
-  const [resendingEmail, setResendingEmail] = useState(false);
-  const [resendSuccess, setResendSuccess] = useState(false);
-  const [completingRegistration, setCompletingRegistration] = useState(false);
+const SchoolRegistrationForm: React.FC = () => {
   const navigate = useNavigate();
+  const [isLoading, setIsLoading] = React.useState(false);
+  const [emailSent, setEmailSent] = React.useState(false);
+  const [schoolCode, setSchoolCode] = React.useState<string | null>(null);
+  const [registeredEmail, setRegisteredEmail] = React.useState<string | null>(null);
+  const [existingEmailError, setExistingEmailError] = React.useState<string | null>(null);
+  const [existingUserRole, setExistingUserRole] = React.useState<string | null>(null);
 
-  // Parse URL parameters for registration completion
-  useEffect(() => {
-    const searchParams = new URLSearchParams(location.search);
-    const completeReg = searchParams.get("completeRegistration");
-    const userId = searchParams.get("userId");
-    
-    if (completeReg === "true" && userId) {
-      handleCompleteRegistration(userId);
-    }
-  }, [location.search]);
-
-  const form = useForm<SchoolFormValues>({
-    resolver: zodResolver(schoolFormSchema),
+  // Initialize form
+  const form = useForm<SchoolRegistrationFormValues>({
+    resolver: zodResolver(schoolRegistrationSchema),
     defaultValues: {
       schoolName: "",
       adminFullName: "",
@@ -73,298 +61,352 @@ const SchoolRegistrationForm = () => {
     },
   });
 
-  const clearErrors = () => {
-    setServerError(null);
-    setEmailError(null);
-    setExistingRole(null);
-  };
-
-  const handleCompleteRegistration = async (userId: string) => {
-    setCompletingRegistration(true);
+  const handleResetPassword = async () => {
+    if (!registeredEmail) return;
+    
     try {
-      console.log("Completing registration for user:", userId);
-      
-      const response = await supabase.functions.invoke('complete-registration', {
-        body: { userId }
-      });
-
-      console.log("Response from complete-registration:", response);
-
-      if (response.error) {
-        console.error("Error from complete-registration function:", response.error);
-        toast.error("Failed to complete registration", { 
-          description: response.error.message || "Please try again later" 
-        });
-        return;
-      }
-
-      if (response.data && response.data.error) {
-        console.error("Error from response data:", response.data.error);
-        toast.error("Failed to complete registration", { 
-          description: response.data.error || "Please try again later" 
-        });
-        return;
-      }
-
-      toast.success("Registration completed successfully", { 
-        description: "Your school has been registered. You can now log in." 
+      setIsLoading(true);
+      const { error } = await supabase.auth.resetPasswordForEmail(registeredEmail, {
+        redirectTo: window.location.origin + "/login?email_confirmed=true",
       });
       
-      setTimeout(() => {
-        navigate("/login");
-      }, 1500);
-      
-    } catch (err: any) {
-      console.error("Exception in handleCompleteRegistration:", err);
-      toast.error("Failed to complete registration", { 
-        description: err?.message || "An unexpected error occurred" 
-      });
-    } finally {
-      setCompletingRegistration(false);
-    }
-  };
-
-  const resendVerificationEmail = async (email: string) => {
-    try {
-      setResendingEmail(true);
-      setResendSuccess(false);
-      console.log("Attempting to resend verification email to:", email);
-      
-      const response = await supabase.functions.invoke('resend-verification', {
-        body: { email }
-      });
-
-      console.log("Response from resend-verification:", response);
-
-      if (response.error) {
-        console.error("Error from resend-verification function:", response.error);
-        toast.error("Failed to resend verification email", { 
-          description: response.error.message || "Please try again later" 
-        });
-        return;
+      if (error) {
+        toast.error("Failed to send verification email: " + error.message);
+      } else {
+        toast.success("Verification email sent. Please check your inbox and spam folder.");
       }
-
-      if (response.data && response.data.error) {
-        console.error("Error from response data:", response.data.error);
-        toast.error("Failed to resend verification email", { 
-          description: response.data.error || "Please try again later" 
-        });
-        return;
-      }
-
-      if (response.data && response.data.already_verified) {
-        toast.info("Email already verified", { 
-          description: "You can now complete your registration" 
-        });
-        setResendSuccess(true);
-        
-        if (registeredUserId) {
-          handleCompleteRegistration(registeredUserId);
-        }
-        return;
-      }
-
-      setResendSuccess(true);
-      toast.success("Verification email sent", { 
-        description: `A new verification email has been sent to ${email}` 
-      });
-    } catch (err: any) {
-      console.error("Exception in resendVerificationEmail:", err);
-      toast.error("Failed to resend verification email", { 
-        description: err?.message || "An unexpected error occurred" 
-      });
-    } finally {
-      setResendingEmail(false);
-    }
-  };
-
-  const onSubmit = async (values: SchoolFormValues) => {
-    clearErrors();
-    setIsLoading(true);
-    try {
-      console.log("Submitting registration form...", values);
-      
-      const response = await supabase.functions.invoke('register-school', {
-        body: {
-          schoolName: values.schoolName,
-          adminEmail: values.adminEmail,
-          adminPassword: values.adminPassword,
-          adminFullName: values.adminFullName,
-        },
-      });
-
-      console.log("Response from register-school:", response);
-
-      // Check if there was an error calling the function
-      if (response.error) {
-        const errorMsg = response.error.message || "Registration failed";
-        console.error("Function invoke error:", errorMsg);
-        
-        // Check if this is a 409 Conflict error (email already exists)
-        if (errorMsg.includes("409") || errorMsg.toLowerCase().includes("already registered") || errorMsg.toLowerCase().includes("already exists")) {
-          setEmailError(values.adminEmail);
-          toast.error("Email already registered", {
-            description: "Please use a different email address or login."
-          });
-        } else {
-          setServerError(errorMsg);
-          toast.error("Registration failed", {
-            description: errorMsg
-          });
-        }
-        return;
-      }
-
-      // Check if there's an error in the response data
-      if (response.data && response.data.error) {
-        const dataErrorMsg = response.data.error;
-        console.error("Response data error:", dataErrorMsg);
-        
-        if (dataErrorMsg.toLowerCase().includes("email already registered") || dataErrorMsg.toLowerCase().includes("already exists")) {
-          setEmailError(values.adminEmail);
-          toast.error("Email already registered", {
-            description: "Please use a different email address or login."
-          });
-        } else {
-          setServerError(dataErrorMsg);
-          toast.error("Registration failed", {
-            description: dataErrorMsg
-          });
-        }
-        return;
-      }
-
-      // If we got here, the registration was initiated successfully
-      setRegistrationSuccess(true);
-      setVerificationEmail(values.adminEmail);
-      setRegisteredUserId(response.data.userId);
-      toast.success("Registration initiated!", {
-        description: "Please check your email and verify your account to complete registration."
-      });
-      
-    } catch (err: any) {
-      console.error("Exception in onSubmit:", err);
-      setServerError(err.message || "An unexpected error occurred");
-      toast.error("Registration failed", {
-        description: err.message || "Please try again."
-      });
+    } catch (error: any) {
+      toast.error("An error occurred: " + error.message);
     } finally {
       setIsLoading(false);
     }
   };
 
-  if (registrationSuccess) {
+  const checkEmailExistingRole = async (email: string): Promise<string | null> => {
+    try {
+      // Try to get the user's role from the profiles table
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('user_type')
+        .ilike('id', `%${email}%`) // This is a workaround since we can't directly query by email
+        .limit(1);
+      
+      if (error) {
+        console.error("Error checking user role:", error);
+        return null;
+      }
+      
+      if (data && data.length > 0 && data[0].user_type) {
+        // Return the role name with proper capitalization for display
+        const role = data[0].user_type;
+        switch (role) {
+          case 'school':
+            return 'School Administrator';
+          case 'teacher':
+            return 'Teacher';
+          case 'student':
+            return 'Student';
+          default:
+            return role.charAt(0).toUpperCase() + role.slice(1);
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      console.error("Error checking email role:", error);
+      return null;
+    }
+  };
+
+  const checkIfEmailExists = async (email: string): Promise<boolean> => {
+    try {
+      // Instead of using admin.listUsers with filter property which causes TypeScript errors,
+      // Try a sign-in attempt to check if the email exists
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: email,
+        password: "dummy-password-for-check-only",
+      });
+
+      // If there's no error or the error is not about invalid credentials, email might exist
+      const emailExists = !signInError || (signInError && !signInError.message.includes("Invalid login credentials"));
+      
+      // If we think the email exists, double-check by querying the profiles table
+      if (emailExists) {
+        // Try to get the user's role
+        const userRole = await checkEmailExistingRole(email);
+        if (userRole) {
+          setExistingUserRole(userRole);
+        }
+        
+        // Additional check to see if the email is in use by getting profiles
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('id')
+          .limit(1);
+        
+        // If we can't check profiles, assume the email exists for safety
+        if (profileError) {
+          console.error("Error checking profiles:", profileError);
+          return true;
+        }
+        
+        return !!profileData && profileData.length > 0;
+      }
+
+      return emailExists;
+    } catch (error) {
+      console.error("Error checking email existence:", error);
+      // In case of error, safer to assume it might exist
+      return true;
+    }
+  };
+
+  const onSubmit = async (data: SchoolRegistrationFormValues) => {
+    setIsLoading(true);
+    setExistingEmailError(null);
+    setExistingUserRole(null);
+    
+    try {
+      // Display toast notification that registration is in progress
+      const loadingToast = toast.loading("Registering your school...");
+      
+      // Check if email already exists
+      const emailExists = await checkIfEmailExists(data.adminEmail);
+      
+      if (emailExists) {
+        toast.dismiss(loadingToast);
+        setExistingEmailError(data.adminEmail);
+        
+        const roleMessage = existingUserRole 
+          ? `This email is already registered as a ${existingUserRole}`
+          : "This email is already registered";
+          
+        toast.error(
+          roleMessage,
+          {
+            description: "Please use a different email address. Each user can only have one role in the system.",
+            duration: 8000,
+            icon: <AlertCircle className="h-5 w-5" />,
+          }
+        );
+        setIsLoading(false);
+        return;
+      }
+      
+      // Call our edge function to register the school
+      const { data: responseData, error } = await supabase.functions.invoke("register-school", {
+        body: {
+          schoolName: data.schoolName,
+          adminEmail: data.adminEmail,
+          adminPassword: data.adminPassword,
+          adminFullName: data.adminFullName,
+        },
+      });
+
+      // Dismiss the loading toast
+      toast.dismiss(loadingToast);
+
+      if (error) {
+        console.error("School registration error:", error);
+        
+        // Check if this is an "email already exists" error
+        const errorMessage = error.message || "";
+        if (errorMessage.includes("non-2xx status code") || errorMessage.includes("already registered")) {
+          // Try to get the role for this existing email
+          const userRole = await checkEmailExistingRole(data.adminEmail);
+          setExistingUserRole(userRole);
+          
+          // Set the existing email error to guide the user
+          setExistingEmailError(data.adminEmail);
+          
+          const roleMessage = userRole 
+            ? `This email is already registered as a ${userRole}`
+            : "This email is already registered";
+            
+          toast.error(
+            roleMessage,
+            {
+              description: "Please use a different email address. Each user can only have one role in the system.",
+              duration: 8000,
+              icon: <AlertCircle className="h-5 w-5" />,
+            }
+          );
+        } else {
+          toast.error(`Registration failed: ${error.message || "Unknown error"}`);
+        }
+        return;
+      }
+
+      if (responseData?.error) {
+        console.error("Server error:", responseData.error, responseData.details);
+        
+        // Handle specific error cases
+        if (responseData.error === "Email already registered" || 
+            (responseData.details && responseData.details.includes("already registered"))) {
+          
+          // Try to get the role for this existing email
+          const userRole = await checkEmailExistingRole(data.adminEmail);
+          setExistingUserRole(userRole);
+          
+          setExistingEmailError(data.adminEmail);
+          
+          const roleMessage = userRole 
+            ? `This email is already registered as a ${userRole}`
+            : "This email is already registered";
+            
+          toast.error(
+            roleMessage,
+            {
+              description: "Please use a different email address. Each user can only have one role in the system.",
+              duration: 8000,
+              icon: <AlertCircle className="h-5 w-5" />,
+            }
+          );
+        } else {
+          toast.error(`Registration failed: ${responseData.error}`);
+        }
+        return;
+      }
+
+      if (responseData.success) {
+        // Store the email and school code for potential later use
+        setRegisteredEmail(data.adminEmail);
+        setSchoolCode(responseData.schoolCode);
+        
+        // Set email sent state
+        setEmailSent(true);
+        
+        // Show success message with school details and clear confirmation about email
+        toast.success(
+          `School "${data.schoolName}" successfully registered!`,
+          {
+            description: `Your school code is: ${responseData.schoolCode}. ${responseData.emailSent ? 
+              "Please check your email to complete verification." : 
+              "There was an issue sending the verification email. You can request another one below."}`,
+            duration: 10000, // Show for 10 seconds
+          }
+        );
+        
+        // We don't auto-login since email needs to be verified first
+        toast.info(
+          "Email verification required",
+          {
+            description: "Please check your inbox and spam folders for the verification email. If you don't receive it within a few minutes, you can request another verification email using the button below.",
+            duration: 15000,
+            icon: <Mail className="h-4 w-4" />,
+          }
+        );
+        
+        // If email wasn't sent successfully, show a warning
+        if (!responseData.emailSent) {
+          toast.warning(
+            "Email delivery issue",
+            {
+              description: "We couldn't confirm if the verification email was sent successfully. If you don't receive it, please use the 'Request Verification Email' button on the next screen.",
+              duration: 10000,
+              icon: <AlertTriangle className="h-4 w-4" />,
+            }
+          );
+        }
+      } else {
+        toast.error(`Registration failed: ${responseData.error || "Unknown error"}`);
+      }
+    } catch (error: any) {
+      console.error("Unexpected error:", error);
+      toast.error(`An unexpected error occurred: ${error.message || "Unknown error"}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Show a different UI when email has been sent
+  if (emailSent) {
     return (
-      <Card className="w-full max-w-2xl mx-auto">
-        <CardContent className="pt-6 flex flex-col items-center text-center py-10">
-          <div className="bg-green-100 p-4 rounded-full mb-4">
-            <Mail className="h-12 w-12 text-green-600" />
+      <div className="w-full max-w-md mx-auto px-4">
+        <div className="bg-white rounded-lg shadow-md p-8 text-center">
+          <div className="bg-green-100 text-green-800 rounded-full p-4 w-16 h-16 flex items-center justify-center mx-auto mb-4">
+            <Mail className="h-8 w-8" />
           </div>
-          <h2 className="text-2xl font-bold mb-2">Check Your Email</h2>
-          <p className="text-gray-600 mb-6">
-            A verification email has been sent to <strong>{verificationEmail}</strong>
-          </p>
-          <p className="text-gray-500 mb-3 max-w-md">
-            Please click the verification link in your email to complete your registration.
-            Once verified, you can log in to your school admin account.
+          <h2 className="text-2xl font-semibold mb-3 gradient-text">Check Your Email</h2>
+          <p className="text-gray-600 mb-4">
+            We've sent a verification link to your email address. Please check your inbox and spam folder and verify your account to continue.
           </p>
           
-          <Alert className="mb-6 max-w-md">
-            <AlertTitle className="flex items-center">
-              <AlertCircle className="h-4 w-4 mr-2" />
-              Important
-            </AlertTitle>
-            <AlertDescription>
-              You must verify your email before you can access your account.
-            </AlertDescription>
-          </Alert>
+          {schoolCode && (
+            <Alert className="mb-4 bg-amber-50 border-amber-200">
+              <AlertTitle className="text-amber-800">Important: Save Your School Code</AlertTitle>
+              <AlertDescription className="text-amber-700">
+                Your school code is: <span className="font-bold">{schoolCode}</span>
+                <br />
+                Please save this code - you'll need it to add teachers and students to your school.
+              </AlertDescription>
+            </Alert>
+          )}
           
-          <div className="flex flex-col gap-4 w-full max-w-xs">
+          <div className="space-y-4">
             <Button 
               variant="outline" 
-              onClick={() => resendVerificationEmail(verificationEmail)}
-              disabled={resendingEmail || resendSuccess}
-              className="w-full"
-            >
-              {resendingEmail ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Sending...
-                </>
-              ) : resendSuccess ? (
-                <>
-                  <CheckCircle className="mr-2 h-4 w-4" />
-                  Email Sent
-                </>
-              ) : (
-                "Resend Verification Email"
-              )}
-            </Button>
-            
-            <Button 
-              onClick={() => navigate("/login")} 
-              variant="secondary"
-              className="w-full"
+              className="w-full" 
+              onClick={() => navigate("/login")}
             >
               Go to Login
             </Button>
             
-            <Button 
-              variant="link" 
-              onClick={() => {
-                setRegistrationSuccess(false);
-                form.reset();
-              }}
-            >
-              Register Another School
-            </Button>
+            {registeredEmail && (
+              <Button
+                variant="secondary"
+                className="w-full"
+                onClick={handleResetPassword}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  "Request Verification Email Again"
+                )}
+              </Button>
+            )}
+            
+            <p className="text-sm text-gray-500">
+              If you don't receive an email, check your spam folder or request another verification email using the button above.
+            </p>
           </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (completingRegistration) {
-    return (
-      <Card className="w-full max-w-2xl mx-auto">
-        <CardContent className="pt-6 flex flex-col items-center text-center py-10">
-          <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-          <h2 className="text-2xl font-bold mb-2">Completing Registration</h2>
-          <p className="text-gray-600">
-            Please wait while we complete your registration...
-          </p>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Card className="w-full max-w-2xl mx-auto">
-      <CardContent className="pt-6">
-        {serverError && (
+    <div className="w-full max-w-md mx-auto px-4">
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <h2 className="text-2xl font-semibold mb-6 text-center gradient-text">Register Your School</h2>
+        
+        {existingEmailError && (
           <Alert variant="destructive" className="mb-6">
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Registration Error</AlertTitle>
-            <AlertDescription>{serverError}</AlertDescription>
-          </Alert>
-        )}
-
-        {emailError && (
-          <Alert variant="destructive" className="mb-6">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>
-              {existingRole ? `Email Registered as ${existingRole}` : "Email Already Registered"}
-            </AlertTitle>
+            <AlertTitle>{existingUserRole ? `Email Already Registered as ${existingUserRole}` : 'Email Already Registered'}</AlertTitle>
             <AlertDescription>
-              The email {`"${emailError}" `}is already registered
-              {existingRole ? ` as ${existingRole}` : ""}. Please use a different email or{" "}
-              <Link to="/login" className="font-medium underline">login</Link>.
+              The email address "{existingEmailError}" is already registered
+              {existingUserRole ? ` as a ${existingUserRole} account` : ''}.
+              Please use a different email or <a href="/login" className="font-medium underline">login</a> if this is your account.
+              Each user can only have one role in the system.
             </AlertDescription>
           </Alert>
         )}
-
+        
+        <Alert className="mb-6 bg-blue-50 border-blue-200">
+          <Info className="h-4 w-4 text-blue-800" />
+          <AlertTitle className="text-blue-800">Email Verification Required</AlertTitle>
+          <AlertDescription className="text-blue-700">
+            After registration, you'll need to verify your email before accessing your school dashboard.
+          </AlertDescription>
+        </Alert>
+        
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6" noValidate>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
               name="schoolName"
@@ -378,6 +420,7 @@ const SchoolRegistrationForm = () => {
                 </FormItem>
               )}
             />
+            
             <FormField
               control={form.control}
               name="adminFullName"
@@ -385,12 +428,13 @@ const SchoolRegistrationForm = () => {
                 <FormItem>
                   <FormLabel>Admin Full Name</FormLabel>
                   <FormControl>
-                    <Input placeholder="Enter your full name" {...field} />
+                    <Input placeholder="Enter admin's full name" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
+            
             <FormField
               control={form.control}
               name="adminEmail"
@@ -398,34 +442,27 @@ const SchoolRegistrationForm = () => {
                 <FormItem>
                   <FormLabel>Admin Email</FormLabel>
                   <FormControl>
-                    <Input
-                      type="email"
-                      placeholder="admin@school.edu"
-                      {...field}
-                      onChange={(e) => {
-                        field.onChange(e);
-                        clearErrors();
-                      }}
-                    />
+                    <Input type="email" placeholder="admin@school.edu" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
+            
             <FormField
               control={form.control}
               name="adminPassword"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Password</FormLabel>
+                  <FormLabel>Admin Password</FormLabel>
                   <FormControl>
                     <Input type="password" placeholder="••••••••" {...field} />
                   </FormControl>
-                  <FormDescription>At least 8 characters</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
+            
             <FormField
               control={form.control}
               name="confirmPassword"
@@ -439,12 +476,8 @@ const SchoolRegistrationForm = () => {
                 </FormItem>
               )}
             />
-            <Button
-              type="submit"
-              className="w-full gradient-bg"
-              disabled={isLoading}
-              aria-busy={isLoading}
-            >
+            
+            <Button type="submit" disabled={isLoading} className="w-full gradient-bg">
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -456,8 +489,8 @@ const SchoolRegistrationForm = () => {
             </Button>
           </form>
         </Form>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 };
 
