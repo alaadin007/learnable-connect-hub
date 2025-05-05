@@ -140,14 +140,24 @@ export const saveChatMessage = async (message: any, conversationId?: string, ses
     // If no conversation ID provided, create a new conversation
     if (!convoId) {
       // Get user's school ID
-      const { data: schoolData } = await supabase.rpc('get_user_school_id');
+      const { data: schoolData } = await supabase.rpc("get_user_school_id");
       
+      // Get current user ID
+      const userId = (await supabase.auth.getUser()).data.user?.id;
+      
+      if (!userId || !schoolData) {
+        return { error: "Unable to determine user or school ID" };
+      }
+      
+      // Create a new conversation with required fields
       const { data: convoData, error: convoError } = await supabase
         .from('conversations')
-        .insert([{ 
+        .insert({
           title: `New conversation on ${new Date().toLocaleDateString()}`,
-          last_message_at: new Date().toISOString()
-        }])
+          last_message_at: new Date().toISOString(),
+          user_id: userId,
+          school_id: schoolData
+        })
         .select('id')
         .single();
 
@@ -168,11 +178,11 @@ export const saveChatMessage = async (message: any, conversationId?: string, ses
     // Save the message
     const { data: msgData, error: msgError } = await supabase
       .from('messages')
-      .insert([{
+      .insert({
         conversation_id: convoId,
         content: message.content,
         sender: message.role,
-      }])
+      })
       .select('*')
       .single();
 
@@ -319,15 +329,6 @@ export const revokeStudentAccess = async (studentId: string) => {
 // Replacement for generate-student-invite edge function
 export const generateStudentInvite = async (method: "code" | "email", email?: string) => {
   try {
-    // Generate a unique invite code using the database function
-    const { data: inviteCode, error: codeError } = await supabase
-      .rpc("generate_student_invite_code");
-
-    if (codeError) {
-      console.error("Error generating invite code:", codeError);
-      return { error: "Failed to generate invite code" };
-    }
-
     // Get school ID
     const { data: schoolId, error: schoolIdError } = await supabase.rpc("get_user_school_id");
 
@@ -335,18 +336,35 @@ export const generateStudentInvite = async (method: "code" | "email", email?: st
       return { error: "Could not determine school ID" };
     }
 
+    // Generate a unique invite code using the create_student_invitation function
+    const { data: inviteData, error: codeError } = await supabase
+      .rpc("create_student_invitation", {
+        school_id_param: schoolId
+      });
+
+    if (codeError) {
+      console.error("Error generating invite code:", codeError);
+      return { error: "Failed to generate invite code" };
+    }
+
+    // Extract the code from the returned data
+    const inviteCode = inviteData?.[0]?.code || "";
+    
+    if (!inviteCode) {
+      return { error: "Failed to generate a valid invitation code" };
+    }
+
     // Create an invitation record
     const insertData = {
       code: inviteCode,
       school_id: schoolId,
-      email: method === "email" ? email : undefined
+      email: method === "email" ? email : undefined,
+      status: "pending"
     };
 
-    const { data: inviteData, error: inviteError } = await supabase
+    const { error: inviteError } = await supabase
       .from("student_invites")
-      .insert(insertData)
-      .select()
-      .single();
+      .insert(insertData);
 
     if (inviteError) {
       console.error("Error creating invitation:", inviteError);
