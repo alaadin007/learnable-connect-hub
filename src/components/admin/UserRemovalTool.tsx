@@ -118,25 +118,11 @@ const UserRemovalTool = () => {
                   all associated data will be permanently deleted from the system.
                 </DialogDescription>
               </DialogHeader>
-              <div className="py-4">
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>Warning</AlertTitle>
-                  <AlertDescription>
-                    This is a destructive operation that will remove all user data including chats,
-                    assessments, and other content.
-                  </AlertDescription>
-                </Alert>
-              </div>
               <DialogFooter>
                 <DialogClose asChild>
                   <Button variant="outline">Cancel</Button>
                 </DialogClose>
-                <Button 
-                  variant="destructive" 
-                  onClick={handleRemove}
-                  disabled={isRemoving}
-                >
+                <Button variant="destructive" onClick={handleRemove} disabled={isRemoving}>
                   {isRemoving ? "Removing..." : "Confirm Removal"}
                 </Button>
               </DialogFooter>

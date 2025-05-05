@@ -35,7 +35,7 @@ const SchoolAdmin = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [activeTab, setActiveTab] = useState("teachers");
-  const { profile, userRole } = useAuth();
+  const { profile, userRole, user } = useAuth();
   
   // Debug school information
   useEffect(() => {
@@ -45,6 +45,16 @@ const SchoolAdmin = () => {
       console.log("User role:", userRole);
     }
   }, [profile, userRole]);
+  
+  // Safety check for profile and organization
+  if (!user) {
+    // Redirect to login if not logged in
+    useEffect(() => {
+      toast.error("You must be logged in to access this page");
+      navigate("/login", { state: { from: location.pathname } });
+    }, []);
+    return null;
+  }
   
   // Use optional chaining for organization properties to avoid undefined errors
   const schoolId = profile?.organization?.id || null;

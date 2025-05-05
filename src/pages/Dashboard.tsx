@@ -1,3 +1,4 @@
+
 import React, { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -25,6 +26,11 @@ const MOCK_DATA = {
     name: "Test School",
     code: "TEST123",
     full_name: "Test School Admin",
+    organization: {
+      id: "test-school-id",
+      name: "Test School",
+      code: "TEST123"
+    }
   },
   teacher: {
     full_name: "Test Teacher",
@@ -214,15 +220,24 @@ const SchoolAdminDashboard: React.FC<{ profile: any }> = ({ profile }) => {
   const navigate = useNavigate();
 
   const handleQuickActionSelect = (action: string) => {
-    const routes: Record<string, string> = {
-      "manage-teachers": "/admin/teacher-management",
-      "view-analytics": "/admin/analytics",
-      "school-settings": "/admin/settings",
-      "student-management": "/admin/students",
-      "dashboard": "/dashboard",
-    };
-    if (routes[action]) {
-      navigate(routes[action], { state: { fromNavigation: true, preserveContext: true } });
+    switch(action) {
+      case "manage-teachers":
+        navigate("/admin/teachers", { state: { fromNavigation: true, preserveContext: true } });
+        break;
+      case "view-analytics":
+        navigate("/admin/analytics", { state: { fromNavigation: true, preserveContext: true } });
+        break;
+      case "school-settings":
+        navigate("/admin/settings", { state: { fromNavigation: true, preserveContext: true } });
+        break;
+      case "student-management":
+        navigate("/admin/students", { state: { fromNavigation: true, preserveContext: true } });
+        break;
+      case "dashboard":
+        navigate("/dashboard", { state: { fromNavigation: true, preserveContext: true } });
+        break;
+      default:
+        break;
     }
   };
 
@@ -301,7 +316,7 @@ const SchoolAdminDashboard: React.FC<{ profile: any }> = ({ profile }) => {
               title="Teacher Management"
               description="Add, remove, and manage teacher accounts"
               icon={<Users className="h-10 w-10" />}
-              onClick={() => navigate("/admin/teacher-management", { state: { fromNavigation: true } })}
+              onClick={() => navigate("/admin/teachers", { state: { fromNavigation: true } })}
             />
             <DashboardCard
               title="Analytics"

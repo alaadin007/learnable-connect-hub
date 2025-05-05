@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Plus, Copy, Mail, Loader2 } from "lucide-react";
+import { Plus, Copy, Mail, Loader2, AlertCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Table,
@@ -31,10 +31,12 @@ import {
   DialogTitle,
   DialogTrigger,
   DialogFooter,
+  DialogClose,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase, isTestAccount } from "@/integrations/supabase/client";
@@ -58,6 +60,7 @@ const TeacherManagement = () => {
   const { profile } = useAuth();
   const [invitations, setInvitations] = useState<TeacherInvitation[]>([]);
   const [isCreating, setIsCreating] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("teacher");
   const [customMessage, setCustomMessage] = useState("");
@@ -76,6 +79,8 @@ const TeacherManagement = () => {
       loadInvitations();
     } else {
       setInvitations([]);
+      setIsLoading(false);
+      setLoadingError("School ID is not available. Please make sure you are logged in as a school administrator.");
     }
   }, [schoolId]);
 
@@ -83,9 +88,11 @@ const TeacherManagement = () => {
     if (!schoolId) {
       console.warn("School ID is not available.");
       setLoadingError("School ID is not available");
+      setIsLoading(false);
       return;
     }
 
+    setIsLoading(true);
     setLoadingError(null);
     
     try {
@@ -117,6 +124,7 @@ const TeacherManagement = () => {
         ];
         
         setInvitations(mockInvitations);
+        setIsLoading(false);
       } else {
         // For real accounts, query the database
         const { data, error } = await supabase
@@ -131,10 +139,12 @@ const TeacherManagement = () => {
 
         console.log("Teacher invitations loaded:", data);
         setInvitations(data as TeacherInvitation[]);
+        setIsLoading(false);
       }
     } catch (error: any) {
       console.error("Error loading invitations:", error);
       setLoadingError(error.message || "Failed to load invitations");
+      setIsLoading(false);
       toast.error("Error loading teacher invitations. Please try refreshing the page.");
     }
   };
@@ -158,13 +168,13 @@ const TeacherManagement = () => {
         const newInvitation: TeacherInvitation = {
           id: `test-invitation-${Date.now()}`,
           email,
-          role,
           status: "pending",
           invitation_token: `test-token-${Date.now()}`,
           school_id: schoolId,
           created_at: new Date().toISOString(),
           expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-          created_by: profile?.id || "test-user"
+          created_by: profile?.id || "test-user",
+          role
         };
         
         setInvitations(prev => [newInvitation, ...prev]);
@@ -290,6 +300,25 @@ const TeacherManagement = () => {
     }
   };
 
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Teacher Management</CardTitle>
+          <CardDescription>
+            Loading teacher invitations...
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex justify-center py-8">
+          <div className="text-center">
+            <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
+            <p className="mt-2 text-muted-foreground">Loading invitations...</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -299,16 +328,17 @@ const TeacherManagement = () => {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="mb-4 flex justify-between items-center">
+        <div className="mb-4 flex justify-between items-center flex-wrap gap-2">
           <div>
-            <Label htmlFor="selectAll" className="mr-2">
+            <Label htmlFor="selectAll" className="mr-2 inline-flex items-center">
               <Checkbox
                 id="selectAll"
                 checked={selectAll}
                 onCheckedChange={handleSelectAllChange}
                 disabled={invitations.length === 0}
+                className="mr-2"
               />
-              <span className="ml-2">Select All</span>
+              <span>Select All</span>
             </Label>
             <Button
               variant="destructive"
@@ -345,6 +375,7 @@ const TeacherManagement = () => {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="col-span-3"
+                    placeholder="teacher@school.edu"
                   />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
@@ -375,6 +406,9 @@ const TeacherManagement = () => {
                 </div>
               </div>
               <DialogFooter>
+                <DialogClose asChild>
+                  <Button variant="outline">Cancel</Button>
+                </DialogClose>
                 <Button type="submit" onClick={handleCreateInvitation} disabled={isCreating}>
                   {isCreating ? (
                     <>
@@ -391,18 +425,20 @@ const TeacherManagement = () => {
         </div>
         
         {loadingError && (
-          <div className="bg-red-50 border border-red-200 p-4 rounded-lg mb-4">
-            <p className="text-red-700 font-medium">Error loading invitations</p>
-            <p className="text-red-600 text-sm mt-1">{loadingError}</p>
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error loading invitations</AlertTitle>
+            <AlertDescription>{loadingError}</AlertDescription>
             <Button onClick={loadInvitations} className="mt-2" size="sm" variant="outline">
               Retry
             </Button>
-          </div>
+          </Alert>
         )}
         
         {invitations.length > 0 ? (
           <div className="overflow-x-auto">
             <Table>
+              <TableCaption>List of teacher invitations for your school</TableCaption>
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[50px]">Select</TableHead>
@@ -433,23 +469,26 @@ const TeacherManagement = () => {
                       )}
                     </TableCell>
                     <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleCopyInvitationLink(invitation)}
-                      >
-                        <Copy className="mr-2 h-4 w-4" />
-                        Copy Link
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleResendInvitation(invitation)}
-                        disabled={invitation.status !== "pending"}
-                      >
-                        <Mail className="mr-2 h-4 w-4" />
-                        Resend
-                      </Button>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleCopyInvitationLink(invitation)}
+                        >
+                          <Copy className="mr-2 h-4 w-4" />
+                          Copy Link
+                        </Button>
+                        {invitation.status === "pending" && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleResendInvitation(invitation)}
+                          >
+                            <Mail className="mr-2 h-4 w-4" />
+                            Resend
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

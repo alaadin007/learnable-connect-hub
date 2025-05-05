@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,10 +11,19 @@ import { toast } from "sonner";
 
 const AdminTeachers = () => {
   const navigate = useNavigate();
-  const { userRole } = useAuth();
+  const { userRole, user } = useAuth();
+
+  // Verify authentication first
+  useEffect(() => {
+    if (!user) {
+      toast.error("You must be logged in to access this page");
+      navigate("/login", { replace: true });
+      return;
+    }
+  }, [user, navigate]);
 
   // Verify correct user role and redirect if needed - but with improved error handling
-  React.useEffect(() => {
+  useEffect(() => {
     if (userRole && userRole !== "school") {
       console.log(`AdminTeachers: Unauthorized access by user with role ${userRole}`);
       toast.error("You don't have permission to access this page");
