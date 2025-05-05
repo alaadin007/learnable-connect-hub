@@ -8,11 +8,23 @@ interface SessionsTableProps {
   sessions: SessionData[];
   title?: string;
   description?: string;
+  isLoading?: boolean;
 }
 
 const SessionsTable: React.FC<SessionsTableProps> = ({
-  sessions
+  sessions,
+  title,
+  description,
+  isLoading = false
 }) => {
+  if (isLoading) {
+    return (
+      <div className="text-center p-6 text-muted-foreground">
+        Loading sessions data...
+      </div>
+    );
+  }
+
   return (
     <>
       {sessions.length === 0 ? (
