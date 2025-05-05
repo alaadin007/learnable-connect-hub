@@ -38,7 +38,7 @@ const logSessionStart = async (topic?: string, userId?: string): Promise<string 
         user_id: user_id,
         school_id: userData.school_id,
         topic_or_content_used: topic || "General Chat",
-        session_start: new Date()
+        session_start: new Date().toISOString() // Convert Date to ISO string
       })
       .select('id')
       .single();
@@ -67,7 +67,7 @@ const logSessionEnd = async (sessionId?: string, performanceData?: any): Promise
     const { error } = await supabase
       .from('session_logs')
       .update({ 
-        session_end: new Date(),
+        session_end: new Date().toISOString(), // Convert Date to ISO string
         performance_metric: performanceData || null
       })
       .eq('id', sessionId);

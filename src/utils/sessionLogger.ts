@@ -83,8 +83,8 @@ class SessionLogger {
       const { error } = await supabase
         .from('session_logs')
         .update({
-          session_end: new Date(),
-          performance_metric: performanceMetrics
+          session_end: new Date().toISOString(), // Convert Date to ISO string
+          performance_metric: performanceMetrics as unknown as Record<string, any> // Cast to compatible JSON type
         })
         .eq('id', this.currentSessionId);
       
