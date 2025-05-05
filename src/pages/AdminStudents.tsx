@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -34,6 +35,7 @@ import {
   UserPlus,
   RefreshCw,
   Loader2,
+  AlertCircle,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -44,6 +46,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useQuery } from "@tanstack/react-query";
 
 // Define the schema for student invite form with "email" method (not "invite")
 const addStudentSchema = z.object({
@@ -70,9 +74,8 @@ const AdminStudents = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [invites, setInvites] = useState<StudentInvite[]>([]);
   const [generatedCode, setGeneratedCode] = useState("");
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isGeneratingCode, setIsGeneratingCode] = useState(false);
-  const [codeGenerationError, setCodGenerationError] = useState<string | null>(null);
+  const [codeGenerationError, setCodeGenerationError] = useState<string | null>(null);
 
   // Get the schoolId properly
   const userProfileId = user?.id || null;
@@ -91,19 +94,18 @@ const AdminStudents = () => {
 
   const selectedMethod = form.watch("method");
 
-  // Load student invites
-  useEffect(() => {
-    let isMounted = true;
-
-    const fetchInvites = async () => {
+  // Use React Query to fetch invites - this ensures proper client setup
+  const { data: inviteData, refetch: refreshInvites, isLoading: isLoadingInvites } = useQuery({
+    queryKey: ['studentInvites', schoolId],
+    queryFn: async () => {
       if (!schoolId) {
         console.log("No school ID available, cannot fetch invites");
-        return;
+        return [];
       }
 
+      console.log("Fetching invites for school ID:", schoolId);
+      
       try {
-        console.log("Fetching invites for school ID:", schoolId);
-
         // Try to fetch from student_invites table
         const { data: studentInvites, error: studentInviteError } = await supabase
           .from("student_invites")
@@ -112,56 +114,53 @@ const AdminStudents = () => {
           .order("created_at", { ascending: false })
           .limit(10);
 
-        if (isMounted) {
-          if (studentInvites && studentInvites.length > 0) {
-            console.log("Found student invites:", studentInvites);
-            setInvites(studentInvites as StudentInvite[]);
-            return;
-          } else {
-            console.log("No student invites found or error:", studentInviteError);
-          }
-
-          // Fallback to teacher_invitations table for display
-          const { data, error } = await supabase
-            .from("teacher_invitations")
-            .select("*")
-            .eq("school_id", schoolId)
-            .order("created_at", { ascending: false })
-            .limit(10);
-
-          if (error) {
-            console.error("Error fetching teacher invitations:", error);
-            throw error;
-          }
-
-          const studentInviteData: StudentInvite[] = (data || []).map((invite) => ({
-            id: invite.id,
-            email: invite.email,
-            code: null,
-            created_at: invite.created_at,
-            expires_at: invite.expires_at,
-            status: invite.status,
-          }));
-
-          console.log("Using teacher invitations as fallback:", studentInviteData);
-          setInvites(studentInviteData);
+        if (studentInvites && studentInvites.length > 0) {
+          console.log("Found student invites:", studentInvites);
+          return studentInvites as StudentInvite[];
+        } else {
+          console.log("No student invites found or error:", studentInviteError);
         }
+
+        // Fallback to teacher_invitations table for display
+        const { data, error } = await supabase
+          .from("teacher_invitations")
+          .select("*")
+          .eq("school_id", schoolId)
+          .order("created_at", { ascending: false })
+          .limit(10);
+
+        if (error) {
+          console.error("Error fetching teacher invitations:", error);
+          throw error;
+        }
+
+        const studentInviteData: StudentInvite[] = (data || []).map((invite) => ({
+          id: invite.id,
+          email: invite.email,
+          code: null,
+          created_at: invite.created_at,
+          expires_at: invite.expires_at,
+          status: invite.status,
+        }));
+
+        console.log("Using teacher invitations as fallback:", studentInviteData);
+        return studentInviteData;
       } catch (error: any) {
-        if (isMounted) {
-          console.error("Error fetching student invites:", error);
-          toast.error("Failed to load student invites");
-        }
+        console.error("Error fetching student invites:", error);
+        throw error;
       }
-    };
+    },
+    enabled: !!schoolId,
+  });
 
-    if (schoolId) {
-      fetchInvites();
+  const selectedMethod = form.watch("method");
+
+  // Load student invites
+  useEffect(() => {
+    if (inviteData) {
+      setInvites(inviteData);
     }
-
-    return () => {
-      isMounted = false;
-    };
-  }, [schoolId, refreshTrigger]);
+  }, [inviteData]);
 
   const onSubmit = async (values: AddStudentFormValues) => {
     if (!user || !schoolId) {
@@ -202,7 +201,7 @@ const AdminStudents = () => {
         setGeneratedCode(""); // clear code if any previously generated
       }
 
-      setRefreshTrigger((prev) => prev + 1);
+      refreshInvites();
     } catch (error: any) {
       console.error("Error inviting student:", error);
       toast.error(error.message || "Failed to invite student");
@@ -221,7 +220,7 @@ const AdminStudents = () => {
   };
 
   const handleRefresh = () => {
-    setRefreshTrigger((prev) => prev + 1);
+    refreshInvites();
     toast.success("Refreshing student invitations...");
   };
 
@@ -232,7 +231,8 @@ const AdminStudents = () => {
     }
 
     setIsGeneratingCode(true);
-    setCodGenerationError(null);
+    setCodeGenerationError(null);
+    setGeneratedCode("");
 
     try {
       console.log("Getting auth session");
@@ -244,42 +244,43 @@ const AdminStudents = () => {
 
       console.log("Calling generate-student-code function with token:", session.access_token.substring(0, 10) + '...');
       
-      // Call the edge function with detailed logging
-      const { data, error } = await supabase.functions.invoke("generate-student-code", {
+      // Call the edge function with detailed error handling
+      const response = await supabase.functions.invoke("generate-student-code", {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
         }
       });
 
-      if (error) {
-        console.error("Error from generate-student-code function:", error);
-        throw new Error(error.message || "Failed to generate invitation code");
+      console.log("Function response status:", response);
+      
+      if (response.error) {
+        throw new Error(response.error.message || "Failed to generate invitation code");
       }
-
-      console.log("Response from generate-student-code function:", data);
-
-      // More detailed validation of the response
-      if (!data) {
+      
+      if (!response.data) {
         throw new Error("No data received from server");
       }
       
-      if (data.error) {
-        throw new Error(data.error);
+      console.log("Response data:", response.data);
+      
+      if (response.data.error) {
+        throw new Error(response.data.error);
       }
-
-      if (!data.code) {
-        console.error("Invalid response format - missing code:", data);
-        throw new Error("Invalid response received from server");
+      
+      if (!response.data.code) {
+        throw new Error("Code not found in response");
       }
-
-      setGeneratedCode(data.code);
+      
+      setGeneratedCode(response.data.code);
       toast.success("Student invitation code generated");
+      
+      // Refresh the invites list
+      refreshInvites();
 
-      setRefreshTrigger((prev) => prev + 1);
     } catch (error: any) {
       console.error("Error generating invite code:", error);
       toast.error(error.message || "Failed to generate invitation code");
-      setCodGenerationError(error.message || "Unknown error occurred");
+      setCodeGenerationError(error.message || "Unknown error occurred");
     } finally {
       setIsGeneratingCode(false);
     }
@@ -362,7 +363,7 @@ const AdminStudents = () => {
                     <div>
                       <Button
                         type="button"
-                        className="gradient-bg"
+                        className="gradient-bg w-full"
                         onClick={generateInviteCode}
                         disabled={isGeneratingCode}
                       >
@@ -380,7 +381,11 @@ const AdminStudents = () => {
                       </Button>
 
                       {codeGenerationError && (
-                        <p className="mt-2 text-sm text-red-600">{codeGenerationError}</p>
+                        <Alert variant="destructive" className="mt-4">
+                          <AlertCircle className="h-4 w-4" />
+                          <AlertTitle>Error</AlertTitle>
+                          <AlertDescription>{codeGenerationError}</AlertDescription>
+                        </Alert>
                       )}
 
                       {generatedCode && (
@@ -434,7 +439,11 @@ const AdminStudents = () => {
               </Button>
             </CardHeader>
             <CardContent>
-              {invites.length > 0 ? (
+              {isLoadingInvites ? (
+                <div className="flex justify-center items-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-learnable-purple" />
+                </div>
+              ) : invites && invites.length > 0 ? (
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
@@ -476,7 +485,9 @@ const AdminStudents = () => {
                   </Table>
                 </div>
               ) : (
-                <p className="text-muted-foreground">No invitations found.</p>
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">No invitations found. Create one above.</p>
+                </div>
               )}
             </CardContent>
             <CardFooter>
