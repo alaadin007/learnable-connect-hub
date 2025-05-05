@@ -193,9 +193,35 @@ const LoginForm = () => {
 
           if (profileError) {
             console.error("Error fetching user profile:", profileError);
-            toast.error("Error fetching user profile");
-            setIsLoading(false);
-            return;
+            
+            // Fall back to user metadata if profile fetch fails
+            const userType = user.user_metadata?.user_type;
+            if (userType) {
+              const redirectPath =
+                userType === "school"
+                  ? "/admin"
+                  : userType === "teacher"
+                  ? "/teacher/analytics"
+                  : "/dashboard";
+                  
+              toast.success("Login successful", {
+                description: `Welcome back, ${user.user_metadata?.full_name || email}!`,
+              });
+              
+              navigate(redirectPath, { 
+                replace: true,
+                state: { 
+                  fromNavigation: true,
+                  preserveContext: true
+                }
+              });
+              setIsLoading(false);
+              return;
+            } else {
+              toast.error("Error loading user profile");
+              setIsLoading(false);
+              return;
+            }
           }
 
           console.log("LoginForm: User profile fetched:", profile);
@@ -224,7 +250,24 @@ const LoginForm = () => {
           });
         } catch (profileError) {
           console.error("Error processing profile:", profileError);
-          toast.error("Error loading user profile");
+          
+          // Fall back to user metadata if profile processing fails
+          if (user.user_metadata?.user_type) {
+            const redirectPath =
+              user.user_metadata.user_type === "school"
+                ? "/admin"
+                : user.user_metadata.user_type === "teacher"
+                ? "/teacher/analytics"
+                : "/dashboard";
+                
+            toast.success("Login successful", {
+              description: `Welcome back, ${user.user_metadata?.full_name || email}!`,
+            });
+            
+            navigate(redirectPath, { replace: true });
+          } else {
+            toast.error("Error loading user profile");
+          }
         }
       } else {
         // fallback for unexpected case

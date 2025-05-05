@@ -146,6 +146,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       return profileData;
     } catch (error) {
       console.error("Error in fetchProfile:", error);
+      // Don't let profile fetch errors block the authentication process
+      // Return a minimal profile based on user metadata as fallback
+      if (user && user.user_metadata) {
+        const fallbackProfile: UserProfile = {
+          id: user.id,
+          user_type: String(user.user_metadata.user_type || null),
+          full_name: String(user.user_metadata.full_name || null),
+          school_code: String(user.user_metadata.school_code || null),
+        };
+        
+        // If we have school info in user metadata, use it
+        if (user.user_metadata.school_code) {
+          setUserRole(String(user.user_metadata.user_type || ""));
+          setIsSuperviser(String(user.user_metadata.user_type || "") === "school");
+          // Set profile with fallback data
+          setProfile(fallbackProfile);
+          return fallbackProfile;
+        }
+      }
       return null;
     }
   }, [user]);
@@ -232,7 +251,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         // Set user state based on session
         if (session?.user) {
           setUser(session.user);
-          await fetchProfile(session.user.id);
+          try {
+            await fetchProfile(session.user.id);
+          } catch (profileError) {
+            console.error("Profile fetch error during initialization:", profileError);
+            // Use user metadata as fallback if profile fetch fails
+            if (session.user.user_metadata) {
+              const userType = session.user.user_metadata.user_type;
+              if (userType) {
+                setUserRole(String(userType));
+                setIsSuperviser(String(userType) === "school");
+              }
+            }
+          }
         }
       } catch (error) {
         console.error("Error during session check:", error);
@@ -252,7 +283,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
 
       if (session?.user) {
         setUser(session.user);
-        await fetchProfile(session.user.id);
+        try {
+          await fetchProfile(session.user.id);
+        } catch (profileError) {
+          console.error("Profile fetch error during auth change:", profileError);
+          // Use user metadata as fallback if profile fetch fails
+          if (session.user.user_metadata) {
+            const userType = session.user.user_metadata.user_type;
+            if (userType) {
+              setUserRole(String(userType));
+              setIsSuperviser(String(userType) === "school");
+            }
+          }
+        }
       } else {
         // Only clear user/profile if not using test account
         if (!usingTestAccount) {
@@ -340,6 +383,44 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
 
       if (error) {
         throw error;
+      }
+
+      // If successful login but metadata is missing user_type, try to get it from profile
+      if (data?.user && (!data.user.user_metadata?.user_type || !data.user.user_metadata?.school_code)) {
+        try {
+          const { data: profileData, error: profileError } = await supabase
+            .from("profiles")
+            .select("user_type, school_code")
+            .eq("id", data.user.id)
+            .single();
+          
+          if (!profileError && profileData) {
+            // Update user metadata with profile data
+            const updatedMetadata = {
+              ...data.user.user_metadata,
+              user_type: profileData.user_type,
+              school_code: profileData.school_code
+            };
+            
+            // Update the user metadata in local context
+            const updatedUser = {
+              ...data.user,
+              user_metadata: updatedMetadata
+            };
+            
+            // Return the updated user data
+            return { 
+              data: { 
+                user: updatedUser, 
+                session: data.session 
+              }, 
+              error: null 
+            };
+          }
+        } catch (profileLookupError) {
+          console.warn("Could not fetch profile data during sign in:", profileLookupError);
+          // Continue with regular sign in data
+        }
       }
 
       return { data, error: null };
