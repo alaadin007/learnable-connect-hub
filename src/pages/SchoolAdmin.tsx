@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -18,9 +17,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { supabase } from '@/integrations/supabase/client';
-import { getCurrentUserSchoolId } from "@/utils/schoolUtils";
+import { getCurrentUserSchoolId, getSchoolInfo } from "@/utils/schoolUtils";
+import { School } from "@/components/analytics/types";
 
-// Define the extended type for teacher invitations to include error property
 export type TeacherInvitation = {
   id: string;
   email: string;
@@ -30,7 +29,6 @@ export type TeacherInvitation = {
   created_by: string;
   created_at: string;
   expires_at: string;
-  error?: any; // Add optional error property to handle potential error values
 };
 
 const SchoolAdmin = () => {
@@ -38,55 +36,80 @@ const SchoolAdmin = () => {
   const location = useLocation();
   const [activeTab, setActiveTab] = useState("teachers");
   const { profile, userRole, user } = useAuth();
-  const schoolCodeFromProfile = profile?.school_code || user?.user_metadata?.school_code;
-  const schoolNameFromProfile = profile?.school_name || user?.user_metadata?.school_name;
-  const organizationName = profile?.organization?.name;
-  const organizationCode = profile?.organization?.code;
   
-  // Initialize with data from user context for immediate display
-  const [schoolInfo, setSchoolInfo] = useState<{name: string, code: string}>({
-    name: organizationName || schoolNameFromProfile || "Crescent School",
-    code: organizationCode || schoolCodeFromProfile || "SCHOOL123"
+  const [schoolInfo, setSchoolInfo] = useState<School>({
+    id: '',
+    name: "Loading...",
+    code: "Loading..."
   });
   
-  // Try to fetch real school info in the background
+  // Fetch school info directly from the database
   useEffect(() => {
     const fetchSchoolInfo = async () => {
       try {
+        // First try to get from context/profile for immediate display
+        if (profile?.organization?.name && profile?.organization?.code) {
+          setSchoolInfo({
+            id: profile.organization.id || '',
+            name: profile.organization.name,
+            code: profile.organization.code
+          });
+          return;
+        }
+        
+        // Otherwise fetch from database
         const schoolId = await getCurrentUserSchoolId();
         
         if (schoolId) {
-          const { data, error } = await supabase
-            .from("schools")
-            .select("name, code")
-            .eq("id", schoolId)
-            .single();
-            
-          if (!error && data) {
+          const schoolData = await getSchoolInfo(schoolId);
+          
+          if (schoolData) {
             setSchoolInfo({
-              name: data.name,
-              code: data.code
+              id: schoolData.id,
+              name: schoolData.name,
+              code: schoolData.code
+            });
+          } else {
+            setSchoolInfo({
+              id: '',
+              name: "Not available",
+              code: "Not available"
             });
           }
+        } else if (user?.user_metadata?.school_name && user?.user_metadata?.school_code) {
+          // Fallback to user metadata
+          setSchoolInfo({
+            id: '',
+            name: user.user_metadata.school_name,
+            code: user.user_metadata.school_code
+          });
+        } else {
+          setSchoolInfo({
+            id: '',
+            name: "Not available",
+            code: "Not available"
+          });
         }
       } catch (error) {
         console.error("Error fetching school info:", error);
-        // No need to show error to user as we're using fallback values
+        setSchoolInfo({
+          id: '',
+          name: "Not available",
+          code: "Not available"
+        });
       }
     };
     
     fetchSchoolInfo();
-  }, []);
+  }, [profile, user]);
   
   // Safety check for authentication
-  if (!user) {
-    // Redirect to login if not logged in
-    useEffect(() => {
+  useEffect(() => {
+    if (!user) {
       toast.error("You must be logged in to access this page");
       navigate("/login", { state: { from: location.pathname } });
-    }, []);
-    return null;
-  }
+    }
+  }, [user, navigate, location.pathname]);
   
   // Verify correct user role
   useEffect(() => {

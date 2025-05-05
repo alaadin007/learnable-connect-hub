@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,13 +15,11 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { getCurrentUserSchoolId } from "@/utils/schoolUtils";
 
-// Interface to extend school data with our fields
+// Interface for school data
 interface SchoolData {
   id: string;
   name: string;
   code: string;
-  created_at: string;
-  updated_at: string;
   contact_email?: string;
   description?: string;
   notifications_enabled?: boolean;
@@ -39,28 +38,19 @@ const SchoolSettings = () => {
   const [schoolId, setSchoolId] = useState<string | null>(null);
 
   useEffect(() => {
-    // Load initial school data - without waiting for API calls
+    // Load initial school data directly from the database
     const fetchSchoolData = async () => {
       try {
-        // First try to get school ID from profile
-        let schoolIdVar = profile?.organization?.id;
+        // First try to get school ID
+        let schoolIdVar = await getCurrentUserSchoolId();
         
-        // If not found in profile, try to get it from user metadata directly
-        if (!schoolIdVar && user?.user_metadata?.school_code) {
-          schoolIdVar = "mock-school-id"; // Use mock ID for instant loading
-        }
+        // Set a fallback email
+        setContactEmail(user?.email || "");
         
         // Store the school ID for later use
-        setSchoolId(schoolIdVar || "mock-school-id");
+        setSchoolId(schoolIdVar);
         
-        // Set default values immediately for instant UI display
-        setSchoolName(user?.user_metadata?.school_name || "Crescent School");
-        setSchoolCode(user?.user_metadata?.school_code || "W3V4P7VT");
-        setContactEmail(user?.email || "");
-        setDescription("A learning institution focused on student success");
-        setNotificationsEnabled(true);
-        
-        // Try to fetch actual data in the background if we have an ID
+        // If we have a school ID, get the school data
         if (schoolIdVar) {
           const { data } = await supabase
             .from("schools")
@@ -69,17 +59,29 @@ const SchoolSettings = () => {
             .single();
 
           if (data) {
-            // Update with real data if available
-            setSchoolName(data.name || user?.user_metadata?.school_name || "");
-            setSchoolCode(data.code || user?.user_metadata?.school_code || "");
+            setSchoolName(data.name || "");
+            setSchoolCode(data.code || "");
             setContactEmail(data.contact_email || user?.email || "");
             setDescription(data.description || "");
             setNotificationsEnabled(data.notifications_enabled !== false);
+          } else {
+            // Fallback to metadata
+            setSchoolName(user?.user_metadata?.school_name || "");
+            setSchoolCode(user?.user_metadata?.school_code || "");
+            setDescription("A learning institution focused on student success");
           }
+        } else {
+          // Fallback to metadata
+          setSchoolName(user?.user_metadata?.school_name || "");
+          setSchoolCode(user?.user_metadata?.school_code || "");
+          setDescription("A learning institution focused on student success");
         }
       } catch (error) {
         console.error("Error fetching school data:", error);
-        // Keep the default values set above
+        // Set fallback values
+        setSchoolName(user?.user_metadata?.school_name || "");
+        setSchoolCode(user?.user_metadata?.school_code || "");
+        setDescription("A learning institution focused on student success");
       }
     };
 
@@ -96,7 +98,17 @@ const SchoolSettings = () => {
     
     setIsSaving(true);
     try {
-      // Skip actual API call for immediate feedback
+      const { error } = await supabase
+        .from("schools")
+        .update({
+          name: schoolName,
+          contact_email: contactEmail,
+          description: description,
+          notifications_enabled: notificationsEnabled
+        })
+        .eq("id", schoolId);
+        
+      if (error) throw error;
       toast.success("School settings updated successfully!");
     } catch (error: any) {
       console.error("Error updating school settings:", error);
@@ -114,10 +126,25 @@ const SchoolSettings = () => {
     
     setIsGeneratingCode(true);
     try {
-      // Skip actual API call for immediate feedback
-      // Generate mock code
-      const mockCode = `MOCK${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-      setSchoolCode(mockCode);
+      // Generate a random 8-character code
+      const characters = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let newCode = '';
+      for (let i = 0; i < 8; i++) {
+        newCode += characters.charAt(Math.floor(Math.random() * characters.length));
+      }
+      
+      // Update the code in the database
+      const { error } = await supabase
+        .from("schools")
+        .update({
+          code: newCode
+        })
+        .eq("id", schoolId);
+        
+      if (error) throw error;
+      
+      // Update the local state
+      setSchoolCode(newCode);
       toast.success("New school code generated successfully!");
     } catch (error: any) {
       console.error("Error generating new school code:", error);

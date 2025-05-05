@@ -7,20 +7,6 @@ import { supabase } from "@/integrations/supabase/client";
  */
 export const getCurrentUserSchoolId = async (): Promise<string | null> => {
   try {
-    // Try the RPC function first
-    const { data: schoolId, error: rpcError } = await supabase
-      .rpc("get_user_school_id");
-    
-    if (schoolId && !rpcError) {
-      console.log("Found school ID from RPC:", schoolId);
-      return schoolId;
-    }
-    
-    // If RPC fails, try manual lookup
-    if (rpcError) {
-      console.warn("RPC error when fetching school ID:", rpcError);
-    }
-    
     // Get the current user
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
@@ -36,7 +22,6 @@ export const getCurrentUserSchoolId = async (): Promise<string | null> => {
       .single();
     
     if (teacherData?.school_id) {
-      console.log("Found school ID from teachers table:", teacherData.school_id);
       return teacherData.school_id;
     }
     
@@ -48,19 +33,18 @@ export const getCurrentUserSchoolId = async (): Promise<string | null> => {
       .single();
     
     if (studentData?.school_id) {
-      console.log("Found school ID from students table:", studentData.school_id);
       return studentData.school_id;
     }
     
     // Try from profile data with school_code
-    const { data: profileData, error: profileError } = await supabase
+    const { data: profileData } = await supabase
       .from("profiles")
       .select("school_code")
       .eq("id", user.id)
       .single();
     
     // Only proceed if we have valid profile data and school_code
-    if (profileData && profileData.school_code) {
+    if (profileData?.school_code) {
       // Get school ID from code
       const { data: schoolData } = await supabase
         .from("schools")
@@ -69,7 +53,6 @@ export const getCurrentUserSchoolId = async (): Promise<string | null> => {
         .single();
         
       if (schoolData?.id) {
-        console.log("Found school ID from school code:", schoolData.id);
         return schoolData.id;
       }
     }
@@ -84,7 +67,6 @@ export const getCurrentUserSchoolId = async (): Promise<string | null> => {
         .single();
         
       if (metadataSchoolData?.id) {
-        console.log("Found school ID from user metadata school code:", metadataSchoolData.id);
         return metadataSchoolData.id;
       }
     }

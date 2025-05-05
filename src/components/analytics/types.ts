@@ -1,4 +1,3 @@
-
 export interface Student {
   id: string;
   name: string;
@@ -33,8 +32,6 @@ export interface PerformanceMetrics {
   total_submissions?: number;
 }
 
-// Adding the missing exported types that are causing errors
-
 export interface AnalyticsFilters {
   dateRange?: {
     from: Date;
@@ -46,7 +43,6 @@ export interface AnalyticsFilters {
   subject?: string;
 }
 
-// Update AnalyticsSummary interface to match the expected structure
 export interface AnalyticsSummary {
   activeStudents: number;
   totalSessions: number;

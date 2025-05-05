@@ -8,7 +8,6 @@ interface SessionsTableProps {
   sessions: SessionData[];
   title?: string;
   description?: string;
-  isLoading?: boolean;
 }
 
 const SessionsTable: React.FC<SessionsTableProps> = ({
