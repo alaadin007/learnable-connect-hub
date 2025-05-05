@@ -1,4 +1,3 @@
-
 import React, {
   createContext,
   useState,
@@ -571,13 +570,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
               try {
                 // Using a timeout to avoid blocking the UI
                 setTimeout(() => {
-                  // We'll use a simple fetch here to avoid the issue with supabase.rpc
-                  fetch(`${supabase.supabaseUrl}/rest/v1/rpc/populatetestaccountwithsessions`, {
+                  // Fix: Use a direct URL constructed from environment variables instead of using protected properties
+                  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://ldlgckwkdsvrfuymidrr.supabase.co";
+                  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 
+                    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxkbGdja3drZHN2cmZ1eW1pZHJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDYwNTc2NzksImV4cCI6MjA2MTYzMzY3OX0.kItrTMcKThMXuwNDClYNTGkEq-1EVVldq1vFw7ZsKx0";
+                  
+                  // Use the URL directly without accessing protected properties
+                  fetch(`${supabaseUrl}/rest/v1/rpc/populatetestaccountwithsessions`, {
                     method: 'POST',
                     headers: {
                       'Content-Type': 'application/json',
-                      'apikey': supabase.supabaseKey,
-                      'Authorization': `Bearer ${supabase.supabaseKey}`
+                      'apikey': supabaseKey,
+                      'Authorization': `Bearer ${supabaseKey}`
                     },
                     body: JSON.stringify({
                       userid: mockUser.id,
