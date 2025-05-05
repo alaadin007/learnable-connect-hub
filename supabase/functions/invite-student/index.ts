@@ -69,7 +69,10 @@ serve(async (req) => {
     console.log("Processing request for school ID:", schoolId);
 
     // Parse the request body
-    const { method, email }: InviteStudentBody = await req.json();
+    const requestBody = await req.json();
+    const { method, email }: InviteStudentBody = requestBody;
+    
+    console.log("Request body:", requestBody);
 
     // Handle invite by code
     if (method === "code") {
@@ -103,6 +106,43 @@ serve(async (req) => {
 
       if (inviteError) {
         console.error("Error creating invitation:", inviteError);
+        
+        // Check if the error is related to teacher_id column not existing
+        if (inviteError.message?.includes('teacher_id')) {
+          // Try inserting without the teacher_id field
+          const { data: retryInviteData, error: retryError } = await supabaseClient
+            .from("student_invites")
+            .insert({
+              code: inviteCode,
+              school_id: schoolId,
+              status: "pending"
+            })
+            .select()
+            .single();
+            
+          if (retryError) {
+            console.error("Error in retry invitation:", retryError);
+            return new Response(
+              JSON.stringify({ error: "Failed to create invitation" }),
+              { 
+                status: 500,
+                headers: { "Content-Type": "application/json", ...corsHeaders },
+              }
+            );
+          }
+          
+          return new Response(
+            JSON.stringify({ 
+              message: "Student invite code generated successfully",
+              code: inviteCode
+            }),
+            { 
+              status: 200,
+              headers: { "Content-Type": "application/json", ...corsHeaders },
+            }
+          );
+        }
+        
         return new Response(
           JSON.stringify({ error: "Failed to create invitation" }),
           { 
@@ -146,7 +186,6 @@ serve(async (req) => {
           code: inviteCode,
           email: email,
           school_id: schoolId,
-          teacher_id: user.id,
           status: "pending"
         })
         .select()
@@ -181,7 +220,7 @@ serve(async (req) => {
     } else {
       console.error("Invalid request parameters");
       return new Response(
-        JSON.stringify({ error: "Invalid request parameters" }),
+        JSON.stringify({ error: "Invalid request parameters", received: requestBody }),
         { 
           status: 400,
           headers: { "Content-Type": "application/json", ...corsHeaders },
@@ -191,7 +230,7 @@ serve(async (req) => {
   } catch (error) {
     console.error("Error processing request:", error);
     return new Response(
-      JSON.stringify({ error: "Internal server error" }),
+      JSON.stringify({ error: "Internal server error", details: error?.message }),
       { 
         status: 500,
         headers: { "Content-Type": "application/json", ...corsHeaders },

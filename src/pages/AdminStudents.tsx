@@ -157,19 +157,6 @@ const AdminStudents = () => {
         console.log("Invitation created:", data);
         toast.success(`Invitation sent to ${values.email}`);
         form.reset();
-      } else if (values.method === "code") {
-        console.log("Generating invitation code");
-        
-        // Call our invite-student edge function
-        const { data, error } = await supabase.functions.invoke("invite-student", {
-          body: { method: "code" }
-        });
-
-        if (error) throw error;
-        
-        console.log("Generated code:", data);
-        setGeneratedCode(data.code);
-        toast.success("Student invitation code generated");
       }
       
       // Refresh the invites list
