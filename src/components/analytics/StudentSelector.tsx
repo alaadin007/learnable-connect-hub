@@ -7,12 +7,14 @@ export interface StudentSelectorProps {
   students: Student[];
   selectedStudentId?: string;
   onStudentSelect: (studentId: string | undefined) => void;
+  isLoading?: boolean;
 }
 
 export function StudentSelector({ 
   students, 
   selectedStudentId, 
-  onStudentSelect 
+  onStudentSelect,
+  isLoading = false
 }: StudentSelectorProps) {
   const handleValueChange = (value: string) => {
     onStudentSelect(value === "all" ? undefined : value);
@@ -23,13 +25,18 @@ export function StudentSelector({
       <Select 
         value={selectedStudentId || "all"} 
         onValueChange={handleValueChange}
+        disabled={isLoading}
       >
         <SelectTrigger className="w-full">
-          <SelectValue placeholder="Select student" />
+          <SelectValue placeholder={isLoading ? "Loading students..." : "Select student"} />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">All Students</SelectItem>
-          {students && students.length > 0 ? (
+          {isLoading ? (
+            <SelectItem value="loading" disabled>
+              Loading students...
+            </SelectItem>
+          ) : students && students.length > 0 ? (
             students.map((student) => (
               <SelectItem key={student.id} value={student.id}>
                 {student.name}

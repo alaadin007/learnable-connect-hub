@@ -34,7 +34,7 @@ import { SchoolPerformancePanel } from "@/components/analytics/SchoolPerformance
 import { TeacherPerformanceTable } from "@/components/analytics/TeacherPerformanceTable";
 import { StudentPerformanceTable } from "@/components/analytics/StudentPerformancePanel";
 import { useRBAC } from "@/contexts/RBACContext";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, getMockOrValidUUID } from "@/integrations/supabase/client";
 
 const AdminAnalytics = () => {
   const { profile, schoolId: authSchoolId } = useAuth();
@@ -75,20 +75,37 @@ const AdminAnalytics = () => {
   const [teacherPerformanceData, setTeacherPerformanceData] = useState<any[]>([]);
   const [studentPerformanceData, setStudentPerformanceData] = useState<any[]>([]);
 
-  // Derive schoolId with memo
+  // Derive schoolId with memo and validation
   const schoolId = useMemo(() => {
-    return authSchoolId || profile?.organization?.id || 'test';
+    const id = authSchoolId || profile?.organization?.id || 'test';
+    
+    // Use the new helper function to ensure we have a valid UUID for Supabase
+    // This prevents "invalid input syntax for type uuid" errors
+    return getMockOrValidUUID(id);
   }, [authSchoolId, profile?.organization?.id]);
   
   // Fetch school data from Supabase
   useEffect(() => {
     const fetchSchoolData = async () => {
-      if (!schoolId || schoolId === 'test') return;
+      if (!schoolId) {
+        setIsSchoolDataLoading(false);
+        return;
+      }
       
       try {
         setIsSchoolDataLoading(true);
         
-        // Attempt to get school data from the schools table
+        // For test school IDs, use mock data
+        if (schoolId === '00000000-0000-0000-0000-000000000000') {
+          setSchoolData({
+            name: profile?.organization?.name || "Test School",
+            code: profile?.organization?.code || "TEST123"
+          });
+          setIsSchoolDataLoading(false);
+          return;
+        }
+        
+        // Attempt to get school data from the schools table for real school IDs
         const { data: schoolData, error } = await supabase
           .from('schools')
           .select('name, code')
@@ -97,6 +114,11 @@ const AdminAnalytics = () => {
         
         if (error) {
           console.error('Error fetching school data:', error);
+          // Fall back to profile data
+          setSchoolData({
+            name: profile?.organization?.name || "Test School",
+            code: profile?.organization?.code || "TEST123"
+          });
           return;
         }
         
@@ -108,20 +130,29 @@ const AdminAnalytics = () => {
         }
       } catch (error) {
         console.error('Error fetching school data:', error);
+        // Fall back to profile data
+        setSchoolData({
+          name: profile?.organization?.name || "Test School",
+          code: profile?.organization?.code || "TEST123"
+        });
       } finally {
         setIsSchoolDataLoading(false);
       }
     };
     
     fetchSchoolData();
-  }, [schoolId]);
+  }, [schoolId, profile?.organization?.name, profile?.organization?.code]);
   
   // Fetch students with real data
   const loadStudents = useCallback(async () => {
     if (schoolId) {
-      const studentData = await fetchStudents(schoolId);
-      if (studentData.length > 0) {
-        setStudents(studentData);
+      try {
+        const studentData = await fetchStudents(schoolId);
+        if (studentData && Array.isArray(studentData) && studentData.length > 0) {
+          setStudents(studentData);
+        }
+      } catch (error) {
+        console.error("Error loading students:", error);
       }
     }
   }, [schoolId]);
@@ -129,9 +160,13 @@ const AdminAnalytics = () => {
   // Fetch teachers with real data
   const loadTeachers = useCallback(async () => {
     if (schoolId) {
-      const teacherData = await fetchTeachers(schoolId);
-      if (teacherData.length > 0) {
-        setTeachers(teacherData);
+      try {
+        const teacherData = await fetchTeachers(schoolId);
+        if (teacherData && Array.isArray(teacherData) && teacherData.length > 0) {
+          setTeachers(teacherData);
+        }
+      } catch (error) {
+        console.error("Error loading teachers:", error);
       }
     }
   }, [schoolId]);

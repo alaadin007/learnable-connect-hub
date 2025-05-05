@@ -41,6 +41,24 @@ export type TeacherInvitationResult = {
   email: string;
 }
 
+// Helper function to validate if a string is a valid UUID
+export const isValidUUID = (id: string): boolean => {
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidPattern.test(id);
+};
+
+// Helper function that returns a mock UUID for test purposes to avoid database errors
+export const getMockOrValidUUID = (id?: string): string | undefined => {
+  if (!id) return undefined;
+  
+  // If it's a valid UUID, return it
+  if (isValidUUID(id)) return id;
+  
+  // If it's "test" or another non-UUID value, return a consistent mock UUID
+  // This prevents database errors when the app is in test/demo mode
+  return '00000000-0000-0000-0000-000000000000';
+};
+
 // Export the URL and key for direct access without using the protected properties
 export const SUPABASE_PUBLIC_URL = SUPABASE_URL;
 export const SUPABASE_PUBLIC_KEY = SUPABASE_PUBLISHABLE_KEY;
