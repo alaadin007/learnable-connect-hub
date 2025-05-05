@@ -18,7 +18,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { LogOut } from "lucide-react";
+import { LogOut, Loader2 } from "lucide-react";
 
 const formSchema = z.object({
   email: z.string().email({
@@ -34,6 +34,7 @@ const LoginForm = () => {
   const { signIn, setTestUser } = useAuth();
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginInProgress, setLoginInProgress] = useState<boolean>(false);
+  const [testAccountInProgress, setTestAccountInProgress] = useState<string | null>(null);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -64,6 +65,8 @@ const LoginForm = () => {
           
           // Make sure test account exists in database
           const userId = `test-${type}-0`;
+          
+          // First check if profile exists
           const { data: existingProfile } = await supabase
             .from('profiles')
             .select('id, user_type')
@@ -75,6 +78,31 @@ const LoginForm = () => {
             const schoolId = "test-school-0";
             const schoolCode = "TEST0";
             const schoolName = "Test School";
+            
+            // First make sure the school exists
+            const { data: existingSchool } = await supabase
+              .from('schools')
+              .select('id')
+              .eq('id', schoolId)
+              .maybeSingle();
+              
+            if (!existingSchool) {
+              // Create school code first
+              await supabase.from('school_codes')
+                .upsert({
+                  code: schoolCode,
+                  school_name: schoolName,
+                  active: true
+                });
+              
+              // Then create school
+              await supabase.from('schools')
+                .insert({
+                  id: schoolId,
+                  name: schoolName,
+                  code: schoolCode
+                });
+            }
             
             // Create profile
             await supabase.from('profiles').insert({
@@ -104,7 +132,9 @@ const LoginForm = () => {
           }
           
           // Handle test account with setTestUser, hide loading state
+          setTestAccountInProgress(type);
           await setTestUser(type, 0, false);
+          setTestAccountInProgress(null);
           // Navigation is handled inside setTestUser
           return;
         }
@@ -123,6 +153,7 @@ const LoginForm = () => {
         );
       } finally {
         setLoginInProgress(false);
+        setTestAccountInProgress(null);
       }
     },
     [signIn, setTestUser]
@@ -130,6 +161,7 @@ const LoginForm = () => {
   
   const handleTestAccountClick = async (accountType: "school" | "teacher" | "student") => {
     try {
+      setTestAccountInProgress(accountType);
       console.log(`Direct test login for ${accountType} account`);
       
       // Immediately store role for quicker detection
@@ -141,6 +173,33 @@ const LoginForm = () => {
       const schoolId = "test-school-0";
       const schoolCode = "TEST0";
       const schoolName = "Test School";
+      
+      // First make sure school exists
+      const { data: existingSchool } = await supabase
+        .from('schools')
+        .select('id')
+        .eq('id', schoolId)
+        .maybeSingle();
+        
+      if (!existingSchool) {
+        // Create school code first
+        await supabase.from('school_codes')
+          .upsert({
+            code: schoolCode,
+            school_name: schoolName,
+            active: true
+          });
+        
+        // Then create school
+        await supabase.from('schools')
+          .insert({
+            id: schoolId,
+            name: schoolName,
+            code: schoolCode
+          });
+          
+        console.log("Created test school");
+      }
       
       // Check if profile exists
       const { data: existingProfile } = await supabase
@@ -159,21 +218,50 @@ const LoginForm = () => {
           school_name: schoolName
         });
         
-        if (accountType === 'school' || accountType === 'teacher') {
+        console.log(`Created test ${accountType} profile`);
+      }
+      
+      if (accountType === 'school' || accountType === 'teacher') {
+        // Check if teacher record exists
+        const { data: existingTeacher } = await supabase
+          .from('teachers')
+          .select('id, is_supervisor')
+          .eq('id', userId)
+          .maybeSingle();
+        
+        if (!existingTeacher) {
           // Create teacher record
           await supabase.from('teachers').insert({
             id: userId,
             school_id: schoolId,
-            is_supervisor: accountType === 'school'
+            is_supervisor: accountType === 'school' // School admin is supervisor
           });
+          
+          console.log(`Created test ${accountType} teacher record`);
+        } else if (accountType === 'school' && !existingTeacher.is_supervisor) {
+          // Ensure school admin is supervisor
+          await supabase.from('teachers')
+            .update({ is_supervisor: true })
+            .eq('id', userId);
         }
+      }
+      
+      if (accountType === 'student') {
+        // Check if student record exists
+        const { data: existingStudent } = await supabase
+          .from('students')
+          .select('id')
+          .eq('id', userId)
+          .maybeSingle();
         
-        if (accountType === 'student') {
+        if (!existingStudent) {
           // Create student record
           await supabase.from('students').insert({
             id: userId,
             school_id: schoolId
           });
+          
+          console.log(`Created test student record`);
         }
       }
       
@@ -183,6 +271,8 @@ const LoginForm = () => {
       console.error("Test account setup failed:", error);
       setLoginError(`Test account setup failed: ${error.message || "Unknown error"}`);
       toast.error(`Error setting up test account: ${error.message || "Unknown error"}`);
+    } finally {
+      setTestAccountInProgress(null);
     }
   };
 
@@ -228,11 +318,11 @@ const LoginForm = () => {
         <Button
           type="submit"
           className="w-full bg-learnable-blue hover:bg-learnable-blue/90"
-          disabled={loginInProgress}
+          disabled={loginInProgress || !!testAccountInProgress}
         >
           {loginInProgress ? (
             <>
-              <LogOut className="mr-2 h-4 w-4" />
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Logging in...
             </>
           ) : (
@@ -245,10 +335,32 @@ const LoginForm = () => {
             variant="link"
             onClick={() => navigate("/test-accounts")}
             className="text-sm"
-            disabled={loginInProgress}
+            disabled={loginInProgress || !!testAccountInProgress}
           >
             Try test accounts instead
           </Button>
+        </div>
+        
+        <div className="pt-4 border-t border-gray-200">
+          <p className="text-center text-xs text-gray-600 mb-3">Quick access with test accounts:</p>
+          <div className="flex justify-center gap-2">
+            {["school", "teacher", "student"].map((type) => (
+              <Button 
+                key={type}
+                type="button" 
+                size="sm"
+                variant="outline"
+                onClick={() => handleTestAccountClick(type as "school" | "teacher" | "student")}
+                className="text-xs"
+                disabled={loginInProgress || !!testAccountInProgress}
+              >
+                {testAccountInProgress === type ? (
+                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                ) : null}
+                {type.charAt(0).toUpperCase() + type.slice(1)}
+              </Button>
+            ))}
+          </div>
         </div>
       </form>
     </Form>
