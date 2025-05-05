@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,7 +24,6 @@ import {
 } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
 import { Copy, Loader2, UserPlus, Mail, Clock, AlertCircle, Check, X } from 'lucide-react';
-import { Badge } from "@/components/ui/badge";
 import { format } from 'date-fns';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -34,6 +32,7 @@ type Student = {
   full_name: string | null;
   email: string;
   created_at: string;
+  status: string;
 };
 
 type StudentInvite = {
@@ -70,7 +69,7 @@ const StudentManagement = () => {
       // First get all student IDs for this school
       const { data: studentData, error: studentError } = await supabase
         .from('students')
-        .select('id')
+        .select('id, status')
         .eq('school_id', schoolId);
 
       if (studentError) throw studentError;
@@ -90,13 +89,17 @@ const StudentManagement = () => {
 
       if (profileError) throw profileError;
 
-      // Format student data with profile info
-      const formattedStudents = (profileData || []).map(profile => ({
-        id: profile.id,
-        full_name: profile.full_name,
-        email: profile.id, // Using ID as placeholder since we can't access auth.users
-        created_at: profile.created_at
-      }));
+      // Format student data with profile info and status
+      const formattedStudents = (profileData || []).map(profile => {
+        const studentInfo = studentData.find(s => s.id === profile.id);
+        return {
+          id: profile.id,
+          full_name: profile.full_name,
+          email: profile.id, // Using ID as placeholder since we can't access auth.users
+          created_at: profile.created_at,
+          status: studentInfo?.status || 'pending'
+        };
+      });
 
       setStudents(formattedStudents);
     } catch (error) {
@@ -206,6 +209,22 @@ const StudentManagement = () => {
     }
   };
 
+  const approveStudent = async (studentId: string, studentName: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('approve-student', {
+        body: { student_id: studentId }
+      });
+
+      if (error) throw error;
+
+      toast.success(`${studentName || 'Student'} approved successfully`);
+      fetchStudents();
+    } catch (error: any) {
+      console.error('Error approving student:', error);
+      toast.error(error.message || 'Failed to approve student');
+    }
+  };
+
   const getInviteStatusBadge = (status: string) => {
     switch (status) {
       case 'pending':
@@ -214,6 +233,17 @@ const StudentManagement = () => {
         return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">Used</Badge>;
       case 'expired':
         return <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-300">Expired</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
+  const getStudentStatusBadge = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300">Pending Approval</Badge>;
+      case 'active':
+        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">Active</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -355,6 +385,7 @@ const StudentManagement = () => {
                       <TableHead>Name</TableHead>
                       <TableHead>Email/ID</TableHead>
                       <TableHead>Joined</TableHead>
+                      <TableHead>Status</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -364,7 +395,19 @@ const StudentManagement = () => {
                         <TableCell className="font-medium">{student.full_name || "Unknown"}</TableCell>
                         <TableCell>{student.email}</TableCell>
                         <TableCell>{format(new Date(student.created_at), 'MMM d, yyyy')}</TableCell>
+                        <TableCell>{getStudentStatusBadge(student.status)}</TableCell>
                         <TableCell>
+                          {student.status === 'pending' ? (
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              className="mr-2"
+                              onClick={() => approveStudent(student.id, student.full_name || '')}
+                            >
+                              <Check className="h-4 w-4 mr-1" />
+                              Approve
+                            </Button>
+                          ) : null}
                           <Button 
                             variant="destructive" 
                             size="sm"

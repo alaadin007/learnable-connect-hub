@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,6 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 
 // Define the schema for student invite form
 const addStudentSchema = z.object({
@@ -43,11 +43,20 @@ type StudentInvite = {
   status: string;
 };
 
+type Student = {
+  id: string;
+  email: string;
+  full_name: string | null;
+  status: string;
+  created_at: string;
+};
+
 const AdminStudents = () => {
   const { user, profile, schoolId: authSchoolId } = useAuth();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [invites, setInvites] = useState<StudentInvite[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
   const [generatedCode, setGeneratedCode] = useState("");
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   
@@ -69,67 +78,114 @@ const AdminStudents = () => {
   
   const selectedMethod = form.watch("method");
 
-  // Load student invites
+  // Load students and invites
   useEffect(() => {
-    const fetchInvites = async () => {
-      if (!schoolId) {
-        console.log("No school ID available, cannot fetch invites");
+    if (schoolId) {
+      fetchInvites();
+      fetchStudents();
+    }
+  }, [schoolId, refreshTrigger]);
+  
+  const fetchStudents = async () => {
+    if (!schoolId) return;
+    
+    try {
+      // Get students with their status for this school
+      const { data: studentData, error: studentError } = await supabase
+        .from("students")
+        .select("id, status, created_at")
+        .eq("school_id", schoolId)
+        .order("created_at", { ascending: false });
+        
+      if (studentError) throw studentError;
+      
+      if (!studentData || studentData.length === 0) {
+        setStudents([]);
         return;
       }
       
-      try {
-        console.log("Fetching invites for school ID:", schoolId);
+      // Get user profiles for these students
+      const studentIds = studentData.map(s => s.id);
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", studentIds);
         
-        // Try to fetch from student_invites table
-        const { data: studentInvites, error: studentInviteError } = await supabase
-          .from("student_invites")
-          .select("*")
-          .eq("school_id", schoolId)
-          .order("created_at", { ascending: false })
-          .limit(10);
-          
-        if (studentInvites && studentInvites.length > 0) {
-          console.log("Found student invites:", studentInvites);
-          setInvites(studentInvites as StudentInvite[]);
-          return;
-        } else {
-          console.log("No student invites found or error:", studentInviteError);
-        }
-        
-        // Fallback to teacher_invitations table for display
-        const { data, error } = await supabase
-          .from("teacher_invitations")
-          .select("*")
-          .eq("school_id", schoolId)
-          .order("created_at", { ascending: false })
-          .limit(10);
-
-        if (error) {
-          console.error("Error fetching teacher invitations:", error);
-          throw error;
-        }
-        
-        // Convert teacher_invitations to our StudentInvite type
-        const studentInviteData: StudentInvite[] = (data || []).map(invite => ({
-          id: invite.id,
-          email: invite.email,
-          created_at: invite.created_at,
-          expires_at: invite.expires_at,
-          status: invite.status
-        }));
-        
-        console.log("Using teacher invitations as fallback:", studentInviteData);
-        setInvites(studentInviteData);
-      } catch (error: any) {
-        console.error("Error fetching student invites:", error);
-        toast.error("Failed to load student invites");
-      }
-    };
-
-    if (schoolId) {
-      fetchInvites();
+      if (profileError) throw profileError;
+      
+      // Combine the data
+      const formattedStudents = studentData.map(student => {
+        const profile = profileData?.find(p => p.id === student.id);
+        return {
+          id: student.id,
+          email: student.id, // Using ID as placeholder since we can't access auth.users
+          full_name: profile?.full_name || null,
+          status: student.status || "pending",
+          created_at: student.created_at
+        };
+      });
+      
+      setStudents(formattedStudents);
+    } catch (error) {
+      console.error("Error fetching students:", error);
+      toast.error("Failed to load students");
     }
-  }, [schoolId, refreshTrigger]);
+  };
+
+  const fetchInvites = async () => {
+    if (!schoolId) {
+      console.log("No school ID available, cannot fetch invites");
+      return;
+    }
+    
+    try {
+      console.log("Fetching invites for school ID:", schoolId);
+        
+      // Try to fetch from student_invites table
+      const { data: studentInvites, error: studentInviteError } = await supabase
+        .from("student_invites")
+        .select("*")
+        .eq("school_id", schoolId)
+        .order("created_at", { ascending: false })
+        .limit(10);
+          
+      if (studentInvites && studentInvites.length > 0) {
+        console.log("Found student invites:", studentInvites);
+        setInvites(studentInvites as StudentInvite[]);
+        return;
+      } else {
+        console.log("No student invites found or error:", studentInviteError);
+      }
+        
+      // Fallback to teacher_invitations table for display
+      const { data, error } = await supabase
+        .from("teacher_invitations")
+        .select("*")
+        .eq("school_id", schoolId)
+        .order("created_at", { ascending: false })
+        .limit(10);
+
+      if (error) {
+        console.error("Error fetching teacher invitations:", error);
+        throw error;
+      }
+        
+      // Convert teacher_invitations to our StudentInvite type
+      const studentInviteData: StudentInvite[] = (data || []).map(invite => ({
+        id: invite.id,
+        email: invite.email,
+        created_at: invite.created_at,
+        expires_at: invite.expires_at,
+        status: invite.status
+      }));
+        
+      console.log("Using teacher invitations as fallback:", studentInviteData);
+      setInvites(studentInviteData);
+    } catch (error: any) {
+      console.error("Error fetching student invites:", error);
+      toast.error("Failed to load student invites");
+    }
+  };
 
   const onSubmit = async (values: AddStudentFormValues) => {
     if (!user || !schoolId) {
@@ -233,6 +289,36 @@ const AdminStudents = () => {
     setRefreshTrigger(prev => prev + 1);
     toast.success("Refreshing student invitations...");
   };
+  
+  const approveStudent = async (studentId: string) => {
+    try {
+      // Using the direct database function instead of edge function
+      const { error } = await supabase
+        .from("students")
+        .update({ status: "active" })
+        .eq("id", studentId)
+        .eq("school_id", schoolId);
+        
+      if (error) throw error;
+      
+      toast.success("Student approved successfully");
+      setRefreshTrigger(prev => prev + 1);
+    } catch (error: any) {
+      console.error("Error approving student:", error);
+      toast.error(error.message || "Failed to approve student");
+    }
+  };
+  
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "pending":
+        return <Badge variant="outline" className="bg-yellow-100 text-yellow-800">Pending Approval</Badge>;
+      case "active":
+        return <Badge variant="outline" className="bg-green-100 text-green-800">Active</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -252,6 +338,7 @@ const AdminStudents = () => {
             <h1 className="text-3xl font-bold gradient-text">Student Management</h1>
           </div>
           
+          {/* Add New Student Card */}
           <Card>
             <CardHeader>
               <CardTitle>Add New Student</CardTitle>
@@ -357,6 +444,79 @@ const AdminStudents = () => {
             </CardContent>
           </Card>
           
+          {/* Students List Card */}
+          <Card className="mt-6">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Students</CardTitle>
+                <CardDescription>
+                  Current students in your school
+                </CardDescription>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => setRefreshTrigger(prev => prev + 1)} className="flex items-center gap-2">
+                <RefreshCw className="h-4 w-4" />
+                Refresh
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {students.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Email/ID</TableHead>
+                        <TableHead>Joined</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {students.map((student) => (
+                        <TableRow key={student.id}>
+                          <TableCell>
+                            {student.full_name || 'Unknown'}
+                          </TableCell>
+                          <TableCell>
+                            {student.email}
+                          </TableCell>
+                          <TableCell>
+                            {new Date(student.created_at).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell>
+                            {getStatusBadge(student.status)}
+                          </TableCell>
+                          <TableCell>
+                            {student.status === 'pending' ? (
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => approveStudent(student.id)}
+                              >
+                                Approve
+                              </Button>
+                            ) : (
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                disabled
+                              >
+                                Approved
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <p className="text-muted-foreground">No students found.</p>
+              )}
+            </CardContent>
+          </Card>
+          
+          {/* Student Invitations Card */}
           <Card className="mt-6">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>

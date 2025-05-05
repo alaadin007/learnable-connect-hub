@@ -273,17 +273,15 @@ export const approveStudent = async (studentId: string) => {
       return { error: "Could not determine school ID" };
     }
 
-    // Note: The students table doesn't have a 'status' field according to type definitions
-    // Instead, we'll update the updated_at timestamp to mark the student as approved
-    // This is a workaround since we can't add a status field without changing the database schema
+    // Update student status to "active"
     const { error: updateError } = await supabase
       .from("students")
-      .update({ updated_at: new Date().toISOString() })
+      .update({ status: "active" })
       .eq("id", studentId)
       .eq("school_id", schoolId);
 
     if (updateError) {
-      console.error("Error updating student:", updateError);
+      console.error("Error updating student status:", updateError);
       return { error: "Failed to approve student" };
     }
 
