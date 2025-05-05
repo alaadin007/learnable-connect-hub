@@ -83,93 +83,58 @@ const SchoolRegistrationForm: React.FC = () => {
     }
   };
 
-  const checkEmailExistingRole = async (email: string): Promise<string | null> => {
-    try {
-      // Try to get the user's role from the profiles table
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('user_type')
-        .ilike('id', `%${email}%`) // This is a workaround since we can't directly query by email
-        .limit(1);
-      
-      if (error) {
-        console.error("Error checking user role:", error);
-        return null;
-      }
-      
-      if (data && data.length > 0 && data[0].user_type) {
-        // Return the role name with proper capitalization for display
-        const role = data[0].user_type;
-        switch (role) {
-          case 'school':
-            return 'School Administrator';
-          case 'teacher':
-            return 'Teacher';
-          case 'student':
-            return 'Student';
-          default:
-            return role.charAt(0).toUpperCase() + role.slice(1);
-        }
-      }
-      
-      return null;
-    } catch (error) {
-      console.error("Error checking email role:", error);
-      return null;
-    }
-  };
-
-  const checkIfEmailExists = async (email: string): Promise<boolean> => {
-    try {
-      // Instead of using admin.listUsers with filter property which causes TypeScript errors,
-      // Try a sign-in attempt to check if the email exists
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: email,
-        password: "dummy-password-for-check-only",
-      });
-
-      // If there's no error or the error is not about invalid credentials, email might exist
-      const emailExists = !signInError || (signInError && !signInError.message.includes("Invalid login credentials"));
-      
-      // If we think the email exists, double-check by querying the profiles table
-      if (emailExists) {
-        // Try to get the user's role
-        const userRole = await checkEmailExistingRole(email);
-        if (userRole) {
-          setExistingUserRole(userRole);
-        }
-        
-        // Additional check to see if the email is in use by getting profiles
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select('id')
-          .limit(1);
-        
-        // If we can't check profiles, assume the email exists for safety
-        if (profileError) {
-          console.error("Error checking profiles:", profileError);
-          return true;
-        }
-        
-        return !!profileData && profileData.length > 0;
-      }
-
-      return emailExists;
-    } catch (error) {
-      console.error("Error checking email existence:", error);
-      // In case of error, safer to assume it might exist
-      return true;
-    }
-  };
-
-  const generateSchoolCode = async (): Promise<string> => {
-    // Generate a random school code - uppercase alphanumeric, 8 characters
+  // Generate a random school code - uppercase alphanumeric, 8 characters
+  const generateSchoolCode = (): string => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // excludes similar looking characters
     let result = '';
     for (let i = 0; i < 8; i++) {
       result += chars.charAt(Math.floor(Math.random() * chars.length));
     }
+    console.log(`Generated school code: ${result}`);
     return result;
+  };
+
+  // Check if email already exists using a more reliable method
+  const checkIfEmailExists = async (email: string): Promise<boolean> => {
+    try {
+      // Attempt to sign in with the email - we just want to check if it exists
+      // We'll use a deliberately wrong password so it should fail with invalid credentials
+      // if the email exists, or with a different error if email doesn't exist
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email,
+        password: "dummy-password-for-check",
+      });
+
+      // If we get "Invalid login credentials", email likely exists
+      const emailExists = error && error.message.includes("Invalid login credentials");
+      
+      if (emailExists) {
+        console.log(`Email check indicates ${email} already exists`);
+        
+        // Try to get the user's role if the email exists
+        try {
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('user_type')
+            .ilike('email', email)
+            .limit(1);
+            
+          if (profiles && profiles.length > 0) {
+            const role = profiles[0].user_type;
+            setExistingUserRole(role);
+            console.log(`Found existing user role: ${role}`);
+          }
+        } catch (roleError) {
+          console.error("Error checking user role:", roleError);
+        }
+      }
+      
+      return emailExists;
+    } catch (error) {
+      console.error("Error checking email existence:", error);
+      // In case of error, safer to assume it might exist
+      return false;
+    }
   };
 
   const onSubmit = async (data: SchoolRegistrationFormValues) => {
@@ -182,7 +147,7 @@ const SchoolRegistrationForm: React.FC = () => {
       // Display toast notification that registration is in progress
       const loadingToast = toast.loading("Registering your school...");
       
-      // Check if email already exists
+      console.log("Checking if email exists:", data.adminEmail);
       const emailExists = await checkIfEmailExists(data.adminEmail);
       
       if (emailExists) {
@@ -206,8 +171,8 @@ const SchoolRegistrationForm: React.FC = () => {
       }
 
       // Generate a school code
-      const schoolCode = await generateSchoolCode();
-      console.log(`Generated school code: ${schoolCode}`);
+      const schoolCode = generateSchoolCode();
+      console.log(`Generated school code for registration: ${schoolCode}`);
       
       // First create the entry in school_codes table
       const { error: schoolCodeInsertError } = await supabase
@@ -397,7 +362,7 @@ const SchoolRegistrationForm: React.FC = () => {
       );
 
     } catch (error: any) {
-      console.error("Unexpected error:", error);
+      console.error("Unexpected error during registration:", error);
       setRegistrationError(error.message || "Unknown error during registration");
       toast.error(`An unexpected error occurred: ${error.message || "Unknown error"}`);
     } finally {
