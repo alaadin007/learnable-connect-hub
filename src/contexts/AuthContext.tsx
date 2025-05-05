@@ -1,4 +1,3 @@
-
 import React, {
   createContext,
   useState,
@@ -49,7 +48,7 @@ type AuthContextType = {
   setTestUser: (
     type: "school" | "teacher" | "student",
     schoolIndex?: number
-  ) => Promise<void>;
+  ) => Promise<User>; // Updated return type to match implementation
 };
 
 // Create context with default values
@@ -66,7 +65,7 @@ const AuthContext = createContext<AuthContextType>({
   signOut: async () => {},
   updateProfile: async () => {},
   refreshProfile: async () => {},
-  setTestUser: async () => {},
+  setTestUser: async () => Promise.resolve({} as User),
 });
 
 // Custom hook for using auth context
