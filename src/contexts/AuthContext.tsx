@@ -1,4 +1,3 @@
-
 import React, {
   createContext,
   useState,
@@ -202,11 +201,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           return null;
         }
 
+        // Ensure profileData.user_type is properly typed
+        const userType = profileData.user_type as unknown;
+        
         // Assemble safe profile data with appropriate type casting
         const safeProfileData: UserProfile = {
           id: profileData.id,
-          // Apply type assertion to ensure user_type is treated as UserRole | null
-          user_type: profileData.user_type as UserRole | null,
+          // Cast user_type to UserRole | null to ensure compatibility
+          user_type: userType as UserRole | null,
           full_name: profileData.full_name,
           school_code: profileData.school_code,
           organization: null,
@@ -257,7 +259,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           console.log("Test account detected, skipping persistent profile storage");
         }
 
-        return profileData;
+        return profileData as unknown as UserProfile;
       } catch (err) {
         console.error("Error in fetchProfile:", err);
 
