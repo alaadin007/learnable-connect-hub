@@ -1,3 +1,4 @@
+
 import React, {
   createContext,
   useState,
@@ -95,6 +96,31 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
 
       if (error) {
         console.error("Error fetching profile:", error);
+        
+        // Try to get fallback data from user metadata
+        if (user && user.user_metadata) {
+          console.log("Using user metadata as fallback for profile data");
+          const userType = user.user_metadata.user_type || null;
+          const fullName = user.user_metadata.full_name || null;
+          const schoolCode = user.user_metadata.school_code || null;
+          
+          const fallbackProfile: UserProfile = {
+            id: userId,
+            user_type: userType ? String(userType) : null,
+            full_name: fullName ? String(fullName) : null,
+            school_code: schoolCode ? String(schoolCode) : null,
+            organization: null
+          };
+          
+          if (userType) {
+            setUserRole(String(userType));
+            setIsSuperviser(String(userType) === "school");
+          }
+          
+          setProfile(fallbackProfile);
+          return fallbackProfile;
+        }
+        
         return null;
       }
 
@@ -130,14 +156,38 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       }
 
       setProfile(safeProfileData);
-      setUserRole(profileData.user_type || null);
+      
+      // Ensure userRole is set from profile data
+      if (profileData.user_type) {
+        console.log("Setting user role from profile:", profileData.user_type);
+        setUserRole(profileData.user_type);
+      }
       
       // Fix the type issue by using a ternary operator to ensure boolean value
       setIsSuperviser(
         profileData.user_type === "superviser" || 
         (profileData.user_type === "school" && safeProfileData.organization?.id ? true : false)
       );
-      setSchoolId(safeProfileData.organization?.id || null);
+      
+      // Set school ID from organization or appropriate source
+      if (safeProfileData.organization?.id) {
+        setSchoolId(safeProfileData.organization.id);
+      } else if (profileData.user_type === "school") {
+        // Try to get school ID from schools table for school admins
+        try {
+          const { data: schoolData } = await supabase
+            .from("schools")
+            .select("id")
+            .eq("code", safeProfileData.school_code || '')
+            .single();
+          
+          if (schoolData) {
+            setSchoolId(schoolData.id);
+          }
+        } catch (schoolError) {
+          console.error("Error fetching school ID:", schoolError);
+        }
+      }
 
       if (user && isTestAccount(user.email || '')) {
         console.log('Test account detected, not storing profile data');
@@ -432,7 +482,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         try {
           const { data: profileData, error: profileError } = await supabase
             .from("profiles")
-            .select("user_type, school_code")
+            .select("user_type, school_code, full_name")
             .eq("id", data.user.id)
             .single();
           
@@ -442,8 +492,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
             const updatedMetadata = {
               ...data.user.user_metadata,
               user_type: profileData.user_type,
-              school_code: profileData.school_code
+              school_code: profileData.school_code,
+              full_name: profileData.full_name || data.user.user_metadata?.full_name
             };
+            
+            // Update user metadata in Supabase
+            await supabase.auth.updateUser({
+              data: updatedMetadata
+            });
             
             // Update the user metadata in local context
             const updatedUser = {
@@ -559,7 +615,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         id: testProfile.id,
         email: `${type}.test@learnable.edu`,
         user_metadata: {
-          full_name: testProfile.full_name
+          full_name: testProfile.full_name,
+          user_type: type,
+          school_code: TEST_SCHOOL_CODE
         },
         // Add required User properties
         app_metadata: {},

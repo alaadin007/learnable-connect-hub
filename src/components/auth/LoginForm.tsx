@@ -37,15 +37,25 @@ const LoginForm = () => {
   // Redirect if user role already set
   useEffect(() => {
     if (userRole) {
-      const redirectPath = userRole === "school"
-        ? "/admin"
-        : userRole === "teacher"
-        ? "/teacher/analytics"
-        : "/dashboard";
-
+      console.log("LoginForm: User role already set, redirecting to appropriate dashboard:", userRole);
+      const redirectPath = getUserRedirectPath(userRole);
       navigate(redirectPath);
     }
   }, [userRole, navigate]);
+
+  // Helper function to determine redirect path based on user role
+  const getUserRedirectPath = (role: string): string => {
+    switch (role) {
+      case "school":
+        return "/admin";
+      case "teacher":
+        return "/teacher/analytics";
+      case "student":
+        return "/dashboard";
+      default:
+        return "/dashboard";
+    }
+  };
 
   // Special handling for test accounts
   const handleQuickLogin = async (
@@ -64,7 +74,7 @@ const LoginForm = () => {
       localStorage.removeItem('testAccountType');
       
       // Direct login for test accounts - this completely bypasses authentication
-      await setTestUser(type, schoolIndex);
+      const mockUser = await setTestUser(type, schoolIndex);
       
       // Mark in localStorage that we're using a test account
       localStorage.setItem('usingTestAccount', 'true');
@@ -73,12 +83,7 @@ const LoginForm = () => {
       console.log(`LoginForm: Successfully set up quick login for ${type}`);
 
       // Define redirect paths
-      let redirectPath = "/dashboard";
-      if (type === "school") {
-        redirectPath = "/admin";
-      } else if (type === "teacher") {
-        redirectPath = "/teacher/analytics";
-      }
+      const redirectPath = getUserRedirectPath(type);
 
       console.log(`LoginForm: Redirecting quick login user to ${redirectPath}`);
       toast.success(
@@ -136,59 +141,9 @@ const LoginForm = () => {
         return;
       }
       
-      // Special handling for the specific account
-      if (email === "salman.k.786000@gmail.com") {
-        console.log("Using special login flow for salman.k.786000@gmail.com");
-        
-        // Direct Supabase auth login with detailed error handling
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password
-        });
-
-        if (error) {
-          console.error("Login error for salman.k.786000@gmail.com:", error);
-          throw error;
-        }
-
-        if (data?.user) {
-          console.log("Login successful for salman.k.786000@gmail.com");
-          
-          // Ensure this user has the right metadata
-          if (!data.user.user_metadata?.user_type || data.user.user_metadata?.user_type !== 'school') {
-            await supabase.auth.updateUser({
-              data: {
-                user_type: 'school',
-                full_name: 'Salman',
-                ...data.user.user_metadata
-              }
-            });
-          }
-          
-          // Navigate directly to admin route for this account
-          toast.success("Login successful", {
-            description: `Welcome back, ${data.user.user_metadata?.full_name || "Salman"}!`,
-          });
-          
-          navigate("/admin", { 
-            replace: true,
-            state: { 
-              fromNavigation: true,
-              preserveContext: true
-            }
-          });
-        }
-        
-        setIsLoading(false);
-        return;
-      }
+      // Handle normal login with credentials
+      const { data, error } = await signIn(email, password);
       
-      // Regular login flow for other accounts
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      });
-
       if (error) {
         console.error("Login error:", error);
         throw error;
@@ -197,77 +152,48 @@ const LoginForm = () => {
       if (data?.user) {
         console.log("Login successful:", data.user.id);
         
-        try {
-          // Get user profile with organization data
-          const { data: profile, error: profileError } = await supabase
-            .from("profiles")
-            .select("user_type, full_name, school_code, organization:schools(id, name, code)")
-            .eq("id", data.user.id)
-            .single();
-
-          if (profileError) {
-            console.error("Error fetching user profile:", profileError);
-            
-            // Fall back to user metadata if profile fetch fails
-            const userType = data.user.user_metadata?.user_type;
-            if (userType) {
-              const redirectPath =
-                userType === "school"
-                  ? "/admin"
-                  : userType === "teacher"
-                  ? "/teacher/analytics"
-                  : "/dashboard";
-                  
-              toast.success("Login successful", {
-                description: `Welcome back, ${data.user.user_metadata?.full_name || email}!`,
-              });
-              
-              navigate(redirectPath, { 
-                replace: true,
-                state: { 
-                  fromNavigation: true,
-                  preserveContext: true
-                }
-              });
-              return;
-            } else {
-              // If both profile and metadata fail, use a general success message and redirect to dashboard
-              toast.success("Login successful");
-              navigate("/dashboard", { replace: true });
-              return;
-            }
-          }
-
-          console.log("LoginForm: User profile fetched:", profile);
-
-          // Determine redirect path based on user type
-          const redirectPath =
-            profile?.user_type === "school"
-              ? "/admin"
-              : profile?.user_type === "teacher"
-              ? "/teacher/analytics"
-              : "/dashboard";
-
-          toast.success("Login successful", {
-            description: `Welcome back, ${
-              profile?.full_name || data.user.user_metadata?.full_name || email
-            }!`,
-          });
-
-          navigate(redirectPath, { 
-            replace: true,
-            state: { 
-              fromNavigation: true,
-              preserveContext: true
-            }
-          });
-        } catch (profileError) {
-          console.error("Error processing profile:", profileError);
-          
-          // Default redirect if everything fails
-          toast.success("Login successful");
-          navigate("/dashboard", { replace: true });
+        // Determine user type and redirect accordingly
+        let userType: string | null = null;
+        let userName: string | null = null;
+        
+        // First try to get from user metadata
+        if (data.user.user_metadata) {
+          userType = data.user.user_metadata.user_type;
+          userName = data.user.user_metadata.full_name;
         }
+        
+        // If not in metadata, try to get from profile
+        if (!userType) {
+          try {
+            const { data: profile, error: profileError } = await supabase
+              .from("profiles")
+              .select("user_type, full_name")
+              .eq("id", data.user.id)
+              .single();
+
+            if (!profileError && profile) {
+              userType = profile.user_type;
+              userName = profile.full_name || userName;
+            }
+          } catch (profileError) {
+            console.error("Error fetching user profile:", profileError);
+          }
+        }
+        
+        // Default to dashboard if we still can't determine the role
+        const redirectPath = userType ? getUserRedirectPath(userType) : "/dashboard";
+          
+        toast.success("Login successful", {
+          description: `Welcome back, ${userName || email}!`,
+        });
+        
+        navigate(redirectPath, { 
+          replace: true,
+          state: { 
+            fromNavigation: true,
+            preserveContext: true
+          }
+        });
       }
     } catch (error: any) {
       console.error("Login error:", error);
