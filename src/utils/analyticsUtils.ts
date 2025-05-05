@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { format, subDays } from 'date-fns';
 import { AnalyticsFilters, AnalyticsSummary, SessionData, TopicData, StudyTimeData } from '@/components/analytics/types';
@@ -63,7 +64,7 @@ export const fetchSessionLogs = async (schoolId: string | null, filters: Analyti
     const fromDate = filters.dateRange?.from ? filters.dateRange.from.toISOString() : null;
     const toDate = filters.dateRange?.to ? filters.dateRange.to.toISOString() : null;
     
-    // Build the query - using a join instead of a nested select
+    // Update the query to use a separate profiles fetch instead of a direct join
     let query = supabase
       .from('session_logs')
       .select(`
@@ -73,8 +74,7 @@ export const fetchSessionLogs = async (schoolId: string | null, filters: Analyti
         session_start,
         session_end,
         topic_or_content_used,
-        num_queries,
-        profiles!inner(full_name)
+        num_queries
       `)
       .eq('school_id', schoolId)
       .order('session_start', { ascending: false })
@@ -106,6 +106,25 @@ export const fetchSessionLogs = async (schoolId: string | null, filters: Analyti
       return [];
     }
     
+    // Get user profiles in a separate query
+    const userIds = data.map(session => session.user_id);
+    const { data: profilesData, error: profilesError } = await supabase
+      .from('profiles')
+      .select('id, full_name')
+      .in('id', userIds);
+      
+    if (profilesError) {
+      console.error("Error fetching profiles:", profilesError);
+    }
+    
+    // Create a lookup map for profiles
+    const profilesMap = new Map();
+    if (profilesData) {
+      profilesData.forEach(profile => {
+        profilesMap.set(profile.id, profile.full_name);
+      });
+    }
+    
     // Transform the data to match the SessionData interface
     return data.map(session => {
       // Calculate duration in minutes
@@ -116,8 +135,8 @@ export const fetchSessionLogs = async (schoolId: string | null, filters: Analyti
         durationMinutes = Math.round((end.getTime() - start.getTime()) / (1000 * 60));
       }
       
-      // Get student name safely from the join results
-      const studentName = session.profiles?.full_name || 'Unknown Student';
+      // Get student name from the profiles map or use a default
+      const studentName = profilesMap.get(session.user_id) || 'Unknown Student';
       
       // Parse topics as array or use single topic
       const topics = typeof session.topic_or_content_used === 'string'
@@ -374,22 +393,45 @@ export const fetchStudents = async (schoolId: string | null) => {
       return [];
     }
     
-    const { data, error } = await supabase
+    // Modified query to avoid the join with profiles
+    const { data: studentsData, error: studentsError } = await supabase
       .from('students')
-      .select(`
-        id,
-        profiles!inner(full_name)
-      `)
+      .select('id, school_id')
       .eq('school_id', schoolId);
     
-    if (error) {
-      console.error("Error fetching students:", error);
+    if (studentsError) {
+      console.error("Error fetching students:", studentsError);
       return [];
     }
     
-    return (data || []).map(student => ({
+    if (!studentsData || studentsData.length === 0) {
+      return [];
+    }
+    
+    // Get profiles in a separate query
+    const studentIds = studentsData.map(student => student.id);
+    const { data: profilesData, error: profilesError } = await supabase
+      .from('profiles')
+      .select('id, full_name')
+      .in('id', studentIds);
+      
+    if (profilesError) {
+      console.error("Error fetching student profiles:", profilesError);
+      return [];
+    }
+    
+    // Create a map from profiles data
+    const profilesMap = new Map();
+    if (profilesData) {
+      profilesData.forEach(profile => {
+        profilesMap.set(profile.id, profile.full_name);
+      });
+    }
+    
+    // Combine data from both queries
+    return studentsData.map(student => ({
       id: student.id,
-      name: student.profiles?.full_name || 'Unknown Student'
+      name: profilesMap.get(student.id) || 'Unknown Student'
     }));
   } catch (error) {
     console.error("Error in fetchStudents:", error);
@@ -405,22 +447,45 @@ export const fetchTeachers = async (schoolId: string | null) => {
       return [];
     }
     
-    const { data, error } = await supabase
+    // Modified query to avoid the join with profiles
+    const { data: teachersData, error: teachersError } = await supabase
       .from('teachers')
-      .select(`
-        id,
-        profiles!inner(full_name)
-      `)
+      .select('id, school_id')
       .eq('school_id', schoolId);
     
-    if (error) {
-      console.error("Error fetching teachers:", error);
+    if (teachersError) {
+      console.error("Error fetching teachers:", teachersError);
       return [];
     }
     
-    return (data || []).map(teacher => ({
+    if (!teachersData || teachersData.length === 0) {
+      return [];
+    }
+    
+    // Get profiles in a separate query
+    const teacherIds = teachersData.map(teacher => teacher.id);
+    const { data: profilesData, error: profilesError } = await supabase
+      .from('profiles')
+      .select('id, full_name')
+      .in('id', teacherIds);
+      
+    if (profilesError) {
+      console.error("Error fetching teacher profiles:", profilesError);
+      return [];
+    }
+    
+    // Create a map from profiles data
+    const profilesMap = new Map();
+    if (profilesData) {
+      profilesData.forEach(profile => {
+        profilesMap.set(profile.id, profile.full_name);
+      });
+    }
+    
+    // Combine data from both queries
+    return teachersData.map(teacher => ({
       id: teacher.id,
-      name: teacher.profiles?.full_name || 'Unknown Teacher'
+      name: profilesMap.get(teacher.id) || 'Unknown Teacher'
     }));
   } catch (error) {
     console.error("Error in fetchTeachers:", error);
@@ -428,7 +493,6 @@ export const fetchTeachers = async (schoolId: string | null) => {
   }
 };
 
-// Add the missing export function
 export const exportAnalyticsToCSV = (
   summary: AnalyticsSummary | null, 
   sessions: SessionData[], 
@@ -499,21 +563,19 @@ export const exportAnalyticsToCSV = (
   // Prepare sessions data
   const sessionsHeader = ["Student", "Topic", "Queries", "Duration", "Date"];
   const sessionsData = sessions.map(session => [
-    csvEscape(session.student_name ?? session.userName ?? session.student ?? "Unknown"),
+    csvEscape(session.student_name ?? session.userName ?? "Unknown"),
     csvEscape(
       Array.isArray(session.topics) && session.topics.length > 0
         ? session.topics[0]
-        : session.topicOrContent ?? session.topic ?? "General"
+        : session.topic ?? "General"
     ),
-    csvEscape(session.questions_asked ?? session.numQueries ?? session.queries ?? 0),
+    csvEscape(session.questions_asked ?? session.queries ?? 0),
     csvEscape(
       typeof session.duration_minutes === "number"
         ? `${session.duration_minutes} min`
-        : typeof session.duration === "string"
-          ? session.duration
-          : `${session.duration ?? 0} min`
+        : `${session.duration_minutes ?? 0} min`
     ),
-    csvEscape(formatDate(session.session_date ?? session.startTime ?? undefined))
+    csvEscape(formatDate(session.session_date))
   ]);
   const sessionsCSV = [
     ["Session Details", ""],
