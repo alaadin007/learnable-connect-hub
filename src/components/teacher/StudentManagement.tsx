@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +28,7 @@ import { Copy, Loader2, UserPlus, Mail, Clock, AlertCircle, Check, X } from 'luc
 import { Badge } from "@/components/ui/badge";
 import { format } from 'date-fns';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { getCurrentUserSchoolId, generateStudentInviteCode } from '@/utils/schoolUtils';
 
 type Student = {
   id: string;
@@ -45,7 +47,7 @@ type StudentInvite = {
 };
 
 const StudentManagement = () => {
-  const { user, profile, schoolId } = useAuth();
+  const { user, profile, schoolId: authSchoolId } = useAuth();
   const [students, setStudents] = useState<Student[]>([]);
   const [invites, setInvites] = useState<StudentInvite[]>([]);
   const [newStudentEmail, setNewStudentEmail] = useState('');
@@ -56,30 +58,64 @@ const StudentManagement = () => {
   const [inviteMethod, setInviteMethod] = useState<'email' | 'code'>('email');
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
   const [codeGenerationError, setCodeGenerationError] = useState<string | null>(null);
+  
+  // Get the school ID properly with error handling
+  const [currentSchoolId, setCurrentSchoolId] = useState<string | null>(authSchoolId || null);
 
   useEffect(() => {
-    if (schoolId) {
+    const getSchoolId = async () => {
+      if (!currentSchoolId) {
+        try {
+          const schoolId = await getCurrentUserSchoolId();
+          if (schoolId) {
+            setCurrentSchoolId(schoolId);
+          } else {
+            console.error("Could not determine school ID");
+            toast.error("Failed to retrieve school information");
+          }
+        } catch (error) {
+          console.error("Error fetching school ID:", error);
+        }
+      }
+    };
+    
+    if (!currentSchoolId) {
+      getSchoolId();
+    } else {
       fetchStudents();
       fetchInvites();
     }
-  }, [schoolId]);
+  }, [currentSchoolId]);
 
   const fetchStudents = async () => {
+    if (!currentSchoolId) {
+      console.error("No school ID available, cannot fetch students");
+      return;
+    }
+    
     setIsLoading(true);
     try {
+      console.log("Fetching students for school ID:", currentSchoolId);
+      
       // First get all student IDs for this school
       const { data: studentData, error: studentError } = await supabase
         .from('students')
         .select('id')
-        .eq('school_id', schoolId);
+        .eq('school_id', currentSchoolId);
 
-      if (studentError) throw studentError;
+      if (studentError) {
+        console.error("Error fetching student IDs:", studentError);
+        throw studentError;
+      }
 
       if (!studentData || studentData.length === 0) {
+        console.log("No students found for this school");
         setStudents([]);
         setIsLoading(false);
         return;
       }
+      
+      console.log(`Found ${studentData.length} students, fetching profiles...`);
 
       // Then get profile data for these students
       const studentIds = studentData.map(s => s.id);
@@ -88,15 +124,23 @@ const StudentManagement = () => {
         .select('id, full_name, created_at')
         .in('id', studentIds);
 
-      if (profileError) throw profileError;
+      if (profileError) {
+        console.error("Error fetching student profiles:", profileError);
+        throw profileError;
+      }
+      
+      console.log(`Retrieved ${profileData?.length || 0} student profiles`);
 
       // Format student data with profile info
-      const formattedStudents = (profileData || []).map(profile => ({
-        id: profile.id,
-        full_name: profile.full_name,
-        email: profile.id, // Using ID as placeholder since we can't access auth.users
-        created_at: profile.created_at
-      }));
+      const formattedStudents = (profileData || []).map(profile => {
+        const studentId = profile.id;
+        return {
+          id: studentId,
+          full_name: profile.full_name,
+          email: studentId, // Using ID as placeholder since we can't access auth.users
+          created_at: profile.created_at
+        };
+      });
 
       setStudents(formattedStudents);
     } catch (error) {
@@ -108,23 +152,28 @@ const StudentManagement = () => {
   };
 
   const fetchInvites = async () => {
-    if (!schoolId || !user?.id) {
+    if (!currentSchoolId) {
+      console.error("No school ID available, cannot fetch invites");
       return;
     }
     
     try {
+      console.log("Fetching student invites for school ID:", currentSchoolId);
+      
       // Added throttling control to prevent excessive requests
       const { data: inviteData, error } = await supabase
         .from('student_invites')
         .select('id, code, email, created_at, expires_at, status')
-        .eq('school_id', schoolId)
+        .eq('school_id', currentSchoolId)
         .order('created_at', { ascending: false })
         .limit(10); // Limit the number of results to prevent large data transfers
         
       if (error) {
+        console.error("Error fetching student invites:", error);
         throw error;
       }
       
+      console.log(`Retrieved ${inviteData?.length || 0} student invites`);
       setInvites(inviteData as StudentInvite[]);
     } catch (error) {
       console.error('Error fetching invites:', error);
@@ -137,46 +186,17 @@ const StudentManagement = () => {
     setCodeGenerationError(null);
     
     try {
-      console.log("Getting auth session for code generation");
+      console.log("Generating student invite code...");
       
-      // Get the session for authentication
-      const { data: { session } } = await supabase.auth.getSession();
+      // Use the database function to generate a code
+      const { code, error } = await generateStudentInviteCode();
       
-      if (!session) {
-        throw new Error("Authentication required");
-      }
-      
-      console.log("Calling generate-student-code function");
-      
-      // Call the updated edge function with proper error handling
-      const { data, error } = await supabase.functions.invoke('generate-student-code', {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`
-        }
-      });
-
       if (error) {
-        console.error("Error from generate-student-code function:", error);
-        throw new Error(error.message || "Failed to generate code");
+        throw new Error(error);
       }
       
-      console.log("Response data:", data);
-
-      if (!data) {
-        throw new Error('Empty response received from server');
-      }
-      
-      if (data.error) {
-        throw new Error(data.error);
-      }
-      
-      if (!data.code) {
-        console.error("Invalid response format:", data);
-        throw new Error('Code not found in server response');
-      }
-      
-      console.log("Generated code response:", data);
-      setGeneratedCode(data.code);
+      console.log("Generated code:", code);
+      setGeneratedCode(code);
       toast.success("Invite code generated successfully");
       fetchInvites();
     } catch (error: any) {
@@ -189,6 +209,11 @@ const StudentManagement = () => {
   };
 
   const sendEmailInvite = async () => {
+    if (!currentSchoolId) {
+      toast.error('School information not found');
+      return;
+    }
+    
     if (!newStudentEmail.trim()) {
       toast.error('Please enter a valid email address');
       return;
@@ -196,35 +221,21 @@ const StudentManagement = () => {
 
     setIsSending(true);
     try {
-      console.log("Calling invite-student edge function for email invite:", newStudentEmail);
-      
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        throw new Error("Authentication required");
-      }
-      
-      // Use the invite-student function for email invites with better error handling
-      const { data, error } = await supabase.functions.invoke('invite-student', {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`
-        },
-        body: {
-          method: 'email',
-          email: newStudentEmail.trim()
-        }
-      });
+      // Create a direct database entry for the email invitation
+      const { error } = await supabase
+        .from('student_invites')
+        .insert({
+          school_id: currentSchoolId,
+          email: newStudentEmail.trim(),
+          status: 'pending',
+          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 days
+        });
 
       if (error) {
-        console.error("Error from invite-student function:", error);
+        console.error("Error creating student email invite:", error);
         throw error;
       }
       
-      if (!data) {
-        throw new Error('No response from server');
-      }
-      
-      console.log("Email invite response:", data);
       toast.success(`Invitation created for ${newStudentEmail}`);
       setNewStudentEmail('');
       setDialogOpen(false);
@@ -248,20 +259,16 @@ const StudentManagement = () => {
     }
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        throw new Error("Authentication required");
+      // Delete the student record directly
+      const { error: deleteError } = await supabase
+        .from("students")
+        .delete()
+        .eq("id", studentId);
+        
+      if (deleteError) {
+        console.error("Error deleting student:", deleteError);
+        throw deleteError;
       }
-      
-      const { data, error } = await supabase.functions.invoke('revoke-student-access', {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`
-        },
-        body: { student_id: studentId }
-      });
-
-      if (error) throw error;
 
       toast.success(`Student access revoked successfully`);
       fetchStudents();

@@ -89,22 +89,143 @@ const TestAccounts = () => {
         id: "test-accounts-status",
       });
 
-      // Check if create-test-accounts function exists in Supabase
-      const response = await supabase.functions.invoke("create-test-accounts", {
-        body: { 
-          refresh: true,
-          types: ["school", "teacher", "student"] 
-        },
-      });
-
-      if (response.error) {
-        const errorMsg = `Failed to refresh test accounts: ${response.error.message}`;
-        toast.error(errorMsg, {
-          id: "test-accounts-error",
+      // Create test accounts directly with database operations
+      const schoolType = "school";
+      const teacherType = "teacher";
+      const studentType = "student";
+      
+      // Create test school
+      const schoolId = `test-school-0`;
+      const schoolCode = "TEST0";
+      const schoolName = "Test School";
+      
+      // Create school code
+      const { error: schoolCodeError } = await supabase.from('school_codes')
+        .upsert({
+          code: schoolCode,
+          school_name: schoolName,
+          active: true
         });
-        console.error("Error creating test accounts:", response.error);
-        setErrorMessage(errorMsg);
-        return false;
+      
+      if (schoolCodeError) {
+        console.error("Error creating school code:", schoolCodeError);
+      }
+      
+      // Create or update school
+      const { error: schoolError } = await supabase.from('schools')
+        .upsert({
+          id: schoolId,
+          name: schoolName,
+          code: schoolCode
+        });
+      
+      if (schoolError) {
+        console.error("Error creating school:", schoolError);
+      }
+      
+      // Create test users with stable IDs
+      const testUsers = [
+        {
+          id: `test-${schoolType}-0`,
+          user_type: schoolType,
+          full_name: `Test School Admin`,
+          school_code: schoolCode,
+          school_name: schoolName
+        },
+        {
+          id: `test-${teacherType}-0`,
+          user_type: teacherType,
+          full_name: `Test Teacher`,
+          school_code: schoolCode,
+          school_name: schoolName
+        },
+        {
+          id: `test-${studentType}-0`,
+          user_type: studentType,
+          full_name: `Test Student`,
+          school_code: schoolCode,
+          school_name: schoolName
+        }
+      ];
+      
+      // Create or update profiles
+      for (const user of testUsers) {
+        const { error: profileError } = await supabase.from('profiles')
+          .upsert({
+            id: user.id,
+            user_type: user.user_type,
+            full_name: user.full_name,
+            school_code: user.school_code,
+            school_name: user.school_name
+          });
+        
+        if (profileError) {
+          console.error(`Error creating profile for ${user.user_type}:`, profileError);
+        }
+      }
+      
+      // Set up school admin as teacher with supervisor status
+      const { error: adminTeacherError } = await supabase.from('teachers')
+        .upsert({
+          id: `test-${schoolType}-0`,
+          school_id: schoolId,
+          is_supervisor: true
+        });
+      
+      if (adminTeacherError) {
+        console.error("Error creating admin teacher:", adminTeacherError);
+      }
+      
+      // Create teacher
+      const { error: teacherError } = await supabase.from('teachers')
+        .upsert({
+          id: `test-${teacherType}-0`,
+          school_id: schoolId,
+          is_supervisor: false
+        });
+      
+      if (teacherError) {
+        console.error("Error creating teacher:", teacherError);
+      }
+      
+      // Create student
+      const { error: studentError } = await supabase.from('students')
+        .upsert({
+          id: `test-${studentType}-0`,
+          school_id: schoolId
+        });
+      
+      if (studentError) {
+        console.error("Error creating student:", studentError);
+      }
+      
+      // Create test API keys
+      for (const user of testUsers) {
+        const { error: apiKeyError } = await supabase.from('user_api_keys')
+          .upsert({
+            user_id: user.id,
+            provider: 'openai',
+            api_key: 'sk-test-key-for-development-purposes-only'
+          });
+        
+        if (apiKeyError) {
+          console.error(`Error creating API key for ${user.user_type}:`, apiKeyError);
+        }
+      }
+      
+      // Generate mock session data for student
+      try {
+        const { error: rpcError } = await supabase.rpc('populatetestaccountwithsessions', {
+          userid: `test-${studentType}-0`,
+          schoolid: schoolId,
+          num_sessions: 5
+        });
+        
+        if (rpcError) {
+          console.error("Error generating test sessions:", rpcError);
+        }
+      } catch (sessionError) {
+        console.error("Failed to call populate sessions function:", sessionError);
       }
 
       toast.success("Test accounts refreshed successfully!", {
@@ -126,7 +247,7 @@ const TestAccounts = () => {
     }
   }, []);
 
-  // Updated for instant login with no loading state
+  // Updated for direct database operations instead of using edge functions
   const handleUseAccount = useCallback(
     async (accountType: AccountType) => {
       setErrorMessage(null);
@@ -139,19 +260,9 @@ const TestAccounts = () => {
         localStorage.setItem("testUserRole", accountType);
         localStorage.setItem("testUserIndex", "0");
         
-        // First ensure the test account exists in the database
-        const response = await supabase.functions.invoke("create-test-accounts", {
-          body: { 
-            type: accountType,
-            schoolIndex: 0
-          },
-        });
-        
-        if (response.error) {
-          throw new Error(`Failed to set up test account: ${response.error.message}`);
-        }
-        
-        console.log("Test account setup response:", response.data);
+        // Create or ensure test account exists
+        const userId = `test-${accountType}-0`;
+        const schoolId = "test-school-0";
         
         // Pass false to setTestUser to avoid loading states
         await setTestUser(accountType, 0, false);

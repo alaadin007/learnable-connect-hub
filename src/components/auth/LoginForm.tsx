@@ -62,27 +62,50 @@ const LoginForm = () => {
           localStorage.setItem("testUserRole", type);
           localStorage.setItem("testUserIndex", "0");
           
-          try {
-            // First ensure the test account exists in the database
-            const response = await supabase.functions.invoke("create-test-accounts", {
-              body: { 
-                type: type,
-                schoolIndex: 0
-              },
+          // Make sure test account exists in database
+          const userId = `test-${type}-0`;
+          const { data: existingProfile } = await supabase
+            .from('profiles')
+            .select('id, user_type')
+            .eq('id', userId)
+            .maybeSingle();
+            
+          if (!existingProfile) {
+            // If test account doesn't exist, recreate it
+            const schoolId = "test-school-0";
+            const schoolCode = "TEST0";
+            const schoolName = "Test School";
+            
+            // Create profile
+            await supabase.from('profiles').insert({
+              id: userId,
+              user_type: type,
+              full_name: `Test ${type.charAt(0).toUpperCase()}${type.slice(1)}`,
+              school_code: schoolCode,
+              school_name: schoolName
             });
             
-            if (response.error) {
-              throw new Error(`Failed to set up test account: ${response.error.message}`);
+            if (type === 'school' || type === 'teacher') {
+              // Create teacher record
+              await supabase.from('teachers').insert({
+                id: userId,
+                school_id: schoolId,
+                is_supervisor: type === 'school' // School admin is supervisor
+              });
             }
             
-            // Handle test account directly with setTestUser, hide loading state
-            await setTestUser(type, 0, false);
-            // Navigation is handled inside setTestUser
-          } catch (error: any) {
-            console.error("Test account setup failed:", error);
-            setLoginError(error.message || "Failed to set up test account");
+            if (type === 'student') {
+              // Create student record
+              await supabase.from('students').insert({
+                id: userId,
+                school_id: schoolId
+              });
+            }
           }
           
+          // Handle test account with setTestUser, hide loading state
+          await setTestUser(type, 0, false);
+          // Navigation is handled inside setTestUser
           return;
         }
         
@@ -105,7 +128,7 @@ const LoginForm = () => {
     [signIn, setTestUser]
   );
   
-  const handleTestAccountClick = async (accountType: string) => {
+  const handleTestAccountClick = async (accountType: "school" | "teacher" | "student") => {
     try {
       console.log(`Direct test login for ${accountType} account`);
       
@@ -113,16 +136,45 @@ const LoginForm = () => {
       localStorage.setItem("testUserRole", accountType);
       localStorage.setItem("testUserIndex", "0");
       
-      // First ensure the test account exists in the database
-      const response = await supabase.functions.invoke("create-test-accounts", {
-        body: { 
-          type: accountType,
-          schoolIndex: 0
-        },
-      });
+      // Ensure test account exists in the database
+      const userId = `test-${accountType}-0`;
+      const schoolId = "test-school-0";
+      const schoolCode = "TEST0";
+      const schoolName = "Test School";
       
-      if (response.error) {
-        throw new Error(`Failed to set up test account: ${response.error.message}`);
+      // Check if profile exists
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', userId)
+        .maybeSingle();
+      
+      if (!existingProfile) {
+        // Create profile if it doesn't exist
+        await supabase.from('profiles').insert({
+          id: userId,
+          user_type: accountType,
+          full_name: `Test ${accountType.charAt(0).toUpperCase()}${accountType.slice(1)}`,
+          school_code: schoolCode,
+          school_name: schoolName
+        });
+        
+        if (accountType === 'school' || accountType === 'teacher') {
+          // Create teacher record
+          await supabase.from('teachers').insert({
+            id: userId,
+            school_id: schoolId,
+            is_supervisor: accountType === 'school'
+          });
+        }
+        
+        if (accountType === 'student') {
+          // Create student record
+          await supabase.from('students').insert({
+            id: userId,
+            school_id: schoolId
+          });
+        }
       }
       
       // Pass false to setTestUser to skip loading states
