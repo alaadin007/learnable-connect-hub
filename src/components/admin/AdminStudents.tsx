@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { approveStudentDirect, revokeStudentAccessDirect } from "@/utils/databaseUtils";
-import { Loader2, RefreshCw, User } from "lucide-react";
+import { RefreshCw, User } from "lucide-react";
 
 type Student = {
   id: string;
@@ -21,7 +21,6 @@ type Student = {
 
 const AdminStudents = () => {
   const [students, setStudents] = useState<Student[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
@@ -30,7 +29,6 @@ const AdminStudents = () => {
   }, [refreshTrigger]);
 
   const fetchStudents = async () => {
-    setLoading(true);
     try {
       // Get school ID first
       const { data: schoolId, error: schoolIdError } = await supabase
@@ -39,7 +37,6 @@ const AdminStudents = () => {
       if (schoolIdError || !schoolId) {
         toast.error("Could not determine school ID");
         console.error("Error getting school ID:", schoolIdError);
-        setLoading(false);
         return;
       }
       
@@ -54,7 +51,6 @@ const AdminStudents = () => {
       if (studentsError) {
         toast.error("Error fetching students");
         console.error("Error fetching students:", studentsError);
-        setLoading(false);
         return;
       }
 
@@ -62,7 +58,6 @@ const AdminStudents = () => {
       
       if (!studentsData || studentsData.length === 0) {
         setStudents([]);
-        setLoading(false);
         return;
       }
       
@@ -77,7 +72,6 @@ const AdminStudents = () => {
       if (profilesError) {
         toast.error("Error fetching profiles");
         console.error("Error fetching profiles:", profilesError);
-        setLoading(false);
         return;
       }
 
@@ -101,8 +95,6 @@ const AdminStudents = () => {
     } catch (error) {
       console.error("Error fetching students:", error);
       toast.error("Failed to load students");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -175,11 +167,7 @@ const AdminStudents = () => {
         </div>
       </CardHeader>
       <CardContent>
-        {loading ? (
-          <div className="flex justify-center p-6">
-            <Loader2 className="animate-spin h-8 w-8 border-2 border-primary rounded-full border-t-transparent" />
-          </div>
-        ) : students.length === 0 ? (
+        {students.length === 0 ? (
           <div className="text-center py-12">
             <User className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
             <p className="text-muted-foreground">No students found.</p>

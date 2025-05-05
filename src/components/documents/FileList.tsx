@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -39,7 +38,6 @@ type DocumentContent = {
 
 const FileList: React.FC = () => {
   const [files, setFiles] = useState<FileItem[]>([]);
-  const [loading, setLoading] = useState(true);
   const [fileToDelete, setFileToDelete] = useState<FileItem | null>(null);
   const [selectedFile, setSelectedFile] = useState<FileItem | null>(null);
   const [fileContent, setFileContent] = useState<DocumentContent[]>([]);
@@ -52,7 +50,6 @@ const FileList: React.FC = () => {
     if (!user) return;
     
     try {
-      setLoading(true);
       const { data, error } = await supabase
         .from('documents')
         .select('*')
@@ -70,8 +67,6 @@ const FileList: React.FC = () => {
         variant: 'destructive',
       });
       console.error('Error fetching files:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -328,17 +323,7 @@ const FileList: React.FC = () => {
     <div>
       <h3 className="text-lg font-medium mb-4">Your Files</h3>
       
-      {loading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Card key={i} className="animate-pulse">
-              <CardContent className="p-4">
-                <div className="h-16 bg-gray-200 rounded"></div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      ) : files.length === 0 ? (
+      {files.length === 0 ? (
         <p className="text-center py-8 text-gray-500">
           You haven't uploaded any files yet.
         </p>

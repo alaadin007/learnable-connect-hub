@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Calendar, Clock, FileCheck } from "lucide-react";
+import { Calendar, Clock, FileCheck } from "lucide-react";
 import { format } from "date-fns";
 
 interface Assessment {
@@ -32,7 +32,6 @@ const StudentAssessments = () => {
   const { user, profile, schoolId } = useAuth();
   const navigate = useNavigate();
   const [assessments, setAssessments] = useState<Assessment[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -48,7 +47,6 @@ const StudentAssessments = () => {
     }
 
     const fetchAssessments = async () => {
-      setLoading(true);
       try {
         // Fetch assessments for this student's school
         if (!schoolId) return;
@@ -103,8 +101,6 @@ const StudentAssessments = () => {
       } catch (err: any) {
         console.error("Error fetching assessments:", err);
         setError(err.message || "Failed to load assessments");
-      } finally {
-        setLoading(false);
       }
     };
 
@@ -125,12 +121,7 @@ const StudentAssessments = () => {
       <main className="container mx-auto px-4 py-8 min-h-screen">
         <h1 className="text-3xl font-bold mb-6">My Assessments</h1>
 
-        {loading ? (
-          <div className="flex items-center justify-center h-64">
-            <Loader2 className="h-8 w-8 animate-spin text-learnable-blue" />
-            <span className="ml-2">Loading assessments...</span>
-          </div>
-        ) : error ? (
+        {error ? (
           <div className="bg-red-50 p-4 rounded-md text-red-500">{error}</div>
         ) : assessments.length === 0 ? (
           <div className="text-center py-12 bg-gray-50 rounded-md">

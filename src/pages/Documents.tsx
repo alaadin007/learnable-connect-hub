@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState } from 'react';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/landing/Footer';
 import { useAuth } from '@/contexts/AuthContext';
@@ -11,26 +12,14 @@ import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const Documents: React.FC = () => {
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('upload');
-  const [redirecting, setRedirecting] = useState(false);
-
-  // Redirect if not logged in
-  useEffect(() => {
-    if (!user && !redirecting) {
-      setRedirecting(true);
-      navigate('/login', { state: { from: '/documents' } });
-    }
-  }, [user, navigate, redirecting]);
 
   if (!user) {
-    return (
-      <div className="flex justify-center items-center h-screen" role="status" aria-live="polite">
-        {/* Consider replacing with spinner or skeleton */}
-        Loading your documents page...
-      </div>
-    );
+    // Redirect immediately instead of showing loading
+    navigate('/login', { state: { from: '/documents' } });
+    return null;
   }
 
   return (
