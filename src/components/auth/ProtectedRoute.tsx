@@ -41,7 +41,7 @@ const ProtectedRoute = ({
   }
 
   // If we require specific roles and the user doesn't have one of them
-  if (allowedRoles && userRole && !allowedRoles.includes(userRole)) {
+  if (allowedRoles && userRole && !allowedRoles.includes(userRole as UserRole)) {
     // Redirect based on user role instead of generic dashboard
     const redirectPath = userRole === 'school' ? '/admin' : 
                         userRole === 'teacher' ? '/teacher/analytics' : 

@@ -13,6 +13,9 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { User, Session } from "@supabase/supabase-js";
 
+// Define UserRole type
+export type UserRole = "school" | "teacher" | "student";
+
 // User profile type definition
 type UserProfile = {
   id: string;
@@ -32,10 +35,11 @@ type AuthContextType = {
   profile: UserProfile | null;
   userRole: string | null;
   loading: boolean;
+  isLoading: boolean; // Add isLoading property
   isSuperviser: boolean;
   schoolId: string | null;
-  signIn: (email: string, password?: string) => Promise<any>; // Updated to return any
-  signUp: (email: string, password: string) => Promise<void>;
+  signIn: (email: string, password?: string) => Promise<any>; // Return any to fix type mismatch
+  signUp: (email: string, password: string) => Promise<any>; // Return any to fix type mismatch
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -51,10 +55,11 @@ const AuthContext = createContext<AuthContextType>({
   profile: null,
   userRole: null,
   loading: true,
+  isLoading: true, // Add isLoading property with default value
   isSuperviser: false,
   schoolId: null,
   signIn: async () => ({data: null, error: null}), // Default return value updated
-  signUp: async () => {},
+  signUp: async () => ({user: null, session: null}), // Default return value updated
   signOut: async () => {},
   updateProfile: async () => {},
   refreshProfile: async () => {},
@@ -98,9 +103,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         school_code: profileData.school_code,
         organization: profileData.organization
           ? {
-              id: profileData.organization.id,
-              name: profileData.organization.name,
-              code: profileData.organization.code,
+              // Handle potentially undefined organization data
+              id: profileData.organization?.id || "",
+              name: profileData.organization?.name || "",
+              code: profileData.organization?.code || "",
             }
           : null,
       };
@@ -199,7 +205,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         throw error;
       }
 
-      return { user, session };
+      return { user, session }; // Return object instead of void
     } catch (error: any) {
       console.error("Error signing up:", error);
       throw error;
@@ -311,13 +317,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         setIsSuperviser(type === "school");
         setSchoolId(type === "school" ? testProfile.organization?.id || null : `test-school-${schoolIndex}`);
         
-        // Create a mock user
+        // Create a mock user (with type assertion to fix the type error)
         const mockUser = {
           id: testProfile.id,
           email: testEmail,
           user_metadata: {
             full_name: testProfile.full_name
-          }
+          },
+          // Add required User properties
+          app_metadata: {},
+          aud: "authenticated",
+          created_at: new Date().toISOString()
         } as User;
         
         setUser(mockUser);
@@ -389,6 +399,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       profile,
       userRole,
       loading,
+      isLoading: loading, // Alias loading as isLoading for compatibility
       isSuperviser,
       schoolId,
       signIn,
