@@ -94,10 +94,10 @@ const AcceptInvitation = () => {
         const { data: schoolData, error: schoolError } = await supabase
           .from('schools')
           .select('name')
-          .eq('id', typedInvitationData.school_id as unknown as string)
+          .eq('id', typedInvitationData.school_id as any)
           .single();
 
-        const schoolName = schoolError ? undefined : (schoolData && (schoolData as any).name);
+        const schoolName = schoolError ? undefined : (schoolData && schoolData.name);
 
         setInvitationDetails({
           id: typedInvitationData.invitation_id,
@@ -164,7 +164,7 @@ const AcceptInvitation = () => {
       // Use upsert to handle profile creation
       const { error: profileError } = await supabase
         .from('profiles')
-        .upsert([profileData as any]);
+        .upsert([profileData] as any);
 
       if (profileError) {
         throw new Error(profileError.message || "Failed to create profile");

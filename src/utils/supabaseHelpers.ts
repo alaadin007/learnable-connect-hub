@@ -123,3 +123,21 @@ export function createSupabaseFilter<T>(value: any): T {
 export function prepareTableInsert<T>(data: any): T {
   return data as T;
 }
+
+// Export all helper functions as a module
+export const supabaseHelpers = {
+  isDataResponse,
+  isErrorResponse,
+  safeResponse,
+  asSupabaseParam,
+  isValidSupabaseData,
+  isValidInvitation,
+  isValidFileItem,
+  safelyExtractData,
+  safeAnyCast,
+  asSupabaseFilter,
+  validateSupabaseData,
+  prepareSupabaseUpdate,
+  createSupabaseFilter,
+  prepareTableInsert
+};

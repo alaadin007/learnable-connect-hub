@@ -95,7 +95,7 @@ const RegisterForm = () => {
       const { data: schoolData, error: schoolError } = await supabase
         .from("schools")
         .select("id")
-        .eq("code", schoolCode as unknown as string)
+        .eq("code", schoolCode as any)
         .single();
 
       if (schoolError) {
@@ -122,8 +122,8 @@ const RegisterForm = () => {
         // Update the user's profile with the school ID
         const { error: updateError } = await supabase
           .from("profiles")
-          .update({ school_id: newSchoolData.id })
-          .eq("id", data.user.id);
+          .update({ school_id: newSchoolData.id } as any)
+          .eq("id", data.user.id as any);
 
         if (updateError) {
           toast.error(
@@ -136,8 +136,8 @@ const RegisterForm = () => {
         // Update the user's profile with the school ID
         const { error: updateError } = await supabase
           .from("profiles")
-          .update({ school_id: schoolData.id })
-          .eq("id", data.user.id);
+          .update({ school_id: schoolData.id } as any)
+          .eq("id", data.user.id as any);
 
         if (updateError) {
           toast.error(

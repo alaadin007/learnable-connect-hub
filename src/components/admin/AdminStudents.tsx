@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
+import { supabaseHelpers } from "@/utils/supabaseHelpers";
 
 interface StudentProfile {
   id: string;
@@ -78,10 +79,10 @@ const AdminStudents: React.FC<AdminStudentsProps> = ({ schoolId, schoolInfo, isL
       // Convert to our expected Student type
       const validStudents: Student[] = Array.isArray(studentsData) 
         ? studentsData.map(s => ({
-            id: s.id || '',
-            school_id: s.school_id || '',
-            status: s.status || 'pending',
-            created_at: s.created_at || ''
+            id: s?.id || '',
+            school_id: s?.school_id || '',
+            status: s?.status || 'pending',
+            created_at: s?.created_at || ''
           }))
         : [];
     
@@ -94,7 +95,7 @@ const AdminStudents: React.FC<AdminStudentsProps> = ({ schoolId, schoolInfo, isL
         const { data: profileData, error: profilesError } = await supabase
           .from('profiles')
           .select('id, full_name')
-          .in('id', studentIds as unknown as string[]);
+          .in('id', studentIds as any); // Type casting as any to avoid TS errors
       
         if (profilesError) {
           console.error('Error fetching profiles:', profilesError);
@@ -102,8 +103,8 @@ const AdminStudents: React.FC<AdminStudentsProps> = ({ schoolId, schoolInfo, isL
           // Convert to our expected StudentProfile type
           const validProfiles: StudentProfile[] = Array.isArray(profileData)
             ? profileData.map(p => ({
-                id: p.id || '',
-                full_name: p.full_name || 'Unnamed'
+                id: p?.id || '',
+                full_name: p?.full_name || 'Unnamed'
               }))
             : [];
           
@@ -123,7 +124,7 @@ const AdminStudents: React.FC<AdminStudentsProps> = ({ schoolId, schoolInfo, isL
       const { error } = await supabase
         .from('students')
         .update({ status: "active" } as any)
-        .eq('id', student.id as unknown as string);
+        .eq('id', student.id as any);
       
       if (error) {
         console.error('Error updating student status:', error);

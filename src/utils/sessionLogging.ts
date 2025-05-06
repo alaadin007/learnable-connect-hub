@@ -1,12 +1,7 @@
 
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from '@/integrations/supabase/client';
 
-type SessionLogData = {
-  topic?: string;
-  performance?: any;
-};
-
-export const createSessionLog = async (topic?: string) => {
+export async function createSessionLog(topic?: string) {
   try {
     const { data, error } = await supabase.rpc('create_session_log', { topic });
     
@@ -16,52 +11,52 @@ export const createSessionLog = async (topic?: string) => {
     }
     
     return data;
-  } catch (err) {
-    console.error('Exception creating session log:', err);
+  } catch (error) {
+    console.error('Error in createSessionLog:', error);
     return null;
   }
-};
+}
 
-export const updateSessionTopic = async (logId: string, topic: string) => {
+export async function updateSessionTopic(sessionId: string, topic: string) {
   try {
     const { error } = await supabase.rpc('update_session_topic', { 
-      log_id: logId,
+      log_id: sessionId, 
       topic 
     });
     
     if (error) {
       console.error('Error updating session topic:', error);
     }
-  } catch (err) {
-    console.error('Exception updating session topic:', err);
+  } catch (error) {
+    console.error('Error in updateSessionTopic:', error);
   }
-};
+}
 
-export const incrementQueryCount = async (logId: string) => {
+export async function incrementQueryCount(sessionId: string) {
   try {
     const { error } = await supabase.rpc('increment_session_query_count', { 
-      log_id: logId 
+      log_id: sessionId 
     });
     
     if (error) {
       console.error('Error incrementing query count:', error);
     }
-  } catch (err) {
-    console.error('Exception incrementing query count:', err);
+  } catch (error) {
+    console.error('Error in incrementQueryCount:', error);
   }
-};
+}
 
-export const endSessionLog = async (logId: string, performanceData?: any) => {
+export async function endSessionLog(sessionId: string, performanceData?: any) {
   try {
     const { error } = await supabase.rpc('end_session_log', { 
-      log_id: logId,
-      performance_data: performanceData 
+      log_id: sessionId,
+      performance_data: performanceData ? JSON.stringify(performanceData) : null
     });
     
     if (error) {
       console.error('Error ending session log:', error);
     }
-  } catch (err) {
-    console.error('Exception ending session log:', err);
+  } catch (error) {
+    console.error('Error in endSessionLog:', error);
   }
-};
+}
