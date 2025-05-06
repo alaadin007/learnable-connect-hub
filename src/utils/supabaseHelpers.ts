@@ -1,143 +1,59 @@
 
-import { PostgrestSingleResponse, PostgrestResponse, PostgrestError } from '@supabase/supabase-js';
+/**
+ * Helper functions for Supabase operations that ensure type safety
+ */
 
-export interface DataResponse<T> {
-  success: true;
-  data: T;
-}
+/**
+ * Safely converts a value to a Supabase parameter to prevent type errors
+ * @param value The value to convert to a Supabase parameter
+ * @returns The value cast as 'any' for safe Supabase operations
+ */
+export const asSupabaseParam = (value: any): any => value;
 
-export interface ErrorResponse {
-  success: false;
-  error: PostgrestError | Error;
-  message: string;
-}
+/**
+ * Prepares an object for table insertion by type-casting to avoid TypeScript errors
+ * @param data The data object to prepare for insertion
+ * @returns The same data object, but type-cast for Supabase operations
+ */
+export const prepareTableInsert = <T extends Record<string, any>>(data: T): any => data;
 
-export type SafeResponse<T> = DataResponse<T> | ErrorResponse;
+/**
+ * Prepares an object for table update by type-casting to avoid TypeScript errors
+ * @param data The data object to prepare for update
+ * @returns The same data object, but type-cast for Supabase operations
+ */
+export const prepareSupabaseUpdate = <T extends Record<string, any>>(data: T): any => data;
 
-// Function to check if the response is a success response
-export function isDataResponse<T>(response: SafeResponse<T>): response is DataResponse<T> {
-  return response && (response as DataResponse<T>).success === true;
-}
-
-// Function to check if the response is an error response
-export function isErrorResponse(response: SafeResponse<any>): response is ErrorResponse {
-  return response && (response as ErrorResponse).success === false;
-}
-
-// Safely convert Supabase response to a consistent format
-export async function safeResponse<T>(promise: Promise<PostgrestSingleResponse<T> | PostgrestResponse<T>>): Promise<SafeResponse<T>> {
+/**
+ * Safely accesses properties from a Supabase data object that might be an error
+ * @param data The data object from a Supabase query
+ * @param accessor Function to extract the desired property
+ * @param defaultValue The default value to return if data is null/error
+ * @returns The extracted property or default value
+ */
+export const safelyAccessData = <T, R>(
+  data: T | null | undefined, 
+  accessor: (data: T) => R, 
+  defaultValue: R
+): R => {
   try {
-    const response = await promise;
-    if (response.error) {
-      return {
-        success: false,
-        error: response.error,
-        message: response.error.message
-      };
+    if (data === null || data === undefined) return defaultValue;
+    
+    // Check if it looks like a Supabase error object
+    if (typeof data === 'object' && 'code' in data && 'message' in data) {
+      return defaultValue;
     }
-    return {
-      success: true,
-      data: response.data as T
-    };
-  } catch (error: any) {
-    return {
-      success: false,
-      error,
-      message: error.message || 'Unknown error occurred'
-    };
+    
+    return accessor(data);
+  } catch (error) {
+    console.error("Error accessing Supabase data:", error);
+    return defaultValue;
   }
-}
+};
 
-// Helper function to convert unknownObject to a Supabase param
-// This helps with TypeScript type assertions
-export function asSupabaseParam<T>(obj: T): T {
-  return obj;
-}
-
-// Type guard for checking if a Supabase response is valid
-export function isValidSupabaseData(data: any): boolean {
-  return data !== null && 
-         data !== undefined && 
-         !('error' in data && data.error !== null);
-}
-
-// Helper function to check if a teacher invitation is valid
-export function isValidInvitation(item: any): boolean {
-  return item && 
-         typeof item === 'object' && 
-         'id' in item && 
-         'email' in item &&
-         'status' in item &&
-         'created_at' in item &&
-         'expires_at' in item;
-}
-
-// Helper function to check if a file item is valid
-export function isValidFileItem(item: any): boolean {
-  return item && 
-         typeof item === 'object' && 
-         'id' in item && 
-         'filename' in item &&
-         'file_type' in item &&
-         'file_size' in item;
-}
-
-// Helper function to safely extract data from Supabase response
-export function safelyExtractData<T>(data: any, defaultValue: T): T {
-  if (isValidSupabaseData(data)) {
-    return data as T;
-  }
-  return defaultValue;
-}
-
-// Safe casting for any type - used for type assertions where needed
-export function safeAnyCast<T>(value: any): T {
-  return value as T;
-}
-
-// Create a type assertion function for Supabase queries
-export function asSupabaseFilter<T>(value: any): T {
-  return value as T;
-}
-
-// Create a function to handle Supabase data validation
-export function validateSupabaseData<T>(data: any, validator: (item: any) => boolean): T[] {
-  if (!Array.isArray(data)) {
-    return [];
-  }
-  
-  return data.filter(validator) as T[];
-}
-
-// Function to safely handle Supabase update operations
-export function prepareSupabaseUpdate<T>(update: any): T {
-  return update as T;
-}
-
-// Create a function to match a filter with the correct type
-export function createSupabaseFilter<T>(value: any): T {
-  return value as T;
-}
-
-// Function to convert data for table insert
-export function prepareTableInsert<T>(data: any): T {
-  return data as T;
-}
-
-// Export all helper functions as a module
 export const supabaseHelpers = {
-  isDataResponse,
-  isErrorResponse,
-  safeResponse,
   asSupabaseParam,
-  isValidSupabaseData,
-  isValidInvitation,
-  isValidFileItem,
-  safelyExtractData,
-  safeAnyCast,
-  asSupabaseFilter,
-  validateSupabaseData,
+  prepareTableInsert,
   prepareSupabaseUpdate,
-  createSupabaseFilter,
-  prepareTableInsert
+  safelyAccessData,
 };

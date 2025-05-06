@@ -1,34 +1,131 @@
 
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
+import React, { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
+import { UserPlus, Search, MoreHorizontal } from "lucide-react";
 import { supabaseHelpers } from "@/utils/supabaseHelpers";
+import { getRoleDisplayName } from "@/utils/roleUtils";
 
-interface StudentProfile {
-  id: string;
-  full_name: string;
+interface AdminStudentsProps {
+  schoolId: string;
+  schoolInfo: { name: string; code: string; id?: string } | null;
 }
 
 interface Student {
   id: string;
-  school_id: string;
+  full_name: string;
+  email: string;
   status: string;
   created_at: string;
+  role: string;
 }
 
-interface AdminStudentsProps {
-  schoolId: string | null;
-  schoolInfo: { name: string; code: string; id?: string } | null;
-  isLoading?: boolean;
-}
-
-const AdminStudents: React.FC<AdminStudentsProps> = ({ schoolId, schoolInfo, isLoading: parentLoading }) => {
+const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
   const [students, setStudents] = useState<Student[]>([]);
-  const [profiles, setProfiles] = useState<StudentProfile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [generatingInvite, setGeneratingInvite] = useState(false);
+
+  const fetchStudents = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch all students for this school
+      const { data: studentData, error } = await supabase
+        .from("students")
+        .select("id, school_id, status, created_at")
+        .eq("school_id", supabaseHelpers.asSupabaseParam(schoolId));
+
+      if (error) {
+        console.error("Error fetching students:", error.message);
+        toast.error("Failed to load students");
+        setLoading(false);
+        return;
+      }
+
+      // Get student profiles to display names
+      const studentIds = studentData.map(student => student.id);
+      
+      if (studentIds.length === 0) {
+        setStudents([]);
+        setLoading(false);
+        return;
+      }
+      
+      // Fetch profile details for all students
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("id, full_name, email, user_type")
+        .in("id", studentIds.map(id => supabaseHelpers.asSupabaseParam(id)));
+
+      if (profileError) {
+        console.error("Error fetching student profiles:", profileError.message);
+        toast.error("Failed to load student details");
+        setLoading(false);
+        return;
+      }
+
+      // Fetch user roles from user_roles table
+      const { data: rolesData, error: rolesError } = await supabase
+        .from("user_roles")
+        .select("user_id, role")
+        .in("user_id", studentIds.map(id => supabaseHelpers.asSupabaseParam(id)));
+
+      if (rolesError) {
+        console.error("Error fetching user roles:", rolesError.message);
+        // Continue anyway as we can show user_type if roles are not available
+      }
+
+      // Create a map of user_id to role
+      const roleMap = new Map();
+      if (rolesData) {
+        rolesData.forEach(roleEntry => {
+          roleMap.set(roleEntry.user_id, roleEntry.role);
+        });
+      }
+
+      // Combine student data with profiles
+      const combinedStudents: Student[] = studentData.map(student => {
+        const profile = profileData?.find(p => p.id === student.id);
+        let role = profile?.user_type || "student"; // Default to user_type if no role found
+        
+        // Check if we have a role from user_roles
+        if (roleMap.has(student.id)) {
+          role = roleMap.get(student.id);
+        }
+        
+        return {
+          id: student.id,
+          full_name: profile?.full_name || "Unknown",
+          email: profile?.email || "No email",
+          status: student.status,
+          created_at: student.created_at,
+          role: role
+        };
+      });
+
+      setStudents(combinedStudents);
+    } catch (error: any) {
+      console.error("Error in fetchStudents:", error.message);
+      toast.error("An error occurred while loading students");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (schoolId) {
@@ -36,184 +133,188 @@ const AdminStudents: React.FC<AdminStudentsProps> = ({ schoolId, schoolInfo, isL
     }
   }, [schoolId]);
 
-  const fetchStudents = async () => {
-    setLoading(true);
-    try {
-      // If we already have the schoolId from props, use it
-      let schoolIdToUse = schoolId;
-      
-      if (!schoolIdToUse) {
-        // Get school ID for the current user
-        const { data: schoolData, error: schoolError } = await supabase
-          .rpc('get_user_school_id');
-      
-        if (schoolError) {
-          console.error('Error fetching school ID:', schoolError);
-          toast.error('Failed to load school information');
-          setLoading(false);
-          return;
-        }
-      
-        if (!schoolData) {
-          console.error('No school ID found');
-          setLoading(false);
-          return;
-        }
-        
-        schoolIdToUse = schoolData as string;
-      }
-      
-      // Get all students for this school
-      const { data: studentsData, error: studentsError } = await supabase
-        .from('students')
-        .select('id, school_id, status, created_at')
-        .eq('school_id', supabaseHelpers.asSupabaseParam(schoolIdToUse));
-
-      if (studentsError) {
-        console.error('Error fetching students:', studentsError);
-        toast.error('Failed to load students');
-        setLoading(false);
-        return;
-      }
-
-      // Convert to our expected Student type
-      const validStudents: Student[] = Array.isArray(studentsData) 
-        ? studentsData.map(s => ({
-            id: s?.id || '',
-            school_id: s?.school_id || '',
-            status: s?.status || 'pending',
-            created_at: s?.created_at || ''
-          }))
-        : [];
-    
-      setStudents(validStudents);
-    
-      // Get profiles for these students to get their names
-      if (validStudents.length > 0) {
-        const studentIds = validStudents.map(s => s.id);
-        
-        const { data: profileData, error: profilesError } = await supabase
-          .from('profiles')
-          .select('id, full_name')
-          .in('id', supabaseHelpers.asSupabaseParam(studentIds));
-      
-        if (profilesError) {
-          console.error('Error fetching profiles:', profilesError);
-        } else if (profileData) {
-          // Convert to our expected StudentProfile type
-          const validProfiles: StudentProfile[] = Array.isArray(profileData)
-            ? profileData.map(p => ({
-                id: p?.id || '',
-                full_name: p?.full_name || 'Unnamed'
-              }))
-            : [];
-          
-          setProfiles(validProfiles);
-        }
-      }
-    } catch (error) {
-      console.error('Error in fetchStudents:', error);
-      toast.error('An error occurred while fetching student data');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleApproveStudent = async (student: Student) => {
+  const handleStatusChange = async (studentId: string, newStatus: string) => {
     try {
       const { error } = await supabase
-        .from('students')
-        .update(supabaseHelpers.prepareSupabaseUpdate({ status: "active" }))
-        .eq('id', supabaseHelpers.asSupabaseParam(student.id));
-      
+        .from("students")
+        .update(supabaseHelpers.prepareSupabaseUpdate({ status: newStatus }))
+        .eq("id", supabaseHelpers.asSupabaseParam(studentId));
+
       if (error) {
-        console.error('Error updating student status:', error);
-        toast.error('Failed to approve student');
+        console.error("Error updating student status:", error.message);
+        toast.error("Failed to update student status");
         return;
       }
-      
-      // Update local state
-      setStudents(prevStudents => 
-        prevStudents.map(s => 
-          s.id === student.id ? { ...s, status: 'active' } : s
-        )
-      );
-      
-      toast.success('Student approved successfully');
-    } catch (error) {
-      console.error('Error in handleApproveStudent:', error);
-      toast.error('An error occurred while approving the student');
+
+      toast.success(`Student status updated to ${newStatus}`);
+      fetchStudents(); // Refresh the data
+    } catch (error: any) {
+      console.error("Error in handleStatusChange:", error.message);
+      toast.error("An error occurred while updating status");
     }
   };
 
+  const generateInviteCode = async () => {
+    try {
+      setGeneratingInvite(true);
+      
+      const { data, error } = await supabase.rpc("create_student_invitation", {
+        school_id_param: schoolId
+      });
+
+      if (error) {
+        console.error("Error generating invite code:", error.message);
+        toast.error("Failed to generate invite code");
+        return;
+      }
+
+      if (data?.[0]?.code) {
+        setInviteCode(data[0].code);
+        setShowInviteModal(true);
+      } else {
+        toast.error("No invite code returned");
+      }
+    } catch (error: any) {
+      console.error("Error in generateInviteCode:", error.message);
+      toast.error("An error occurred while generating invite code");
+    } finally {
+      setGeneratingInvite(false);
+    }
+  };
+
+  const filteredStudents = students.filter(student => {
+    const query = searchQuery.toLowerCase();
+    return (
+      student.full_name.toLowerCase().includes(query) ||
+      student.email.toLowerCase().includes(query) ||
+      student.status.toLowerCase().includes(query)
+    );
+  });
+
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle>Students</CardTitle>
-        <CardDescription>Manage students in your school</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {loading || parentLoading ? (
-          <div className="flex justify-center">
-            <Loader2 className="h-6 w-6 animate-spin" />
-          </div>
-        ) : (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold">Students</h2>
+        <Button 
+          onClick={generateInviteCode}
+          className="flex items-center gap-2"
+          disabled={generatingInvite}
+        >
+          <UserPlus className="h-4 w-4" />
+          {generatingInvite ? "Generating..." : "Invite Student"}
+        </Button>
+      </div>
+      
+      <div className="relative mb-4">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 h-4 w-4" />
+        <Input
+          type="text"
+          placeholder="Search students..."
+          className="pl-10"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+      </div>
+      
+      <Card>
+        <CardContent className="p-0">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead>
-                <tr>
-                  <th className="px-6 py-3 bg-gray-50 text-left text-xs leading-4 font-medium text-gray-500 uppercase tracking-wider">
-                    Name
-                  </th>
-                  <th className="px-6 py-3 bg-gray-50 text-left text-xs leading-4 font-medium text-gray-500 uppercase tracking-wider">
-                    Email
-                  </th>
-                  <th className="px-6 py-3 bg-gray-50 text-left text-xs leading-4 font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 bg-gray-50"></th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {students.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="px-6 py-4 text-center text-gray-500">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Joined Date</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-6">
+                      Loading students...
+                    </TableCell>
+                  </TableRow>
+                ) : filteredStudents.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-6">
                       No students found
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ) : (
-                  students.map((student) => {
-                    const profile = profiles.find((p) => p.id === student.id);
-                    return (
-                      <tr key={student.id}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">{profile?.full_name || 'N/A'}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">{student.id}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${student.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                            {student.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm leading-5">
-                          {student.status !== 'active' && (
-                            <Button onClick={() => handleApproveStudent(student)} variant="outline">
-                              Approve
+                  filteredStudents.map((student) => (
+                    <TableRow key={student.id}>
+                      <TableCell>{student.full_name}</TableCell>
+                      <TableCell>{student.email}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline">
+                          {getRoleDisplayName(student.role)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge 
+                          variant={student.status === 'active' ? "default" : 
+                                  student.status === 'pending' ? "secondary" : "destructive"}
+                        >
+                          {student.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {new Date(student.created_at).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          {student.status === 'pending' && (
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => handleStatusChange(student.id, 'active')}
+                            >
+                              Activate
                             </Button>
                           )}
-                        </td>
-                      </tr>
-                    );
-                  })
+                          {student.status === 'active' && (
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              className="border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                              onClick={() => handleStatusChange(student.id, 'suspended')}
+                            >
+                              Suspend
+                            </Button>
+                          )}
+                          {student.status === 'suspended' && (
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => handleStatusChange(student.id, 'active')}
+                            >
+                              Reactivate
+                            </Button>
+                          )}
+                          <Button 
+                            size="sm" 
+                            variant="ghost"
+                            className="h-8 w-8 p-0"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                            <span className="sr-only">More</span>
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
                 )}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
-        )}
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+
+      {/* Add invite modal code here... */}
+    </div>
   );
 };
 

@@ -10,7 +10,7 @@ export const sessionLogger = {
       return data as string;
     } catch (error: any) {
       console.error('Error starting session:', error.message);
-      return '';
+      return null;
     }
   },
 

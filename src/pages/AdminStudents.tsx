@@ -14,6 +14,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { getCurrentSchoolInfo } from "@/utils/databaseUtils";
+import { supabaseHelpers } from "@/utils/supabaseHelpers";
 
 const AdminStudents = () => {
   const { user, profile } = useAuth();
@@ -83,7 +84,7 @@ const AdminStudents = () => {
         const { data: schoolDetails, error: schoolCodeError } = await supabase
           .from("schools")
           .select("id, name, code")
-          .eq("code", userMeta.school_code)
+          .eq("code", supabaseHelpers.asSupabaseParam(userMeta.school_code))
           .single();
 
         if (schoolCodeError || !schoolDetails) {
