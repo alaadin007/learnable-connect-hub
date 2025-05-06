@@ -100,13 +100,15 @@ const ProtectedRoute = ({
   console.log("ProtectedRoute: User role:", userRole, "Mapped role:", mappedRole, "Required role:", requiredRole);
 
   // Check for specific required role from RBAC
-  if (requiredRole && requiredRole === 'school_admin' && userRole === 'school') {
-    // Special case for school admin - allow access if userRole is 'school'
-    console.log("ProtectedRoute: School admin access granted based on userRole");
-  }
-  else if (requiredRole && !hasRole(requiredRole)) {
-    console.log(`ProtectedRoute: User doesn't have required role ${requiredRole}`);
-    return <Navigate to={getRedirectPath(mappedRole)} replace />;
+  if (requiredRole) {
+    if (requiredRole === 'school_admin' && userRole === 'school') {
+      // Special case for school admin - allow access if userRole is 'school'
+      console.log("ProtectedRoute: School admin access granted based on userRole");
+    }
+    else if (!hasRole(requiredRole)) {
+      console.log(`ProtectedRoute: User doesn't have required role ${requiredRole}`);
+      return <Navigate to={getRedirectPath(mappedRole)} replace />;
+    }
   }
 
   // Check for any of the allowed roles from RBAC

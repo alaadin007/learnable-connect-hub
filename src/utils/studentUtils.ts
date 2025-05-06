@@ -41,21 +41,34 @@ export const getSchoolData = async (schoolId: string): Promise<{ name: string; c
 // Fetch all students for a school
 export const fetchSchoolStudents = async (schoolId: string): Promise<Student[]> => {
   try {
+    if (!schoolId) {
+      console.error("No school ID provided");
+      return [];
+    }
+    
+    console.log("Fetching students for school:", schoolId);
+    
     const { data: studentData, error: studentError } = await supabase
       .from("students")
       .select("id, status, created_at")
       .eq("school_id", schoolId)
       .order("created_at", { ascending: false });
 
-    if (studentError) throw studentError;
+    if (studentError) {
+      console.error("Error fetching students:", studentError);
+      toast.error("Failed to load students");
+      return [];
+    }
 
     if (!studentData?.length) {
+      console.log("No students found for school:", schoolId);
       return [];
     }
 
     const studentIds = studentData.map((s) => s.id);
+    console.log(`Found ${studentIds.length} students, fetching profiles...`);
 
-    // Fetch profiles, include full_name if available
+    // Fetch profiles for all students
     const { data: profileData, error: profileError } = await supabase
       .from("profiles")
       .select("id, full_name")
@@ -63,19 +76,21 @@ export const fetchSchoolStudents = async (schoolId: string): Promise<Student[]> 
 
     if (profileError) {
       console.error("Error fetching profiles:", profileError);
-      // Proceed with partial data
+      // Continue with partial data
     }
 
+    // Map students with profile data
     return studentData.map((student) => {
       // Find the matching profile if it exists
       const profile = profileData && !profileError 
         ? profileData.find((p) => p.id === student.id) 
         : null;
         
+      // Use student ID as fallback for email since email might not exist in profiles
       return {
         id: student.id,
-        email: student.id, // Use user ID as fallback since email might not be in profiles
-        full_name: profile ? profile.full_name : null,
+        email: student.id, // Use user ID as fallback 
+        full_name: profile?.full_name || null,
         status: student.status || "pending",
         created_at: student.created_at,
       };

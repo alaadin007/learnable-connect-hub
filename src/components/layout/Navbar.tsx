@@ -15,7 +15,7 @@ const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const isMobile = useIsMobile();
-  const { hasRole, hasAnyRole } = useRBAC();
+  const { hasRole, hasAnyRole, isAdmin } = useRBAC();
 
   // Set loaded status after initial render to prevent flickering
   useEffect(() => {
@@ -43,8 +43,6 @@ const Navbar = () => {
   );
   const isLoggedIn = !!user && !isPublicPage && !isAuthPage;
 
-  const profileUserType = profile?.user_type ?? null;
-
   const isTestAccountsPage = location.pathname === "/test-accounts";
 
   const getNavLinks = useCallback(() => {
@@ -65,8 +63,8 @@ const Navbar = () => {
       { name: "Dashboard", href: "/dashboard" },
     ];
 
-    // School admin links
-    if (hasRole('school_admin')) {
+    // School admin links - use both isAdmin from RBAC and check for 'school' user type for backwards compatibility
+    if (isAdmin || profile?.user_type === 'school') {
       links.push(
         { name: "School Admin", href: "/admin" },
         { name: "Teachers", href: "/admin/teachers" },
@@ -98,7 +96,7 @@ const Navbar = () => {
     );
 
     return links;
-  }, [isLoggedIn, isTestAccountsPage, hasRole, hasAnyRole]);
+  }, [isLoggedIn, isTestAccountsPage, hasRole, hasAnyRole, isAdmin, profile]);
 
   const navLinks = getNavLinks();
 

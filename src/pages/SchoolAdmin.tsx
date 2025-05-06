@@ -51,10 +51,13 @@ const SchoolAdmin = () => {
         setIsLoading(true);
         setError(null);
         
-        // First try using the optimized RPC function
+        console.log("Fetching school info...");
+        
+        // First try using the optimized function that combines multiple queries
         const schoolInfo = await getCurrentSchoolInfo();
 
         if (schoolInfo) {
+          console.log("School info retrieved:", schoolInfo);
           setSchoolData({
             id: schoolInfo.id,
             name: schoolInfo.name,
@@ -65,7 +68,7 @@ const SchoolAdmin = () => {
           return;
         }
 
-        // Fallback to direct queries if the RPC function fails
+        // If getCurrentSchoolInfo failed, try direct fallback queries
         let schoolIdToUse = authSchoolId;
 
         if (!schoolIdToUse) {
@@ -73,15 +76,30 @@ const SchoolAdmin = () => {
 
           if (schoolIdError) {
             console.error('Error fetching school ID:', schoolIdError);
-            setError("Failed to load school information. Please try again.");
-            setIsLoading(false);
-            return;
+            
+            // Try teachers table directly
+            const { data: authUser } = await supabase.auth.getUser();
+            if (authUser?.user) {
+              const { data: teacherData, error: teacherError } = await supabase
+                .from("teachers")
+                .select("school_id")
+                .eq("id", authUser.user.id)
+                .single();
+                
+              if (teacherError || !teacherData) {
+                throw new Error("Failed to determine school ID");
+              }
+              schoolIdToUse = teacherData.school_id;
+            } else {
+              throw new Error("Not authenticated");
+            }
+          } else {
+            schoolIdToUse = fetchedSchoolId;
           }
-
-          schoolIdToUse = fetchedSchoolId;
         }
 
         if (schoolIdToUse) {
+          console.log("Using school ID:", schoolIdToUse);
           setSchoolId(schoolIdToUse);
 
           const { data: schoolDetails, error: schoolError } = await supabase
@@ -94,6 +112,7 @@ const SchoolAdmin = () => {
             console.error("Error fetching school details:", schoolError);
             setError("Failed to load school details. Please try again.");
           } else if (schoolDetails) {
+            console.log("School details retrieved:", schoolDetails);
             setSchoolData({
               name: schoolDetails.name,
               code: schoolDetails.code
@@ -220,6 +239,39 @@ const SchoolAdmin = () => {
       </div>
     );
   }
+
+  const handleRetry = () => {
+    window.location.reload();
+  };
+
+  const handleQuickActionSelect = (action: string) => {
+    switch (action) {
+      case "manage-teachers":
+        navigate("/admin/teacher-management");
+        break;
+      case "view-analytics":
+        navigate("/admin/analytics");
+        break;
+      case "school-settings":
+        navigate("/admin/settings");
+        break;
+      case "student-management":
+        navigate("/admin/students");
+        break;
+      case "dashboard":
+        navigate("/dashboard", {
+          state: { fromNavigation: true },
+          replace: true
+        });
+        break;
+      default:
+        break;
+    }
+  };
+
+  const handleTabClick = (value: string) => {
+    setActiveTab(value);
+  };
 
   return (
     <div className="min-h-screen flex flex-col">

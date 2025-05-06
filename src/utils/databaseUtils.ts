@@ -32,12 +32,47 @@ export const getCurrentSchoolInfo = async (): Promise<{
       };
     }
 
-    // fallback logic
+    // fallback logic - first try to get user's school ID
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData || !userData.user) {
+      console.error("No authenticated user found");
+      return null;
+    }
+
     const { data: schoolId, error: schoolIdError } = await supabase.rpc("get_user_school_id");
 
     if (schoolIdError || !schoolId) {
       console.error("Error fetching school ID:", schoolIdError);
-      return null;
+      
+      // Try additional fallback to get school ID from teachers table
+      const { data: teacherData, error: teacherError } = await supabase
+        .from("teachers")
+        .select("school_id")
+        .eq("id", userData.user.id)
+        .single();
+        
+      if (teacherError || !teacherData?.school_id) {
+        console.error("Error fetching teacher school ID:", teacherError);
+        return null;
+      }
+      
+      const { data: schoolDetails, error: schoolError } = await supabase
+        .from("schools")
+        .select("id, name, code, contact_email")
+        .eq("id", teacherData.school_id)
+        .single();
+
+      if (schoolError || !schoolDetails) {
+        console.error("Error fetching school details:", schoolError);
+        return null;
+      }
+
+      return {
+        id: schoolDetails.id,
+        name: schoolDetails.name,
+        code: schoolDetails.code,
+        contact_email: schoolDetails.contact_email,
+      };
     }
 
     const { data: schoolDetails, error: schoolError } = await supabase
