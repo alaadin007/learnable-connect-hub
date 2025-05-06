@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { RefreshCw, User, Copy, AlertTriangle } from "lucide-react";
-import { isDataResponse, safelyExtractData, asUUID } from "@/utils/supabaseHelpers";
+import { isDataResponse, safelyExtractData, asUUID, isValidData } from "@/utils/supabaseHelpers";
 
 type Student = {
   id: string;
@@ -67,7 +67,9 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
       console.log(`Found ${studentsData.length} students, fetching profiles...`);
       
       // Now fetch the profiles data separately
-      const studentIds = studentsData.map(student => student.id);
+      const studentIds = studentsData
+        .filter(student => student && typeof student === 'object' && 'id' in student)
+        .map(student => student.id);
 
       const profilesResponse = await supabase
         .from("profiles")
@@ -78,19 +80,28 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
       const profilesData = isDataResponse(profilesResponse) ? profilesResponse.data : [];
       
       // Create formatted students array with proper type safety
-      const formattedStudents: Student[] = studentsData.map(student => {
-        // Find the matching profile if it exists
-        const profile = profilesData.find(p => p && p.id === student.id);
-          
-        return {
-          id: student.id,
-          school_id: student.school_id,
-          status: student.status || "pending",
-          created_at: student.created_at,
-          full_name: profile ? profile.full_name : "No name",
-          email: student.id // Use user ID as fallback since email might not be in profiles
-        };
-      });
+      const formattedStudents: Student[] = studentsData
+        .filter(student => 
+          student && 
+          typeof student === 'object' && 
+          'id' in student &&
+          'school_id' in student &&
+          'status' in student &&
+          'created_at' in student
+        )
+        .map(student => {
+          // Find the matching profile if it exists
+          const profile = profilesData.find(p => p && p.id === student.id);
+            
+          return {
+            id: student.id,
+            school_id: student.school_id,
+            status: student.status || "pending",
+            created_at: student.created_at,
+            full_name: profile && profile.full_name ? profile.full_name : "No name",
+            email: student.id // Use user ID as fallback since email might not be in profiles
+          };
+        });
 
       console.log("Formatted students data:", formattedStudents);
       setStudents(formattedStudents);
@@ -111,7 +122,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
       // Update the student status directly in the database
       const { error } = await supabase
         .from("students")
-        .update({ status: "active" } as any)
+        .update({ status: "active" })
         .eq("id", asUUID(studentId));
 
       if (error) {

@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -23,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getUserDocuments, getDocumentContent } from '@/utils/databaseUtils';
+import { isDataResponse } from "@/utils/supabaseHelpers";
 
 type FileItem = {
   id: string;
@@ -88,8 +90,31 @@ const FileList: React.FC = () => {
         // Fallback direct query with type safety
         const response = await supabase.from('documents').select('*').eq('user_id', user.id);
 
-        if ('data' in response && Array.isArray(response.data)) {
-          setFiles(response.data as FileItem[]);
+        if (isDataResponse(response)) {
+          // Ensure we have valid FileItem objects
+          const validFiles: FileItem[] = response.data
+            .filter(item => 
+              item && 
+              typeof item === 'object' &&
+              'id' in item &&
+              'filename' in item &&
+              'file_type' in item &&
+              'file_size' in item &&
+              'created_at' in item &&
+              'storage_path' in item &&
+              'processing_status' in item
+            )
+            .map(item => ({
+              id: item.id,
+              filename: item.filename,
+              file_type: item.file_type,
+              file_size: item.file_size,
+              created_at: item.created_at,
+              storage_path: item.storage_path,
+              processing_status: item.processing_status
+            }));
+            
+          setFiles(validFiles);
         } else {
           console.error('Documents query error:', 'error' in response ? response.error : 'Unknown error');
           setFiles([]);

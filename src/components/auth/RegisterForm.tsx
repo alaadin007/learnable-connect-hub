@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +9,7 @@ import { AlertCircle, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useNavigate, Link } from "react-router-dom"; 
-import { isDataResponse } from "@/utils/supabaseHelpers";
+import { isDataResponse, isValidData } from "@/utils/supabaseHelpers";
 
 interface RegisterFormProps {
   onSuccess?: () => void;
@@ -116,7 +115,12 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSuccess }) => {
         return null;
       }
       
-      const userTypeValue = response.data[0].user_type;
+      const profile = response.data[0];
+      if (!profile || !('user_type' in profile)) {
+        return null;
+      }
+      
+      const userTypeValue = profile.user_type;
       if (!userTypeValue) {
         return null;
       }

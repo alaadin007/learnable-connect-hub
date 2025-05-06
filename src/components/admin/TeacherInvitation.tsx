@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -7,6 +6,7 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
+import { isDataResponse } from "@/utils/supabaseHelpers";
 
 interface TeacherInvite {
   id: string;
@@ -32,13 +32,36 @@ const TeacherInvitation = () => {
   const fetchInvitations = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      const response = await supabase
         .from('teacher_invitations')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setInvites(data || []);
+      if (isDataResponse(response)) {
+        // Filter and map the data to ensure it matches the TeacherInvite interface
+        const validInvites: TeacherInvite[] = response.data
+          .filter(item => 
+            item && 
+            typeof item === 'object' && 
+            'id' in item && 
+            'email' in item && 
+            'status' in item && 
+            'created_at' in item && 
+            'expires_at' in item
+          )
+          .map(item => ({
+            id: item.id,
+            email: item.email,
+            status: item.status,
+            created_at: item.created_at,
+            expires_at: item.expires_at
+          }));
+        
+        setInvites(validInvites);
+      } else {
+        console.error('Error fetching invitations:', response.error);
+        toast.error('Failed to load teacher invitations');
+      }
     } catch (error) {
       console.error('Error fetching invitations:', error);
       toast.error('Failed to load teacher invitations');

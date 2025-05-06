@@ -21,4 +21,4 @@ enabled = true
 
 [auth]
 site_url = "https://your-published-site-url.com"
-additional_redirect_urls = ["https://your-published-site-url.com/auth/callback"]
+additional_redirect_urls = ["https://your-published-site-url.com/auth/callback", "http://localhost:5173/auth/callback"]

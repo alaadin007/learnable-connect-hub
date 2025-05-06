@@ -8,6 +8,11 @@ export const isSupabaseError = (obj: any): boolean => {
   return obj && typeof obj === 'object' && 'error' in obj;
 };
 
+// Type guard to check if a response contains data (not an error)
+export const isDataResponse = (obj: any): boolean => {
+  return obj && typeof obj === 'object' && 'data' in obj && !isSupabaseError(obj);
+};
+
 // Type guard to check if an object has a specific property
 export const hasProperty = <T extends object, K extends string>(
   obj: T,
@@ -23,13 +28,13 @@ export const safelyGetProperty = <T, K extends keyof T>(obj: T | null | undefine
   return obj[key];
 };
 
-// Type assertion helper for Supabase data objects
-export const isValidData = <T extends object>(obj: any, requiredProps: (keyof T)[]): obj is T => {
-  if (!obj || typeof obj !== 'object') return false;
-  
-  return requiredProps.every(prop => 
-    prop in obj && obj[prop] !== undefined
-  );
+// Helper to safely extract data from a Supabase query response
+export const extractSupabaseData = <T>(response: { data: T | null, error: Error | null }): T | null => {
+  if (response.error) {
+    console.error('Supabase query error:', response.error);
+    return null;
+  }
+  return response.data;
 };
 
 // Safe mapper for Supabase array results
@@ -47,11 +52,32 @@ export const safelyMapSupabaseData = <T, R>(
     .map(mapper);
 };
 
-// Helper to safely get data from a Supabase query response
-export const extractSupabaseData = <T>(response: { data: T | null, error: Error | null }): T | null => {
-  if (response.error) {
-    console.error('Supabase query error:', response.error);
-    return null;
+// Type assertion helper for Supabase data objects
+export const isValidData = <T extends object>(obj: any, requiredProps: (keyof T)[]): obj is T => {
+  if (!obj || typeof obj !== 'object') return false;
+  
+  return requiredProps.every(prop => 
+    prop in obj && obj[prop] !== undefined
+  );
+};
+
+// Helper to safely extract data from a query response
+export const safelyExtractData = <T>(response: any): T[] => {
+  if (!isDataResponse(response)) {
+    console.error("Error in response:", response.error || "Unknown error");
+    return [];
   }
-  return response.data;
+  
+  if (!Array.isArray(response.data)) {
+    console.error("Data is not an array:", response.data);
+    return [];
+  }
+  
+  return response.data as T[];
+};
+
+// Convert string to UUID safely for database queries
+export const asUUID = (id: string | undefined): string => {
+  if (!id) return '00000000-0000-0000-0000-000000000000';
+  return id;
 };
