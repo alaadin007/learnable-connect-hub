@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -41,7 +40,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
     try {
       setError(null);
       setLoading(true);
-      
+
       // Fetch all students from this school
       const { data: studentsData, error: studentsError } = await supabase
         .from("students")
@@ -52,6 +51,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
         setError("Error fetching students. Please refresh.");
         toast.error("Error fetching students");
         console.error("Error fetching students:", studentsError);
+        setLoading(false);
         return;
       }
 
@@ -60,15 +60,15 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
         setLoading(false);
         return;
       }
-      
+
       // Now fetch the profiles data separately
       const studentIds = studentsData.map(student => student.id);
-      
+
       const { data: profilesData, error: profilesError } = await supabase
         .from("profiles")
-        .select("id, full_name")
+        .select("id, full_name, email")
         .in("id", studentIds);
-      
+
       if (profilesError) {
         console.error("Error fetching profiles:", profilesError);
         // Continue with partial data rather than failing entirely
@@ -83,7 +83,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
           status: student.status || "pending",
           created_at: student.created_at,
           full_name: profile?.full_name || "No name",
-          email: student.id, // Using ID as email placeholder
+          email: profile?.email || "N/A",
         };
       });
 
@@ -93,14 +93,14 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
       setError("Failed to load students data. Please refresh.");
       toast.error("Failed to load students");
     } finally {
-      setLoading(false);
+      setLoading(false);  // Ensure loading is disabled on all paths
     }
   };
 
   const handleApproveStudent = async (studentId: string) => {
     try {
       setActionInProgress(studentId);
-      
+
       // Update the student status directly in the database
       const { error } = await supabase
         .from("students")
@@ -112,11 +112,11 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
         toast.error("Failed to approve student");
         return;
       }
-      
+
       toast.success("Student approved successfully");
       // Update the local state
-      setStudents(students.map(student => 
-        student.id === studentId ? {...student, status: 'active'} : student
+      setStudents(students.map(student =>
+        student.id === studentId ? { ...student, status: "active" } : student
       ));
     } catch (error) {
       console.error("Error approving student:", error);
@@ -129,7 +129,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
   const handleRevokeAccess = async (studentId: string) => {
     try {
       setActionInProgress(studentId);
-      
+
       // Delete the student record directly from the database
       const { error } = await supabase
         .from("students")
@@ -141,7 +141,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
         toast.error("Failed to revoke student access");
         return;
       }
-      
+
       toast.success("Student access revoked");
       // Remove the student from the local state
       setStudents(students.filter(student => student.id !== studentId));
@@ -165,13 +165,13 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
     }
   };
 
-  const filteredStudents = students.filter((student) => {
+  const filteredStudents = useMemo(() => {
     const searchLower = searchTerm.toLowerCase();
-    return (
+    return students.filter((student) => 
       student.full_name?.toLowerCase().includes(searchLower) ||
       student.email?.toLowerCase().includes(searchLower)
     );
-  });
+  }, [students, searchTerm]);
 
   if (error) {
     return (
@@ -186,18 +186,18 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
           <div className="p-4 bg-red-50 border border-red-200 rounded-md text-red-600">
             <p>{error}</p>
             <div className="mt-4 flex gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => fetchStudents()} 
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={fetchStudents}
                 className="mt-2"
               >
                 Try Again
               </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => window.location.reload()} 
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.location.reload()}
                 className="mt-2"
               >
                 Reload Page
@@ -214,7 +214,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
       <CardHeader>
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <CardTitle>Student Management</CardTitle>
-          
+
           <div className="flex flex-col md:flex-row gap-2">
             {/* School Code Display */}
             {schoolInfo?.code && (
@@ -233,17 +233,18 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
                 </Button>
               </div>
             )}
-            
+
             <Input
               placeholder="Search students..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="max-w-xs"
             />
-            <Button 
-              variant="outline" 
-              onClick={handleRefresh} 
+            <Button
+              variant="outline"
+              onClick={handleRefresh}
               className="flex items-center gap-2"
+              disabled={loading}
             >
               <RefreshCw className="h-4 w-4" />
               Refresh
@@ -310,7 +311,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
                             onClick={() => handleApproveStudent(student.id)}
                             disabled={actionInProgress === student.id}
                           >
-                            {actionInProgress === student.id ? 'Processing...' : 'Approve'}
+                            {actionInProgress === student.id ? "Processing..." : "Approve"}
                           </Button>
                         )}
                         <Button
@@ -320,7 +321,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
                           onClick={() => handleRevokeAccess(student.id)}
                           disabled={actionInProgress === student.id}
                         >
-                          {actionInProgress === student.id ? 'Processing...' : 'Revoke'}
+                          {actionInProgress === student.id ? "Processing..." : "Revoke"}
                         </Button>
                       </div>
                     </TableCell>
