@@ -17,6 +17,7 @@ const getRedirectPath = (role: string | undefined | null): string => {
   switch(role) {
     case 'school': return '/admin';
     case 'teacher': return '/teacher/analytics';
+    case 'student': return '/student/assessments';
     default: return '/dashboard';
   }
 };
@@ -44,6 +45,11 @@ const ProtectedRoute = ({
     // For test accounts, only check role requirements, bypass other checks
     if (requiredUserType && testAccountType !== requiredUserType) {
       console.log(`ProtectedRoute: Test account role ${testAccountType} doesn't match required role ${requiredUserType}`);
+      return <Navigate to={getRedirectPath(testAccountType)} replace />;
+    }
+
+    if (requiredRole === 'school_admin' && testAccountType !== 'school') {
+      console.log(`ProtectedRoute: Test account type ${testAccountType} not compatible with required role: school_admin`);
       return <Navigate to={getRedirectPath(testAccountType)} replace />;
     }
 
@@ -87,36 +93,55 @@ const ProtectedRoute = ({
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  // Map 'school' userRole to 'school_admin' for RBAC compatibility
+  const mappedRole = userRole === 'school' ? 'school_admin' : userRole;
+
   // Handle regular accounts
-  console.log("ProtectedRoute: User role:", userRole, "Required role:", requiredUserType);
+  console.log("ProtectedRoute: User role:", userRole, "Mapped role:", mappedRole, "Required role:", requiredRole);
 
   // Check for specific required role from RBAC
-  if (requiredRole && !hasRole(requiredRole)) {
+  if (requiredRole && requiredRole === 'school_admin' && userRole === 'school') {
+    // Special case for school admin - allow access if userRole is 'school'
+    console.log("ProtectedRoute: School admin access granted based on userRole");
+  }
+  else if (requiredRole && !hasRole(requiredRole)) {
     console.log(`ProtectedRoute: User doesn't have required role ${requiredRole}`);
-    return <Navigate to={getRedirectPath(userRole)} replace />;
+    return <Navigate to={getRedirectPath(mappedRole)} replace />;
   }
 
   // Check for any of the allowed roles from RBAC
-  if (allowedRoles && allowedRoles.length > 0 && !hasAnyRole(allowedRoles)) {
-    console.log(`ProtectedRoute: User doesn't have any of the allowed roles:`, allowedRoles);
-    return <Navigate to={getRedirectPath(userRole)} replace />;
+  if (allowedRoles && allowedRoles.length > 0) {
+    // Special case for school admin
+    if (userRole === 'school' && allowedRoles.includes('school_admin')) {
+      console.log("ProtectedRoute: School admin access granted based on allowedRoles");
+    }
+    else if (!hasAnyRole(allowedRoles)) {
+      console.log(`ProtectedRoute: User doesn't have any of the allowed roles:`, allowedRoles);
+      return <Navigate to={getRedirectPath(mappedRole)} replace />;
+    }
   }
 
   // Backward compatibility with old user type
-  if (requiredUserType && userRole && userRole !== requiredUserType) {
-    console.log(`ProtectedRoute: User role ${userRole} doesn't match required role ${requiredUserType}`);
-    return <Navigate to={getRedirectPath(userRole)} replace />;
+  if (requiredUserType) {
+    if (requiredUserType === 'school_admin' && userRole === 'school') {
+      // Allow access if the required user type is school_admin and the user is a school
+      console.log(`ProtectedRoute: School admin access granted based on userType mapping`);
+    } 
+    else if (userRole && userRole !== requiredUserType) {
+      console.log(`ProtectedRoute: User role ${userRole} doesn't match required role ${requiredUserType}`);
+      return <Navigate to={getRedirectPath(userRole)} replace />;
+    }
   }
 
   // For supervisor checks, use the RBAC isSupervisor property
   if (requireSupervisor && !isSupervisor) {
     console.log(`ProtectedRoute: User is not a supervisor`);
-    return <Navigate to={getRedirectPath(userRole)} replace />;
+    return <Navigate to={getRedirectPath(mappedRole)} replace />;
   }
 
   if (requireSameSchool && schoolId && userSchoolId && schoolId !== userSchoolId) {
     console.log(`ProtectedRoute: School ID mismatch - user: ${userSchoolId}, required: ${schoolId}`);
-    return <Navigate to={getRedirectPath(userRole)} replace />;
+    return <Navigate to={getRedirectPath(mappedRole)} replace />;
   }
 
   // If all checks pass, render the protected content

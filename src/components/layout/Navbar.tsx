@@ -69,7 +69,7 @@ const Navbar = () => {
     if (hasRole('school_admin')) {
       links.push(
         { name: "School Admin", href: "/admin" },
-        { name: "Teachers", href: "/admin/teacher-management" },
+        { name: "Teachers", href: "/admin/teachers" },
         { name: "Students", href: "/admin/students" },
         { name: "Analytics", href: "/admin/analytics" }
       );
@@ -111,8 +111,8 @@ const Navbar = () => {
         return currentPath === "/dashboard";
       case "/admin":
         return currentPath === "/admin";
-      case "/admin/teacher-management":
-        return currentPath === "/admin/teacher-management" || currentPath === "/admin/teachers";
+      case "/admin/teachers":
+        return currentPath === "/admin/teachers" || currentPath === "/admin/teacher-management";
       case "/admin/students":
         return currentPath === "/admin/students";
       case "/admin/analytics":
@@ -136,11 +136,6 @@ const Navbar = () => {
     }
   }, [location.pathname]);
 
-  if (isTestAccountsPage) {
-    // optionally hide navbar entirely on test accounts page:
-    return null;
-  }
-
   // Don't render until we've determined loading state to prevent flickering
   if (!isLoaded) {
     return (
@@ -155,6 +150,11 @@ const Navbar = () => {
         </div>
       </header>
     );
+  }
+
+  if (isTestAccountsPage) {
+    // optionally hide navbar entirely on test accounts page:
+    return null;
   }
 
   return (

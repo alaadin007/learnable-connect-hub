@@ -69,39 +69,39 @@ function App() {
             </ProtectedRoute>
           } />
 
-          {/* School admin routes */}
+          {/* School admin routes - allow both 'school_admin' role and 'school' userType */}
           <Route path="/admin" element={
-            <ProtectedRoute requiredRole="school_admin">
+            <ProtectedRoute allowedRoles={["school_admin"]}>
               <SchoolAdmin />
             </ProtectedRoute>
           } />
           
           <Route path="/admin/teacher-management" element={
-            <ProtectedRoute requiredRole="school_admin">
+            <ProtectedRoute allowedRoles={["school_admin"]}>
               <AdminTeacherManagement />
             </ProtectedRoute>
           } />
           
           <Route path="/admin/teachers" element={
-            <ProtectedRoute requiredRole="school_admin">
+            <ProtectedRoute allowedRoles={["school_admin"]}>
               <AdminTeachers />
             </ProtectedRoute>
           } />
           
           <Route path="/admin/analytics" element={
-            <ProtectedRoute requiredRole="school_admin">
+            <ProtectedRoute allowedRoles={["school_admin"]}>
               <AdminAnalytics />
             </ProtectedRoute>
           } />
 
           <Route path="/admin/students" element={
-            <ProtectedRoute requiredRole="school_admin">
+            <ProtectedRoute allowedRoles={["school_admin"]}>
               <AdminStudents />
             </ProtectedRoute>
           } />
 
           <Route path="/admin/settings" element={
-            <ProtectedRoute requiredRole="school_admin">
+            <ProtectedRoute allowedRoles={["school_admin"]}>
               <SchoolSettings />
             </ProtectedRoute>
           } />

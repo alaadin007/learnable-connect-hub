@@ -67,14 +67,14 @@ export const fetchSchoolStudents = async (schoolId: string): Promise<Student[]> 
     }
 
     return studentData.map((student) => {
-      // Only use profile data if the request was successful and there's a match
+      // Find the matching profile if it exists
       const profile = profileData && !profileError 
         ? profileData.find((p) => p.id === student.id) 
         : null;
         
       return {
         id: student.id,
-        email: student.id, // Use user ID as fallback email
+        email: student.id, // Use user ID as fallback since email might not be in profiles
         full_name: profile ? profile.full_name : null,
         status: student.status || "pending",
         created_at: student.created_at,
