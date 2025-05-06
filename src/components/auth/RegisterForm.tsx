@@ -10,7 +10,7 @@ import { AlertCircle, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useNavigate, Link } from "react-router-dom"; 
-import { isDataResponse, ensureUUID } from "@/utils/supabaseHelpers";
+import { isDataResponse, ensureUUID, safeAnyCast } from "@/utils/supabaseHelpers";
 
 interface RegisterFormProps {
   onSuccess?: () => void;
@@ -87,8 +87,8 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSuccess }) => {
         
         // Get the user role using a safe approach
         let role = null;
-        if (isDataResponse(response) && response.data && response.data.user_type) {
-          role = response.data.user_type;
+        if (isDataResponse(response) && response.data && 'user_type' in response.data) {
+          role = safeAnyCast<string>(response.data.user_type);
         }
 
         // Redirect based on user type

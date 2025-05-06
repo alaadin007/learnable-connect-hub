@@ -156,3 +156,8 @@ export const isValidFileItem = (item: any): item is {
     'storage_path' in item && 
     'processing_status' in item;
 };
+
+// Helper to safely cast to any (use sparingly!)
+export const safeAnyCast = <T>(value: unknown): T => {
+  return value as T;
+};

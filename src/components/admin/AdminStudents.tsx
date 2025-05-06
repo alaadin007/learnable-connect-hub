@@ -14,7 +14,8 @@ import {
   ensureUUID, 
   isValidStudent, 
   isValidProfile,
-  isNonNullable
+  isNonNullable,
+  safeAnyCast
 } from "@/utils/supabaseHelpers";
 
 type Student = {
@@ -46,6 +47,8 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
   }, [refreshTrigger, schoolId]);
 
   const fetchStudents = async () => {
+    if (!schoolId) return;
+    
     try {
       console.log("Fetching students for school:", schoolId);
       setError(null);
@@ -54,7 +57,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
       const studentsResponse = await supabase
         .from("students")
         .select("id, school_id, status, created_at")
-        .eq("school_id", schoolId as any);
+        .eq("school_id", safeAnyCast(schoolId));
 
       if (!isDataResponse(studentsResponse)) {
         console.error("Error fetching students:", studentsResponse.error);
@@ -121,7 +124,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
       // Update the student status directly in the database
       const { error } = await supabase
         .from("students")
-        .update({ status: "active" } as any)
+        .update(safeAnyCast({ status: "active" }))
         .eq("id", ensureUUID(studentId));
 
       if (error) {

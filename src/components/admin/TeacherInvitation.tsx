@@ -7,7 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
-import { isDataResponse, isValidInvitation } from "@/utils/supabaseHelpers";
+import { isDataResponse, isValidInvitation, safelyExtractData } from "@/utils/supabaseHelpers";
 
 interface TeacherInvite {
   id: string;
