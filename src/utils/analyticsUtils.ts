@@ -16,7 +16,6 @@ export {
   
   // Student and teacher management
   fetchStudents,
-  fetchTeachers,
   
   // Helper functions
   getDateRangeText,

@@ -3,9 +3,8 @@
 export * from './sessionUtils';
 export * from './chatUtils';
 export * from './studentUtils';
-export * from './teacherUtils';
-export * from './testAccountUtils';
 export * from './dateUtils';
+export * from './testAccountUtils';
 export * from './topicsUtils';
 export * from './studyTimeUtils';
 export * from './mockDataUtils';
@@ -14,7 +13,6 @@ export * from './commonUtils';
 export * from './sessionLogUtils';
 export * from './schoolPerformanceUtils';
 export * from './studentPerformanceUtils';
-export * from './teacherPerformanceUtils';
 export * from './exportUtils';
 
 // Re-export types that might be needed
