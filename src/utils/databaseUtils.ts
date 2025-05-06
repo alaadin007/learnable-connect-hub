@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { generateInviteCode } from './analytics/commonUtils';
 
@@ -25,7 +26,12 @@ export const getCurrentSchoolInfo = async () => {
         
       if (!schoolError && schoolData) {
         console.log("Found school from user metadata:", schoolData);
-        return schoolData;
+        return {
+          school_id: schoolData.id,
+          school_name: schoolData.name,
+          school_code: schoolData.code,
+          contact_email: null // Not all school records might have this
+        };
       }
     }
 
@@ -41,13 +47,18 @@ export const getCurrentSchoolInfo = async () => {
         console.log("Found school ID from teachers table:", teacherData.school_id);
         const { data: school, error: schoolError } = await supabase
           .from("schools")
-          .select("id, name, code")
+          .select("id, name, code, contact_email")
           .eq("id", teacherData.school_id)
           .single();
 
         if (!schoolError && school) {
           console.log("Found school details:", school);
-          return school;
+          return {
+            school_id: school.id,
+            school_name: school.name,
+            school_code: school.code,
+            contact_email: school.contact_email
+          };
         }
       } else {
         console.log("No teacher record found, checking students table...");
@@ -62,18 +73,49 @@ export const getCurrentSchoolInfo = async () => {
         if (!studentError && student?.school_id) {
           const { data: school, error: schoolError } = await supabase
             .from("schools")
-            .select("id, name, code")
+            .select("id, name, code, contact_email")
             .eq("id", student.school_id)
             .single();
 
           if (!schoolError && school) {
             console.log("Found school via students table:", school);
-            return school;
+            return {
+              school_id: school.id,
+              school_name: school.name,
+              school_code: school.code,
+              contact_email: school.contact_email
+            };
           }
         }
       }
     } catch (queryError) {
       console.log("Error in direct table queries:", queryError);
+    }
+    
+    // Try using the RPC function as a last resort
+    try {
+      const { data: schoolId, error: schoolIdError } = await supabase
+        .rpc("get_user_school_id");
+      
+      if (!schoolIdError && schoolId) {
+        console.log("Found school ID via RPC:", schoolId);
+        const { data: school, error: schoolError } = await supabase
+          .from("schools")
+          .select("id, name, code, contact_email")
+          .eq("id", schoolId)
+          .single();
+
+        if (!schoolError && school) {
+          return {
+            school_id: school.id,
+            school_name: school.name,
+            school_code: school.code,
+            contact_email: school.contact_email
+          };
+        }
+      }
+    } catch (rpcError) {
+      console.log("Error in RPC call:", rpcError);
     }
     
     console.log("Could not determine school through any method");

@@ -10,9 +10,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Users, BarChart2, ChevronDown, Settings, User, Copy } from "lucide-react";
+import { Users, BarChart2, ChevronDown, Settings, User, Copy, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { getCurrentSchoolInfo } from "@/utils/databaseUtils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -81,11 +82,13 @@ const SchoolAdmin = () => {
 
   const fetchSchoolInfo = async () => {
     try {
+      console.log("Fetching school info...");
       setIsLoading(true);
       setError(null);
       
-      // First try using profile data if it's available
+      // First check if we have the data in the auth context
       if (profile?.organization?.id && profile?.organization?.name && profile?.organization?.code) {
+        console.log("Found school info in profile:", profile.organization);
         setSchoolData({
           id: profile.organization.id,
           name: profile.organization.name,
@@ -95,8 +98,22 @@ const SchoolAdmin = () => {
         setIsLoading(false);
         return;
       }
+
+      // Try to get the school info using the utility function
+      const schoolInfo = await getCurrentSchoolInfo();
+      if (schoolInfo) {
+        console.log("Retrieved school info from utility:", schoolInfo);
+        setSchoolData({
+          id: schoolInfo.school_id,
+          name: schoolInfo.school_name,
+          code: schoolInfo.school_code
+        });
+        setSchoolId(schoolInfo.school_id);
+        setIsLoading(false);
+        return;
+      }
       
-      // Get user metadata from auth
+      // Get user metadata from auth as a fallback
       const { data: authData } = await supabase.auth.getUser();
       if (!authData?.user) {
         throw new Error("Not authenticated");
@@ -104,6 +121,8 @@ const SchoolAdmin = () => {
       
       // Try to extract school info from user metadata
       const userMeta = authData.user.user_metadata;
+      console.log("User metadata:", userMeta);
+      
       if (userMeta?.school_name && userMeta?.school_code) {
         console.log("Found school data in user metadata");
         
@@ -115,6 +134,7 @@ const SchoolAdmin = () => {
           .single();
         
         if (!schoolError && schoolInfo) {
+          console.log("Found school by code:", schoolInfo);
           setSchoolData({
             id: schoolInfo.id,
             name: schoolInfo.name,
@@ -123,6 +143,8 @@ const SchoolAdmin = () => {
           setSchoolId(schoolInfo.id);
           setIsLoading(false);
           return;
+        } else {
+          console.error("Error finding school by code:", schoolError);
         }
       }
       
@@ -135,6 +157,7 @@ const SchoolAdmin = () => {
         
       if (!teacherError && teacherData?.school_id) {
         const schoolIdFromTeacher = teacherData.school_id;
+        console.log("Found school ID in teachers table:", schoolIdFromTeacher);
         setSchoolId(schoolIdFromTeacher);
         
         // Now get the school details
@@ -145,6 +168,7 @@ const SchoolAdmin = () => {
           .single();
           
         if (!schoolError && schoolDetails) {
+          console.log("Found school details:", schoolDetails);
           setSchoolData({
             id: schoolIdFromTeacher,
             name: schoolDetails.name,
@@ -152,6 +176,8 @@ const SchoolAdmin = () => {
           });
           setIsLoading(false);
           return;
+        } else {
+          console.error("Error finding school details:", schoolError);
         }
       } else {
         console.log("Could not find teacher record:", teacherError);
@@ -170,7 +196,7 @@ const SchoolAdmin = () => {
 
   useEffect(() => {
     fetchSchoolInfo();
-  }, [authSchoolId]);
+  }, [authSchoolId, profile]);  // Added profile as a dependency
 
   useEffect(() => {
     const fromTestAccounts = location.state?.fromTestAccounts === true;
@@ -223,17 +249,20 @@ const SchoolAdmin = () => {
           <div className="container mx-auto px-4">
             <Card className="w-full">
               <CardHeader>
-                <CardTitle>School Admin Panel</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <AlertCircle className="h-5 w-5 text-red-500" />
+                  <span>Error Loading School Data</span>
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="p-6 text-center">
                   <div className="mb-4 text-red-500">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
+                    <AlertCircle className="h-12 w-12 mx-auto" />
                   </div>
-                  <h3 className="text-lg font-medium mb-2">Error Loading School Data</h3>
-                  <p className="text-gray-600 mb-4">{error}</p>
+                  <h3 className="text-lg font-medium mb-2">{error}</h3>
+                  <p className="text-gray-600 mb-4">
+                    We couldn't retrieve your school information. Please try again or contact support if the problem persists.
+                  </p>
                   <Button onClick={handleRetry} className="gradient-bg">
                     Retry
                   </Button>
