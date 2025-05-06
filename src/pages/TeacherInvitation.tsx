@@ -1,10 +1,9 @@
-
-import React from "react";
+import React, { FC } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
 import AcceptInvitation from "@/components/auth/AcceptInvitation";
 
-const TeacherInvitation = () => {
+const TeacherInvitation: FC = () => {
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
