@@ -163,3 +163,51 @@ export const inviteStudentDirect = async (method: "code" | "email", email?: stri
     return { success: false, message: "Internal error" };
   }
 };
+
+// Invite teacher directly
+export const inviteTeacherDirect = async (email: string): Promise<{
+  success: boolean;
+  inviteId?: string;
+  message?: string;
+}> => {
+  try {
+    // Verify the user is logged in and is a school supervisor
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return { success: false, message: "Unauthorized" };
+    }
+
+    // Check if user is a school supervisor
+    const { data: isSupervisor, error: supervisorError } = await supabase
+      .rpc("is_supervisor", { user_id: user.id });
+
+    if (supervisorError || !isSupervisor) {
+      return { success: false, message: "Only school supervisors can invite teachers" };
+    }
+
+    if (!email) {
+      return { success: false, message: "Email is required" };
+    }
+
+    // Use RPC to invite teacher with existing function
+    const { data: inviteResult, error: inviteError } = await supabase
+      .rpc("invite_teacher", {
+        teacher_email: email
+      });
+
+    if (inviteError) {
+      console.error("Error inviting teacher:", inviteError);
+      return { success: false, message: inviteError.message };
+    }
+
+    return { 
+      success: true, 
+      inviteId: inviteResult,
+      message: "Teacher invitation sent successfully" 
+    };
+  } catch (error) {
+    console.error("Error in inviteTeacher:", error);
+    return { success: false, message: "Internal error" };
+  }
+};
