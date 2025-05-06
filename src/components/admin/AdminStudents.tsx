@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { approveStudentDirect, revokeStudentAccessDirect, getCurrentSchoolInfo } from "@/utils/databaseUtils";
-import { RefreshCw, User, Copy } from "lucide-react";
+import { RefreshCw, User, Copy, AlertTriangle } from "lucide-react";
 
 type Student = {
   id: string;
@@ -27,9 +27,30 @@ const AdminStudents = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
+  const [loadTimeout, setLoadTimeout] = useState<NodeJS.Timeout | null>(null);
+
+  // Set up a timeout to prevent hanging state
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (isLoading) {
+        setIsLoading(false);
+        setError("Loading timed out. Please try again.");
+        toast.error("Loading timed out. Please try again.");
+      }
+    }, 15000); // 15 seconds timeout
+    
+    setLoadTimeout(timeout);
+    
+    return () => {
+      if (loadTimeout) clearTimeout(loadTimeout);
+    };
+  }, [isLoading]);
 
   useEffect(() => {
     loadSchoolInfo();
+    return () => {
+      if (loadTimeout) clearTimeout(loadTimeout);
+    };
   }, []);
 
   useEffect(() => {
@@ -52,14 +73,41 @@ const AdminStudents = () => {
           code: schoolData.code
         });
       } else {
-        setError("Could not load school information");
-        toast.error("Could not load school information");
+        // Fallback: Try to get school ID directly from Supabase RPC
+        try {
+          const { data: schoolId, error: schoolIdError } = await supabase.rpc('get_user_school_id');
+          
+          if (schoolIdError || !schoolId) {
+            throw new Error(schoolIdError?.message || 'No school ID found');
+          }
+          
+          const { data: schoolDetails, error: schoolError } = await supabase
+            .from("schools")
+            .select("id, name, code")
+            .eq("id", schoolId)
+            .single();
+            
+          if (schoolError || !schoolDetails) {
+            throw new Error(schoolError?.message || 'No school details found');
+          }
+          
+          setSchoolInfo({
+            id: schoolDetails.id,
+            name: schoolDetails.name,
+            code: schoolDetails.code
+          });
+        } catch (fallbackError) {
+          console.error("Error in fallback school info loading:", fallbackError);
+          setError("Could not load school information. Please refresh.");
+          toast.error("Could not load school information");
+        }
       }
     } catch (error) {
       console.error("Error loading school information:", error);
-      setError("Failed to load school information");
+      setError("Failed to load school information. Please refresh.");
       toast.error("Failed to load school information");
     } finally {
+      if (loadTimeout) clearTimeout(loadTimeout);
       setIsLoading(false);
     }
   };
@@ -78,10 +126,11 @@ const AdminStudents = () => {
       const { data: studentsData, error: studentsError } = await supabase
         .from("students")
         .select("id, school_id, status, created_at")
-        .eq("school_id", schoolInfo.id);
+        .eq("school_id", schoolInfo.id)
+        .timeout(10000); // Add a reasonable timeout
 
       if (studentsError) {
-        setError("Error fetching students");
+        setError("Error fetching students. Please refresh.");
         toast.error("Error fetching students");
         console.error("Error fetching students:", studentsError);
         return;
@@ -99,13 +148,12 @@ const AdminStudents = () => {
       const { data: profilesData, error: profilesError } = await supabase
         .from("profiles")
         .select("id, full_name")
-        .in("id", studentIds);
+        .in("id", studentIds)
+        .timeout(10000); // Add a reasonable timeout
       
       if (profilesError) {
-        setError("Error fetching profiles");
-        toast.error("Error fetching profiles");
         console.error("Error fetching profiles:", profilesError);
-        return;
+        // Continue with partial data rather than failing entirely
       }
 
       // Combine the data from the two queries
@@ -124,9 +172,10 @@ const AdminStudents = () => {
       setStudents(formattedStudents);
     } catch (error) {
       console.error("Error fetching students:", error);
-      setError("Failed to load students data");
+      setError("Failed to load students data. Please refresh.");
       toast.error("Failed to load students");
     } finally {
+      if (loadTimeout) clearTimeout(loadTimeout);
       setIsLoading(false);
     }
   };
@@ -197,19 +246,32 @@ const AdminStudents = () => {
     return (
       <Card className="w-full">
         <CardHeader>
-          <CardTitle>Student Management</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-yellow-500" />
+            <span>Student Management</span>
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="p-4 bg-red-50 border border-red-200 rounded-md text-red-600">
             <p>{error}</p>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={handleRefresh} 
-              className="mt-2"
-            >
-              Try Again
-            </Button>
+            <div className="mt-4 flex gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={loadSchoolInfo} 
+                className="mt-2"
+              >
+                Try Again
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => window.location.reload()} 
+                className="mt-2"
+              >
+                Reload Page
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -246,8 +308,14 @@ const AdminStudents = () => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="max-w-xs"
+              disabled={isLoading}
             />
-            <Button variant="outline" onClick={handleRefresh} className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              onClick={handleRefresh} 
+              className="flex items-center gap-2"
+              disabled={isLoading}
+            >
               <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>

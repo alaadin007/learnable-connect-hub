@@ -1,5 +1,6 @@
 
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 /**
  * Get complete school information for the current user
@@ -31,8 +32,13 @@ export const getCurrentSchoolInfo = async (): Promise<{
     try {
       const { data: schoolId, error: schoolIdError } = await supabase.rpc('get_user_school_id');
       
-      if (schoolIdError || !schoolId) {
+      if (schoolIdError) {
         console.error('Error fetching school ID:', schoolIdError);
+        return null;
+      }
+      
+      if (!schoolId) {
+        console.error('No school ID returned');
         return null;
       }
       
@@ -65,8 +71,6 @@ export const getCurrentSchoolInfo = async (): Promise<{
     return null;
   }
 };
-
-import { toast } from "sonner";
 
 /**
  * Approves a student directly by updating their status to 'active'.
