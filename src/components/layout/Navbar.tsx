@@ -136,13 +136,13 @@ const Navbar = () => {
     }
   }, [location.pathname]);
 
+  // Fixed navigation handler - use Link components instead of manual navigation
   const handleNavigation = useCallback((path: string) => {
-    if (location.pathname === path) {
+    if (path === location.pathname) {
       setIsOpen(false);
       return;
     }
     
-    // Add state to prevent redirection loops and preserve navigation context
     navigate(path, { 
       state: { 
         fromNavigation: true,
@@ -197,19 +197,19 @@ const Navbar = () => {
             </Button>
           </div>
 
-          {/* Desktop nav */}
+          {/* Desktop nav - Using Link components directly instead of buttons */}
           <nav className="hidden md:flex space-x-8">
             {navLinks.map((link) => (
-              <button
+              <Link
                 key={link.name}
-                onClick={() => handleNavigation(link.href)}
+                to={link.href}
                 className={cn(
                   "text-learnable-gray hover:text-learnable-blue font-medium transition-colors duration-200",
                   isActiveLink(link.href) && "text-learnable-blue font-bold"
                 )}
               >
                 {link.name}
-              </button>
+              </Link>
             ))}
           </nav>
 
@@ -267,7 +267,7 @@ const Navbar = () => {
         </div>
       </div>
 
-      {/* Mobile menu */}
+      {/* Mobile menu - Also using Link components directly */}
       <div
         className={cn(
           "fixed inset-0 z-40 bg-white transform transition-transform duration-300 ease-in-out md:hidden pt-16",
@@ -280,18 +280,19 @@ const Navbar = () => {
         <div className="px-4 space-y-4 divide-y divide-gray-100 h-full overflow-y-auto">
           <div className="space-y-1">
             {navLinks.map((link) => (
-              <button
+              <Link
                 key={link.name}
-                onClick={() => handleNavigation(link.href)}
+                to={link.href}
                 className={cn(
                   "block w-full text-left px-3 py-2 text-base font-medium rounded-md",
                   isActiveLink(link.href)
                     ? "bg-learnable-super-light text-learnable-blue"
                     : "text-learnable-dark hover:bg-learnable-super-light"
                 )}
+                onClick={() => setIsOpen(false)}
               >
                 {link.name}
-              </button>
+              </Link>
             ))}
           </div>
           <div className="pt-4 space-y-4">

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
@@ -119,41 +120,43 @@ const LoginForm = () => {
               <AlertDescription>{loginError}</AlertDescription>
             </Alert>
           )}
-          <div className="grid gap-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              placeholder="Enter your email"
-              type="email"
-              value={email}
-              onChange={handleEmailChange}
-              disabled={isSubmitting}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              placeholder="Enter your password"
-              type="password"
-              value={password}
-              onChange={handlePasswordChange}
-              disabled={isSubmitting}
-            />
-          </div>
+          <form onSubmit={handleLogin}>
+            <div className="grid gap-2 mb-4">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                placeholder="Enter your email"
+                type="email"
+                value={email}
+                onChange={handleEmailChange}
+                disabled={isSubmitting}
+                required
+              />
+            </div>
+            <div className="grid gap-2 mb-6">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                placeholder="Enter your password"
+                type="password"
+                value={password}
+                onChange={handlePasswordChange}
+                disabled={isSubmitting}
+                required
+              />
+            </div>
+            <Button className="w-full gradient-bg" type="submit" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Logging in...
+                </>
+              ) : (
+                'Log In'
+              )}
+            </Button>
+          </form>
         </CardContent>
-        <CardFooter>
-          <Button className="w-full gradient-bg" onClick={handleLogin} disabled={isSubmitting}>
-            {isSubmitting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Logging in...
-              </>
-            ) : (
-              'Log In'
-            )}
-          </Button>
-        </CardFooter>
       </Card>
     </div>
   );

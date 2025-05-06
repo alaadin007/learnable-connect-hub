@@ -18,6 +18,7 @@ const AdminStudents = () => {
   const [error, setError] = useState<string | null>(null);
   const [schoolInfo, setSchoolInfo] = useState<{ name: string; code: string; id?: string } | null>(null);
   const [schoolId, setSchoolId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Fetch school data directly when component mounts
   useEffect(() => {
@@ -26,6 +27,7 @@ const AdminStudents = () => {
       
       try {
         setError(null);
+        setIsLoading(true);
         
         // Get the school ID directly from teachers table since the current user is an admin
         const { data: teacherData, error: teacherError } = await supabase
@@ -66,6 +68,8 @@ const AdminStudents = () => {
       } catch (error) {
         console.error("Error in fetchSchoolInfo:", error);
         setError("Failed to load data");
+      } finally {
+        setIsLoading(false);
       }
     };
     
@@ -114,6 +118,10 @@ const AdminStudents = () => {
               >
                 Retry
               </Button>
+            </div>
+          ) : isLoading ? (
+            <div className="flex justify-center items-center p-12">
+              <p className="text-learnable-gray">Loading school information...</p>
             </div>
           ) : (
             schoolId && <AdminStudentsComponent schoolId={schoolId} schoolInfo={schoolInfo} />
