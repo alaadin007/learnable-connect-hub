@@ -25,6 +25,33 @@ export const prepareTableInsert = <T extends Record<string, any>>(data: T): any 
 export const prepareSupabaseUpdate = <T extends Record<string, any>>(data: T): any => data;
 
 /**
+ * Type guard to check if the response is a data response and not an error
+ * @param response The response to check
+ * @returns True if the response has data, false if it's an error
+ */
+export const isDataResponse = <T>(response: any): response is { id: string } & T => {
+  return response && typeof response === 'object' && !('message' in response) && !('code' in response);
+};
+
+/**
+ * Type guard to check if a file item is valid
+ * @param item The file item to check
+ * @returns True if the file item is valid
+ */
+export const isValidFileItem = (item: any): boolean => {
+  return item && typeof item === 'object' && 'id' in item && 'filename' in item;
+};
+
+/**
+ * Type guard to check if the invitation is valid
+ * @param invitation The invitation to check
+ * @returns True if the invitation is valid
+ */
+export const isValidInvitation = (invitation: any): boolean => {
+  return invitation && typeof invitation === 'object' && 'id' in invitation && 'email' in invitation;
+};
+
+/**
  * Safely accesses properties from a Supabase data object that might be an error
  * @param data The data object from a Supabase query
  * @param accessor Function to extract the desired property
@@ -56,4 +83,9 @@ export const supabaseHelpers = {
   prepareTableInsert,
   prepareSupabaseUpdate,
   safelyAccessData,
+  isDataResponse,
+  isValidFileItem,
+  isValidInvitation
 };
+
+export default supabaseHelpers;

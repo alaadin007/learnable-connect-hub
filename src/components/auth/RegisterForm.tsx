@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -56,6 +55,7 @@ const RegisterForm = () => {
         options: {
           data: {
             school_code: schoolCode,
+            user_type: 'student', // Default role
           },
           emailRedirectTo: window.location.origin + "/login?email_confirmed=true",
         },
@@ -134,7 +134,13 @@ const RegisterForm = () => {
           setIsLoading(false);
           return;
         }
-      } else if (schoolData) {
+        
+        // Add the student role to user_roles table
+        await supabase.rpc("assign_role", {
+          user_id_param: data.user.id,
+          role_param: "student"
+        });
+      } else if (supabaseHelpers.isDataResponse(schoolData)) {
         // Update the user's profile with the school ID
         const { error: updateError } = await supabase
           .from("profiles")
@@ -148,6 +154,12 @@ const RegisterForm = () => {
           setIsLoading(false);
           return;
         }
+        
+        // Add the student role to user_roles table
+        await supabase.rpc("assign_role", {
+          user_id_param: data.user.id,
+          role_param: "student"
+        });
       }
 
       toast.success("Registration successful! Please check your email to verify your account.");

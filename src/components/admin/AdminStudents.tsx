@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { UserPlus, Search, MoreHorizontal } from "lucide-react";
 import { supabaseHelpers } from "@/utils/supabaseHelpers";
 import { getRoleDisplayName } from "@/utils/roleUtils";
+import { AppRole } from "@/contexts/RBACContext";
 
 interface AdminStudentsProps {
   schoolId: string;
@@ -29,7 +30,7 @@ interface Student {
   email: string;
   status: string;
   created_at: string;
-  role: string;
+  role: AppRole | string;
 }
 
 const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
@@ -57,8 +58,16 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
         return;
       }
 
+      if (!Array.isArray(studentData) || studentData.length === 0) {
+        setStudents([]);
+        setLoading(false);
+        return;
+      }
+
       // Get student profiles to display names
-      const studentIds = studentData.map(student => student.id);
+      const studentIds = studentData.map(student => 
+        supabaseHelpers.safelyAccessData(student, s => s.id, "")
+      ).filter(id => id !== "");
       
       if (studentIds.length === 0) {
         setStudents([]);
@@ -70,7 +79,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
         .select("id, full_name, email, user_type")
-        .in("id", studentIds.map(id => supabaseHelpers.asSupabaseParam(id)));
+        .in("id", studentIds);
 
       if (profileError) {
         console.error("Error fetching student profiles:", profileError.message);
@@ -83,7 +92,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
       const { data: rolesData, error: rolesError } = await supabase
         .from("user_roles")
         .select("user_id, role")
-        .in("user_id", studentIds.map(id => supabaseHelpers.asSupabaseParam(id)));
+        .in("user_id", studentIds);
 
       if (rolesError) {
         console.error("Error fetching user roles:", rolesError.message);
@@ -92,31 +101,44 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
 
       // Create a map of user_id to role
       const roleMap = new Map();
-      if (rolesData) {
+      if (rolesData && Array.isArray(rolesData)) {
         rolesData.forEach(roleEntry => {
-          roleMap.set(roleEntry.user_id, roleEntry.role);
+          if (supabaseHelpers.isDataResponse(roleEntry)) {
+            roleMap.set(roleEntry.user_id, roleEntry.role);
+          }
         });
       }
 
       // Combine student data with profiles
-      const combinedStudents: Student[] = studentData.map(student => {
-        const profile = profileData?.find(p => p.id === student.id);
-        let role = profile?.user_type || "student"; // Default to user_type if no role found
-        
-        // Check if we have a role from user_roles
-        if (roleMap.has(student.id)) {
-          role = roleMap.get(student.id);
-        }
-        
-        return {
-          id: student.id,
-          full_name: profile?.full_name || "Unknown",
-          email: profile?.email || "No email",
-          status: student.status,
-          created_at: student.created_at,
-          role: role
-        };
-      });
+      const combinedStudents: Student[] = [];
+      
+      if (Array.isArray(studentData) && Array.isArray(profileData)) {
+        studentData.forEach(student => {
+          if (!supabaseHelpers.isDataResponse(student)) return;
+          
+          const profile = profileData.find(p => 
+            supabaseHelpers.isDataResponse(p) && p.id === student.id
+          );
+          
+          let role = profile && supabaseHelpers.isDataResponse(profile) 
+            ? profile.user_type || "student" 
+            : "student"; // Default to user_type if no role found
+          
+          // Check if we have a role from user_roles
+          if (roleMap.has(student.id)) {
+            role = roleMap.get(student.id);
+          }
+          
+          combinedStudents.push({
+            id: student.id,
+            full_name: profile && supabaseHelpers.isDataResponse(profile) ? profile.full_name || "Unknown" : "Unknown",
+            email: profile && supabaseHelpers.isDataResponse(profile) ? profile.email || "No email" : "No email",
+            status: student.status,
+            created_at: student.created_at,
+            role: role
+          });
+        });
+      }
 
       setStudents(combinedStudents);
     } catch (error: any) {
@@ -168,7 +190,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
         return;
       }
 
-      if (data?.[0]?.code) {
+      if (data && Array.isArray(data) && data.length > 0 && data[0]?.code) {
         setInviteCode(data[0].code);
         setShowInviteModal(true);
       } else {
@@ -250,7 +272,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
                       <TableCell>{student.email}</TableCell>
                       <TableCell>
                         <Badge variant="outline">
-                          {getRoleDisplayName(student.role)}
+                          {getRoleDisplayName(student.role as AppRole)}
                         </Badge>
                       </TableCell>
                       <TableCell>
