@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -54,10 +55,10 @@ export const fetchSchoolStudents = async (schoolId: string): Promise<Student[]> 
 
     const studentIds = studentData.map((s) => s.id);
 
-    // Fetch profiles, include email if available
+    // Fetch profiles, include full_name if available
     const { data: profileData, error: profileError } = await supabase
       .from("profiles")
-      .select("id, full_name, email")
+      .select("id, full_name")
       .in("id", studentIds);
 
     if (profileError) {
@@ -66,11 +67,15 @@ export const fetchSchoolStudents = async (schoolId: string): Promise<Student[]> 
     }
 
     return studentData.map((student) => {
-      const profile = profileData?.find((p) => p.id === student.id);
+      // Only use profile data if the request was successful and there's a match
+      const profile = profileData && !profileError 
+        ? profileData.find((p) => p.id === student.id) 
+        : null;
+        
       return {
         id: student.id,
-        email: profile?.email || "N/A",
-        full_name: profile?.full_name || null,
+        email: student.id, // Use user ID as fallback email
+        full_name: profile ? profile.full_name : null,
         status: student.status || "pending",
         created_at: student.created_at,
       };

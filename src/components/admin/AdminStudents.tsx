@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,7 +67,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
 
       const { data: profilesData, error: profilesError } = await supabase
         .from("profiles")
-        .select("id, full_name, email")
+        .select("id, full_name")
         .in("id", studentIds);
 
       if (profilesError) {
@@ -76,14 +77,18 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
 
       // Combine the data from the two queries
       const formattedStudents: Student[] = studentsData.map(student => {
-        const profile = profilesData?.find(p => p.id === student.id);
+        // Find the matching profile if it exists
+        const profile = profilesData && !profilesError 
+          ? profilesData.find(p => p.id === student.id) 
+          : null;
+          
         return {
           id: student.id,
           school_id: student.school_id,
           status: student.status || "pending",
           created_at: student.created_at,
-          full_name: profile?.full_name || "No name",
-          email: profile?.email || "N/A",
+          full_name: profile ? profile.full_name : "No name",
+          email: student.id // Use user ID as fallback since email might not be in profiles
         };
       });
 

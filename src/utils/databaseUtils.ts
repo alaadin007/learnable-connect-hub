@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -106,11 +107,11 @@ export const revokeStudentAccessDirect = async (studentId: string): Promise<bool
  */
 export const inviteTeacherDirect = async (email: string): Promise<{ success: boolean; message?: string }> => {
   try {
-    const { data: user } = await supabase.auth.getUser();
-    if (!user) {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData || !userData.user) {
       return { success: false, message: "No authenticated user" };
     }
-    const userId = user.id;
+    const userId = userData.user.id;
 
     const { data: schoolId, error: schoolIdError } = await supabase.rpc("get_user_school_id");
     if (schoolIdError || !schoolId) {
