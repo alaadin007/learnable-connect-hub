@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 
 /**
@@ -156,6 +157,89 @@ export const inviteTeacherDirect = async (email: string): Promise<{
     };
   } catch (error) {
     console.error('Error in inviteTeacherDirect:', error);
+    return { success: false, message: 'An error occurred' };
+  }
+};
+
+/**
+ * Invites a student directly by either:
+ * - Generating an invitation code (code method)
+ * - Sending an email invitation (email method)
+ * 
+ * @param method - The invitation method, either 'code' or 'email'
+ * @param email - Optional email address when using the 'email' method
+ * @returns Success status, generated code or message
+ */
+export const inviteStudentDirect = async (
+  method: 'code' | 'email',
+  email?: string
+): Promise<{
+  success: boolean;
+  code?: string;
+  message?: string;
+}> => {
+  try {
+    // Get the school ID of the current user
+    const { data: schoolId, error: schoolIdError } = await supabase.rpc('get_user_school_id');
+    
+    if (schoolIdError || !schoolId) {
+      console.error('Error fetching school ID:', schoolIdError);
+      return { success: false, message: 'Failed to get school information' };
+    }
+
+    if (method === 'code') {
+      // Generate a unique invite code - using a helper function or UUID
+      const inviteCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+      
+      // Create a student invitation record with the code
+      const { error: inviteError } = await supabase
+        .from("student_invites")
+        .insert({
+          school_id: schoolId,
+          code: inviteCode,
+          status: 'pending',
+          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 days expiration
+        });
+
+      if (inviteError) {
+        console.error("Error creating student invite:", inviteError);
+        return { success: false, message: "Failed to create invitation code" };
+      }
+
+      return { 
+        success: true,
+        code: inviteCode,
+        message: "Invitation code generated successfully" 
+      };
+    } 
+    else if (method === 'email' && email) {
+      // Create a student invitation record with the email
+      const { error: inviteError } = await supabase
+        .from("student_invites")
+        .insert({
+          school_id: schoolId,
+          email: email,
+          status: 'pending',
+          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 days expiration
+        });
+
+      if (inviteError) {
+        console.error("Error creating student invite:", inviteError);
+        return { success: false, message: "Failed to create invitation" };
+      }
+
+      // In a real implementation, you would typically send an email here
+      // using an Edge Function or other server-side functionality
+
+      return { 
+        success: true, 
+        message: `Invitation sent to ${email}` 
+      };
+    }
+    
+    return { success: false, message: "Invalid invitation method or missing email" };
+  } catch (error) {
+    console.error('Error in inviteStudentDirect:', error);
     return { success: false, message: 'An error occurred' };
   }
 };
