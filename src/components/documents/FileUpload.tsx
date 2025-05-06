@@ -67,7 +67,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onUploadComplete }) => {
 
       const { data: metadataData, error: metadataError } = await supabase
         .from('documents')
-        .insert(insertData)
+        .insert([insertData])
         .select()
         .single();
 

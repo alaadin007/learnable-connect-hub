@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -6,13 +7,6 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
-import { 
-  isDataResponse, 
-  isValidInvitation, 
-  safelyExtractData,
-  asSupabaseParam,
-  createInsertData
-} from "@/utils/supabaseHelpers";
 
 interface TeacherInvite {
   id: string;
@@ -43,20 +37,31 @@ const TeacherInvitation = () => {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (isDataResponse(response)) {
-        // Filter and map the data to ensure it matches the TeacherInvite interface
-        const validInvites: TeacherInvite[] = response.data
-          .filter(isValidInvitation)
-          .map(item => ({
-            id: item.id,
-            email: item.email,
-            status: item.status,
-            created_at: item.created_at,
-            expires_at: item.expires_at
-          }));
+      const validInvites: TeacherInvite[] = [];
+      
+      if (response.data && Array.isArray(response.data)) {
+        response.data.forEach(item => {
+          if (
+            typeof item === 'object' && 
+            item !== null &&
+            'id' in item && 
+            'email' in item && 
+            'status' in item && 
+            'created_at' in item && 
+            'expires_at' in item
+          ) {
+            validInvites.push({
+              id: String(item.id),
+              email: String(item.email),
+              status: String(item.status),
+              created_at: String(item.created_at),
+              expires_at: String(item.expires_at)
+            });
+          }
+        });
         
         setInvites(validInvites);
-      } else {
+      } else if (response.error) {
         console.error('Error fetching invitations:', response.error);
         toast.error('Failed to load teacher invitations');
       }
@@ -153,7 +158,6 @@ const TeacherInvitation = () => {
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString();
   };
-  
   
   return (
     <Card className="w-full max-w-lg">

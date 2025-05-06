@@ -1,17 +1,19 @@
 
-import React from 'react';
-import { createRoot } from 'react-dom/client';
-import { BrowserRouter } from 'react-router-dom';
-import App from './App.tsx';
-import './index.css';
+import React from "react";
+import ReactDOM from "react-dom/client";
+import { BrowserRouter } from "react-router-dom";
+import App from "./App.tsx";
+import "./index.css";
+import { ThemeProvider } from "./components/theme-provider";
+import { Toaster } from "sonner";
 
-const rootElement = document.getElementById("root");
-if (!rootElement) throw new Error('Root element not found');
-
-createRoot(rootElement).render(
+ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <BrowserRouter>
-      <App />
+      <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
+        <App />
+      </ThemeProvider>
+      <Toaster />
     </BrowserRouter>
   </React.StrictMode>
 );
