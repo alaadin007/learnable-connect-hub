@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRBAC } from "@/contexts/RBACContext";
@@ -45,21 +44,21 @@ const AdminStudents = () => {
 
       console.log("Fetching school data...");
       setError(null);
-      
+
       // First try using the utility function for most reliable method
       const schoolData = await getCurrentSchoolInfo();
       if (schoolData) {
         console.log("School info retrieved from utility:", schoolData);
         setSchoolInfo({
-          id: schoolData.school_id,
-          name: schoolData.school_name,
-          code: schoolData.school_code
+          id: schoolData.id,
+          name: schoolData.name,
+          code: schoolData.code
         });
-        setSchoolId(schoolData.school_id);
+        setSchoolId(schoolData.id);
         setLoading(false);
         return;
       }
-      
+
       // Try using profile data if it's available
       if (profile?.organization?.id && profile?.organization?.name && profile?.organization?.code) {
         console.log("Using profile data for school:", profile.organization);
@@ -72,17 +71,17 @@ const AdminStudents = () => {
         setLoading(false);
         return;
       }
-      
+
       // Get user metadata from auth
       const { data: authData } = await supabase.auth.getUser();
       if (!authData?.user) {
         throw new Error("Authentication error");
       }
-      
+
       // Try to extract school info from user metadata
       const userMeta = authData.user.user_metadata;
       console.log("User metadata:", userMeta);
-      
+
       if (userMeta?.school_name && userMeta?.school_code) {
         // Get the school ID from the school code
         const { data: schoolDetails, error: schoolCodeError } = await supabase
@@ -90,7 +89,7 @@ const AdminStudents = () => {
           .select("id, name, code")
           .eq("code", userMeta.school_code)
           .single();
-          
+
         if (!schoolCodeError && schoolDetails) {
           console.log("Found school by code:", schoolDetails);
           setSchoolInfo({
@@ -105,9 +104,8 @@ const AdminStudents = () => {
           console.log("Error finding school by code:", schoolCodeError);
         }
       }
-      
+
       throw new Error("Could not determine your school information. Please check your API configuration in School Settings.");
-      
     } catch (err: any) {
       console.error("Error in fetchSchoolData:", err);
       setError(err.message || "Failed to load data");
