@@ -66,7 +66,7 @@ const AdminStudents: React.FC<AdminStudentsProps> = ({ schoolId, schoolInfo, isL
       const { data: studentsData, error: studentsError } = await supabase
         .from('students')
         .select('id, school_id, status, created_at')
-        .eq('school_id', schoolIdToUse as string);
+        .eq('school_id', schoolIdToUse as unknown as string);
 
       if (studentsError) {
         console.error('Error fetching students:', studentsError);
@@ -78,10 +78,10 @@ const AdminStudents: React.FC<AdminStudentsProps> = ({ schoolId, schoolInfo, isL
       // Convert to our expected Student type
       const validStudents: Student[] = Array.isArray(studentsData) 
         ? studentsData.map(s => ({
-            id: s.id,
-            school_id: s.school_id,
+            id: s.id || '',
+            school_id: s.school_id || '',
             status: s.status || 'pending',
-            created_at: s.created_at
+            created_at: s.created_at || ''
           }))
         : [];
     
@@ -94,7 +94,7 @@ const AdminStudents: React.FC<AdminStudentsProps> = ({ schoolId, schoolInfo, isL
         const { data: profileData, error: profilesError } = await supabase
           .from('profiles')
           .select('id, full_name')
-          .in('id', studentIds);
+          .in('id', studentIds as unknown as string[]);
       
         if (profilesError) {
           console.error('Error fetching profiles:', profilesError);
@@ -122,8 +122,8 @@ const AdminStudents: React.FC<AdminStudentsProps> = ({ schoolId, schoolInfo, isL
     try {
       const { error } = await supabase
         .from('students')
-        .update({ status: "active" })
-        .eq('id', student.id);
+        .update({ status: "active" } as any)
+        .eq('id', student.id as unknown as string);
       
       if (error) {
         console.error('Error updating student status:', error);

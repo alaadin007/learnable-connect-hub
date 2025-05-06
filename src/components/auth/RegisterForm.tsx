@@ -73,6 +73,7 @@ const RegisterForm = () => {
 
       // Create a user profile
       const profileData = {
+        id: data.user.id,
         email: email,
         school_code: schoolCode,
         user_type: 'student'
@@ -80,7 +81,7 @@ const RegisterForm = () => {
 
       const { error: profileError } = await supabase
         .from("profiles")
-        .upsert([{ ...profileData, id: data.user.id }]);
+        .upsert([profileData as any]);
 
       if (profileError) {
         toast.error(
@@ -94,7 +95,7 @@ const RegisterForm = () => {
       const { data: schoolData, error: schoolError } = await supabase
         .from("schools")
         .select("id")
-        .eq("code", schoolCode)
+        .eq("code", schoolCode as unknown as string)
         .single();
 
       if (schoolError) {
@@ -106,7 +107,7 @@ const RegisterForm = () => {
 
         const { data: newSchoolData, error: newSchoolError } = await supabase
           .from("schools")
-          .insert([newSchool])
+          .insert([newSchool as any])
           .select("id")
           .single();
 
