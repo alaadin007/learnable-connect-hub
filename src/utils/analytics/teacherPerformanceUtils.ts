@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { AnalyticsFilters, TeacherPerformanceData } from "@/components/analytics/types";
 import { getDateFilterSQL } from "./dateUtils";
@@ -40,6 +39,8 @@ export const fetchTeacherPerformance = async (
       const trend = item.completion_rate > 80 ? "up" : item.completion_rate > 60 ? "steady" : "down";
 
       return {
+        id: item.teacher_id,
+        name: item.teacher_name,
         teacher_id: item.teacher_id,
         teacher_name: item.teacher_name,
         assessments_created: item.assessments_created || 0,
@@ -47,10 +48,6 @@ export const fetchTeacherPerformance = async (
         completion_rate: item.completion_rate || 0,
         avg_student_score: item.avg_student_score || 0,
         avg_submissions_per_assessment: item.avg_submissions_per_assessment || 0,
-        
-        // Compatibility fields
-        id: item.teacher_id,
-        name: item.teacher_name,
         students: item.students_assessed || 0,
         avgScore: item.avg_student_score || 0,
         trend
@@ -68,6 +65,8 @@ export const fetchTeacherPerformance = async (
 function getMockTeacherPerformanceData(): TeacherPerformanceData[] {
   return [
     {
+      id: '1',
+      name: 'Teacher Smith',
       teacher_id: '1',
       teacher_name: 'Teacher Smith',
       assessments_created: 12,
@@ -75,13 +74,13 @@ function getMockTeacherPerformanceData(): TeacherPerformanceData[] {
       completion_rate: 86,
       avg_student_score: 82,
       avg_submissions_per_assessment: 3.2,
-      id: '1',
-      name: 'Teacher Smith',
       students: 45,
       avgScore: 82,
       trend: 'up'
     },
     {
+      id: '2',
+      name: 'Teacher Johnson',
       teacher_id: '2',
       teacher_name: 'Teacher Johnson',
       assessments_created: 8,
@@ -89,13 +88,13 @@ function getMockTeacherPerformanceData(): TeacherPerformanceData[] {
       completion_rate: 71,
       avg_student_score: 76,
       avg_submissions_per_assessment: 2.8,
-      id: '2',
-      name: 'Teacher Johnson',
       students: 32,
       avgScore: 76,
       trend: 'steady'
     },
     {
+      id: '3',
+      name: 'Teacher Williams',
       teacher_id: '3',
       teacher_name: 'Teacher Williams',
       assessments_created: 15,
@@ -103,8 +102,6 @@ function getMockTeacherPerformanceData(): TeacherPerformanceData[] {
       completion_rate: 92,
       avg_student_score: 88,
       avg_submissions_per_assessment: 3.5,
-      id: '3',
-      name: 'Teacher Williams',
       students: 50,
       avgScore: 88,
       trend: 'up'

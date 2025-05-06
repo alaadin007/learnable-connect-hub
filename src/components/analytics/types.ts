@@ -27,10 +27,10 @@ export interface SessionData {
   queries?: number;
   userId?: string;
   userName?: string;
-  student?: string; // Added missing property
-  topicOrContent?: string; // Added missing property
-  numQueries?: number; // Added missing property
-  startTime?: string; // Added missing property
+  student?: string;
+  topicOrContent?: string;
+  numQueries?: number;
+  startTime?: string;
 }
 
 export interface TopicData {
@@ -67,11 +67,21 @@ export interface Teacher {
 export interface StudentPerformanceData {
   id: string;
   name: string;
+  student_id?: string;  // Added missing property
+  student_name?: string; // Added missing property
   avg_score?: number;
   average_score?: number;
   assessments_taken?: number;
   completion_rate?: number;
   last_active?: string;
+  teacher?: string;
+  avgScore?: number;
+  trend?: "up" | "down" | "steady";
+  subjects?: string[];
+  assessments_completed?: number;
+  avg_time_spent_seconds?: number;
+  top_strengths?: string;
+  top_weaknesses?: string;
 }
 
 export interface SchoolPerformanceData {
@@ -101,6 +111,8 @@ export interface SchoolPerformanceSummary {
 export interface TeacherPerformanceData {
   id: string;
   name: string;
+  teacher_id?: string;  // Added missing property
+  teacher_name?: string; // Added missing property
   email?: string;
   assessments_created?: number;
   students_assessed?: number;
@@ -108,4 +120,7 @@ export interface TeacherPerformanceData {
   avg_submissions_per_assessment?: number;
   completion_rate?: number;
   last_active?: string;
+  students?: number;
+  avgScore?: number;
+  trend?: string;
 }

@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/popover";
 
 interface DatePickerWithRangeProps {
-  date: DateRange | undefined;
+  date: { from: Date; to: Date } | DateRange | undefined;
   onDateChange: (date: DateRange | undefined) => void;
   className?: string;
   align?: "start" | "center" | "end";
@@ -57,7 +57,7 @@ export function DatePickerWithRange({
             initialFocus
             mode="range"
             defaultMonth={date?.from}
-            selected={date}
+            selected={date as DateRange}
             onSelect={onDateChange}
             numberOfMonths={2}
             className={cn("p-3 pointer-events-auto")}

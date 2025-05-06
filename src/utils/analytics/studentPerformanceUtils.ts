@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { AnalyticsFilters, StudentPerformanceData } from "@/components/analytics/types";
 import { getDateFilterSQL } from "./dateUtils";
@@ -45,6 +44,8 @@ export const fetchStudentPerformance = async (
       const subjects = Array.from(new Set([...strengths, ...weaknesses]));
 
       return {
+        id: item.student_id,
+        name: item.student_name,
         student_id: item.student_id,
         student_name: item.student_name,
         assessments_taken: item.assessments_taken || 0,
@@ -54,10 +55,6 @@ export const fetchStudentPerformance = async (
         avg_time_spent_seconds: item.avg_time_spent_seconds || 0,
         top_strengths: item.top_strengths || '',
         top_weaknesses: item.top_weaknesses || '',
-        
-        // Compatibility fields
-        id: item.student_id,
-        name: item.student_name,
         teacher: 'Various', // Would need a join to get this
         avgScore: item.avg_score || 0,
         trend,
@@ -83,6 +80,8 @@ export const fetchStudentPerformance = async (
 function getMockStudentPerformanceData(): StudentPerformanceData[] {
   return [
     {
+      id: '1',
+      name: 'Student Parker',
       student_id: '1',
       student_name: 'Student Parker',
       assessments_taken: 8,
@@ -92,14 +91,14 @@ function getMockStudentPerformanceData(): StudentPerformanceData[] {
       avg_time_spent_seconds: 1200,
       top_strengths: 'Algebra, Reading Comprehension',
       top_weaknesses: 'Grammar, Chemistry',
-      id: '1',
-      name: 'Student Parker',
       teacher: 'Teacher Smith',
       avgScore: 85,
       trend: 'up',
       subjects: ['Math', 'English']
     },
     {
+      id: '2',
+      name: 'Student Turner',
       student_id: '2',
       student_name: 'Student Turner',
       assessments_taken: 6,
@@ -109,14 +108,14 @@ function getMockStudentPerformanceData(): StudentPerformanceData[] {
       avg_time_spent_seconds: 1500,
       top_strengths: 'History, Geography',
       top_weaknesses: 'Calculus, Physics',
-      id: '2',
-      name: 'Student Turner',
       teacher: 'Teacher Johnson',
       avgScore: 76,
       trend: 'steady',
       subjects: ['History', 'Science']
     },
     {
+      id: '3',
+      name: 'Student Garcia',
       student_id: '3',
       student_name: 'Student Garcia',
       assessments_taken: 10,
@@ -126,8 +125,6 @@ function getMockStudentPerformanceData(): StudentPerformanceData[] {
       avg_time_spent_seconds: 900,
       top_strengths: 'Programming, Physics',
       top_weaknesses: 'Literature, Art',
-      id: '3',
-      name: 'Student Garcia',
       teacher: 'Teacher Williams',
       avgScore: 92,
       trend: 'up',

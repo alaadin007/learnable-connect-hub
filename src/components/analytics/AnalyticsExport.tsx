@@ -1,144 +1,89 @@
-
-import React from "react";
-import { Button } from "@/components/ui/button";
-import { FileSpreadsheet } from "lucide-react";
 import { SessionData, TopicData, StudyTimeData, AnalyticsSummary } from "./types";
-
-interface AnalyticsExportProps {
-  summary: AnalyticsSummary | null;
-  sessions: SessionData[];
-  topics: TopicData[];
-  studyTimes: StudyTimeData[];
-  dateRangeText: string;
-}
-
-/**
- * Escape CSV cell content to handle commas, quotes, newlines.
- */
-function csvEscape(cell: string | number | null | undefined): string {
-  if (cell == null) return "";
-  const cellStr = cell.toString();
-  const escaped = cellStr.replace(/"/g, '""');
-  if (/[",\n]/.test(cellStr)) {
-    return `"${escaped}"`;
-  }
-  return escaped;
-}
-
-/**
- * Normalize date to yyyy-MM-dd format if possible, else fallback to string.
- */
-function formatDate(dateStr?: string): string {
-  if (!dateStr) return "";
-  const date = new Date(dateStr);
-  if (isNaN(date.getTime())) return dateStr;
-  return date.toISOString().slice(0, 10);
-}
+import { Button } from "@/components/ui/button";
+import { Download } from "lucide-react";
+import * as XLSX from 'xlsx';
 
 export function AnalyticsExport({ 
-  summary, 
-  sessions, 
-  topics, 
-  studyTimes,
-  dateRangeText
-}: AnalyticsExportProps) {
-  const exportToCSV = () => {
-    // Prepare summary data
-    const summaryData = summary ? [
-      ["Analytics Summary", ""],
-      ["Date Range", dateRangeText],
-      ["Active Students", summary.activeStudents.toString()],
-      ["Total Sessions", summary.totalSessions.toString()],
-      ["Total Queries", summary.totalQueries.toString()],
-      ["Avg Session (minutes)", summary.avgSessionMinutes.toString()],
-      ["", ""],
-    ] : [];
+    summary, 
+    sessions, 
+    topics, 
+    studyTime, 
+    dateRangeText 
+}: { 
+    summary: AnalyticsSummary,
+    sessions: SessionData[], 
+    topics: TopicData[], 
+    studyTime: StudyTimeData[],
+    dateRangeText: string
+}) {
+    const exportAnalyticsToCSV = () => {
+        // Prepare summary data
+        const summaryData = [
+            { "Metric": "Active Students", "Value": summary.activeStudents },
+            { "Metric": "Total Sessions", "Value": summary.totalSessions },
+            { "Metric": "Total Queries", "Value": summary.totalQueries },
+            { "Metric": "Avg Session Minutes", "Value": summary.avgSessionMinutes },
+            { "Metric": "Date Range", "Value": dateRangeText }
+        ];
+
+        // Prepare sessions data
+        const sessionsData = formatSessionsData(sessions);
+
+        // Prepare topics data
+        const topicsData = topics.map(topic => {
+            return {
+                "Topic": topic.topic,
+                "Count": topic.count
+            };
+        });
+
+        // Prepare study time data
+        const studyTimeData = studyTime.map(time => {
+            return {
+                "Student": time.student_name,
+                "Total Minutes": time.total_minutes,
+                "Hours": time.hours
+            };
+        });
+
+        // Create worksheets
+        const summaryWS = XLSX.utils.json_to_sheet(summaryData);
+        const sessionsWS = XLSX.utils.json_to_sheet(sessionsData);
+        const topicsWS = XLSX.utils.json_to_sheet(topicsData);
+        const studyTimeWS = XLSX.utils.json_to_sheet(studyTimeData);
+
+        // Create workbook and add worksheets
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, summaryWS, "Summary");
+        XLSX.utils.book_append_sheet(wb, sessionsWS, "Sessions");
+        XLSX.utils.book_append_sheet(wb, topicsWS, "Topics");
+        XLSX.utils.book_append_sheet(wb, studyTimeWS, "Study Time");
+
+        // Generate Excel file
+        XLSX.writeFile(wb, "analytics_data.xlsx");
+    };
     
-    // Prepare topics data
-    const topicsHeader = ["Topic", "Count"];
-    const topicsData = topics.map(topic => [
-      csvEscape(topic.topic ?? topic.name ?? "Unknown"),
-      csvEscape(topic.count ?? topic.value ?? 0)
-    ]);
-    const topicsCSV = [
-      ["Most Studied Topics", ""],
-      topicsHeader,
-      ...topicsData,
-      ["", ""],
-    ];
+    // Fix references to missing properties
+    const formatSessionsData = (sessions: SessionData[]): any[] => {
+        return sessions.map(session => {
+            return {
+                "Session ID": session.id,
+                "Student": session.student_name || session.student || session.userName || "Unknown",
+                "Date": new Date(session.session_date).toLocaleDateString(),
+                "Topic": session.topic || session.topicOrContent || "N/A",
+                "Duration (min)": session.duration_minutes || (typeof session.duration === 'number' ? session.duration : 0),
+                "Queries": session.queries || session.numQueries || 0,
+                "Questions Asked": session.questions_asked || 0,
+                "Questions Answered": session.questions_answered || 0,
+                "Start Time": session.startTime ? new Date(session.startTime).toLocaleTimeString() : "N/A",
+            };
+        });
+    };
     
-    // Prepare study time data
-    const studyTimeHeader = ["Student", "Hours"];
-    const studyTimeData = studyTimes.map(item => [
-      csvEscape(item.student_name ?? item.studentName ?? item.name ?? "Unknown"),
-      csvEscape(
-        typeof item.total_minutes === "number"
-          ? (item.total_minutes / 60).toFixed(2)
-          : item.hours?.toString() ?? "0"
-      )
-    ]);
-    const studyTimeCSV = [
-      ["Weekly Study Time", ""],
-      studyTimeHeader,
-      ...studyTimeData,
-      ["", ""],
-    ];
-    
-    // Prepare sessions data
-    const sessionsHeader = ["Student", "Topic", "Queries", "Duration", "Date"];
-    const sessionsData = sessions.map(session => [
-      csvEscape(session.student_name ?? session.userName ?? "Unknown"),
-      csvEscape(
-        Array.isArray(session.topics) && session.topics.length > 0
-          ? session.topics[0]
-          : session.topic ?? session.topicOrContent ?? "General"
-      ),
-      csvEscape(session.questions_asked ?? session.queries ?? session.numQueries ?? 0),
-      csvEscape(
-        typeof session.duration_minutes === "number"
-          ? `${session.duration_minutes} min`
-          : typeof session.duration === "string"
-            ? session.duration
-            : `${session.duration ?? 0} min`
-      ),
-      csvEscape(formatDate(session.session_date ?? session.startTime ?? undefined))
-    ]);
-    const sessionsCSV = [
-      ["Session Details", ""],
-      sessionsHeader,
-      ...sessionsData
-    ];
-    
-    // Combine all data
-    const csvContent = [
-      ...summaryData,
-      ...topicsCSV,
-      ...studyTimeCSV,
-      ...sessionsCSV
-    ]
-      .map(row => row.join(","))
-      .join("\n");
-    
-    // Create and download the CSV file
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `analytics-export-${dateRangeText.replace(/\s/g, "-")}.csv`);
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-  
-  return (
-    <Button 
-      variant="outline" 
-      onClick={exportToCSV}
-      className="ml-auto"
-    >
-      <FileSpreadsheet className="w-4 h-4 mr-2" />
-      Export Data
-    </Button>
-  );
+    return (
+        <Button variant="outline" onClick={exportAnalyticsToCSV}>
+            <Download className="mr-2 h-4 w-4" />
+            Export Analytics
+        </Button>
+    );
 }

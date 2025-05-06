@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
@@ -36,7 +35,8 @@ const TeacherAnalytics = () => {
   const { user, profile, userRole } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [initialLoad, setInitialLoad] = useState(true);
-  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+  // Fix: Make the to property non-optional
+  const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>({
     from: new Date(new Date().setDate(new Date().getDate() - 30)),
     to: new Date(),
   });
@@ -261,8 +261,13 @@ const TeacherAnalytics = () => {
   }, [summary, sessions, topics, studyTime, dateRange]);
   
   const handleDateRangeChange = useCallback((newDateRange: DateRange | undefined) => {
-    setDateRange(newDateRange);
-    // Will trigger loadAnalyticsData via useEffect
+    // Ensure that the dateRange always has a 'to' value
+    if (newDateRange && newDateRange.from) {
+      setDateRange({
+        from: newDateRange.from,
+        to: newDateRange.to || newDateRange.from,
+      });
+    }
   }, []);
 
   const handleTabChange = useCallback((value: string) => {
