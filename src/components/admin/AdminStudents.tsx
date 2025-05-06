@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -126,8 +125,7 @@ const AdminStudents = () => {
       const { data: studentsData, error: studentsError } = await supabase
         .from("students")
         .select("id, school_id, status, created_at")
-        .eq("school_id", schoolInfo.id)
-        .timeout(10000); // Add a reasonable timeout
+        .eq("school_id", schoolInfo.id);
 
       if (studentsError) {
         setError("Error fetching students. Please refresh.");
@@ -148,8 +146,7 @@ const AdminStudents = () => {
       const { data: profilesData, error: profilesError } = await supabase
         .from("profiles")
         .select("id, full_name")
-        .in("id", studentIds)
-        .timeout(10000); // Add a reasonable timeout
+        .in("id", studentIds);
       
       if (profilesError) {
         console.error("Error fetching profiles:", profilesError);
