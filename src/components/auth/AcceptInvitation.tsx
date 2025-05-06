@@ -10,6 +10,7 @@ import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
+import { supabaseHelpers } from "@/utils/supabaseHelpers";
 import {
   Form,
   FormControl,
@@ -94,7 +95,7 @@ const AcceptInvitation = () => {
         const { data: schoolData, error: schoolError } = await supabase
           .from('schools')
           .select('name')
-          .eq('id', typedInvitationData.school_id as any)
+          .eq('id', supabaseHelpers.asSupabaseParam(typedInvitationData.school_id))
           .single();
 
         const schoolName = schoolError ? undefined : (schoolData && schoolData.name);
@@ -152,19 +153,19 @@ const AcceptInvitation = () => {
       }
 
       // Create profile
-      const profileData = {
+      const profileData = supabaseHelpers.prepareTableInsert({
         id: authData.user.id,
         email: data.email,
         full_name: data.fullName,
         role: 'teacher',
         school_id: invitationDetails.school_id,
         user_type: 'teacher'
-      };
+      });
       
       // Use upsert to handle profile creation
       const { error: profileError } = await supabase
         .from('profiles')
-        .upsert([profileData] as any);
+        .upsert([profileData]);
 
       if (profileError) {
         throw new Error(profileError.message || "Failed to create profile");

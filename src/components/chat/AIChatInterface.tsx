@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -51,7 +52,7 @@ const AIChatInterface: React.FC<AIChatInterfaceProps> = ({
       try {
         const newSessionId = await sessionLogger.startSession(topic);
         if (isMounted && newSessionId) {
-          setSessionId(newSessionId);
+          setSessionId(newSessionId as string);
           if (initialPrompt) {
             setMessages([
               { role: "system", content: initialPrompt, timestamp: new Date() }
@@ -111,7 +112,7 @@ const AIChatInterface: React.FC<AIChatInterfaceProps> = ({
 
     try {
       if (topic && sessionId) {
-        await sessionLogger.updateSessionTopic(sessionId, topic);
+        await sessionLogger.updateTopic(sessionId, topic);
       }
 
       // Format the prompt with context if needed
@@ -133,7 +134,7 @@ const AIChatInterface: React.FC<AIChatInterfaceProps> = ({
       }]);
 
       if (sessionId) {
-        await sessionLogger.incrementQueryCount(sessionId);
+        await sessionLogger.incrementQuery(sessionId);
       }
     } catch (error) {
       console.error("Error getting AI response:", error);

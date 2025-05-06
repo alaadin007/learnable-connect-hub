@@ -16,6 +16,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useNavigate, Link } from "react-router-dom";
+import { supabaseHelpers } from "@/utils/supabaseHelpers";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address." }),
@@ -56,6 +57,7 @@ const RegisterForm = () => {
           data: {
             school_code: schoolCode,
           },
+          emailRedirectTo: window.location.origin + "/login?email_confirmed=true",
         },
       });
 
@@ -72,16 +74,16 @@ const RegisterForm = () => {
       }
 
       // Create a user profile
-      const profileData = {
+      const profileData = supabaseHelpers.prepareTableInsert({
         id: data.user.id,
         email: email,
         school_code: schoolCode,
         user_type: 'student'
-      };
+      });
 
       const { error: profileError } = await supabase
         .from("profiles")
-        .upsert([profileData as any]);
+        .upsert([profileData]);
 
       if (profileError) {
         toast.error(
@@ -95,19 +97,19 @@ const RegisterForm = () => {
       const { data: schoolData, error: schoolError } = await supabase
         .from("schools")
         .select("id")
-        .eq("code", schoolCode as any)
+        .eq("code", supabaseHelpers.asSupabaseParam(schoolCode))
         .single();
 
       if (schoolError) {
         // Create a new school if it doesn't exist
-        const newSchool = {
+        const newSchool = supabaseHelpers.prepareTableInsert({
           code: schoolCode,
           name: "Your School Name", // You might want to prompt the user for the school name
-        };
+        });
 
         const { data: newSchoolData, error: newSchoolError } = await supabase
           .from("schools")
-          .insert([newSchool as any])
+          .insert([newSchool])
           .select("id")
           .single();
 
@@ -122,8 +124,8 @@ const RegisterForm = () => {
         // Update the user's profile with the school ID
         const { error: updateError } = await supabase
           .from("profiles")
-          .update({ school_id: newSchoolData.id } as any)
-          .eq("id", data.user.id as any);
+          .update({ school_id: (newSchoolData as any).id })
+          .eq("id", data.user.id);
 
         if (updateError) {
           toast.error(
@@ -136,8 +138,8 @@ const RegisterForm = () => {
         // Update the user's profile with the school ID
         const { error: updateError } = await supabase
           .from("profiles")
-          .update({ school_id: schoolData.id } as any)
-          .eq("id", data.user.id as any);
+          .update({ school_id: (schoolData as any).id })
+          .eq("id", data.user.id);
 
         if (updateError) {
           toast.error(

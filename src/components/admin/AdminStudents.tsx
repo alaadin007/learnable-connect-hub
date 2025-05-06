@@ -67,7 +67,7 @@ const AdminStudents: React.FC<AdminStudentsProps> = ({ schoolId, schoolInfo, isL
       const { data: studentsData, error: studentsError } = await supabase
         .from('students')
         .select('id, school_id, status, created_at')
-        .eq('school_id', schoolIdToUse as unknown as string);
+        .eq('school_id', supabaseHelpers.asSupabaseParam(schoolIdToUse));
 
       if (studentsError) {
         console.error('Error fetching students:', studentsError);
@@ -95,7 +95,7 @@ const AdminStudents: React.FC<AdminStudentsProps> = ({ schoolId, schoolInfo, isL
         const { data: profileData, error: profilesError } = await supabase
           .from('profiles')
           .select('id, full_name')
-          .in('id', studentIds as any); // Type casting as any to avoid TS errors
+          .in('id', supabaseHelpers.asSupabaseParam(studentIds));
       
         if (profilesError) {
           console.error('Error fetching profiles:', profilesError);
@@ -123,8 +123,8 @@ const AdminStudents: React.FC<AdminStudentsProps> = ({ schoolId, schoolInfo, isL
     try {
       const { error } = await supabase
         .from('students')
-        .update({ status: "active" } as any)
-        .eq('id', student.id as any);
+        .update(supabaseHelpers.prepareSupabaseUpdate({ status: "active" }))
+        .eq('id', supabaseHelpers.asSupabaseParam(student.id));
       
       if (error) {
         console.error('Error updating student status:', error);
