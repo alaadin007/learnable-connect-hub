@@ -14,7 +14,11 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_FILE_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
 const ALLOWED_FILE_EXTENSIONS = ['.pdf', '.jpg', '.jpeg', '.png'];
 
-const FileUpload: React.FC = () => {
+interface FileUploadProps {
+  onUploadComplete?: () => void;
+}
+
+const FileUpload: React.FC<FileUploadProps> = ({ onUploadComplete }) => {
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -113,6 +117,11 @@ const FileUpload: React.FC = () => {
         description: `${file?.name} has been uploaded and is being processed.`
       });
       
+      // Call onUploadComplete callback if provided
+      if (onUploadComplete) {
+        onUploadComplete();
+      }
+      
     } catch (err) {
       console.error('Error calling process-document function:', err);
       // Don't show error to user since document was already uploaded successfully
@@ -139,6 +148,19 @@ const FileUpload: React.FC = () => {
     try {
       // Create a unique file path using user ID
       const filePath = `${user.id}/${Date.now()}_${file.name}`;
+
+      // Check if storage bucket exists, create it if not
+      const { data: bucketsData, error: bucketsError } = await supabase.storage
+        .listBuckets();
+      
+      const userContentBucketExists = bucketsData?.some(b => b.name === 'user-content');
+      
+      if (!userContentBucketExists) {
+        await supabase.storage
+          .createBucket('user-content', {
+            public: false
+          });
+      }
 
       // Show immediate progress feedback
       setUploadProgress(30);
@@ -204,6 +226,12 @@ const FileUpload: React.FC = () => {
     }
   };
 
+  const formatFileSize = (sizeInBytes: number) => {
+    if (sizeInBytes < 1024) return `${sizeInBytes} B`;
+    if (sizeInBytes < 1024 * 1024) return `${(sizeInBytes / 1024).toFixed(1)} KB`;
+    return `${(sizeInBytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
   return (
     <div className="space-y-6">
       <div 
@@ -247,7 +275,7 @@ const FileUpload: React.FC = () => {
               <div className="truncate pr-2">
                 <p className="font-medium truncate">{file.name}</p>
                 <p className="text-sm text-gray-500">
-                  {(file.size / 1024).toFixed(1)} KB
+                  {formatFileSize(file.size)}
                 </p>
               </div>
               <Button

@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { generateInviteCode } from './analytics/commonUtils';
 
-// Add or update this function to provide more robust school info retrieval
+// Improved function to provide more robust school info retrieval
 export const getCurrentSchoolInfo = async () => {
   try {
     console.log("Getting current school info...");
@@ -98,6 +98,54 @@ export const getCurrentSchoolInfo = async () => {
   } catch (error) {
     console.error("Error in getCurrentSchoolInfo:", error);
     return null;
+  }
+};
+
+// Add a dedicated function to get documents for a user
+export const getUserDocuments = async (userId: string) => {
+  try {
+    if (!userId) {
+      throw new Error("User ID is required");
+    }
+
+    const { data, error } = await supabase
+      .from('documents')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+      
+    if (error) {
+      throw new Error(error.message);
+    }
+    
+    return data || [];
+  } catch (error) {
+    console.error("Error in getUserDocuments:", error);
+    throw error;
+  }
+};
+
+// Get document content by document ID
+export const getDocumentContent = async (documentId: string) => {
+  try {
+    if (!documentId) {
+      throw new Error("Document ID is required");
+    }
+
+    const { data, error } = await supabase
+      .from('document_content')
+      .select('*')
+      .eq('document_id', documentId)
+      .order('section_number', { ascending: true });
+      
+    if (error) {
+      throw new Error(error.message);
+    }
+    
+    return data || [];
+  } catch (error) {
+    console.error("Error in getDocumentContent:", error);
+    throw error;
   }
 };
 

@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -19,6 +18,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type FileItem = {
   id: string;
@@ -44,6 +44,8 @@ const FileList: React.FC = () => {
   const [fileContent, setFileContent] = useState<DocumentContent[]>([]);
   const [activeSection, setActiveSection] = useState(1);
   const [showContent, setShowContent] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -81,10 +83,14 @@ const FileList: React.FC = () => {
   const fetchFiles = async () => {
     if (!user) return;
     
+    setLoading(true);
+    setError(null);
+    
     try {
       const { data, error } = await supabase
         .from('documents')
         .select('*')
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
       
       if (error) {
@@ -93,12 +99,15 @@ const FileList: React.FC = () => {
       
       setFiles(data || []);
     } catch (error) {
+      console.error('Error fetching files:', error);
+      setError('Failed to fetch your files. Please try again.');
       toast({
         title: 'Error',
         description: 'Failed to fetch your files',
         variant: 'destructive',
       });
-      console.error('Error fetching files:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -321,7 +330,83 @@ const FileList: React.FC = () => {
     }
   };
 
-  // Render the content immediately
+  // Render loading state
+  if (loading) {
+    return (
+      <div>
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-medium">Your Files</h3>
+          <Button 
+            variant="outline" 
+            size="sm"
+            disabled
+            className="flex items-center gap-1"
+          >
+            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+            <span>Loading...</span>
+          </Button>
+        </div>
+        
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <Card key={i} className="overflow-hidden">
+              <CardContent className="p-3">
+                <div className="flex items-center">
+                  <div className="mr-3 flex-shrink-0">
+                    <Skeleton className="h-10 w-10 rounded" />
+                  </div>
+                  <div className="flex-grow min-w-0">
+                    <Skeleton className="h-5 w-3/4 mb-2" />
+                    <Skeleton className="h-4 w-1/2" />
+                  </div>
+                  <div className="flex items-center space-x-1 ml-2">
+                    <Skeleton className="h-8 w-8 rounded-full" />
+                    <Skeleton className="h-8 w-8 rounded-full" />
+                    <Skeleton className="h-8 w-8 rounded-full" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  
+  // Render error state
+  if (error) {
+    return (
+      <div>
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-medium">Your Files</h3>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={fetchFiles} 
+            className="flex items-center gap-1"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            <span>Retry</span>
+          </Button>
+        </div>
+        
+        <div className="p-6 bg-red-50 border border-red-100 rounded-md">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-red-500 mt-0.5" />
+            <div>
+              <h4 className="font-medium text-red-800">Failed to load files</h4>
+              <p className="text-red-600 mt-1">{error}</p>
+              <Button variant="outline" size="sm" onClick={fetchFiles} className="mt-3">
+                Try Again
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Render the content
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
@@ -338,9 +423,15 @@ const FileList: React.FC = () => {
       </div>
       
       {files.length === 0 ? (
-        <p className="text-center py-8 text-gray-500">
-          You haven't uploaded any files yet.
-        </p>
+        <div className="text-center py-12 border border-dashed border-gray-300 rounded-md bg-gray-50">
+          <FileIcon className="h-12 w-12 mx-auto text-gray-400" />
+          <p className="text-gray-500 mt-3 mb-1">
+            You haven't uploaded any files yet
+          </p>
+          <p className="text-gray-400 text-sm">
+            Files you upload will appear here
+          </p>
+        </div>
       ) : (
         <div className="space-y-3">
           {files.map((file) => (

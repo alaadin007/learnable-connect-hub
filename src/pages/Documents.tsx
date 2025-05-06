@@ -10,12 +10,16 @@ import FileUpload from '@/components/documents/FileUpload';
 import FileList from '@/components/documents/FileList';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { getUserDocuments } from '@/utils/databaseUtils';
 
 const Documents: React.FC = () => {
   const { user, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('upload');
   const [pageLoading, setPageLoading] = useState(true);
+  const [documents, setDocuments] = useState([]);
+  const [loadingDocuments, setLoadingDocuments] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Handle authentication and loading states
   useEffect(() => {
@@ -24,9 +28,27 @@ const Documents: React.FC = () => {
         navigate('/login', { state: { from: '/documents' } });
       } else {
         setPageLoading(false);
+        fetchUserDocuments();
       }
     }
   }, [user, navigate, authLoading]);
+
+  const fetchUserDocuments = async () => {
+    if (!user) return;
+    
+    setLoadingDocuments(true);
+    setError(null);
+    
+    try {
+      const docs = await getUserDocuments(user.id);
+      setDocuments(docs);
+    } catch (error) {
+      console.error("Error fetching documents:", error);
+      setError("Failed to load your documents. Please try again later.");
+    } finally {
+      setLoadingDocuments(false);
+    }
+  };
 
   // If still loading or not authenticated, show loading state
   if (pageLoading) {
@@ -54,7 +76,15 @@ const Documents: React.FC = () => {
             </p>
           </div>
 
-          <Alert className="mb-6 bg-blue-50 border-blue-200" role="region" aria-label="Enhanced AI Assistance information">
+          {error && (
+            <Alert className="mb-6 bg-red-50 border-red-200" variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <Alert className="mb-6 bg-blue-50 border-blue-200">
             <AlertCircle className="h-4 w-4 text-blue-500" />
             <AlertTitle className="text-blue-700">Enhanced AI Assistance</AlertTitle>
             <AlertDescription className="text-blue-600">
@@ -69,22 +99,22 @@ const Documents: React.FC = () => {
             </CardHeader>
             <CardContent className="pt-6">
               <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="mb-6" role="tablist">
-                  <TabsTrigger value="upload" role="tab" aria-selected={activeTab === 'upload'}>Upload New</TabsTrigger>
-                  <TabsTrigger value="list" role="tab" aria-selected={activeTab === 'list'}>My Files</TabsTrigger>
+                <TabsList className="mb-6">
+                  <TabsTrigger value="upload" aria-selected={activeTab === 'upload'}>Upload New</TabsTrigger>
+                  <TabsTrigger value="list" aria-selected={activeTab === 'list'}>My Files</TabsTrigger>
                 </TabsList>
-                <TabsContent value="upload" role="tabpanel" tabIndex={0}>
-                  <FileUpload />
+                <TabsContent value="upload">
+                  <FileUpload onUploadComplete={fetchUserDocuments} />
                 </TabsContent>
-                <TabsContent value="list" role="tabpanel" tabIndex={0}>
+                <TabsContent value="list">
                   <FileList />
                 </TabsContent>
               </Tabs>
             </CardContent>
           </Card>
 
-          <section aria-labelledby="how-it-works-title" className="mb-8">
-            <h2 id="how-it-works-title" className="text-xl font-semibold mb-2">How it works</h2>
+          <section className="mb-8">
+            <h2 className="text-xl font-semibold mb-2">How it works</h2>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               {[
                 { title: '1. Upload', description: 'Upload your learning materials, including PDFs and images of notes or textbooks.' },
@@ -102,8 +132,8 @@ const Documents: React.FC = () => {
             </div>
           </section>
 
-          <section aria-labelledby="tips-title" className="bg-white p-6 rounded-lg shadow-sm mb-8 border border-gray-100">
-            <h2 id="tips-title" className="text-xl font-semibold mb-4">Tips for Better Document Usage</h2>
+          <section className="bg-white p-6 rounded-lg shadow-sm mb-8 border border-gray-100">
+            <h2 className="text-xl font-semibold mb-4">Tips for Better Document Usage</h2>
             <ul className="list-disc pl-5 space-y-2 text-gray-700">
               <li>Upload clear, well-scanned documents for better text extraction</li>
               <li>Use the "Using Documents" toggle in chat to control when the AI uses your materials</li>
