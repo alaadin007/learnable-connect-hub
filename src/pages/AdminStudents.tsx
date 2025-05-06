@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRBAC } from "@/contexts/RBACContext";
@@ -9,9 +10,11 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const AdminStudents = () => {
-  const { user } = useAuth();
+  const { user, schoolId: authSchoolId } = useAuth();
   const { isAdmin } = useRBAC();
   const navigate = useNavigate();
 
@@ -32,24 +35,31 @@ const AdminStudents = () => {
       try {
         setError(null);
         setLoading(true);
+        
+        // First try using authSchoolId from context if available
+        let resolvedSchoolId = authSchoolId;
 
-        const { data: rpcSchoolId, error: rpcError } = await supabase.rpc('get_user_school_id');
+        if (!resolvedSchoolId) {
+          // Try RPC function
+          const { data: rpcSchoolId, error: rpcError } = await supabase.rpc('get_user_school_id');
+          
+          if (rpcError) {
+            console.error("Error fetching school ID:", rpcError);
+            // Fallback to direct teachers table query
+            const { data: teacherData, error: teacherError } = await supabase
+              .from("teachers")
+              .select("school_id")
+              .eq("id", user.id)
+              .single();
 
-        let resolvedSchoolId = rpcSchoolId;
+            if (teacherError || !teacherData?.school_id) {
+              throw new Error("Unable to determine your school.");
+            }
 
-        if (rpcError || !rpcSchoolId) {
-          // fallback to teachers table
-          const { data: teacherData, error: teacherError } = await supabase
-            .from("teachers")
-            .select("school_id")
-            .eq("id", user.id)
-            .single();
-
-          if (teacherError || !teacherData?.school_id) {
-            throw new Error("Unable to determine your school.");
+            resolvedSchoolId = teacherData.school_id;
+          } else {
+            resolvedSchoolId = rpcSchoolId;
           }
-
-          resolvedSchoolId = teacherData.school_id;
         }
 
         if (!resolvedSchoolId) {
@@ -59,7 +69,9 @@ const AdminStudents = () => {
         if (!isMounted) return;
 
         setSchoolId(resolvedSchoolId);
+        console.log("School ID resolved:", resolvedSchoolId);
 
+        // Fetch school details
         const { data: schoolDetails, error: schoolError } = await supabase
           .from("schools")
           .select("id, name, code")
@@ -67,11 +79,13 @@ const AdminStudents = () => {
           .single();
 
         if (schoolError || !schoolDetails) {
+          console.error("Error fetching school details:", schoolError);
           throw new Error("Failed to load school details.");
         }
 
         if (!isMounted) return;
 
+        console.log("School details retrieved:", schoolDetails);
         setSchoolInfo({
           id: schoolDetails.id,
           name: schoolDetails.name,
@@ -79,6 +93,7 @@ const AdminStudents = () => {
         });
       } catch (err: any) {
         if (!isMounted) return;
+        console.error("Error in fetchSchoolInfo:", err);
         setError(err.message || "Failed to load data");
       } finally {
         if (isMounted) setLoading(false);
@@ -90,7 +105,7 @@ const AdminStudents = () => {
     return () => {
       isMounted = false;
     };
-  }, [user]);
+  }, [user, authSchoolId]);
 
   useEffect(() => {
     if (!user) {
@@ -122,7 +137,19 @@ const AdminStudents = () => {
           </div>
 
           {loading ? (
-            <p className="py-10 text-center text-gray-600">Loading student and school data...</p>
+            <Card>
+              <CardContent className="p-6">
+                <div className="space-y-4">
+                  <Skeleton className="h-8 w-1/3" />
+                  <Skeleton className="h-4 w-1/2" />
+                  <Skeleton className="h-20 w-full" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Skeleton className="h-32 w-full" />
+                    <Skeleton className="h-32 w-full" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           ) : error ? (
             <div className="p-4 bg-red-50 border border-red-200 rounded-md text-red-600 mb-4">
               <p>{error}</p>

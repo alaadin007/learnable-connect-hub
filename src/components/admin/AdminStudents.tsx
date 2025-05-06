@@ -39,6 +39,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
 
   const fetchStudents = async () => {
     try {
+      console.log("Fetching students for school:", schoolId);
       setError(null);
       setLoading(true);
 
@@ -49,19 +50,22 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
         .eq("school_id", schoolId);
 
       if (studentsError) {
+        console.error("Error fetching students:", studentsError);
         setError("Error fetching students. Please refresh.");
         toast.error("Error fetching students");
-        console.error("Error fetching students:", studentsError);
         setLoading(false);
         return;
       }
 
       if (!studentsData || studentsData.length === 0) {
+        console.log("No students found for school:", schoolId);
         setStudents([]);
         setLoading(false);
         return;
       }
 
+      console.log(`Found ${studentsData.length} students, fetching profiles...`);
+      
       // Now fetch the profiles data separately
       const studentIds = studentsData.map(student => student.id);
 
@@ -92,6 +96,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
         };
       });
 
+      console.log("Formatted students data:", formattedStudents);
       setStudents(formattedStudents);
     } catch (error) {
       console.error("Error fetching students:", error);
@@ -105,6 +110,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
   const handleApproveStudent = async (studentId: string) => {
     try {
       setActionInProgress(studentId);
+      console.log("Approving student:", studentId);
 
       // Update the student status directly in the database
       const { error } = await supabase
@@ -134,6 +140,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
   const handleRevokeAccess = async (studentId: string) => {
     try {
       setActionInProgress(studentId);
+      console.log("Revoking access for student:", studentId);
 
       // Delete the student record directly from the database
       const { error } = await supabase
@@ -173,8 +180,9 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
   const filteredStudents = useMemo(() => {
     const searchLower = searchTerm.toLowerCase();
     return students.filter((student) => 
-      student.full_name?.toLowerCase().includes(searchLower) ||
-      student.email?.toLowerCase().includes(searchLower)
+      (student.full_name?.toLowerCase().includes(searchLower) || false) ||
+      (student.email?.toLowerCase().includes(searchLower) || false) ||
+      student.id.toLowerCase().includes(searchLower)
     );
   }, [students, searchTerm]);
 
@@ -251,7 +259,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
               className="flex items-center gap-2"
               disabled={loading}
             >
-              <RefreshCw className="h-4 w-4" />
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
           </div>
@@ -260,6 +268,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
       <CardContent>
         {loading ? (
           <div className="text-center py-12">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent mb-4"></div>
             <p className="text-muted-foreground">Loading students...</p>
           </div>
         ) : students.length === 0 ? (
@@ -286,10 +295,10 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
                 {filteredStudents.map((student) => (
                   <TableRow key={student.id}>
                     <TableCell className="font-medium">
-                      {student.full_name}
+                      {student.full_name || "Unknown Name"}
                     </TableCell>
                     <TableCell>
-                      <span className="font-mono text-xs">{student.email}</span>
+                      <span className="font-mono text-xs">{student.email || student.id}</span>
                     </TableCell>
                     <TableCell>
                       {student.status === "active" ? (

@@ -72,29 +72,34 @@ const SchoolAdmin = () => {
         let schoolIdToUse = authSchoolId;
 
         if (!schoolIdToUse) {
-          const { data: fetchedSchoolId, error: schoolIdError } = await supabase.rpc('get_user_school_id');
+          try {
+            const { data: fetchedSchoolId, error: schoolIdError } = await supabase.rpc('get_user_school_id');
 
-          if (schoolIdError) {
-            console.error('Error fetching school ID:', schoolIdError);
-            
-            // Try teachers table directly
-            const { data: authUser } = await supabase.auth.getUser();
-            if (authUser?.user) {
-              const { data: teacherData, error: teacherError } = await supabase
-                .from("teachers")
-                .select("school_id")
-                .eq("id", authUser.user.id)
-                .single();
-                
-              if (teacherError || !teacherData) {
-                throw new Error("Failed to determine school ID");
+            if (schoolIdError) {
+              console.error('Error fetching school ID:', schoolIdError);
+              
+              // Try teachers table directly
+              const { data: authUser } = await supabase.auth.getUser();
+              if (authUser?.user) {
+                const { data: teacherData, error: teacherError } = await supabase
+                  .from("teachers")
+                  .select("school_id")
+                  .eq("id", authUser.user.id)
+                  .single();
+                  
+                if (teacherError || !teacherData) {
+                  throw new Error("Failed to determine school ID");
+                }
+                schoolIdToUse = teacherData.school_id;
+              } else {
+                throw new Error("Not authenticated");
               }
-              schoolIdToUse = teacherData.school_id;
             } else {
-              throw new Error("Not authenticated");
+              schoolIdToUse = fetchedSchoolId;
             }
-          } else {
-            schoolIdToUse = fetchedSchoolId;
+          } catch (e) {
+            console.error("Error in school ID fallback:", e);
+            throw new Error("Failed to determine school ID");
           }
         }
 
@@ -114,6 +119,7 @@ const SchoolAdmin = () => {
           } else if (schoolDetails) {
             console.log("School details retrieved:", schoolDetails);
             setSchoolData({
+              id: schoolIdToUse,
               name: schoolDetails.name,
               code: schoolDetails.code
             });

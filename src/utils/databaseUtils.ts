@@ -1,234 +1,277 @@
-
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
+import { generateInviteCode } from './analytics/commonUtils';
 
-/** Helper: Creates 7 days expiry ISO string */
-const getExpiryDate = (): string =>
-  new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-
-/**
- * Gets current user's school info via RPC or fallback.
- */
-export const getCurrentSchoolInfo = async (): Promise<{
-  id: string;
-  name: string;
-  code: string;
-  contact_email?: string;
-} | null> => {
+// Add or update this function to provide more robust school info retrieval
+export const getCurrentSchoolInfo = async () => {
   try {
-    const { data, error } = await supabase.rpc("get_current_school_info");
+    console.log("Getting current school info...");
 
-    if (error) {
-      console.error("Error fetching school info:", error);
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      console.log("No authenticated user found");
       return null;
     }
 
-    if (data && Array.isArray(data) && data.length > 0) {
-      return {
-        id: data[0].school_id,
-        name: data[0].school_name,
-        code: data[0].school_code,
-        contact_email: data[0].contact_email,
-      };
-    }
+    // Try to get school_id directly from auth context first using an RPC function
+    const { data: schoolId, error: rpcError } = await supabase.rpc('get_user_school_id');
 
-    // fallback logic - first try to get user's school ID
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData || !userData.user) {
-      console.error("No authenticated user found");
-      return null;
-    }
+    if (rpcError) {
+      console.error("RPC error:", rpcError);
+      console.log("Falling back to direct query...");
 
-    const { data: schoolId, error: schoolIdError } = await supabase.rpc("get_user_school_id");
-
-    if (schoolIdError || !schoolId) {
-      console.error("Error fetching school ID:", schoolIdError);
-      
-      // Try additional fallback to get school ID from teachers table
-      const { data: teacherData, error: teacherError } = await supabase
+      // First check teachers table
+      const { data: teacher, error: teacherError } = await supabase
         .from("teachers")
-        .select("school_id")
-        .eq("id", userData.user.id)
+        .select("id, school_id")
+        .eq("id", user.id)
         .single();
-        
-      if (teacherError || !teacherData?.school_id) {
-        console.error("Error fetching teacher school ID:", teacherError);
-        return null;
+
+      if (!teacherError && teacher) {
+        const { data: school, error: schoolError } = await supabase
+          .from("schools")
+          .select("id, name, code")
+          .eq("id", teacher.school_id)
+          .single();
+
+        if (!schoolError && school) {
+          console.log("Found school via teachers table:", school);
+          return school;
+        }
+      } else {
+        console.log("No teacher record found, checking students table...");
+        // Try students table
+        const { data: student, error: studentError } = await supabase
+          .from("students")
+          .select("id, school_id")
+          .eq("id", user.id)
+          .single();
+
+        if (!studentError && student) {
+          const { data: school, error: schoolError } = await supabase
+            .from("schools")
+            .select("id, name, code")
+            .eq("id", student.school_id)
+            .single();
+
+          if (!schoolError && school) {
+            console.log("Found school via students table:", school);
+            return school;
+          }
+        }
       }
       
-      const { data: schoolDetails, error: schoolError } = await supabase
-        .from("schools")
-        .select("id, name, code, contact_email")
-        .eq("id", teacherData.school_id)
-        .single();
-
-      if (schoolError || !schoolDetails) {
-        console.error("Error fetching school details:", schoolError);
-        return null;
-      }
-
-      return {
-        id: schoolDetails.id,
-        name: schoolDetails.name,
-        code: schoolDetails.code,
-        contact_email: schoolDetails.contact_email,
-      };
-    }
-
-    const { data: schoolDetails, error: schoolError } = await supabase
-      .from("schools")
-      .select("id, name, code, contact_email")
-      .eq("id", schoolId)
-      .single();
-
-    if (schoolError || !schoolDetails) {
-      console.error("Error fetching school details:", schoolError);
+      // If all direct queries fail, return null
+      console.log("Could not determine school through database queries");
       return null;
     }
+    
+    if (schoolId) {
+      console.log("Found school ID via RPC:", schoolId);
+      const { data: school, error: schoolError } = await supabase
+        .from("schools")
+        .select("id, name, code")
+        .eq("id", schoolId)
+        .single();
 
-    return {
-      id: schoolDetails.id,
-      name: schoolDetails.name,
-      code: schoolDetails.code,
-      contact_email: schoolDetails.contact_email,
-    };
+      if (!schoolError && school) {
+        console.log("Found school details:", school);
+        return school;
+      }
+    }
+
+    // If all attempts fail
+    console.log("No school found for user");
+    return null;
+
   } catch (error) {
     console.error("Error in getCurrentSchoolInfo:", error);
     return null;
   }
 };
 
-/**
- * Approves a student by setting their status to 'active'.
- */
+// Approve student directly
 export const approveStudentDirect = async (studentId: string): Promise<boolean> => {
   try {
-    const { error } = await supabase
+    // Get the authenticated user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return false;
+    }
+
+    // Get the school_id of the logged in teacher
+    const { data: schoolId, error: schoolIdError } = await supabase
+      .rpc("get_user_school_id");
+
+    if (schoolIdError || !schoolId) {
+      console.error("Could not determine school ID:", schoolIdError);
+      return false;
+    }
+
+    // Check if student exists and belongs to the same school
+    const { data: studentData, error: studentError } = await supabase
+      .from("students")
+      .select("*")
+      .eq("id", studentId)
+      .eq("school_id", schoolId)
+      .single();
+
+    if (studentError || !studentData) {
+      console.error("Student not found or not in your school:", studentError);
+      return false;
+    }
+
+    // Update student status to "active"
+    const { error: updateError } = await supabase
       .from("students")
       .update({ status: "active" })
-      .eq("id", studentId);
+      .eq("id", studentId)
+      .eq("school_id", schoolId);
 
-    if (error) {
-      console.error("Error updating student status:", error);
+    if (updateError) {
+      console.error("Error updating student status:", updateError);
       return false;
     }
+
     return true;
   } catch (error) {
-    console.error("Error in approveStudentDirect:", error);
+    console.error("Error in approveStudent:", error);
     return false;
   }
 };
 
-/**
- * Revokes student access by deleting their record.
- */
+// Revoke student access directly
 export const revokeStudentAccessDirect = async (studentId: string): Promise<boolean> => {
   try {
-    const { error } = await supabase.from("students").delete().eq("id", studentId);
-
-    if (error) {
-      console.error("Failed to revoke student access:", error);
+    // Get the authenticated user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
       return false;
     }
+
+    // Get the school_id of the logged in teacher
+    const { data: teacherData, error: teacherError } = await supabase
+      .from("teachers")
+      .select("school_id")
+      .eq("id", user.id)
+      .single();
+
+    if (teacherError || !teacherData) {
+      console.error("Only teachers can revoke student access:", teacherError);
+      return false;
+    }
+
+    // Verify that the student belongs to the teacher's school
+    const { data: studentData, error: studentError } = await supabase
+      .from("students")
+      .select("school_id")
+      .eq("id", studentId)
+      .eq("school_id", teacherData.school_id)
+      .single();
+
+    if (studentError || !studentData) {
+      console.error("Student not found or not in your school:", studentError);
+      return false;
+    }
+
+    // Delete the student record (this doesn't delete the auth user, only revokes access)
+    const { error: deleteError } = await supabase
+      .from("students")
+      .delete()
+      .eq("id", studentId);
+
+    if (deleteError) {
+      console.error("Failed to revoke student access:", deleteError);
+      return false;
+    }
+
     return true;
   } catch (error) {
-    console.error("Error in revokeStudentAccessDirect:", error);
+    console.error("Error in revokeStudentAccess:", error);
     return false;
   }
 };
 
-/**
- * Invites a teacher by inserting an invitation record.
- */
-export const inviteTeacherDirect = async (email: string): Promise<{ success: boolean; message?: string }> => {
+// Invite student directly
+export const inviteStudentDirect = async (method: "code" | "email", email?: string): Promise<{
+  success: boolean; 
+  code?: string; 
+  email?: string;
+  message?: string;
+}> => {
   try {
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData || !userData.user) {
-      return { success: false, message: "No authenticated user" };
-    }
-    const userId = userData.user.id;
-
-    const { data: schoolId, error: schoolIdError } = await supabase.rpc("get_user_school_id");
-    if (schoolIdError || !schoolId) {
-      console.error("Error fetching school ID:", schoolIdError);
-      return { success: false, message: "Failed to get school information" };
+    // Get the authenticated user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return { success: false, message: "Unauthorized" };
     }
 
-    const token = typeof crypto.randomUUID === "function" ? crypto.randomUUID() : Math.random().toString(36).slice(2, 10).toUpperCase();
-
-    const { error: inviteError } = await supabase.from("teacher_invitations").insert({
-      email,
-      school_id: schoolId,
-      invitation_token: token,
-      status: "pending",
-      created_by: userId,
-    });
-
-    if (inviteError) {
-      console.error("Error creating teacher invitation:", inviteError);
-      return { success: false, message: "Failed to create invitation" };
-    }
-
-    // Typically send email here (Edge function or other server action)
-
-    return { success: true, message: "Teacher invitation created successfully" };
-  } catch (error) {
-    console.error("Error in inviteTeacherDirect:", error);
-    return { success: false, message: "An error occurred" };
-  }
-};
-
-/**
- * Invites a student either via code generation or email invitation.
- */
-export const inviteStudentDirect = async (
-  method: "code" | "email",
-  email?: string
-): Promise<{ success: boolean; code?: string; message?: string }> => {
-  try {
-    const { data: schoolId, error: schoolIdError } = await supabase.rpc("get_user_school_id");
+    // Get the school_id of the logged in user
+    const { data: schoolId, error: schoolIdError } = await supabase
+      .rpc("get_user_school_id");
 
     if (schoolIdError || !schoolId) {
-      console.error("Error fetching school ID:", schoolIdError);
-      return { success: false, message: "Failed to get school information" };
+      console.error("Could not determine school ID:", schoolIdError);
+      return { success: false, message: "Could not determine school ID" };
     }
 
     if (method === "code") {
-      const inviteCode = Math.random().toString(36).substring(2, 10).toUpperCase();
-
-      const { error: inviteError } = await supabase.from("student_invites").insert({
-        school_id: schoolId,
-        code: inviteCode,
-        status: "pending",
-        expires_at: getExpiryDate(),
-      });
-
-      if (inviteError) {
-        console.error("Error creating student invite:", inviteError);
-        return { success: false, message: "Failed to create invitation code" };
-      }
-
-      return { success: true, code: inviteCode, message: "Invitation code generated successfully" };
-    } else if (method === "email" && email) {
-      const { error: inviteError } = await supabase.from("student_invites").insert({
-        school_id: schoolId,
-        email,
-        status: "pending",
-        expires_at: getExpiryDate(),
-      });
+      // Generate a unique invite code
+      const { data: inviteData, error: inviteError } = await supabase
+        .from("student_invites")
+        .insert({
+          school_id: schoolId,
+          teacher_id: user.id,
+          code: generateInviteCode(),
+          status: "pending",
+          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+        })
+        .select()
+        .single();
 
       if (inviteError) {
-        console.error("Error creating student invite:", inviteError);
-        return { success: false, message: "Failed to create invitation" };
+        console.error("Error creating invite:", inviteError);
+        return { success: false, message: "Failed to create invite" };
       }
 
-      // Usually, send email invitation here
+      return { 
+        success: true, 
+        code: inviteData.code,
+        message: "Student invite code generated successfully" 
+      };
+    } 
+    else if (method === "email" && email) {
+      // Generate a unique invite code for email
+      const { data: inviteData, error: inviteError } = await supabase
+        .from("student_invites")
+        .insert({
+          school_id: schoolId,
+          teacher_id: user.id,
+          code: generateInviteCode(),
+          email: email,
+          status: "pending",
+          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+        })
+        .select()
+        .single();
 
-      return { success: true, message: `Invitation sent to ${email}` };
+      if (inviteError) {
+        console.error("Error creating invite:", inviteError);
+        return { success: false, message: "Failed to create invite" };
+      }
+
+      return { 
+        success: true, 
+        code: inviteData.code,
+        email: email,
+        message: "Student invite created successfully" 
+      };
+    } 
+    else {
+      return { success: false, message: "Invalid request parameters" };
     }
-    return { success: false, message: "Invalid invitation method or missing email" };
   } catch (error) {
-    console.error("Error in inviteStudentDirect:", error);
-    return { success: false, message: "An error occurred" };
+    console.error("Error in inviteStudent:", error);
+    return { success: false, message: "Internal error" };
   }
 };
