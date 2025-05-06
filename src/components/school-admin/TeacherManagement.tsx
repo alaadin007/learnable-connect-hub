@@ -1,5 +1,3 @@
-
-// Add import for TeacherInvitation type from SchoolAdmin
 import React, { useState, useEffect } from "react";
 import {
   Card,
@@ -17,9 +15,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   Table,
   TableBody,
-  TableCaption,
   TableCell,
-  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
@@ -27,20 +23,24 @@ import {
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 
-// Define TeacherInvitation type if not imported
 export interface TeacherInvitation {
   id: string;
   email: string;
@@ -53,7 +53,6 @@ export interface TeacherInvitation {
   role?: string;
 }
 
-// Update component to use TeacherInvitation type
 const TeacherManagement = () => {
   const { profile } = useAuth();
   const [invitations, setInvitations] = useState<TeacherInvitation[]>([]);
@@ -65,6 +64,7 @@ const TeacherManagement = () => {
   const [open, setOpen] = useState(false);
   const [selectedInvitations, setSelectedInvitations] = useState<string[]>([]);
   const [selectAll, setSelectAll] = useState(false);
+  const [resendingId, setResendingId] = useState<string | null>(null);
 
   // Get the school ID from the profile
   const schoolId = profile?.organization?.id || null;
@@ -93,6 +93,8 @@ const TeacherManagement = () => {
       }
 
       setInvitations(data as TeacherInvitation[]);
+      setSelectAll(false);
+      setSelectedInvitations([]);
     } catch (error: any) {
       toast.error(error.message || "Failed to load invitations");
     } finally {
@@ -105,10 +107,19 @@ const TeacherManagement = () => {
       toast.error("School ID is not available.");
       return;
     }
+    if (!email.trim()) {
+      toast.error("Please enter an email address.");
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      toast.error("Please enter a valid email address.");
+      return;
+    }
 
     setIsCreating(true);
     try {
-      const { data, error } = await supabase.functions.invoke("invite-teacher", {
+      const { error } = await supabase.functions.invoke("invite-teacher", {
         body: {
           email,
           role,
@@ -117,9 +128,7 @@ const TeacherManagement = () => {
         },
       });
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
       toast.success("Invitation sent successfully!");
       loadInvitations(); // Reload invitations to reflect the new one
@@ -134,23 +143,21 @@ const TeacherManagement = () => {
   };
 
   const handleResendInvitation = async (invitation: TeacherInvitation) => {
-    setIsLoading(true);
+    setResendingId(invitation.id);
     try {
-      const { data, error } = await supabase.functions.invoke("resend-teacher-invitation", {
+      const { error } = await supabase.functions.invoke("resend-teacher-invitation", {
         body: {
           invitationId: invitation.id,
         },
       });
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
       toast.success("Invitation resent successfully!");
     } catch (error: any) {
       toast.error(error.message || "Failed to resend invitation");
     } finally {
-      setIsLoading(false);
+      setResendingId(null);
     }
   };
 
@@ -162,11 +169,14 @@ const TeacherManagement = () => {
 
   const handleCheckboxChange = (invitationId: string) => {
     setSelectedInvitations((prevSelected) => {
+      let newSelected;
       if (prevSelected.includes(invitationId)) {
-        return prevSelected.filter((id) => id !== invitationId);
+        newSelected = prevSelected.filter((id) => id !== invitationId);
       } else {
-        return [...prevSelected, invitationId];
+        newSelected = [...prevSelected, invitationId];
       }
+      setSelectAll(newSelected.length === invitations.length);
+      return newSelected;
     });
   };
 
@@ -221,14 +231,14 @@ const TeacherManagement = () => {
       </CardHeader>
       <CardContent>
         <div className="mb-4 flex justify-between items-center">
-          <div>
-            <Label htmlFor="selectAll" className="mr-2">
-              <Checkbox
-                id="selectAll"
-                checked={selectAll}
-                onCheckedChange={handleSelectAllChange}
-              />
-              <span className="ml-2">Select All</span>
+          <div className="flex items-center">
+            <Checkbox
+              id="selectAll"
+              checked={selectAll}
+              onCheckedChange={handleSelectAllChange}
+            />
+            <Label htmlFor="selectAll" className="ml-2">
+              Select All
             </Label>
             <Button
               variant="destructive"
@@ -240,9 +250,9 @@ const TeacherManagement = () => {
               Delete Selected
             </Button>
           </div>
-          <Dialog>
+          <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline">
+              <Button variant="outline" onClick={() => setOpen(true)}>
                 <Plus className="mr-2 h-4 w-4" />
                 Invite Teacher
               </Button>
@@ -271,7 +281,7 @@ const TeacherManagement = () => {
                   <Label htmlFor="role" className="text-right">
                     Role
                   </Label>
-                  <Select onValueChange={setRole}>
+                  <Select onValueChange={setRole} value={role}>
                     <SelectTrigger className="col-span-3">
                       <SelectValue placeholder="Select a role" />
                     </SelectTrigger>
@@ -295,7 +305,11 @@ const TeacherManagement = () => {
                 </div>
               </div>
               <DialogFooter>
-                <Button type="submit" onClick={handleCreateInvitation} disabled={isCreating}>
+                <Button
+                  type="submit"
+                  onClick={handleCreateInvitation}
+                  disabled={isCreating}
+                >
                   {isCreating ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -311,6 +325,8 @@ const TeacherManagement = () => {
         </div>
         {isLoading ? (
           <p>Loading invitations...</p>
+        ) : invitations.length === 0 ? (
+          <p>No invitations found.</p>
         ) : (
           <div className="overflow-x-auto">
             <Table>
@@ -341,7 +357,7 @@ const TeacherManagement = () => {
                         invitation.status
                       )}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="space-x-2">
                       <Button
                         variant="ghost"
                         size="sm"
@@ -354,9 +370,9 @@ const TeacherManagement = () => {
                         variant="ghost"
                         size="sm"
                         onClick={() => handleResendInvitation(invitation)}
-                        disabled={isLoading}
+                        disabled={resendingId === invitation.id}
                       >
-                        {isLoading ? (
+                        {resendingId === invitation.id ? (
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         ) : (
                           <Mail className="mr-2 h-4 w-4" />
