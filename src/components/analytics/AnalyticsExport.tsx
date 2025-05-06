@@ -1,7 +1,16 @@
+
 import { SessionData, TopicData, StudyTimeData, AnalyticsSummary } from "./types";
 import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
 import * as XLSX from 'xlsx';
+
+interface AnalyticsExportProps {
+  summary: AnalyticsSummary;
+  sessions: SessionData[]; 
+  topics: TopicData[]; 
+  studyTime: StudyTimeData[];
+  dateRangeText: string;
+}
 
 export function AnalyticsExport({ 
     summary, 
@@ -9,13 +18,7 @@ export function AnalyticsExport({
     topics, 
     studyTime, 
     dateRangeText 
-}: { 
-    summary: AnalyticsSummary,
-    sessions: SessionData[], 
-    topics: TopicData[], 
-    studyTime: StudyTimeData[],
-    dateRangeText: string
-}) {
+}: AnalyticsExportProps) {
     const exportAnalyticsToCSV = () => {
         // Prepare summary data
         const summaryData = [
@@ -68,14 +71,14 @@ export function AnalyticsExport({
         return sessions.map(session => {
             return {
                 "Session ID": session.id,
-                "Student": session.student_name || session.student || session.userName || "Unknown",
+                "Student": session.student_name || session.userName || "Unknown",
                 "Date": new Date(session.session_date).toLocaleDateString(),
-                "Topic": session.topic || session.topicOrContent || "N/A",
+                "Topic": session.topic || "N/A",
                 "Duration (min)": session.duration_minutes || (typeof session.duration === 'number' ? session.duration : 0),
-                "Queries": session.queries || session.numQueries || 0,
+                "Queries": session.queries || 0,
                 "Questions Asked": session.questions_asked || 0,
                 "Questions Answered": session.questions_answered || 0,
-                "Start Time": session.startTime ? new Date(session.startTime).toLocaleTimeString() : "N/A",
+                "Start Time": "N/A"
             };
         });
     };

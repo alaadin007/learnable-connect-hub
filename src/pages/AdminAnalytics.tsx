@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
@@ -291,7 +290,7 @@ const AdminAnalytics = () => {
                 summary={summary}
                 sessions={sessions}
                 topics={topics}
-                studyTimes={studyTime}
+                studyTime={studyTime} /* Fixed: changed 'studyTimes' to 'studyTime' */
                 dateRangeText={getDateRangeText()} 
               />
             </div>

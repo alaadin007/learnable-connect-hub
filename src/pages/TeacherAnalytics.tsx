@@ -338,10 +338,13 @@ const TeacherAnalytics = () => {
                   <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
                   Refresh
                 </Button>
-                <Button variant="outline" onClick={handleExport}>
-                  <Download className="mr-2 h-4 w-4" />
-                  Export
-                </Button>
+                <AnalyticsExport 
+                  summary={summary}
+                  sessions={sessions}
+                  topics={topics}
+                  studyTime={studyTime}
+                  dateRangeText={getDateRangeText(dateRange)} 
+                />
               </div>
             </div>
           </div>
