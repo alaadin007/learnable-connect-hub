@@ -28,7 +28,7 @@ export const fetchStudyTime = async (
         user_id,
         session_start,
         session_end,
-        profiles!inner(full_name)
+        profiles:profiles(full_name)
       `)
       .eq('school_id', schoolId)
       .gte('session_start', dateFilter.startDate)
