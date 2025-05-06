@@ -43,11 +43,11 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
       setError(null);
       setLoading(true);
 
-      // Fetch all students from this school
+      // Using type assertion to handle the UUID type properly
       const { data: studentsData, error: studentsError } = await supabase
         .from("students")
         .select("id, school_id, status, created_at")
-        .eq("school_id", schoolId);
+        .eq("school_id", schoolId as any);
 
       if (studentsError) {
         console.error("Error fetching students:", studentsError);
@@ -79,11 +79,11 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
         // Continue with partial data rather than failing entirely
       }
 
-      // Combine the data from the two queries
+      // Using proper type guards to handle possible null/error cases
       const formattedStudents: Student[] = studentsData.map(student => {
         // Find the matching profile if it exists
         const profile = profilesData && !profilesError 
-          ? profilesData.find(p => p.id === student.id) 
+          ? profilesData.find(p => p && p.id === student.id) 
           : null;
           
         return {
@@ -115,8 +115,8 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
       // Update the student status directly in the database
       const { error } = await supabase
         .from("students")
-        .update({ status: "active" })
-        .eq("id", studentId);
+        .update({ status: "active" } as any)
+        .eq("id", studentId as any);
 
       if (error) {
         console.error("Error approving student:", error);
@@ -146,7 +146,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
       const { error } = await supabase
         .from("students")
         .delete()
-        .eq("id", studentId);
+        .eq("id", studentId as any);
 
       if (error) {
         console.error("Failed to revoke student access:", error);

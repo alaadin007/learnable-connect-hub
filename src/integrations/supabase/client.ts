@@ -21,8 +21,8 @@ export const supabase = createClient<Database>(
       debug: process.env.NODE_ENV === 'development', // Enable debug mode in development
       
       // Set the site URL and redirect URLs for email confirmation
-      site: window.location.origin,
-      redirectTo: window.location.origin,
+      site: typeof window !== 'undefined' ? window.location.origin : '',
+      redirectTo: typeof window !== 'undefined' ? window.location.origin + '/auth/callback' : '',
     }
   }
 );

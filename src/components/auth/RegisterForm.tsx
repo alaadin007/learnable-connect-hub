@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -102,7 +101,7 @@ const RegisterForm = () => {
         return null;
       }
       
-      if (data && data.length > 0 && data[0].user_type) {
+      if (data && data.length > 0 && data[0] && data[0].user_type) {
         // Return the role name with proper capitalization for display
         const role = data[0].user_type;
         switch (role) {
