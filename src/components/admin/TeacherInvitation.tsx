@@ -7,7 +7,12 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
-import { isDataResponse, isValidInvitation, safelyExtractData } from "@/utils/supabaseHelpers";
+import { 
+  isDataResponse, 
+  isValidInvitation, 
+  safelyExtractData,
+  asSupabaseParam
+} from "@/utils/supabaseHelpers";
 
 interface TeacherInvite {
   id: string;
@@ -146,9 +151,9 @@ const TeacherInvitation = () => {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString();
+    return new Date(dateString).toLocaleString();
   };
-
+  
   return (
     <Card className="w-full max-w-lg">
       <CardHeader>

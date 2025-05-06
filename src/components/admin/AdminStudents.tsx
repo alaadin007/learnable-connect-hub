@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,11 +10,12 @@ import { RefreshCw, User, Copy, AlertTriangle } from "lucide-react";
 import { 
   isDataResponse, 
   safelyExtractData, 
-  ensureUUID, 
+  asSupabaseParam,
   isValidStudent, 
   isValidProfile,
   isNonNullable,
-  safeAnyCast
+  safeAnyCast,
+  processSupabaseResult
 } from "@/utils/supabaseHelpers";
 
 type Student = {
@@ -54,11 +54,13 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
       setError(null);
       setLoading(true);
 
+      // Fetch students from the database
       const studentsResponse = await supabase
         .from("students")
         .select("id, school_id, status, created_at")
-        .eq("school_id", safeAnyCast(schoolId));
+        .eq("school_id", asSupabaseParam(schoolId));
 
+      // Check for errors in the response
       if (!isDataResponse(studentsResponse)) {
         console.error("Error fetching students:", studentsResponse.error);
         setError("Error fetching students. Please refresh.");
@@ -79,8 +81,16 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
       
       // Filter for valid student data
       const validStudents = studentsData.filter(isValidStudent);
+      
+      if (validStudents.length === 0) {
+        setStudents([]);
+        setLoading(false);
+        return;
+      }
+      
       const studentIds = validStudents.map(student => student.id);
 
+      // Fetch profiles for the students
       const profilesResponse = await supabase
         .from("profiles")
         .select("id, full_name")
@@ -124,8 +134,8 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
       // Update the student status directly in the database
       const { error } = await supabase
         .from("students")
-        .update(safeAnyCast({ status: "active" }))
-        .eq("id", ensureUUID(studentId));
+        .update(asSupabaseParam({ status: "active" }))
+        .eq("id", asSupabaseParam(studentId));
 
       if (error) {
         console.error("Error approving student:", error);
@@ -155,7 +165,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
       const { error } = await supabase
         .from("students")
         .delete()
-        .eq("id", ensureUUID(studentId));
+        .eq("id", asSupabaseParam(studentId));
 
       if (error) {
         console.error("Failed to revoke student access:", error);

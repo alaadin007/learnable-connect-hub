@@ -5,7 +5,7 @@
 
 // Type guard to check if a response is an error
 export const isSupabaseError = (obj: any): boolean => {
-  return obj && typeof obj === 'object' && 'error' in obj;
+  return obj && typeof obj === 'object' && 'error' in obj && obj.error !== null;
 };
 
 // Type guard to check if a response contains data (not an error)
@@ -30,7 +30,7 @@ export const safelyGetProperty = <T, K extends keyof T>(obj: T | null | undefine
 
 // Helper to safely extract data from a Supabase query response
 export const extractSupabaseData = <T>(response: { data: T | null, error: Error | null }): T | null => {
-  if (response.error) {
+  if (isSupabaseError(response)) {
     console.error('Supabase query error:', response.error);
     return null;
   }
@@ -75,7 +75,7 @@ export const isValidData = <T extends object>(obj: any, requiredProps: (keyof T)
 
 // Helper to safely extract data from a query response
 export const safelyExtractData = <T>(response: any): T[] => {
-  if (!isDataResponse(response)) {
+  if (isSupabaseError(response)) {
     console.error("Error in response:", response.error || "Unknown error");
     return [];
   }
@@ -160,4 +160,41 @@ export const isValidFileItem = (item: any): item is {
 // Helper to safely cast to any (use sparingly!)
 export const safeAnyCast = <T>(value: unknown): T => {
   return value as T;
+};
+
+/**
+ * Utility to cast values for use with Supabase's strongly typed methods
+ * Use this to bypass TypeScript errors when you're sure the data is correct
+ */
+export const asSupabaseParam = <T>(value: any): T => {
+  return value as T;
+};
+
+/**
+ * All-in-one helper to safely process Supabase responses
+ */
+export const processSupabaseResult = <T, R>(
+  response: any, 
+  dataProcessor: (data: T[]) => R, 
+  onError?: (error: any) => void
+): R | null => {
+  if (isSupabaseError(response)) {
+    console.error("Supabase error:", response.error);
+    if (onError) onError(response.error);
+    return null;
+  }
+  
+  if (!Array.isArray(response.data)) {
+    console.error("Expected array data but got:", response.data);
+    return null;
+  }
+  
+  return dataProcessor(response.data as T[]);
+};
+
+/**
+ * Helper to safely check if a field exists on a record
+ */
+export const hasField = <T extends object>(obj: T, field: string): boolean => {
+  return obj !== null && typeof obj === 'object' && field in obj;
 };
