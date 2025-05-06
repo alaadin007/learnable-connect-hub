@@ -306,3 +306,52 @@ export const revokeStudentAccessDirect = async (studentId: string): Promise<bool
     return false;
   }
 };
+
+/**
+ * Invites a teacher directly by creating an invitation record.
+ * This function is used in the TeacherInvitation component.
+ */
+export const inviteTeacherDirect = async (email: string): Promise<{
+  success: boolean;
+  message?: string;
+}> => {
+  try {
+    // Get the school ID of the current user
+    const { data: schoolId, error: schoolIdError } = await supabase.rpc('get_user_school_id');
+    
+    if (schoolIdError || !schoolId) {
+      console.error('Error fetching school ID:', schoolIdError);
+      return { success: false, message: 'Failed to get school information' };
+    }
+    
+    // Create an invitation token - it can be a random string or UUID
+    const token = crypto.randomUUID();
+    
+    // Create a teacher invitation record
+    const { error: inviteError } = await supabase
+      .from("teacher_invitations")
+      .insert({
+        email: email,
+        school_id: schoolId,
+        invitation_token: token,
+        status: 'pending',
+        created_by: (await supabase.auth.getUser()).data.user?.id
+      });
+
+    if (inviteError) {
+      console.error("Error creating teacher invitation:", inviteError);
+      return { success: false, message: "Failed to create invitation" };
+    }
+
+    // In a real implementation, you would typically send an email here
+    // using an Edge Function or other server-side functionality
+
+    return { 
+      success: true, 
+      message: "Teacher invitation created successfully" 
+    };
+  } catch (error) {
+    console.error('Error in inviteTeacherDirect:', error);
+    return { success: false, message: 'An error occurred' };
+  }
+};
