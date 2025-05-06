@@ -1,4 +1,3 @@
-
 import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -78,7 +77,7 @@ const SchoolRegistrationForm: React.FC = () => {
     },
   });
 
-  // Generate a random uppercase alphanumeric school code without confusing chars
+  // Generate random uppercase alphanumeric school code (exclude confusing chars)
   const generateSchoolCode = (): string => {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     let result = "";
@@ -91,14 +90,14 @@ const SchoolRegistrationForm: React.FC = () => {
   const checkIfEmailExists = async (email: string): Promise<boolean> => {
     try {
       const { data, error } = await supabase
-        .rpc('check_if_email_exists', { input_email: email })
+        .rpc("check_if_email_exists", { input_email: email })
         .single();
-      
+
       if (error) {
         console.error("Error checking if email exists:", error);
         return false;
       }
-      
+
       return !!data;
     } catch (error) {
       console.error("Error during email existence check:", error);
@@ -120,15 +119,12 @@ const SchoolRegistrationForm: React.FC = () => {
         toast.dismiss(loadingToast);
         setExistingEmailError(data.adminEmail);
 
-        toast.error(
-          "Email already registered",
-          {
-            description:
-              "Please use a different email address. Each user can only have one role in the system.",
-            duration: 8000,
-            icon: <AlertCircle className="h-5 w-5" />,
-          }
-        );
+        toast.error("Email already registered", {
+          description:
+            "Please use a different email address. Each user can only have one role in the system.",
+          duration: 8000,
+          icon: <AlertCircle className="h-5 w-5" />,
+        });
 
         setIsLoading(false);
         return;
@@ -136,8 +132,7 @@ const SchoolRegistrationForm: React.FC = () => {
 
       const newSchoolCode = generateSchoolCode();
 
-      // Now we register the user directly with Supabase Auth
-      // The database trigger will handle creating all the necessary records
+      // Register user with Supabase auth
       const { data: userData, error: userError } = await supabase.auth.signUp({
         email: data.adminEmail,
         password: data.adminPassword,
@@ -155,7 +150,9 @@ const SchoolRegistrationForm: React.FC = () => {
 
       if (userError || !userData || !userData.user) {
         toast.dismiss(loadingToast);
-        setRegistrationError("Failed to create school account: " + (userError?.message || "Unknown error"));
+        setRegistrationError(
+          "Failed to create school account: " + (userError?.message || "Unknown error")
+        );
         toast.error("Failed to create school account");
         setIsLoading(false);
         return;
@@ -224,7 +221,14 @@ const SchoolRegistrationForm: React.FC = () => {
           </Button>
           {registeredEmail && (
             <Button variant="secondary" className="w-full" onClick={handleResetPassword} disabled={isLoading}>
-              {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Sending...</> : "Resend Verification Email"}
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                "Resend Verification Email"
+              )}
             </Button>
           )}
           <p className="text-sm text-gray-500 mt-2">
@@ -241,12 +245,13 @@ const SchoolRegistrationForm: React.FC = () => {
         {existingEmailError && (
           <Alert variant="destructive" className="mb-6">
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle>
-              Email Already Registered
-            </AlertTitle>
+            <AlertTitle>Email Already Registered</AlertTitle>
             <AlertDescription>
               The email "{existingEmailError}" is already registered. Please use a different email or{" "}
-              <a href="/login" className="font-medium underline">log in</a>.
+              <a href="/login" className="font-medium underline">
+                log in
+              </a>
+              .
             </AlertDescription>
           </Alert>
         )}
@@ -282,9 +287,9 @@ const SchoolRegistrationForm: React.FC = () => {
                             ? "admin@school.edu"
                             : fieldName.toLowerCase().includes("password")
                             ? "••••••••"
-                            : fieldName === 'schoolName'
+                            : fieldName === "schoolName"
                             ? "Enter school name"
-                            : fieldName === 'adminFullName'
+                            : fieldName === "adminFullName"
                             ? "Enter admin's full name"
                             : undefined
                         }
