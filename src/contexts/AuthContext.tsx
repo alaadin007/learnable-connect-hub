@@ -1,8 +1,10 @@
 
+// Only updating the function that uses asSupabaseParam
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { asSupabaseParam, isValidObject, safelyCastData, asTypedValue } from '@/utils/supabaseHelpers';
 
 export type UserRole = 'school' | 'teacher' | 'student';
 
@@ -51,30 +53,49 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Fetch user profile + organization info
   const fetchProfile = async (userId: string): Promise<Profile | null> => {
     try {
+      // Use type-safe query with asSupabaseParam
       const { data, error } = await supabase
         .from('profiles')
         .select('id, user_type, full_name, school_code, school_name')
-        .eq('id', userId)
+        .eq('id', asSupabaseParam(userId))
         .single();
 
-      if (error) {
+      if (error || !data) {
         console.error('Error fetching profile:', error);
+        return null;
+      }
+
+      // Safely check the profile data
+      if (!isValidObject(data, ['id', 'user_type'])) {
+        console.error('Invalid profile data:', data);
         return null;
       }
 
       // For school/teacher, fetch org info and supervisor status
       if (data && ['school', 'teacher'].includes(data.user_type)) {
+        // Get school ID safely using RPC function
         const { data: userData, error: userError } = await supabase.rpc('get_user_school_id');
+        
         if (!userError && userData) {
-          setSchoolId(userData);
+          const schoolIdStr = String(userData); // Ensure it's a string
+          setSchoolId(schoolIdStr);
+          
+          // Fetch school data safely with the school ID
           const { data: schoolData, error: schoolError } = await supabase
             .from('schools')
             .select('id, name, code')
-            .eq('id', userData)
+            .eq('id', asSupabaseParam(schoolIdStr))
             .single();
 
-          if (!schoolError && schoolData) {
-            const profileWithOrg = { ...data, organization: schoolData } as Profile;
+          if (!schoolError && schoolData && isValidObject(schoolData, ['id', 'name', 'code'])) {
+            const profileWithOrg = { 
+              ...data, 
+              organization: {
+                id: schoolData.id,
+                name: schoolData.name,
+                code: schoolData.code
+              }
+            } as Profile;
 
             // Check supervisor status
             const { data: supervisorData, error: supervisorError } = await supabase.rpc('is_supervisor');
@@ -91,19 +112,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const { data: studentData, error: studentError } = await supabase
           .from('students')
           .select('school_id')
-          .eq('id', userId)
+          .eq('id', asSupabaseParam(userId))
           .single();
 
-        if (!studentError && studentData) {
-          setSchoolId(studentData.school_id);
+        if (!studentError && studentData && isValidObject(studentData, ['school_id'])) {
+          const schoolIdStr = String(studentData.school_id);
+          setSchoolId(schoolIdStr);
+          
           const { data: schoolData, error: schoolError } = await supabase
             .from('schools')
             .select('id, name, code')
-            .eq('id', studentData.school_id)
+            .eq('id', asSupabaseParam(schoolIdStr))
             .single();
 
-          if (!schoolError && schoolData) {
-            const profileWithOrg = { ...data, organization: schoolData } as Profile;
+          if (!schoolError && schoolData && isValidObject(schoolData, ['id', 'name', 'code'])) {
+            const profileWithOrg = {
+              ...data,
+              organization: {
+                id: schoolData.id,
+                name: schoolData.name,
+                code: schoolData.code
+              }
+            } as Profile;
             return profileWithOrg;
           }
         }

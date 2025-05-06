@@ -70,8 +70,16 @@ export const RBACProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (error) {
         console.error("Error fetching user roles:", error);
         setRoles([]);
+      } else if (Array.isArray(data)) {
+        // Ensure data is an array of valid role values
+        const validRoles = data.filter(role => 
+          typeof role === 'string' && 
+          ['school_admin', 'teacher_supervisor', 'teacher', 'student', 'system_admin'].includes(role)
+        ) as AppRole[];
+        
+        setRoles(validRoles);
       } else {
-        setRoles(data || []);
+        setRoles([]);
       }
     } catch (error) {
       console.error("Error in fetchUserRoles:", error);

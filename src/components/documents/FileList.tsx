@@ -9,7 +9,7 @@ import { Loader2, File, FileText, Image, Trash2, RefreshCw } from 'lucide-react'
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { 
-  isValidFileItem,
+  isValidObject,
   asSupabaseParam,
   isDataResponse
 } from '@/utils/supabaseHelpers';
@@ -67,14 +67,11 @@ const FileList: React.FC = () => {
       const validFiles: FileItem[] = [];
       if (Array.isArray(data)) {
         for (const item of data) {
-          if (item && typeof item === 'object' && 
-              'id' in item && 
-              'filename' in item && 
-              'file_type' in item && 
-              'file_size' in item && 
-              'created_at' in item && 
-              'storage_path' in item && 
-              'processing_status' in item) {
+          // Use null check guard for TypeScript
+          if (item && isValidObject(item, [
+            'id', 'filename', 'file_type', 'file_size',
+            'created_at', 'storage_path', 'processing_status'
+          ])) {
             validFiles.push({
               id: item.id,
               filename: item.filename,

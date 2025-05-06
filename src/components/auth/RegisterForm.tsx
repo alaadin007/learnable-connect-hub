@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -16,7 +15,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useNavigate, Link } from "react-router-dom";
-import { supabaseHelpers } from "@/utils/supabaseHelpers";
+import { asSupabaseParam, isValidObject, prepareTableInsert, prepareSupabaseUpdate } from "@/utils/supabaseHelpers";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address." }),
@@ -75,7 +74,7 @@ const RegisterForm = () => {
       }
 
       // Create a user profile
-      const profileData = supabaseHelpers.prepareTableInsert({
+      const profileData = prepareTableInsert({
         id: data.user.id,
         email: email,
         school_code: schoolCode,
@@ -98,14 +97,14 @@ const RegisterForm = () => {
       const { data: schoolData, error: schoolError } = await supabase
         .from("schools")
         .select("id")
-        .eq("code", supabaseHelpers.asSupabaseParam(schoolCode))
+        .eq("code", asSupabaseParam(schoolCode))
         .single();
 
       let schoolId: string | null = null;
       
       if (schoolError) {
         // Create a new school if it doesn't exist
-        const newSchool = supabaseHelpers.prepareTableInsert({
+        const newSchool = prepareTableInsert({
           code: schoolCode,
           name: "Your School Name", // You might want to prompt the user for the school name
         });
@@ -125,15 +124,15 @@ const RegisterForm = () => {
         }
 
         // Safely check if the new school data has an ID
-        if (newSchoolData && typeof newSchoolData === 'object' && 'id' in newSchoolData) {
-          schoolId = newSchoolData.id;
+        if (newSchoolData && isValidObject(newSchoolData, ['id'])) {
+          schoolId = String(newSchoolData.id);
           
           // Update the user's profile with the school ID if we have a valid ID
           if (schoolId) {
             const { error: updateError } = await supabase
               .from("profiles")
-              .update(supabaseHelpers.prepareSupabaseUpdate({ school_id: schoolId }))
-              .eq("id", supabaseHelpers.asSupabaseParam(data.user.id));
+              .update(prepareSupabaseUpdate({ school_id: schoolId }))
+              .eq("id", asSupabaseParam(data.user.id));
 
             if (updateError) {
               toast.error(
@@ -150,15 +149,15 @@ const RegisterForm = () => {
             });
           }
         }
-      } else if (schoolData && typeof schoolData === 'object' && 'id' in schoolData) {
-        schoolId = schoolData.id;
+      } else if (schoolData && isValidObject(schoolData, ['id'])) {
+        schoolId = String(schoolData.id);
         
         // Update the user's profile with the school ID if it exists
         if (schoolId) {
           const { error: updateError } = await supabase
             .from("profiles")
-            .update(supabaseHelpers.prepareSupabaseUpdate({ school_id: schoolId }))
-            .eq("id", supabaseHelpers.asSupabaseParam(data.user.id));
+            .update(prepareSupabaseUpdate({ school_id: schoolId }))
+            .eq("id", asSupabaseParam(data.user.id));
 
           if (updateError) {
             toast.error(

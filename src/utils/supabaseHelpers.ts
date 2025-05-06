@@ -1,4 +1,3 @@
-
 /**
  * Helper functions for Supabase operations that ensure type safety
  */
@@ -87,6 +86,50 @@ export const safelyAccessData = <T, R>(
   }
 };
 
+/**
+ * Safely cast any type of Supabase response to the expected type for consistent handling
+ * @param data Response data that might be an error or the expected type
+ * @returns Safely cast data or null if it's an error or invalid
+ */
+export const safelyCastData = <T>(data: any): T | null => {
+  if (!data || isSupabaseError(data)) {
+    return null;
+  }
+  return data as T;
+};
+
+/**
+ * Checks if a value is a non-null object with expected properties
+ * Useful for validating items in Supabase response arrays
+ * @param item The item to check
+ * @param requiredProps Array of property names that should exist on the item
+ * @returns True if the item is valid, false otherwise
+ */
+export const isValidObject = (item: any, requiredProps: string[] = []): boolean => {
+  if (!item || typeof item !== 'object') return false;
+  if (isSupabaseError(item)) return false;
+  
+  // If no specific props are required, just check that it's a non-null object
+  if (requiredProps.length === 0) return true;
+  
+  // Otherwise check that all required props exist
+  return requiredProps.every(prop => prop in item);
+};
+
+/**
+ * Helper to safely convert Supabase function return values to the expected type
+ * @param value The value returned from a Supabase function
+ * @returns The value cast to the expected type, or a suitable default
+ */
+export const asTypedValue = <T>(value: any, defaultValue: T): T => {
+  if (value === null || value === undefined) return defaultValue;
+  try {
+    return value as T;
+  } catch {
+    return defaultValue;
+  }
+};
+
 export const supabaseHelpers = {
   asSupabaseParam,
   prepareTableInsert,
@@ -95,7 +138,10 @@ export const supabaseHelpers = {
   isDataResponse,
   isValidFileItem,
   isValidInvitation,
-  isSupabaseError
+  isSupabaseError,
+  safelyCastData,
+  isValidObject,
+  asTypedValue
 };
 
 export default supabaseHelpers;

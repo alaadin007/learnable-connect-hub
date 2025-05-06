@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { FileIcon, Upload } from 'lucide-react';
@@ -6,7 +7,7 @@ import { CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from '@/contexts/AuthContext';
-import { asSupabaseParam, isDataResponse } from '@/utils/supabaseHelpers';
+import { asSupabaseParam, isValidObject } from '@/utils/supabaseHelpers';
 
 type FileUploadProps = {
   onUploadComplete: () => void;
@@ -88,7 +89,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onUploadComplete }) => {
 
       // Safely check if we have valid data with an ID
       const documentData = metadataResult.data;
-      if (documentData && typeof documentData === 'object' && 'id' in documentData) {
+      if (documentData && isValidObject(documentData, ['id'])) {
         const documentId = documentData.id;
         console.log("Document metadata saved:", documentData);
         setUploadProgress(100);
