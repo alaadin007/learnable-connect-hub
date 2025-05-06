@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getUserDocuments, getDocumentContent } from '@/utils/databaseUtils';
+import { isDataResponse, safelyExtractData } from '@/utils/supabaseHelpers';
 
 type FileItem = {
   id: string;
@@ -80,35 +81,47 @@ const FileList: React.FC = () => {
   }, []);
 
   // Ensure all code accesses data safely using our helper functions
-const fetchFiles = async () => {
-  if (!user) return;
-  
-  setLoading(true);
-  setError(null);
-  
-  try {
-    console.log("Fetching documents for user:", user.id);
-    // Use helper functions from databaseUtils which should be using our supabaseHelpers internally
-    const docs = await getUserDocuments(user.id);
+  const fetchFiles = async () => {
+    if (!user) return;
     
-    // Type-safe setting of state
-    if (docs && Array.isArray(docs)) {
-      setFiles(docs);
-    } else {
-      setFiles([]);
+    setLoading(true);
+    setError(null);
+    
+    try {
+      console.log("Fetching documents for user:", user.id);
+      
+      // Try using helper function first
+      const docs = await getUserDocuments(user.id);
+      
+      if (docs && Array.isArray(docs)) {
+        setFiles(docs);
+      } else {
+        // Fallback to direct query with safe type handling
+        const response = await supabase
+          .from('documents')
+          .select('*')
+          .eq('user_id', user.id);
+          
+        if (isDataResponse(response)) {
+          const typedDocs = response.data as FileItem[];
+          setFiles(typedDocs);
+        } else {
+          console.error('Error in direct documents query:', response.error);
+          setFiles([]);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching files:', error);
+      setError('Failed to fetch your files. Please try again.');
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch your files',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error('Error fetching files:', error);
-    setError('Failed to fetch your files. Please try again.');
-    toast({
-      title: 'Error',
-      description: 'Failed to fetch your files',
-      variant: 'destructive',
-    });
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const getFileIcon = (fileType: string) => {
     if (fileType.includes('pdf')) return 'pdf';

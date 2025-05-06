@@ -111,7 +111,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
       // Update the student status directly in the database
       const { error } = await supabase
         .from("students")
-        .update({ status: "active" })
+        .update({ status: "active" } as any)
         .eq("id", asUUID(studentId));
 
       if (error) {

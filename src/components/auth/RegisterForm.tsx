@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom"; 
 import { isDataResponse } from "@/utils/supabaseHelpers";
 
 interface RegisterFormProps {
@@ -66,8 +67,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSuccess }) => {
             full_name: fullName,
             user_type: userType,
             school_code: schoolCode,
-          },
-          shouldCreateUser: true,
+          }
         },
       });
 
@@ -116,8 +116,12 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSuccess }) => {
         return null;
       }
       
-      const role = response.data[0].user_type;
-      switch (role) {
+      const userTypeValue = response.data[0].user_type;
+      if (!userTypeValue) {
+        return null;
+      }
+      
+      switch (userTypeValue) {
         case 'school':
           return 'School Admin';
         case 'teacher':
@@ -125,7 +129,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSuccess }) => {
         case 'student':
           return 'Student';
         default:
-          return role;
+          return userTypeValue;
       }
     } catch (error) {
       console.error('Error getting user role:', error);
@@ -230,9 +234,9 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSuccess }) => {
         <CardFooter className="text-center">
           <p className="text-sm text-gray-500">
             Already have an account?{" "}
-            <a href="/login" className="text-blue-600 hover:underline">
+            <Link to="/login" className="text-blue-600 hover:underline">
               Log In
-            </a>
+            </Link>
           </p>
         </CardFooter>
       </Card>
