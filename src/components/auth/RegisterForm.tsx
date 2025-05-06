@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +9,7 @@ import { AlertCircle, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useNavigate, Link } from "react-router-dom"; 
-import { isDataResponse, ensureUUID, safeAnyCast } from "@/utils/supabaseHelpers";
+import { isDataResponse, asSupabaseParam, safeAnyCast } from "@/utils/supabaseHelpers";
 
 interface RegisterFormProps {
   onSuccess?: () => void;
@@ -82,7 +81,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSuccess }) => {
         const response = await supabase
           .from('profiles')
           .select('user_type')
-          .eq('id', ensureUUID(data.user.id))
+          .eq('id', asSupabaseParam(data.user.id))
           .single();
         
         // Get the user role using a safe approach

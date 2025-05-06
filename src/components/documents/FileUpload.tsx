@@ -8,6 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { isDataResponse, asSupabaseParam } from '@/utils/supabaseHelpers';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_FILE_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
@@ -214,14 +215,14 @@ const FileUpload: React.FC<FileUploadProps> = ({ onUploadComplete }) => {
       // Store metadata in documents table
       const { data: metadataData, error: metadataError } = await supabase
         .from('documents')
-        .insert({
+        .insert(asSupabaseParam({
           user_id: user.id,
           filename: file.name,
           file_type: file.type,
           file_size: file.size,
           storage_path: filePath,
           processing_status: 'pending'
-        })
+        }))
         .select()
         .single();
       
@@ -235,11 +236,15 @@ const FileUpload: React.FC<FileUploadProps> = ({ onUploadComplete }) => {
       }
       
       console.log("Document metadata saved:", metadataData);
+
+      const documentId = isDataResponse(metadataData) && metadataData.data ? metadataData.data.id : null;
       
       setUploadProgress(100);
       
       // Trigger content processing immediately
-      await triggerContentProcessing(metadataData.id);
+      if (documentId) {
+        await triggerContentProcessing(documentId);
+      }
       
       setFile(null);
       // Reset file input by clearing the form
