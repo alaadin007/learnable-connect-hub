@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -132,7 +133,24 @@ export const inviteStudent = async (method: "code" | "email", schoolId: string, 
 }> => {
   try {
     if (method === "code") {
-      // Generate a unique invite code
+      // Try to use Supabase RPC function first
+      try {
+        const { data, error } = await supabase.rpc('create_student_invitation', {
+          school_id_param: schoolId
+        });
+
+        if (!error && data && data.length > 0) {
+          return { 
+            success: true, 
+            code: data[0].code,
+            message: "Student invite code generated successfully" 
+          };
+        }
+      } catch (rpcError) {
+        console.error("RPC error, falling back to direct insert:", rpcError);
+      }
+
+      // Fallback - Generate a unique invite code directly
       const inviteCode = generateInviteCode();
       
       const { error: inviteError } = await supabase

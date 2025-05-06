@@ -5,7 +5,7 @@ import { useRBAC } from "@/contexts/RBACContext";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
-import StudentManagement from "@/components/teacher/StudentManagement";
+import AdminStudentsComponent from "@/components/admin/AdminStudents";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
@@ -123,11 +123,8 @@ const AdminStudents = () => {
             <h1 className="text-3xl font-bold gradient-text">Student Management</h1>
           </div>
           
-          <StudentManagement 
-            schoolId={schoolId} 
-            isLoading={isLoading} 
-            schoolInfo={schoolInfo} 
-          />
+          {/* Use the AdminStudents component directly */}
+          <AdminStudentsComponent />
         </div>
       </main>
       <Footer />

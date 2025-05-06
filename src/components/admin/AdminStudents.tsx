@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { approveStudentDirect, revokeStudentAccessDirect } from "@/utils/databaseUtils";
+import { approveStudentDirect, revokeStudentAccessDirect, getCurrentSchoolInfo } from "@/utils/databaseUtils";
 import { RefreshCw, User, Copy } from "lucide-react";
 
 type Student = {
@@ -23,13 +23,47 @@ const AdminStudents = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [schoolInfo, setSchoolInfo] = useState<{ name: string; code: string; id?: string } | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    loadSchoolInfo();
     fetchStudents();
   }, [refreshTrigger]);
 
+  const loadSchoolInfo = async () => {
+    try {
+      setIsLoading(true);
+      const schoolData = await getCurrentSchoolInfo();
+      
+      if (schoolData) {
+        setSchoolInfo({
+          id: schoolData.id,
+          name: schoolData.name,
+          code: schoolData.code
+        });
+      } else {
+        toast.error("Could not load school information");
+      }
+    } catch (error) {
+      console.error("Error loading school information:", error);
+      toast.error("Failed to load school information");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const fetchStudents = async () => {
     try {
+      if (!schoolInfo?.id) {
+        // If no school ID yet, try to get it first
+        const schoolData = await getCurrentSchoolInfo();
+        if (!schoolData?.id) {
+          console.error("Could not determine school ID");
+          return;
+        }
+      }
+      
       // Get school ID first
       const { data: schoolId, error: schoolIdError } = await supabase
         .rpc("get_user_school_id");
@@ -139,6 +173,13 @@ const AdminStudents = () => {
     toast.success("Refreshing students list...");
   };
 
+  const handleCopyCode = () => {
+    if (schoolInfo?.code) {
+      navigator.clipboard.writeText(schoolInfo.code);
+      toast.success("School code copied to clipboard");
+    }
+  };
+
   const filteredStudents = students.filter((student) => {
     const searchLower = searchTerm.toLowerCase();
     return (
@@ -152,7 +193,26 @@ const AdminStudents = () => {
       <CardHeader>
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <CardTitle>Student Management</CardTitle>
+          
           <div className="flex flex-col md:flex-row gap-2">
+            {/* School Code Display */}
+            {!isLoading && schoolInfo?.code && (
+              <div className="flex items-center gap-2 mr-4">
+                <span className="text-sm font-medium">School Code:</span>
+                <code className="px-2 py-1 bg-muted rounded text-sm font-mono">
+                  {schoolInfo.code}
+                </code>
+                <Button
+                  size="icon"
+                  variant="outline"
+                  onClick={handleCopyCode}
+                  className="h-8 w-8"
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+            
             <Input
               placeholder="Search students..."
               value={searchTerm}

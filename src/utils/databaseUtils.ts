@@ -1,46 +1,91 @@
-
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
-// Approve student directly
-export const approveStudentDirect = async (studentId: string): Promise<boolean> => {
+// Get school data by ID
+export const getSchoolData = async (schoolId: string): Promise<{name: string; code: string} | null> => {
   try {
-    // Get the authenticated user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return false;
+    const { data, error } = await supabase
+      .from('schools')
+      .select('name, code')
+      .eq('id', schoolId)
+      .single();
+    
+    if (error) {
+      console.error('Error fetching school data:', error);
+      return null;
     }
-
-    // Get the school_id of the logged in teacher
-    const { data: schoolId, error: schoolIdError } = await supabase
-      .rpc("get_user_school_id");
-
-    if (schoolIdError || !schoolId) {
-      console.error("Could not determine school ID:", schoolIdError);
-      return false;
+    
+    if (data) {
+      console.log('School data retrieved successfully:', data);
+      return {
+        name: data.name,
+        code: data.code
+      };
     }
+    
+    console.warn('No school data found for ID:', schoolId);
+    return null;
+  } catch (error) {
+    console.error('Error in getSchoolData:', error);
+    return null;
+  }
+};
 
-    // Check if student exists and belongs to the same school
+// Fetch all students for a school
+export const fetchSchoolStudents = async (schoolId: string) => {
+  try {
+    // Get students with their status for this school
     const { data: studentData, error: studentError } = await supabase
       .from("students")
-      .select("*")
-      .eq("id", studentId)
+      .select("id, status, created_at")
       .eq("school_id", schoolId)
-      .single();
-
-    if (studentError || !studentData) {
-      console.error("Student not found or not in your school:", studentError);
-      return false;
+      .order("created_at", { ascending: false });
+      
+    if (studentError) throw studentError;
+    
+    if (!studentData || studentData.length === 0) {
+      return [];
     }
+    
+    // Get user profiles for these students
+    const studentIds = studentData.map(s => s.id);
+    const { data: profileData, error: profileError } = await supabase
+      .from("profiles")
+      .select("id, full_name")
+      .in("id", studentIds);
+      
+    if (profileError) throw profileError;
+    
+    // Combine the data
+    return studentData.map(student => {
+      const profile = profileData?.find(p => p.id === student.id);
+      return {
+        id: student.id,
+        email: student.id, // Using ID as placeholder since we can't access auth.users
+        full_name: profile?.full_name || null,
+        status: student.status || "pending",
+        created_at: student.created_at
+      };
+    });
+  } catch (error) {
+    console.error("Error fetching students:", error);
+    toast.error("Failed to load students");
+    return [];
+  }
+};
 
+// Approve student
+export const approveStudent = async (studentId: string, schoolId: string): Promise<boolean> => {
+  try {
     // Update student status to "active"
-    const { error: updateError } = await supabase
+    const { error } = await supabase
       .from("students")
       .update({ status: "active" })
       .eq("id", studentId)
       .eq("school_id", schoolId);
-
-    if (updateError) {
-      console.error("Error updating student status:", updateError);
+        
+    if (error) {
+      console.error("Error updating student status:", error);
       return false;
     }
 
@@ -51,39 +96,18 @@ export const approveStudentDirect = async (studentId: string): Promise<boolean> 
   }
 };
 
-// Revoke student access directly
-export const revokeStudentAccessDirect = async (studentId: string): Promise<boolean> => {
+// Revoke student access
+export const revokeStudentAccess = async (studentId: string, schoolId: string): Promise<boolean> => {
   try {
-    // Get the school_id of the logged in user
-    const { data: schoolId, error: schoolIdError } = await supabase
-      .rpc("get_user_school_id");
-
-    if (schoolIdError || !schoolId) {
-      console.error("Could not determine school ID:", schoolIdError);
-      return false;
-    }
-
-    // Verify that the student belongs to the user's school
-    const { data: studentData, error: studentError } = await supabase
-      .from("students")
-      .select("school_id")
-      .eq("id", studentId)
-      .eq("school_id", schoolId)
-      .single();
-
-    if (studentError || !studentData) {
-      console.error("Student not found or not in your school:", studentError);
-      return false;
-    }
-
     // Delete the student record
-    const { error: deleteError } = await supabase
+    const { error } = await supabase
       .from("students")
       .delete()
-      .eq("id", studentId);
+      .eq("id", studentId)
+      .eq("school_id", schoolId);
 
-    if (deleteError) {
-      console.error("Failed to revoke student access:", deleteError);
+    if (error) {
+      console.error("Failed to revoke student access:", error);
       return false;
     }
 
@@ -94,26 +118,39 @@ export const revokeStudentAccessDirect = async (studentId: string): Promise<bool
   }
 };
 
-// Invite student directly
-export const inviteStudentDirect = async (method: "code" | "email", email?: string): Promise<{
+// Generate a random invite code
+export const generateInviteCode = (): string => {
+  return Math.random().toString(36).substring(2, 10).toUpperCase();
+};
+
+// Invite student via code or email
+export const inviteStudent = async (method: "code" | "email", schoolId: string, email?: string): Promise<{
   success: boolean; 
   code?: string; 
   email?: string;
   message?: string;
 }> => {
   try {
-    // Get the school_id of the logged in user
-    const { data: schoolId, error: schoolIdError } = await supabase
-      .rpc("get_user_school_id");
-
-    if (schoolIdError || !schoolId) {
-      console.error("Could not determine school ID:", schoolIdError);
-      return { success: false, message: "Could not determine school ID" };
-    }
-
     if (method === "code") {
-      // Generate a unique invite code
-      const inviteCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+      // Try to use Supabase RPC function first
+      try {
+        const { data, error } = await supabase.rpc('create_student_invitation', {
+          school_id_param: schoolId
+        });
+
+        if (!error && data && data.length > 0) {
+          return { 
+            success: true, 
+            code: data[0].code,
+            message: "Student invite code generated successfully" 
+          };
+        }
+      } catch (rpcError) {
+        console.error("RPC error, falling back to direct insert:", rpcError);
+      }
+
+      // Fallback - Generate a unique invite code directly
+      const inviteCode = generateInviteCode();
       
       const { error: inviteError } = await supabase
         .from("student_invites")
@@ -165,123 +202,107 @@ export const inviteStudentDirect = async (method: "code" | "email", email?: stri
   }
 };
 
-// Invite teacher directly
-export const inviteTeacherDirect = async (email: string): Promise<{
-  success: boolean;
-  inviteId?: string;
+/**
+ * Invites a student via code or email
+ */
+export const inviteStudentDirect = async (
+  method: "code" | "email", 
+  email?: string
+): Promise<{ 
+  success: boolean; 
+  code?: string;
   message?: string;
 }> => {
   try {
-    // Verify the user is logged in and is a school supervisor
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      return { success: false, message: "Unauthorized" };
+    // Get the school ID of the current user
+    const { data: schoolId, error: schoolIdError } = await supabase.rpc('get_user_school_id');
+    
+    if (schoolIdError || !schoolId) {
+      console.error('Error fetching school ID:', schoolIdError);
+      return { success: false, message: 'Failed to get school information' };
     }
-
-    // Check if user is a school supervisor
-    const { data: isSupervisor, error: supervisorError } = await supabase
-      .rpc("is_supervisor", { user_id: user.id });
-
-    if (supervisorError || !isSupervisor) {
-      return { success: false, message: "Only school supervisors can invite teachers" };
-    }
-
-    if (!email) {
-      return { success: false, message: "Email is required" };
-    }
-
-    // Use RPC to invite teacher with existing function
-    const { data: inviteResult, error: inviteError } = await supabase
-      .rpc("invite_teacher", {
-        teacher_email: email
-      });
-
-    if (inviteError) {
-      console.error("Error inviting teacher:", inviteError);
-      return { success: false, message: inviteError.message };
-    }
-
-    return { 
-      success: true, 
-      inviteId: inviteResult,
-      message: "Teacher invitation sent successfully" 
-    };
+    
+    // Use the studentUtils function to generate the invitation
+    return await inviteStudent(method, schoolId, email);
   } catch (error) {
-    console.error("Error in inviteTeacher:", error);
-    return { success: false, message: "Internal error" };
+    console.error('Error in inviteStudentDirect:', error);
+    return { success: false, message: 'An error occurred' };
   }
 };
 
-// Generate school code for registration
-export const generateSchoolCode = async (): Promise<string> => {
+/**
+ * Get complete school information for the current user
+ */
+export const getCurrentSchoolInfo = async (): Promise<{
+  id: string;
+  name: string;
+  code: string;
+  contact_email?: string;
+} | null> => {
   try {
-    const { data, error } = await supabase.rpc("generate_school_code");
+    const { data, error } = await supabase.rpc('get_current_school_info');
     
     if (error) {
-      console.error("Error generating school code:", error);
-      // Fallback to client-side generation if RPC fails
-      return Math.random().toString(36).substring(2, 10).toUpperCase();
+      console.error('Error fetching school info:', error);
+      return null;
     }
     
-    return data || Math.random().toString(36).substring(2, 10).toUpperCase();
-  } catch (error) {
-    console.error("Error in generateSchoolCode:", error);
-    return Math.random().toString(36).substring(2, 10).toUpperCase();
-  }
-};
-
-// Get school data including name and code
-export const getSchoolDataByUserId = async (userId?: string): Promise<{ name: string; code: string } | null> => {
-  try {
-    // Get school ID from user's profile
-    const { data: schoolId, error: schoolIdError } = await supabase
-      .rpc("get_user_school_id", { user_id: userId });
-
-    if (schoolIdError || !schoolId) {
-      console.error("Error getting user's school ID:", schoolIdError);
-      return null;
+    if (data && Array.isArray(data) && data.length > 0) {
+      return {
+        id: data[0].school_id,
+        name: data[0].school_name,
+        code: data[0].school_code,
+        contact_email: data[0].contact_email
+      };
     }
-
-    // Get school info
-    const { data: schoolData, error: schoolError } = await supabase
-      .from("schools")
-      .select("name, code")
-      .eq("id", schoolId)
-      .single();
-
-    if (schoolError || !schoolData) {
-      console.error("Error getting school data:", schoolError);
-      return null;
-    }
-
-    return {
-      name: schoolData.name,
-      code: schoolData.code
-    };
+    
+    return null;
   } catch (error) {
-    console.error("Error in getSchoolDataByUserId:", error);
+    console.error('Error in getCurrentSchoolInfo:', error);
     return null;
   }
 };
 
-// Get current school information
-export const getCurrentSchoolInfo = async (): Promise<{ id: string; name: string; code: string } | null> => {
+/**
+ * Approves a student directly by updating their status to 'active'.
+ */
+export const approveStudentDirect = async (studentId: string): Promise<boolean> => {
   try {
-    const { data: schoolInfo, error } = await supabase.rpc("get_current_school_info");
-    
-    if (error || !schoolInfo || schoolInfo.length === 0) {
-      console.error("Error getting current school info:", error);
-      return null;
+    const { error } = await supabase
+      .from("students")
+      .update({ status: "active" })
+      .eq("id", studentId);
+
+    if (error) {
+      console.error("Error updating student status:", error);
+      return false;
     }
-    
-    return {
-      id: schoolInfo[0].school_id,
-      name: schoolInfo[0].school_name,
-      code: schoolInfo[0].school_code
-    };
+
+    return true;
   } catch (error) {
-    console.error("Error in getCurrentSchoolInfo:", error);
-    return null;
+    console.error("Error in approveStudentDirect:", error);
+    return false;
+  }
+};
+
+/**
+ * Revokes student access directly by deleting their record.
+ */
+export const revokeStudentAccessDirect = async (studentId: string): Promise<boolean> => {
+  try {
+    const { error } = await supabase
+      .from("students")
+      .delete()
+      .eq("id", studentId);
+
+    if (error) {
+      console.error("Failed to revoke student access:", error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Error in revokeStudentAccessDirect:", error);
+    return false;
   }
 };

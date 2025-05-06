@@ -122,10 +122,11 @@ const Navbar = () => {
         // Active for /admin exactly but not for known subpaths handled separately
         return currentPath === "/admin";
       case "/admin/teacher-management":
+        return currentPath === "/admin/teacher-management" || currentPath === "/admin/teachers";
       case "/admin/analytics":
-        return currentPath === href;
+        return currentPath === "/admin/analytics";
       case "/teacher/analytics":
-        return currentPath === href;
+        return currentPath === "/teacher/analytics";
       case "/chat":
         return currentPath === "/chat" || currentPath.startsWith("/chat/");
       case "/documents":
