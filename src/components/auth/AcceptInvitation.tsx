@@ -98,7 +98,7 @@ const AcceptInvitation = () => {
           .eq('id', supabaseHelpers.asSupabaseParam(typedInvitationData.school_id))
           .single();
 
-        const schoolName = schoolError ? undefined : (schoolData && schoolData.name);
+        const schoolName = schoolError ? undefined : (schoolData && (schoolData as any).name);
 
         setInvitationDetails({
           id: typedInvitationData.invitation_id,

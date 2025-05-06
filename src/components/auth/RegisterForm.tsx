@@ -124,8 +124,8 @@ const RegisterForm = () => {
         // Update the user's profile with the school ID
         const { error: updateError } = await supabase
           .from("profiles")
-          .update({ school_id: (newSchoolData as any).id })
-          .eq("id", data.user.id);
+          .update(supabaseHelpers.prepareSupabaseUpdate({ school_id: (newSchoolData as any).id }))
+          .eq("id", supabaseHelpers.asSupabaseParam(data.user.id));
 
         if (updateError) {
           toast.error(
@@ -138,8 +138,8 @@ const RegisterForm = () => {
         // Update the user's profile with the school ID
         const { error: updateError } = await supabase
           .from("profiles")
-          .update({ school_id: (schoolData as any).id })
-          .eq("id", data.user.id);
+          .update(supabaseHelpers.prepareSupabaseUpdate({ school_id: (schoolData as any).id }))
+          .eq("id", supabaseHelpers.asSupabaseParam(data.user.id));
 
         if (updateError) {
           toast.error(
