@@ -9,6 +9,27 @@ interface AIRequestOptions {
   temperature?: number;
 }
 
+// Define types for API responses
+interface OpenAIResponse {
+  choices?: Array<{
+    message?: {
+      content: string;
+    };
+  }>;
+  error?: string | { message: string };
+}
+
+interface GeminiResponse {
+  candidates?: Array<{
+    content?: {
+      parts?: Array<{
+        text: string;
+      }>;
+    };
+  }>;
+  error?: string | { message: string };
+}
+
 export const sendAIRequest = async (options: AIRequestOptions): Promise<string> => {
   const { prompt, model } = options;
 
@@ -22,13 +43,20 @@ export const sendAIRequest = async (options: AIRequestOptions): Promise<string> 
 
       if (error) throw new Error(error.message);
       
-      if (data.error) {
-        throw new Error(data.error);
+      const response = data as OpenAIResponse;
+      
+      if (response.error) {
+        const errorMessage = typeof response.error === 'string' 
+          ? response.error 
+          : response.error.message;
+        throw new Error(errorMessage);
       }
       
       // Parse the response based on OpenAI's format
-      if (data.choices && data.choices[0] && data.choices[0].message) {
-        return data.choices[0].message.content;
+      if (response.choices && 
+          response.choices[0] && 
+          response.choices[0].message) {
+        return response.choices[0].message.content;
       } else {
         throw new Error('Invalid response format from OpenAI');
       }
@@ -42,13 +70,22 @@ export const sendAIRequest = async (options: AIRequestOptions): Promise<string> 
 
       if (error) throw new Error(error.message);
       
-      if (data.error) {
-        throw new Error(data.error);
+      const response = data as GeminiResponse;
+      
+      if (response.error) {
+        const errorMessage = typeof response.error === 'string' 
+          ? response.error 
+          : response.error.message;
+        throw new Error(errorMessage);
       }
       
       // Parse the response based on Gemini's format
-      if (data.candidates && data.candidates[0] && data.candidates[0].content) {
-        return data.candidates[0].content.parts[0].text;
+      if (response.candidates && 
+          response.candidates[0] && 
+          response.candidates[0].content &&
+          response.candidates[0].content.parts &&
+          response.candidates[0].content.parts[0]) {
+        return response.candidates[0].content.parts[0].text;
       } else {
         throw new Error('Invalid response format from Gemini');
       }
