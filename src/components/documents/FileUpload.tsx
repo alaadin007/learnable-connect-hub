@@ -1,20 +1,18 @@
 
 import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Button } from "@/components/ui/button";
-import { FileIcon, Upload, CheckCircle2, XCircle } from 'lucide-react';
+import { FileIcon, Upload } from 'lucide-react';
 import { Progress } from "@/components/ui/progress";
-import { Card, CardContent } from "@/components/ui/card";
+import { CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from '@/contexts/AuthContext';
-import { isDataResponse, asSupabaseParam } from '@/utils/supabaseHelpers';
 
 interface FileUploadProps {
   onUploadComplete: () => void;
 }
 
-const FileUpload: React.FC<FileUploadProps> = ({ onUploadComplete }) => {
+const FileUpload = ({ onUploadComplete }: FileUploadProps) => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const { user } = useAuth();
@@ -40,8 +38,16 @@ const FileUpload: React.FC<FileUploadProps> = ({ onUploadComplete }) => {
     const filePath = `documents/${fileName}`;
 
     try {
+      // Check if the documents bucket exists, if not use the default user-content bucket
+      const { data: bucketData, error: bucketError } = await supabase.storage.listBuckets();
+      
+      const bucketName = bucketData?.some(bucket => bucket.name === 'documents') 
+        ? 'documents' 
+        : 'user-content';
+      
+      // Upload the file to storage
       const { data, error } = await supabase.storage
-        .from('user-content')
+        .from(bucketName)
         .upload(filePath, file, {
           cacheControl: '3600',
           upsert: false
@@ -56,18 +62,17 @@ const FileUpload: React.FC<FileUploadProps> = ({ onUploadComplete }) => {
 
       console.log("File uploaded successfully:", data);
 
-      const insertData = {
-        user_id: user.id,
-        filename: file.name,
-        file_type: file.type,
-        file_size: file.size,
-        storage_path: filePath,
-        processing_status: 'pending'
-      };
-
+      // Store the document metadata
       const { data: metadataData, error: metadataError } = await supabase
         .from('documents')
-        .insert([insertData])
+        .insert({
+          user_id: user.id,
+          filename: file.name,
+          file_type: file.type,
+          file_size: file.size,
+          storage_path: filePath,
+          processing_status: 'pending'
+        })
         .select()
         .single();
 
@@ -78,22 +83,12 @@ const FileUpload: React.FC<FileUploadProps> = ({ onUploadComplete }) => {
         return;
       }
 
-      let documentId = null;
-      if (isDataResponse(metadataData)) {
-        documentId = metadataData.data?.id;
-        console.log("Document metadata saved:", metadataData.data);
-      } else {
-        console.error("Unexpected response format:", metadataData);
-        toast.error("Error processing document information");
-        setIsUploading(false);
-        return;
-      }
-
+      console.log("Document metadata saved:", metadataData);
       setUploadProgress(100);
-
+      
       // Trigger content processing immediately
-      if (documentId) {
-        await triggerContentProcessing(documentId);
+      if (metadataData?.id) {
+        await triggerContentProcessing(metadataData.id);
       }
 
       toast.success("File uploaded successfully!");
@@ -109,13 +104,11 @@ const FileUpload: React.FC<FileUploadProps> = ({ onUploadComplete }) => {
   const triggerContentProcessing = async (documentId: string) => {
     try {
       console.log("Triggering content processing for document:", documentId);
-      
+
       // Call the function to start processing
       const { data, error } = await supabase.functions.invoke('process-document', {
         body: { document_id: documentId },
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' }
       });
 
       if (error) {
@@ -144,15 +137,20 @@ const FileUpload: React.FC<FileUploadProps> = ({ onUploadComplete }) => {
       'application/vnd.ms-excel': ['.xls'],
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
       'application/vnd.oasis.opendocument.text': ['.odt'],
-      'application/rtf': ['.rtf'],
+      'application/rtf': ['.rtf']
     },
     maxFiles: 1,
-    disabled: isUploading,
+    disabled: isUploading
   });
 
   return (
     <CardContent>
-      <div {...getRootProps()} className={`relative border-2 border-dashed rounded-md p-6 text-center ${isDragActive ? 'border-primary' : 'border-muted-foreground'}`}>
+      <div
+        {...getRootProps()}
+        className={`relative border-2 border-dashed rounded-md p-6 text-center ${
+          isDragActive ? 'border-primary' : 'border-muted-foreground'
+        }`}
+      >
         <input {...getInputProps()} />
         <div className="flex flex-col items-center justify-center">
           {isUploading ? (
@@ -165,7 +163,9 @@ const FileUpload: React.FC<FileUploadProps> = ({ onUploadComplete }) => {
             <>
               <FileIcon className="h-6 w-6 text-muted-foreground mb-2" />
               <p className="text-sm text-muted-foreground">
-                {isDragActive ? "Drop the file here..." : "Drag 'n' drop a file here, or click to select a file"}
+                {isDragActive
+                  ? "Drop the file here..."
+                  : "Drag 'n' drop a file here, or click to select a file"}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
                 (Only PDF, Images, and Text files will be accepted)

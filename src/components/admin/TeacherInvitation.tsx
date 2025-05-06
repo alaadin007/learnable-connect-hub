@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
@@ -18,20 +18,17 @@ interface TeacherInvite {
 
 const TeacherInvitation = () => {
   const [email, setEmail] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [inviting, setInviting] = useState(false);
-  const [inviteMethod, setInviteMethod] = useState<'invite' | 'create'>('invite');
   const [invites, setInvites] = useState<TeacherInvite[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSending, setIsSending] = useState(false);
 
-  // Fetch teacher invitations on component mount
   useEffect(() => {
     fetchInvitations();
   }, []);
 
   const fetchInvitations = async () => {
+    setIsLoading(true);
     try {
-      setLoading(true);
       const response = await supabase
         .from('teacher_invitations')
         .select('*')
@@ -42,8 +39,8 @@ const TeacherInvitation = () => {
       if (response.data && Array.isArray(response.data)) {
         response.data.forEach(item => {
           if (
-            typeof item === 'object' && 
-            item !== null &&
+            item && 
+            typeof item === 'object' &&
             'id' in item && 
             'email' in item && 
             'status' in item && 
@@ -51,11 +48,11 @@ const TeacherInvitation = () => {
             'expires_at' in item
           ) {
             validInvites.push({
-              id: String(item.id),
-              email: String(item.email),
-              status: String(item.status),
-              created_at: String(item.created_at),
-              expires_at: String(item.expires_at)
+              id: String(item.id || ''),
+              email: String(item.email || ''),
+              status: String(item.status || ''),
+              created_at: String(item.created_at || ''),
+              expires_at: String(item.expires_at || '')
             });
           }
         });
@@ -66,93 +63,93 @@ const TeacherInvitation = () => {
         toast.error('Failed to load teacher invitations');
       }
     } catch (error) {
-      console.error('Error fetching invitations:', error);
+      console.error('Error in fetchInvitations:', error);
       toast.error('Failed to load teacher invitations');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  const handleInvite = async () => {
-    if (!email) {
-      toast.error("Please enter an email address");
+  const handleSendInvitation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSending(true);
+
+    if (!email || !email.includes('@')) {
+      toast.error('Please enter a valid email address');
+      setIsSending(false);
       return;
     }
 
-    setInviting(true);
     try {
-      if (inviteMethod === 'invite') {
-        // Use database function directly to invite teacher
-        const { data, error } = await supabase
-          .rpc("invite_teacher", {
-            teacher_email: email
-          });
+      // Call the invite_teacher function
+      const { data, error } = await supabase.rpc(
+        'invite_teacher', 
+        { teacher_email: email }
+      );
 
-        if (error) throw error;
-        
-        toast.success(`Invitation sent to ${email}`);
-        setEmail('');
-        await fetchInvitations(); // Refresh the invitations list
-      } else {
-        // Handle direct account creation
-        // First check if we have user school id
-        const { data: schoolId, error: schoolIdError } = await supabase
-          .rpc("get_user_school_id");
-
-        if (schoolIdError || !schoolId) {
-          toast.error("Could not determine your school");
-          return;
-        }
-
-        // Generate a temporary password
-        const tempPassword = generateTemporaryPassword();
-
-        // Create the user account using supabase auth admin
-        const { data, error } = await supabase.auth.admin.createUser({
-          email: email,
-          password: tempPassword,
-          email_confirm: true,
-          user_metadata: {
-            full_name: fullName || email.split('@')[0],
-            user_type: 'teacher',
-            school_id: schoolId
-          }
-        });
-
-        if (error) throw error;
-
-        // Show success with temp password
-        toast.success(
-          <div>
-            <p>Account created for {email}</p>
-            <p className="mt-2 font-mono text-xs">
-              Temporary password: {tempPassword}
-            </p>
-          </div>,
-          { duration: 10000 }
-        );
-        
-        setEmail('');
-        setFullName('');
+      if (error) {
+        console.error('Error sending invitation:', error);
+        toast.error(error.message || 'Failed to send invitation');
+        setIsSending(false);
+        return;
       }
+
+      // Refresh the invitations list
+      await fetchInvitations();
+      toast.success('Invitation sent successfully');
+      setEmail('');
     } catch (error: any) {
-      console.error("Error:", error);
-      toast.error(error.message || "An error occurred");
+      console.error('Error in handleSendInvitation:', error);
+      toast.error(error.message || 'An error occurred while sending the invitation');
     } finally {
-      setInviting(false);
+      setIsSending(false);
     }
   };
 
-  // Helper function to generate a temporary password
-  const generateTemporaryPassword = (length = 10): string => {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
-    let password = '';
-    
-    for (let i = 0; i < length; i++) {
-      password += chars.charAt(Math.floor(Math.random() * chars.length));
+  const handleResend = async (inviteId: string, inviteEmail: string) => {
+    setIsSending(true);
+    try {
+      // Call the invite_teacher function again with the same email
+      const { data, error } = await supabase.rpc(
+        'invite_teacher', 
+        { teacher_email: inviteEmail }
+      );
+
+      if (error) {
+        console.error('Error resending invitation:', error);
+        toast.error('Failed to resend invitation');
+        return;
+      }
+
+      await fetchInvitations();
+      toast.success('Invitation resent successfully');
+    } catch (error) {
+      console.error('Error in handleResend:', error);
+      toast.error('Failed to resend invitation');
+    } finally {
+      setIsSending(false);
     }
-    
-    return password;
+  };
+
+  const handleCancel = async (inviteId: string) => {
+    try {
+      const { error } = await supabase
+        .from('teacher_invitations')
+        .update({ status: 'cancelled' })
+        .eq('id', inviteId);
+
+      if (error) {
+        console.error('Error cancelling invitation:', error);
+        toast.error('Failed to cancel invitation');
+        return;
+      }
+
+      await fetchInvitations();
+      toast.success('Invitation cancelled');
+    } catch (error) {
+      console.error('Error in handleCancel:', error);
+      toast.error('Failed to cancel invitation');
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -162,139 +159,88 @@ const TeacherInvitation = () => {
   return (
     <Card className="w-full max-w-lg">
       <CardHeader>
-        <CardTitle>Add New Teacher</CardTitle>
-        <CardDescription>
-          Invite a teacher to join your school or create an account directly.
-        </CardDescription>
+        <CardTitle>Invite Teacher</CardTitle>
+        <CardDescription>Send an invitation to a teacher to join your school</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
-          <div className="flex space-x-2 mb-4">
-            <Button
-              type="button"
-              variant={inviteMethod === 'invite' ? 'default' : 'outline'}
-              onClick={() => setInviteMethod('invite')}
-            >
-              Send Invitation
-            </Button>
-            <Button
-              type="button"
-              variant={inviteMethod === 'create' ? 'default' : 'outline'}
-              onClick={() => setInviteMethod('create')}
-            >
-              Create Account
-            </Button>
-          </div>
-
-          <div className="space-y-2">
-            <label htmlFor="email" className="text-sm font-medium">
-              Email Address
-            </label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="teacher@school.edu"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </div>
-
-          {inviteMethod === 'create' && (
-            <div className="space-y-2">
-              <label htmlFor="fullName" className="text-sm font-medium">
-                Full Name
-              </label>
+        <form onSubmit={handleSendInvitation} className="space-y-4">
+          <div className="grid gap-2">
+            <Label htmlFor="email">Email Address</Label>
+            <div className="flex gap-2">
               <Input
-                id="fullName"
-                placeholder="John Doe"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
+                id="email"
+                placeholder="teacher@school.edu"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={isSending}
+                required
               />
-              <p className="text-sm text-muted-foreground mt-1">
-                The teacher's name will be pre-filled in their profile.
-              </p>
+              <Button type="submit" disabled={isSending}>
+                {isSending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Sending
+                  </>
+                ) : (
+                  'Invite'
+                )}
+              </Button>
             </div>
-          )}
+          </div>
+        </form>
 
-          {inviteMethod === 'invite' && (
-            <div className="text-sm text-muted-foreground">
-              <p>An invitation link will be sent to the teacher's email address.</p>
-              <p>They will need to create an account and accept the invitation.</p>
+        <div className="mt-6">
+          <h3 className="text-lg font-medium">Recent Invitations</h3>
+          {isLoading ? (
+            <div className="flex justify-center my-4">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
             </div>
+          ) : invites.length > 0 ? (
+            <div className="mt-2 space-y-3">
+              {invites.map((invite) => (
+                <div key={invite.id} className="border rounded-md p-3">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-medium">{invite.email}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Status: <span className="font-medium">{invite.status}</span>
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Sent: {formatDate(invite.created_at)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Expires: {formatDate(invite.expires_at)}
+                      </p>
+                    </div>
+                    {invite.status === 'pending' && (
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleResend(invite.id, invite.email)}
+                          disabled={isSending}
+                        >
+                          Resend
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleCancel(invite.id)}
+                          disabled={isSending}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-center text-muted-foreground my-4">No invitations sent yet</p>
           )}
         </div>
-      </CardContent>
-      <Separator />
-      <CardFooter className="flex justify-between pt-4">
-        <Button variant="outline" onClick={() => {
-          setEmail('');
-          setFullName('');
-        }}>
-          Clear
-        </Button>
-        <Button 
-          onClick={handleInvite} 
-          disabled={!email || inviting}
-        >
-          {inviting ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 
-              {inviteMethod === 'invite' ? 'Sending...' : 'Creating...'}
-            </>
-          ) : (
-            inviteMethod === 'invite' ? 'Send Invitation' : 'Create Account'
-          )}
-        </Button>
-      </CardFooter>
-
-      <Separator className="my-4" />
-      
-      <CardHeader>
-        <CardTitle>Teacher Invitations</CardTitle>
-        <CardDescription>
-          Pending and accepted teacher invitations
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {loading ? (
-          <p className="text-center py-4">Loading invitations...</p>
-        ) : invites.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-2 px-1">Email</th>
-                  <th className="text-left py-2 px-1">Sent</th>
-                  <th className="text-left py-2 px-1">Expires</th>
-                  <th className="text-left py-2 px-1">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {invites.map((invite) => (
-                  <tr key={invite.id} className="border-b hover:bg-muted/50">
-                    <td className="py-2 px-1">{invite.email}</td>
-                    <td className="py-2 px-1">{formatDate(invite.created_at)}</td>
-                    <td className="py-2 px-1">{formatDate(invite.expires_at)}</td>
-                    <td className="py-2 px-1">
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded ${
-                        invite.status === "pending"
-                          ? "bg-yellow-100 text-yellow-800"
-                          : invite.status === "accepted"
-                          ? "bg-green-100 text-green-800"
-                          : "bg-red-100 text-red-800"
-                      }`}>
-                        {invite.status.charAt(0).toUpperCase() + invite.status.slice(1)}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p className="text-muted-foreground">No invitations found.</p>
-        )}
       </CardContent>
     </Card>
   );

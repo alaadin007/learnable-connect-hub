@@ -1,5 +1,5 @@
 
-# This is a model for your Supabase configuration.
+# This is the configuration for your Supabase project.
 project_id = "ldlgckwkdsvrfuymidrr"
 
 [api]
@@ -17,11 +17,11 @@ port = 54323
 
 # Set the site URL and redirect URLs for auth functionality
 [auth]
-site_url = "http://localhost:5173"
+site_url = "https://learnable-connect-hub.lovable.app"
 additional_redirect_urls = [
+  "https://learnable-connect-hub.lovable.app/auth/callback",
   "http://localhost:5173/auth/callback",
-  "http://localhost:3000/auth/callback",
-  "https://your-app-domain.com/auth/callback"
+  "http://localhost:3000/auth/callback"
 ]
 
 [auth.email]
