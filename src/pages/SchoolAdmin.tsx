@@ -240,39 +240,6 @@ const SchoolAdmin = () => {
     );
   }
 
-  const handleRetry = () => {
-    window.location.reload();
-  };
-
-  const handleQuickActionSelect = (action: string) => {
-    switch (action) {
-      case "manage-teachers":
-        navigate("/admin/teacher-management");
-        break;
-      case "view-analytics":
-        navigate("/admin/analytics");
-        break;
-      case "school-settings":
-        navigate("/admin/settings");
-        break;
-      case "student-management":
-        navigate("/admin/students");
-        break;
-      case "dashboard":
-        navigate("/dashboard", {
-          state: { fromNavigation: true },
-          replace: true
-        });
-        break;
-      default:
-        break;
-    }
-  };
-
-  const handleTabClick = (value: string) => {
-    setActiveTab(value);
-  };
-
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
