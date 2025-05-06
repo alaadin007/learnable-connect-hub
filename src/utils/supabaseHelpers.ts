@@ -8,7 +8,7 @@
  * @param value The value to convert to a Supabase parameter
  * @returns The value cast as 'any' for safe Supabase operations
  */
-export const asSupabaseParam = (value: any): any => value;
+export const asSupabaseParam = <T>(value: T): any => value;
 
 /**
  * Prepares an object for table insertion by type-casting to avoid TypeScript errors

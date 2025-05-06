@@ -7,7 +7,7 @@ import { CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from '@/contexts/AuthContext';
-import { asSupabaseParam, isValidSupabaseData } from '@/utils/supabaseHelpers';
+import { asSupabaseParam, isDataResponse } from '@/utils/supabaseHelpers';
 
 type FileUploadProps = {
   onUploadComplete: () => void;
@@ -87,18 +87,25 @@ const FileUpload: React.FC<FileUploadProps> = ({ onUploadComplete }) => {
         return;
       }
 
-      const documentId = metadataResult.data?.id;
+      let documentId: string | undefined;
       
-      if (documentId) {
-        console.log("Document metadata saved:", metadataResult.data);
-        setUploadProgress(100);
+      if (isDataResponse(metadataResult.data)) {
+        documentId = metadataResult.data.id;
         
-        // Trigger content processing immediately
-        await triggerContentProcessing(documentId);
-        toast.success("File uploaded successfully!");
-        onUploadComplete();
+        if (documentId) {
+          console.log("Document metadata saved:", metadataResult.data);
+          setUploadProgress(100);
+          
+          // Trigger content processing immediately
+          await triggerContentProcessing(documentId);
+          toast.success("File uploaded successfully!");
+          onUploadComplete();
+        } else {
+          console.error("Document ID is undefined", metadataResult);
+          toast.error("Error processing document information");
+        }
       } else {
-        console.error("Unexpected response format:", metadataResult);
+        console.error("Invalid document data response:", metadataResult);
         toast.error("Error processing document information");
       }
       

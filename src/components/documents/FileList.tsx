@@ -9,9 +9,9 @@ import { Loader2, File, FileText, Image, Trash2, RefreshCw } from 'lucide-react'
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { 
-  isValidSupabaseData, 
   isValidFileItem,
-  asSupabaseParam
+  asSupabaseParam,
+  isDataResponse
 } from '@/utils/supabaseHelpers';
 
 // Define the FileItem type to match the file item structure

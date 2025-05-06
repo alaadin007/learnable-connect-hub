@@ -65,9 +65,10 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
       }
 
       // Get student profiles to display names
-      const studentIds = studentData.map(student => 
-        supabaseHelpers.safelyAccessData(student, s => s.id, "")
-      ).filter(id => id !== "");
+      const studentIds = studentData
+        .filter(student => supabaseHelpers.isDataResponse(student))
+        .map(student => student.id)
+        .filter(Boolean);
       
       if (studentIds.length === 0) {
         setStudents([]);
@@ -120,23 +121,37 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
             supabaseHelpers.isDataResponse(p) && p.id === student.id
           );
           
-          let role = profile && supabaseHelpers.isDataResponse(profile) 
-            ? profile.user_type || "student" 
-            : "student"; // Default to user_type if no role found
+          let role = "student"; // Default role
           
-          // Check if we have a role from user_roles
-          if (roleMap.has(student.id)) {
-            role = roleMap.get(student.id);
+          // Check if we have valid profile data
+          if (profile && supabaseHelpers.isDataResponse(profile)) {
+            // Check if we have a role from user_roles
+            if (roleMap.has(student.id)) {
+              role = roleMap.get(student.id);
+            } else if (profile.user_type) {
+              // If no specific role, use user_type
+              role = profile.user_type;
+            }
+            
+            combinedStudents.push({
+              id: student.id,
+              full_name: profile.full_name || "Unknown",
+              email: profile.email || "No email",
+              status: student.status,
+              created_at: student.created_at,
+              role: role
+            });
+          } else {
+            // Add entry with minimal information if no profile found
+            combinedStudents.push({
+              id: student.id,
+              full_name: "Unknown",
+              email: "No email",
+              status: student.status,
+              created_at: student.created_at,
+              role: role
+            });
           }
-          
-          combinedStudents.push({
-            id: student.id,
-            full_name: profile && supabaseHelpers.isDataResponse(profile) ? profile.full_name || "Unknown" : "Unknown",
-            email: profile && supabaseHelpers.isDataResponse(profile) ? profile.email || "No email" : "No email",
-            status: student.status,
-            created_at: student.created_at,
-            role: role
-          });
         });
       }
 

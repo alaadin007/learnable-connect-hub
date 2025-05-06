@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -100,6 +101,8 @@ const RegisterForm = () => {
         .eq("code", supabaseHelpers.asSupabaseParam(schoolCode))
         .single();
 
+      let schoolId: string | null = null;
+      
       if (schoolError) {
         // Create a new school if it doesn't exist
         const newSchool = supabaseHelpers.prepareTableInsert({
@@ -121,45 +124,53 @@ const RegisterForm = () => {
           return;
         }
 
-        // Update the user's profile with the school ID
-        const { error: updateError } = await supabase
-          .from("profiles")
-          .update(supabaseHelpers.prepareSupabaseUpdate({ school_id: newSchoolData.id }))
-          .eq("id", supabaseHelpers.asSupabaseParam(data.user.id));
-
-        if (updateError) {
-          toast.error(
-            "Registration successful, but failed to update profile with school ID. Please contact support."
-          );
-          setIsLoading(false);
-          return;
-        }
+        schoolId = supabaseHelpers.safelyAccessData(newSchoolData, data => data.id, null);
         
-        // Add the student role to user_roles table
-        await supabase.rpc("assign_role", {
-          user_id_param: data.user.id,
-          role_param: "student"
-        });
-      } else if (supabaseHelpers.isDataResponse(schoolData)) {
-        // Update the user's profile with the school ID
-        const { error: updateError } = await supabase
-          .from("profiles")
-          .update(supabaseHelpers.prepareSupabaseUpdate({ school_id: schoolData.id }))
-          .eq("id", supabaseHelpers.asSupabaseParam(data.user.id));
+        if (schoolId) {
+          // Update the user's profile with the school ID
+          const { error: updateError } = await supabase
+            .from("profiles")
+            .update(supabaseHelpers.prepareSupabaseUpdate({ school_id: schoolId }))
+            .eq("id", supabaseHelpers.asSupabaseParam(data.user.id));
 
-        if (updateError) {
-          toast.error(
-            "Registration successful, but failed to update profile with school ID. Please contact support."
-          );
-          setIsLoading(false);
-          return;
+          if (updateError) {
+            toast.error(
+              "Registration successful, but failed to update profile with school ID. Please contact support."
+            );
+            setIsLoading(false);
+            return;
+          }
+          
+          // Add the student role to user_roles table
+          await supabase.rpc("assign_role", {
+            user_id_param: data.user.id,
+            role_param: "student"
+          });
         }
+      } else if (schoolData) {
+        schoolId = supabaseHelpers.safelyAccessData(schoolData, data => data.id, null);
         
-        // Add the student role to user_roles table
-        await supabase.rpc("assign_role", {
-          user_id_param: data.user.id,
-          role_param: "student"
-        });
+        if (schoolId) {
+          // Update the user's profile with the school ID
+          const { error: updateError } = await supabase
+            .from("profiles")
+            .update(supabaseHelpers.prepareSupabaseUpdate({ school_id: schoolId }))
+            .eq("id", supabaseHelpers.asSupabaseParam(data.user.id));
+
+          if (updateError) {
+            toast.error(
+              "Registration successful, but failed to update profile with school ID. Please contact support."
+            );
+            setIsLoading(false);
+            return;
+          }
+          
+          // Add the student role to user_roles table
+          await supabase.rpc("assign_role", {
+            user_id_param: data.user.id,
+            role_param: "student"
+          });
+        }
       }
 
       toast.success("Registration successful! Please check your email to verify your account.");

@@ -52,7 +52,7 @@ const TeacherManagement = () => {
       const response = await supabase
         .from('teacher_invitations')
         .select('*')
-        .eq('school_id', asSupabaseParam<string>(schoolId))
+        .eq('school_id', asSupabaseParam(schoolId))
         .order('created_at', { ascending: false });
 
       if (response.error) {
@@ -60,16 +60,23 @@ const TeacherManagement = () => {
         toast.error('Failed to load teacher invitations');
         setInvitations([]);
       } else {
-        const validInvites = (response.data || [])
-          .filter(isValidInvitation)
-          .map(item => ({
-            id: item.id, 
-            email: item.email,
-            status: item.status,
-            created_at: item.created_at,
-            expires_at: item.expires_at
-          }));
-        setInvitations(validInvites as TeacherInvite[]);
+        const validInvites: TeacherInvite[] = [];
+        
+        if (Array.isArray(response.data)) {
+          for (const item of response.data) {
+            if (isValidInvitation(item)) {
+              validInvites.push({
+                id: item.id,
+                email: item.email,
+                status: item.status,
+                created_at: item.created_at,
+                expires_at: item.expires_at
+              });
+            }
+          }
+        }
+        
+        setInvitations(validInvites);
       }
     } catch (error) {
       console.error('Error fetching invitations:', error);
