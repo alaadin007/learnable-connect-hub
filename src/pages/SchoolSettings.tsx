@@ -1,243 +1,107 @@
-import React, { useState, useEffect } from "react";
-import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+
+import React, { useState } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { toast } from "sonner";
-import { useNavigate } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
-import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
+import { useAuth } from "@/contexts/AuthContext";
+import { useRBAC } from "@/contexts/RBACContext";
+import { Navigate } from "react-router-dom";
+import ApiKeyManagement from "@/components/settings/ApiKeyManagement";
 
-interface SchoolData {
-  id: string;
-  name: string;
-  code: string;
-  created_at: string;
-  updated_at: string;
-  contact_email?: string;
-  description?: string;
-  notifications_enabled?: boolean;
-}
+const SchoolSettings: React.FC = () => {
+  const { user, profile } = useAuth();
+  const { isAdmin } = useRBAC();
+  const [selectedTab, setSelectedTab] = useState("general");
+  
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
 
-const SchoolSettings = () => {
-  const { profile, user } = useAuth();
-  const navigate = useNavigate();
-
-  const [schoolName, setSchoolName] = useState("");
-  const [schoolCode, setSchoolCode] = useState("");
-  const [contactEmail, setContactEmail] = useState("");
-  const [description, setDescription] = useState("");
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-
-  useEffect(() => {
-    const fetchSchoolData = async () => {
-      if (!profile?.organization?.id) return;
-
-      setIsLoading(true);
-      try {
-        const { data, error } = await supabase
-          .from("schools")
-          .select("*")
-          .eq("id", profile.organization.id)
-          .single();
-
-        if (error) throw error;
-
-        if (data) {
-          setSchoolName(data.name || "");
-          setSchoolCode(data.code || "");
-          setContactEmail(data.contact_email || user?.email || "");
-          setDescription(data.description || "");
-          setNotificationsEnabled(data.notifications_enabled !== false);
-        }
-      } catch (error) {
-        console.error("Error fetching school data:", error);
-        toast.error("Failed to load school information");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchSchoolData();
-  }, [profile, user]);
-
-  const handleSaveSettings = async () => {
-    if (!profile?.organization?.id) return;
-
-    if (!schoolName.trim()) {
-      toast.error("School name cannot be empty");
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      const { error } = await supabase
-        .from("schools")
-        .update({
-          name: schoolName.trim(),
-          contact_email: contactEmail.trim(),
-          description: description.trim(),
-          notifications_enabled: notificationsEnabled,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", profile.organization.id);
-
-      if (error) throw error;
-
-      toast.success("School settings updated successfully!");
-    } catch (error: any) {
-      console.error("Error updating school settings:", error);
-      toast.error(error.message || "Failed to update school settings");
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const generateNewSchoolCode = async () => {
-    if (!profile?.organization?.id) return;
-
-    try {
-      const newCode = Math.random().toString(36).substring(2, 10).toUpperCase();
-
-      const { error } = await supabase
-        .from("schools")
-        .update({
-          code: newCode,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", profile.organization.id);
-
-      if (error) throw error;
-
-      setSchoolCode(newCode);
-      toast.success("New school code generated successfully!");
-    } catch (error: any) {
-      console.error("Error generating new school code:", error);
-      toast.error(error.message || "Failed to generate new school code");
-    }
-  };
+  if (!isAdmin) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
       <main className="flex-grow bg-learnable-super-light py-8">
         <div className="container mx-auto px-4">
-          <div className="flex items-center gap-4 mb-6">
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex items-center gap-1"
-              onClick={() => navigate("/admin")}
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back to Admin
-            </Button>
-            <h1 className="text-3xl font-bold gradient-text">School Settings</h1>
+          <div className="mb-6">
+            <h1 className="text-3xl font-bold gradient-text mb-2">School Settings</h1>
+            <p className="text-learnable-gray">
+              Configure your school's settings and preferences
+            </p>
           </div>
 
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>School Information</CardTitle>
-              <CardDescription>Update your school details and settings</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <p>Loading school information...</p>
-              ) : (
-                <div className="space-y-6">
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="schoolName">School Name</Label>
-                      <Input
-                        id="schoolName"
-                        value={schoolName}
-                        onChange={(e) => setSchoolName(e.target.value)}
-                        placeholder="Your school's name"
-                      />
-                    </div>
+          <Tabs
+            defaultValue="general"
+            value={selectedTab}
+            onValueChange={setSelectedTab}
+            className="space-y-4"
+          >
+            <TabsList className="grid grid-cols-3 md:w-[400px] mb-4">
+              <TabsTrigger value="general">General</TabsTrigger>
+              <TabsTrigger value="notifications">Notifications</TabsTrigger>
+              <TabsTrigger value="integrations">Integrations</TabsTrigger>
+            </TabsList>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="contactEmail">Contact Email</Label>
-                      <Input
-                        id="contactEmail"
-                        type="email"
-                        value={contactEmail}
-                        onChange={(e) => setContactEmail(e.target.value)}
-                        placeholder="admin@yourschool.edu"
-                      />
-                    </div>
-                  </div>
-
+            <TabsContent value="general">
+              <Card>
+                <CardHeader>
+                  <CardTitle>General Settings</CardTitle>
+                  <CardDescription>Manage your school's general settings</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="description">School Description</Label>
-                    <Textarea
-                      id="description"
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      placeholder="Brief description of your school"
-                      rows={3}
+                    <Label htmlFor="school-name">School Name</Label>
+                    <Input
+                      id="school-name"
+                      placeholder="Enter school name"
+                      defaultValue={profile?.organization?.name || ""}
                     />
                   </div>
-
-                  <div className="space-y-4">
-                    <Label>School Code</Label>
-                    <div className="flex items-center space-x-2">
-                      <code className="bg-background p-3 rounded border flex-1 text-center font-mono">
-                        {schoolCode}
-                      </code>
-                      <Button variant="outline" onClick={generateNewSchoolCode}>
-                        Generate New Code
-                      </Button>
+                  <div className="space-y-2">
+                    <Label htmlFor="school-code">School Code</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="school-code"
+                        readOnly
+                        value={profile?.organization?.code || ""}
+                        className="bg-gray-50"
+                      />
+                      <Button variant="outline">Copy</Button>
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      This code is used by teachers and students to join your school.
-                      Generating a new code will invalidate the old one.
+                    <p className="text-xs text-muted-foreground">
+                      This code is used for teacher and student registrations
                     </p>
                   </div>
-
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="notifications"
-                      checked={notificationsEnabled}
-                      onCheckedChange={setNotificationsEnabled}
-                    />
-                    <Label htmlFor="notifications">Enable email notifications</Label>
+                  <div className="space-y-2 pt-4">
+                    <Button>Save Changes</Button>
                   </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-                  <Button onClick={handleSaveSettings} disabled={isSaving} className="gradient-bg">
-                    {isSaving ? "Saving..." : "Save Settings"}
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+            <TabsContent value="notifications">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Notification Settings</CardTitle>
+                  <CardDescription>Configure email and in-app notifications</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-lg mb-4">Coming soon...</p>
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Advanced Settings</CardTitle>
-              <CardDescription>Danger zone - actions here cannot be easily reversed</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="p-4 border border-destructive rounded-lg">
-                  <h3 className="text-lg font-semibold text-destructive mb-2">Delete School Account</h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Permanently remove your school account and all associated data. This action cannot be undone.
-                  </p>
-                  <Button variant="destructive" onClick={() => toast.error("Delete functionality not implemented yet")}>
-                    Delete School Account
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+            <TabsContent value="integrations">
+              <ApiKeyManagement />
+            </TabsContent>
+          </Tabs>
         </div>
       </main>
       <Footer />

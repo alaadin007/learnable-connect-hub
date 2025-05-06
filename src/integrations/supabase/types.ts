@@ -9,6 +9,30 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      api_keys: {
+        Row: {
+          api_key: string
+          created_at: string | null
+          id: string
+          service_name: string
+          updated_at: string | null
+        }
+        Insert: {
+          api_key: string
+          created_at?: string | null
+          id?: string
+          service_name: string
+          updated_at?: string | null
+        }
+        Update: {
+          api_key?: string
+          created_at?: string | null
+          id?: string
+          service_name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       assessment_submissions: {
         Row: {
           assessment_id: string
@@ -1250,6 +1274,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      get_api_key: {
+        Args: { service: string }
+        Returns: string
+      }
       get_current_school_info: {
         Args: Record<PropertyKey, never>
         Returns: {
@@ -1374,11 +1402,23 @@ export type Database = {
         Args: { userid: string; schoolid: string; num_sessions?: number }
         Returns: undefined
       }
+      proxy_gemini_request: {
+        Args: { prompt: string; model?: string }
+        Returns: Json
+      }
+      proxy_openai_request: {
+        Args: { prompt: string; model?: string }
+        Returns: Json
+      }
       remove_role: {
         Args: {
           user_id_param: string
           role_param: Database["public"]["Enums"]["app_role"]
         }
+        Returns: boolean
+      }
+      set_api_key: {
+        Args: { service: string; key_value: string }
         Returns: boolean
       }
       update_session_topic: {

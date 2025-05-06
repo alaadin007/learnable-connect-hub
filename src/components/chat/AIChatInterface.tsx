@@ -12,6 +12,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import VoiceRecorder from "./VoiceRecorder";
 import TextToSpeech from "./TextToSpeech";
+import AIModelSelector, { getModelProvider } from "./AIModelSelector";
+import { sendAIRequest } from "@/services/aiService";
 
 interface Message {
   role: "user" | "assistant" | "system";
@@ -34,10 +36,12 @@ const AIChatInterface: React.FC<AIChatInterfaceProps> = ({
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [model, setModel] = useState<string>("gpt-4o-mini");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  
+  // Update model state to include provider information
+  const [model, setModel] = useState<string>("gpt-4o-mini");
 
   // Start a new session when the component mounts
   useEffect(() => {
@@ -110,26 +114,23 @@ const AIChatInterface: React.FC<AIChatInterfaceProps> = ({
         await sessionLogger.updateSessionTopic(sessionId, topic);
       }
 
-      const { data, error } = await supabase.functions.invoke("ask-ai", {
-        body: {
-          question: userMessage,
-          topic,
-          documentId,
-          sessionId
-        }
-      });
+      // Format the prompt with context if needed
+      let contextualizedPrompt = userMessage;
+      if (topic) {
+        contextualizedPrompt = `Topic: ${topic}\n\nQuestion: ${userMessage}`;
+      }
 
-      if (error) throw new Error(error.message);
+      // Send request to AI service
+      const response = await sendAIRequest({
+        prompt: contextualizedPrompt,
+        model: model
+      });
 
       setMessages(prev => [...prev, {
         role: "assistant",
-        content: data.response,
+        content: response,
         timestamp: new Date()
       }]);
-
-      if (data.model) {
-        setModel(data.model);
-      }
 
       if (sessionId) {
         await sessionLogger.incrementQueryCount(sessionId);
@@ -283,12 +284,18 @@ const AIChatInterface: React.FC<AIChatInterfaceProps> = ({
               <Send className="h-4 w-4" />
             </Button>
           </div>
-          <div className="flex justify-between items-center text-xs text-muted-foreground">
+          <div className="flex justify-between items-center">
             <div className="flex items-center">
               <Timer className="h-3 w-3 mr-1" />
-              {sessionId ? "Session active" : "Starting session..."}
+              <span className="text-xs text-muted-foreground">
+                {sessionId ? "Session active" : "Starting session..."}
+              </span>
             </div>
-            <div>Model: {model}</div>
+            <AIModelSelector 
+              selectedModelId={model}
+              onModelChange={setModel}
+              disabled={isLoading}
+            />
           </div>
         </form>
       </CardFooter>
