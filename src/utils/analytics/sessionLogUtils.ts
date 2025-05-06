@@ -62,11 +62,17 @@ export const fetchSessionLogs = async (
         session.topic_or_content_used.split(',').map(t => t.trim()) : 
         ['General'];
 
-      // Safely access profiles data
-      const profileData = session.profiles;
-      const studentName = profileData ? 
-          (Array.isArray(profileData) ? profileData[0]?.full_name : profileData.full_name) || 'Unknown Student' 
-          : 'Unknown Student';
+      // Safely access profiles data - using type assertion to avoid TypeScript errors
+      const profileData = session.profiles as any;
+      let studentName = 'Unknown Student';
+      
+      if (profileData) {
+        if (Array.isArray(profileData) && profileData.length > 0) {
+          studentName = profileData[0]?.full_name || 'Unknown Student';
+        } else if (typeof profileData === 'object') {
+          studentName = profileData.full_name || 'Unknown Student';
+        }
+      }
 
       return {
         id: session.id,

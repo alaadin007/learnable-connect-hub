@@ -57,11 +57,18 @@ export const fetchStudyTime = async (
     (data || []).forEach(session => {
       if (session.session_start && session.session_end) {
         const studentId = session.user_id;
-        // Safely access profile data
-        const profileData = session.profiles;
-        const studentName = profileData ? 
-            (Array.isArray(profileData) ? profileData[0]?.full_name : profileData.full_name) || 'Unknown Student' 
-            : 'Unknown Student';
+        
+        // Safely access profile data - using type assertion to avoid TypeScript errors
+        const profileData = session.profiles as any;
+        let studentName = 'Unknown Student';
+        
+        if (profileData) {
+          if (Array.isArray(profileData) && profileData.length > 0) {
+            studentName = profileData[0]?.full_name || 'Unknown Student';
+          } else if (typeof profileData === 'object') {
+            studentName = profileData.full_name || 'Unknown Student';
+          }
+        }
             
         const start = new Date(session.session_start);
         const end = new Date(session.session_end);

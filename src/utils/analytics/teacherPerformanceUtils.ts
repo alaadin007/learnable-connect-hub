@@ -139,11 +139,17 @@ export const fetchTeachers = async (
 
     // Transform the data to the expected format
     return (data || []).map(teacher => {
-      // Safely access profile data
-      const profileData = teacher.profiles;
-      const teacherName = profileData ? 
-        (Array.isArray(profileData) ? profileData[0]?.full_name : profileData.full_name) || 'Unknown Teacher' 
-        : 'Unknown Teacher';
+      // Safely access profile data - using type assertion to avoid TypeScript errors
+      const profileData = teacher.profiles as any;
+      let teacherName = 'Unknown Teacher';
+      
+      if (profileData) {
+        if (Array.isArray(profileData) && profileData.length > 0) {
+          teacherName = profileData[0]?.full_name || 'Unknown Teacher';
+        } else if (typeof profileData === 'object') {
+          teacherName = profileData.full_name || 'Unknown Teacher';
+        }
+      }
         
       return {
         id: teacher.id,
