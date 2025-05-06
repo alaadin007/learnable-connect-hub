@@ -10,7 +10,8 @@ import {
   isDataResponse, 
   isValidInvitation, 
   safelyExtractData,
-  asSupabaseParam
+  asSupabaseParam,
+  createInsertData
 } from "@/utils/supabaseHelpers";
 
 interface TeacherInvite {

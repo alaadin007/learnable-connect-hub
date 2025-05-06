@@ -1,28 +1,30 @@
 
+# This is a model for your Supabase configuration.
 project_id = "ldlgckwkdsvrfuymidrr"
 
 [api]
-enabled = true
+# Enabled APIs
 port = 54321
-schemas = ["public", "storage"]
+schemas = ["public", "storage", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
 
 [db]
 port = 54322
 
 [studio]
-enabled = true
 port = 54323
 
-[storage]
-enabled = true
-
-[realtime]
-enabled = true
-
+# Set the site URL and redirect URLs for auth functionality
 [auth]
-site_url = "http://localhost:5173" 
+site_url = "http://localhost:5173"
 additional_redirect_urls = [
   "http://localhost:5173/auth/callback",
   "http://localhost:3000/auth/callback",
   "https://your-app-domain.com/auth/callback"
 ]
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = true

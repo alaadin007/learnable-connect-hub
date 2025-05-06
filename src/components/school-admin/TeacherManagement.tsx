@@ -1,390 +1,202 @@
-import React, { useState, useEffect } from "react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { Plus, Copy, Mail, Loader2 } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
+import { Loader2 } from "lucide-react";
+import { 
+  isDataResponse, 
+  isValidInvitation, 
+  safelyExtractData,
+  asSupabaseParam
+} from "@/utils/supabaseHelpers";
+import { useAuth } from "@/contexts/AuthContext";
 
-export interface TeacherInvitation {
+interface TeacherInvite {
   id: string;
   email: string;
   status: string;
-  invitation_token: string;
-  school_id: string;
   created_at: string;
   expires_at: string;
-  created_by: string;
-  role?: string;
 }
 
 const TeacherManagement = () => {
-  const { profile } = useAuth();
-  const [invitations, setInvitations] = useState<TeacherInvitation[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isCreating, setIsCreating] = useState(false);
-  const [email, setEmail] = useState("");
-  const [role, setRole] = useState("teacher");
-  const [customMessage, setCustomMessage] = useState("");
-  const [open, setOpen] = useState(false);
-  const [selectedInvitations, setSelectedInvitations] = useState<string[]>([]);
-  const [selectAll, setSelectAll] = useState(false);
-  const [resendingId, setResendingId] = useState<string | null>(null);
-
-  // Get the school ID from the profile
-  const schoolId = profile?.organization?.id || null;
+  const [email, setEmail] = useState('');
+  const [inviting, setInviting] = useState(false);
+  const [invitations, setInvitations] = useState<TeacherInvite[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
 
   useEffect(() => {
-    loadInvitations();
-  }, [schoolId]);
+    fetchInvitations();
+  }, []);
 
-  const loadInvitations = async () => {
-    if (!schoolId) {
-      console.warn("School ID is not available.");
-      setIsLoading(false);
+  const fetchInvitations = async () => {
+    try {
+      setLoading(true);
+      if (!user?.id) {
+        toast.error("Could not determine user ID");
+        return;
+      }
+
+      const { data: schoolId, error: schoolIdError } = await supabase
+        .rpc("get_user_school_id");
+
+      if (schoolIdError || !schoolId) {
+        toast.error("Could not determine your school");
+        return;
+      }
+
+      const response = await supabase
+        .from('teacher_invitations')
+        .select('*')
+        .eq('school_id', asSupabaseParam<string>(schoolId))
+        .order('created_at', { ascending: false });
+
+      if (isDataResponse(response)) {
+        const validInvites = response.data.filter(isValidInvitation).map(item => ({
+          id: item.id, 
+          email: item.email,
+          status: item.status,
+          created_at: item.created_at,
+          expires_at: item.expires_at
+        }));
+        setInvitations(validInvites as TeacherInvite[]);
+      } else {
+        console.error('Error fetching invitations:', response.error);
+        toast.error('Failed to load teacher invitations');
+      }
+    } catch (error) {
+      console.error('Error fetching invitations:', error);
+      toast.error('Failed to load teacher invitations');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleInvite = async () => {
+    if (!email) {
+      toast.error("Please enter an email address");
       return;
     }
 
-    setIsLoading(true);
+    setInviting(true);
     try {
       const { data, error } = await supabase
-        .from("teacher_invitations")
-        .select("*")
-        .eq("school_id", schoolId)
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        throw error;
-      }
-
-      setInvitations(data as TeacherInvitation[]);
-      setSelectAll(false);
-      setSelectedInvitations([]);
-    } catch (error: any) {
-      toast.error(error.message || "Failed to load invitations");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleCreateInvitation = async () => {
-    if (!schoolId) {
-      toast.error("School ID is not available.");
-      return;
-    }
-    if (!email.trim()) {
-      toast.error("Please enter an email address.");
-      return;
-    }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      toast.error("Please enter a valid email address.");
-      return;
-    }
-
-    setIsCreating(true);
-    try {
-      const { error } = await supabase.functions.invoke("invite-teacher", {
-        body: {
-          email,
-          role,
-          schoolId,
-          customMessage,
-        },
-      });
+        .rpc("invite_teacher", {
+          teacher_email: email
+        });
 
       if (error) throw error;
-
-      toast.success("Invitation sent successfully!");
-      loadInvitations(); // Reload invitations to reflect the new one
-      setOpen(false); // Close the dialog
-      setEmail(""); // Reset the email input
-      setCustomMessage(""); // Reset the custom message
+      
+      toast.success(`Invitation sent to ${email}`);
+      setEmail('');
+      await fetchInvitations(); // Refresh the invitations list
     } catch (error: any) {
-      toast.error(error.message || "Failed to create invitation");
+      console.error("Error:", error);
+      toast.error(error.message || "An error occurred");
     } finally {
-      setIsCreating(false);
+      setInviting(false);
     }
   };
 
-  const handleResendInvitation = async (invitation: TeacherInvitation) => {
-    setResendingId(invitation.id);
-    try {
-      const { error } = await supabase.functions.invoke("resend-teacher-invitation", {
-        body: {
-          invitationId: invitation.id,
-        },
-      });
-
-      if (error) throw error;
-
-      toast.success("Invitation resent successfully!");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to resend invitation");
-    } finally {
-      setResendingId(null);
-    }
-  };
-
-  const handleCopyInvitationLink = (invitation: TeacherInvitation) => {
-    const invitationLink = `${window.location.origin}/accept-invitation/${invitation.invitation_token}`;
-    navigator.clipboard.writeText(invitationLink);
-    toast.success("Invitation link copied to clipboard!");
-  };
-
-  const handleCheckboxChange = (invitationId: string) => {
-    setSelectedInvitations((prevSelected) => {
-      let newSelected;
-      if (prevSelected.includes(invitationId)) {
-        newSelected = prevSelected.filter((id) => id !== invitationId);
-      } else {
-        newSelected = [...prevSelected, invitationId];
-      }
-      setSelectAll(newSelected.length === invitations.length);
-      return newSelected;
-    });
-  };
-
-  const handleSelectAllChange = () => {
-    setSelectAll((prevSelectAll) => {
-      if (!prevSelectAll) {
-        const allInvitationIds = invitations.map((invitation) => invitation.id);
-        setSelectedInvitations(allInvitationIds);
-        return true;
-      } else {
-        setSelectedInvitations([]);
-        return false;
-      }
-    });
-  };
-
-  const handleDeleteSelected = async () => {
-    if (selectedInvitations.length === 0) {
-      toast.error("No invitations selected.");
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const { error } = await supabase
-        .from("teacher_invitations")
-        .delete()
-        .in("id", selectedInvitations);
-
-      if (error) {
-        throw error;
-      }
-
-      toast.success("Selected invitations deleted successfully!");
-      loadInvitations();
-      setSelectedInvitations([]);
-      setSelectAll(false);
-    } catch (error: any) {
-      toast.error(error.message || "Failed to delete invitations");
-    } finally {
-      setIsLoading(false);
-    }
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleString();
   };
 
   return (
-    <Card>
+    <Card className="w-full max-w-lg">
       <CardHeader>
-        <CardTitle>Teacher Management</CardTitle>
+        <CardTitle>Invite New Teacher</CardTitle>
         <CardDescription>
-          Manage teacher invitations for your school
+          Send an invitation to a teacher to join your school.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="mb-4 flex justify-between items-center">
-          <div className="flex items-center">
-            <Checkbox
-              id="selectAll"
-              checked={selectAll}
-              onCheckedChange={handleSelectAllChange}
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <label htmlFor="email" className="text-sm font-medium">
+              Email Address
+            </label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="teacher@school.edu"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
             />
-            <Label htmlFor="selectAll" className="ml-2">
-              Select All
-            </Label>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={handleDeleteSelected}
-              disabled={selectedInvitations.length === 0}
-              className="ml-4"
-            >
-              Delete Selected
-            </Button>
           </div>
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" onClick={() => setOpen(true)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Invite Teacher
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>Invite a Teacher</DialogTitle>
-                <DialogDescription>
-                  Send an invitation to a teacher to join your school.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="email" className="text-right">
-                    Email
-                  </Label>
-                  <Input
-                    type="email"
-                    id="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="col-span-3"
-                  />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="role" className="text-right">
-                    Role
-                  </Label>
-                  <Select onValueChange={setRole} value={role}>
-                    <SelectTrigger className="col-span-3">
-                      <SelectValue placeholder="Select a role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="teacher">Teacher</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-4 items-start gap-4">
-                  <Label htmlFor="message" className="text-right mt-2">
-                    Custom Message
-                  </Label>
-                  <Textarea
-                    id="message"
-                    value={customMessage}
-                    onChange={(e) => setCustomMessage(e.target.value)}
-                    className="col-span-3"
-                    placeholder="Add a personal message to the invitation"
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button
-                  type="submit"
-                  onClick={handleCreateInvitation}
-                  disabled={isCreating}
-                >
-                  {isCreating ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Creating...
-                    </>
-                  ) : (
-                    "Send Invitation"
-                  )}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
         </div>
-        {isLoading ? (
-          <p>Loading invitations...</p>
-        ) : invitations.length === 0 ? (
-          <p>No invitations found.</p>
-        ) : (
+      </CardContent>
+      <Separator />
+      <CardFooter className="flex justify-between pt-4">
+        <Button variant="outline" onClick={() => setEmail('')}>
+          Clear
+        </Button>
+        <Button 
+          onClick={handleInvite} 
+          disabled={!email || inviting}
+        >
+          {inviting ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 
+              Sending Invitation...
+            </>
+          ) : (
+            'Send Invitation'
+          )}
+        </Button>
+      </CardFooter>
+
+      <Separator className="my-4" />
+      
+      <CardHeader>
+        <CardTitle>Teacher Invitations</CardTitle>
+        <CardDescription>
+          Pending and accepted teacher invitations
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <p className="text-center py-4">Loading invitations...</p>
+        ) : invitations.length > 0 ? (
           <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[50px]">Select</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {invitations.map((invitation) => (
-                  <TableRow key={invitation.id}>
-                    <TableCell className="w-[50px]">
-                      <Checkbox
-                        checked={selectedInvitations.includes(invitation.id)}
-                        onCheckedChange={() => handleCheckboxChange(invitation.id)}
-                      />
-                    </TableCell>
-                    <TableCell>{invitation.email}</TableCell>
-                    <TableCell>{invitation.role || "teacher"}</TableCell>
-                    <TableCell>
-                      {invitation.status === "pending" ? (
-                        <Badge variant="secondary">Pending</Badge>
-                      ) : (
-                        invitation.status
-                      )}
-                    </TableCell>
-                    <TableCell className="space-x-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleCopyInvitationLink(invitation)}
-                      >
-                        <Copy className="mr-2 h-4 w-4" />
-                        Copy Link
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleResendInvitation(invitation)}
-                        disabled={resendingId === invitation.id}
-                      >
-                        {resendingId === invitation.id ? (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                          <Mail className="mr-2 h-4 w-4" />
-                        )}
-                        Resend
-                      </Button>
-                    </TableCell>
-                  </TableRow>
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2 px-1">Email</th>
+                  <th className="text-left py-2 px-1">Sent</th>
+                  <th className="text-left py-2 px-1">Expires</th>
+                  <th className="text-left py-2 px-1">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {invitations.map((invite) => (
+                  <tr key={invite.id} className="border-b hover:bg-muted/50">
+                    <td className="py-2 px-1">{invite.email}</td>
+                    <td className="py-2 px-1">{formatDate(invite.created_at)}</td>
+                    <td className="py-2 px-1">{formatDate(invite.expires_at)}</td>
+                    <td className="py-2 px-1">
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded ${
+                        invite.status === "pending"
+                          ? "bg-yellow-100 text-yellow-800"
+                          : invite.status === "accepted"
+                          ? "bg-green-100 text-green-800"
+                          : "bg-red-100 text-red-800"
+                      }`}>
+                        {invite.status.charAt(0).toUpperCase() + invite.status.slice(1)}
+                      </span>
+                    </td>
+                  </tr>
                 ))}
-              </TableBody>
-            </Table>
+              </tbody>
+            </table>
           </div>
+        ) : (
+          <p className="text-muted-foreground">No invitations found.</p>
         )}
       </CardContent>
     </Card>

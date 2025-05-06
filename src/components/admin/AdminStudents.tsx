@@ -15,7 +15,8 @@ import {
   isValidProfile,
   isNonNullable,
   safeAnyCast,
-  processSupabaseResult
+  processSupabaseResult,
+  createInsertData
 } from "@/utils/supabaseHelpers";
 
 type Student = {
@@ -97,13 +98,18 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
         .in("id", studentIds);
 
       // Process profiles data with type safety
-      const profilesData = isDataResponse(profilesResponse) ? profilesResponse.data : [];
-      const validProfiles = profilesData.filter(isValidProfile);
+      let profiles: { id: string; full_name: string | null }[] = [];
+      
+      if (isDataResponse(profilesResponse)) {
+        profiles = profilesResponse.data.filter(isValidProfile);
+      } else {
+        console.error("Error fetching profiles:", profilesResponse.error);
+      }
       
       // Create formatted students array
       const formattedStudents: Student[] = validStudents.map(student => {
         // Find the matching profile if it exists
-        const profile = validProfiles.find(p => p.id === student.id);
+        const profile = profiles.find(p => p.id === student.id);
             
         return {
           id: student.id,
@@ -134,7 +140,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
       // Update the student status directly in the database
       const { error } = await supabase
         .from("students")
-        .update(asSupabaseParam({ status: "active" }))
+        .update(createInsertData({ status: "active" }))
         .eq("id", asSupabaseParam(studentId));
 
       if (error) {
