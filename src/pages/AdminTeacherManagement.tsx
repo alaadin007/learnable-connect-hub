@@ -1,4 +1,3 @@
-
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
@@ -9,7 +8,7 @@ import Footer from "@/components/landing/Footer";
 
 const AdminTeacherManagement = () => {
   const navigate = useNavigate();
-  
+
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
@@ -27,7 +26,7 @@ const AdminTeacherManagement = () => {
             </Button>
             <h1 className="text-3xl font-bold gradient-text">Teacher Management</h1>
           </div>
-          
+
           <TeacherManagement />
         </div>
       </main>
