@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRBAC } from "@/contexts/RBACContext";
@@ -99,6 +100,21 @@ const AdminStudents = () => {
         }
       }
 
+      // Handle test accounts for school admin
+      const usingTestAccount = localStorage.getItem('usingTestAccount') === 'true';
+      if (usingTestAccount && (user.id.startsWith('test-') || (user.email && user.email.includes('school.test@')))) {
+        // Use placeholder data for test accounts
+        const testSchoolId = 'test-school-id';
+        setSchoolInfo({
+          id: testSchoolId,
+          name: "Test School",
+          code: "TEST123",
+        });
+        setSchoolId(testSchoolId);
+        setLoading(false);
+        return;
+      }
+
       throw new Error(
         "Could not determine your school information. Please check your API configuration in School Settings."
       );
@@ -116,6 +132,13 @@ const AdminStudents = () => {
   useEffect(() => {
     if (!user) {
       navigate("/login", { replace: true, state: { returnUrl: "/admin/students" } });
+      return;
+    }
+
+    // For test accounts, let them access this page regardless of actual role
+    const usingTestAccount = localStorage.getItem('usingTestAccount') === 'true';
+    if (usingTestAccount && localStorage.getItem('testAccountType') === 'school') {
+      // Allow access for test school accounts
       return;
     }
 

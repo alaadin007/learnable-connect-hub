@@ -1,220 +1,244 @@
 import React, { useState } from "react";
+import { z } from "zod";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle, Loader2 } from "lucide-react";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { useNavigate, Link } from "react-router-dom"; 
-import { isDataResponse, asSupabaseParam, safeAnyCast } from "@/utils/supabaseHelpers";
+import { useNavigate, Link } from "react-router-dom";
+import { isDataResponse, asSupabaseParam } from "@/utils/supabaseHelpers";
 
-interface RegisterFormProps {
-  onSuccess?: () => void;
-}
+const formSchema = z.object({
+  email: z.string().email({ message: "Please enter a valid email address." }),
+  password: z
+    .string()
+    .min(8, { message: "Password must be at least 8 characters." }),
+  confirmPassword: z.string(),
+  schoolCode: z.string().min(5, { message: "School code must be at least 5 characters." }),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"], // path of error
+});
 
-const RegisterForm: React.FC<RegisterFormProps> = ({ onSuccess }) => {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [userType, setUserType] = useState("student");
-  const [schoolCode, setSchoolCode] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [registrationError, setRegistrationError] = useState<string | null>(null);
+const RegisterForm = () => {
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleEmailChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setEmail(event.target.value);
-    setRegistrationError(null);
-  };
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      email: "",
+      password: "",
+      confirmPassword: "",
+      schoolCode: "",
+    },
+  });
 
-  const handlePasswordChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setPassword(event.target.value);
-    setRegistrationError(null);
-  };
-
-  const handleFullNameChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setFullName(event.target.value);
-    setRegistrationError(null);
-  };
-
-  const handleUserTypeChange = (value: string | null) => {
-    if (value) {
-      setUserType(value);
-      setRegistrationError(null);
-    }
-  };
-
-  const handleSchoolCodeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setSchoolCode(event.target.value);
-    setRegistrationError(null);
-  };
-
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setIsSubmitting(true);
-    setRegistrationError(null);
-
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    setIsLoading(true);
     try {
+      const { email, password, schoolCode } = values;
+
+      // Sign up user
       const { data, error } = await supabase.auth.signUp({
         email: email,
         password: password,
         options: {
           data: {
-            full_name: fullName,
-            user_type: userType,
             school_code: schoolCode,
-          }
+          },
         },
       });
 
       if (error) {
-        console.error("Registration error:", error);
-        setRegistrationError(error.message || "An error occurred during registration.");
+        toast.error(error.message);
         return;
       }
 
-      if (data?.user?.id) {
-        // Get the user role from the profiles table
-        const response = await supabase
-          .from('profiles')
-          .select('user_type')
-          .eq('id', asSupabaseParam(data.user.id))
+      if (!data.user) {
+        toast.error("Failed to create user. Please try again.");
+        return;
+      }
+
+      // Create a user profile
+      const profileData = asSupabaseParam({
+        id: data.user.id,
+        email: email,
+        school_code: schoolCode,
+      });
+
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .insert([profileData]);
+
+      if (profileError) {
+        toast.error(
+          `User created, but profile creation failed: ${profileError.message}`
+        );
+        return;
+      }
+
+      // Check if the school exists
+      const { data: schoolData, error: schoolError } = await supabase
+        .from("schools")
+        .select("id")
+        .eq("code", schoolCode)
+        .single();
+
+      if (schoolError) {
+        toast.error(
+          "Registration successful, but failed to verify school. Please contact support."
+        );
+        return;
+      }
+
+      if (!schoolData) {
+        // Create a new school if it doesn't exist
+        const newSchool = asSupabaseParam({
+          code: schoolCode,
+          name: "Your School Name", // You might want to prompt the user for the school name
+        });
+
+        const { data: newSchoolData, error: newSchoolError } = await supabase
+          .from("schools")
+          .insert([newSchool])
+          .select("id")
           .single();
-        
-        // Get the user role using a safe approach
-        let role = null;
-        if (isDataResponse(response) && response.data && 'user_type' in response.data) {
-          role = safeAnyCast<string>(response.data.user_type);
+
+        if (newSchoolError) {
+          toast.error(
+            "Registration successful, but failed to create school. Please contact support."
+          );
+          return;
         }
 
-        // Redirect based on user type
-        if (userType === 'school') {
-          navigate('/admin');
-        } else {
-          navigate('/dashboard');
-        }
+        if (newSchoolData) {
+          // Update the user's profile with the school ID
+          const updateData = asSupabaseParam({
+            school_id: newSchoolData.id,
+          });
 
-        toast.success("Registration successful! Please check your email to verify your account.");
-        if (onSuccess) {
-          onSuccess();
+          const { error: updateError } = await supabase
+            .from("profiles")
+            .update(updateData)
+            .eq("id", data.user.id);
+
+          if (updateError) {
+            toast.error(
+              "Registration successful, but failed to update profile with school ID. Please contact support."
+            );
+            return;
+          }
         }
       } else {
-        setRegistrationError("Failed to retrieve user information after registration.");
+        // Update the user's profile with the school ID
+        const updateData = asSupabaseParam({
+          school_id: schoolData.id,
+        });
+
+        const { error: updateError } = await supabase
+          .from("profiles")
+          .update(updateData)
+          .eq("id", data.user.id);
+
+        if (updateError) {
+          toast.error(
+            "Registration successful, but failed to update profile with school ID. Please contact support."
+          );
+          return;
+        }
       }
+
+      toast.success("Registration successful! Please check your email to verify your account.");
+      navigate("/login");
     } catch (error: any) {
-      console.error("Registration catch block error:", error);
-      setRegistrationError(error.message || "An unexpected error occurred");
+      toast.error(`An error occurred: ${error.message}`);
     } finally {
-      setIsSubmitting(false);
+      setIsLoading(false);
     }
-  };
+  }
 
   return (
-    <div className="flex justify-center items-center min-h-screen bg-learnable-super-light">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl text-center">Register</CardTitle>
-          <CardDescription className="text-center">Create an account to continue</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          {registrationError && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Error</AlertTitle>
-              <AlertDescription>{registrationError}</AlertDescription>
-            </Alert>
-          )}
-          <form onSubmit={handleSubmit}>
-            <div className="grid gap-2 mb-4">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                placeholder="Enter your email"
-                type="email"
-                value={email}
-                onChange={handleEmailChange}
-                disabled={isSubmitting}
-                required
-              />
-            </div>
-            <div className="grid gap-2 mb-4">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                placeholder="Enter your password"
-                type="password"
-                value={password}
-                onChange={handlePasswordChange}
-                disabled={isSubmitting}
-                required
-              />
-            </div>
-            <div className="grid gap-2 mb-4">
-              <Label htmlFor="fullName">Full Name</Label>
-              <Input
-                id="fullName"
-                placeholder="Enter your full name"
-                type="text"
-                value={fullName}
-                onChange={handleFullNameChange}
-                disabled={isSubmitting}
-                required
-              />
-            </div>
-            <div className="grid gap-2 mb-4">
-              <Label>User Type</Label>
-              <RadioGroup defaultValue={userType} onValueChange={handleUserTypeChange}>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="student" id="student" disabled={isSubmitting} />
-                  <Label htmlFor="student">Student</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="teacher" id="teacher" disabled={isSubmitting} />
-                  <Label htmlFor="teacher">Teacher</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="school" id="school" disabled={isSubmitting} />
-                  <Label htmlFor="school">School Admin</Label>
-                </div>
-              </RadioGroup>
-            </div>
-            {userType !== 'student' && (
-              <div className="grid gap-2 mb-4">
-                <Label htmlFor="schoolCode">School Code</Label>
-                <Input
-                  id="schoolCode"
-                  placeholder="Enter your school code"
-                  type="text"
-                  value={schoolCode}
-                  onChange={handleSchoolCodeChange}
-                  disabled={isSubmitting}
-                />
-              </div>
+    <div className="w-full max-w-md space-y-4">
+      <h2 className="text-2xl font-bold">Create an account</h2>
+      <p className="text-sm text-muted-foreground">
+        Already have an account?{" "}
+        <Link to="/login" className="text-primary underline">
+          Log in
+        </Link>
+      </p>
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <FormField
+            control={form.control}
+            name="email"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Email</FormLabel>
+                <FormControl>
+                  <Input placeholder="Email" {...field} type="email" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
             )}
-            <Button className="w-full gradient-bg" type="submit" disabled={isSubmitting}>
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Registering...
-                </>
-              ) : (
-                "Register"
-              )}
-            </Button>
-          </form>
-        </CardContent>
-        <CardFooter className="text-center">
-          <p className="text-sm text-gray-500">
-            Already have an account?{" "}
-            <Link to="/login" className="text-blue-600 hover:underline">
-              Log In
-            </Link>
-          </p>
-        </CardFooter>
-      </Card>
+          />
+          <FormField
+            control={form.control}
+            name="password"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Password</FormLabel>
+                <FormControl>
+                  <Input placeholder="Password" {...field} type="password" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="confirmPassword"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Confirm Password</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="Confirm Password"
+                    {...field}
+                    type="password"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="schoolCode"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>School Code</FormLabel>
+                <FormControl>
+                  <Input placeholder="School Code" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <Button type="submit" className="w-full" disabled={isLoading}>
+            {isLoading ? "Creating account..." : "Create account"}
+          </Button>
+        </form>
+      </Form>
     </div>
   );
 };

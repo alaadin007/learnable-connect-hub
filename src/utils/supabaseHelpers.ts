@@ -60,3 +60,8 @@ export function isValidSupabaseData(data: any): boolean {
          data !== undefined && 
          !('error' in data && data.error !== null);
 }
+
+// Safe casting for any type - used for type assertions where needed
+export function safeAnyCast<T>(value: any): T {
+  return value as T;
+}

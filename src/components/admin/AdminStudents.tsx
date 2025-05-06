@@ -1,69 +1,72 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
+import { safeAnyCast } from "@/utils/supabaseHelpers";
 
-// Add these utility functions at the top of the file if they don't exist
-const isStudentRecord = (data: any): data is { id: string; school_id: string; status: string; created_at: string } => {
-  return (
-    data &&
-    typeof data === 'object' &&
-    'id' in data &&
-    'school_id' in data &&
-    'status' in data &&
-    'created_at' in data
-  );
-};
+interface StudentProfile {
+  id: string;
+  full_name: string;
+}
 
-const isProfileRecord = (data: any): data is { id: string; full_name: string } => {
-  return (
-    data &&
-    typeof data === 'object' &&
-    'id' in data &&
-    'full_name' in data
-  );
-};
+interface Student {
+  id: string;
+  school_id: string;
+  status: string;
+  created_at: string;
+}
 
-const AdminStudents = () => {
-  const [students, setStudents] = useState<any[]>([]);
-  const [profiles, setProfiles] = useState<any[]>([]);
+interface AdminStudentsProps {
+  schoolId: string | null;
+  schoolInfo: { name: string; code: string; id?: string } | null;
+  isLoading?: boolean;
+}
+
+const AdminStudents: React.FC<AdminStudentsProps> = ({ schoolId, schoolInfo, isLoading: parentLoading }) => {
+  const [students, setStudents] = useState<Student[]>([]);
+  const [profiles, setProfiles] = useState<StudentProfile[]>([]);
   const [loading, setLoading] = useState(true);
-  const [schoolId, setSchoolId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchStudents();
-  }, []);
+    if (schoolId) {
+      fetchStudents();
+    }
+  }, [schoolId]);
 
-  // Inside the component, update the fetchStudents function
   const fetchStudents = async () => {
     setLoading(true);
     try {
-      // Get school ID for the current user
-      const { data: schoolData, error: schoolError } = await supabase
-        .rpc('get_user_school_id');
-    
-      if (schoolError) {
-        console.error('Error fetching school ID:', schoolError);
-        toast.error('Failed to load school information');
-        setLoading(false);
-        return;
+      // If we already have the schoolId from props, use it
+      if (!schoolId) {
+        // Get school ID for the current user
+        const { data: schoolData, error: schoolError } = await supabase
+          .rpc('get_user_school_id');
+      
+        if (schoolError) {
+          console.error('Error fetching school ID:', schoolError);
+          toast.error('Failed to load school information');
+          setLoading(false);
+          return;
+        }
+      
+        if (!schoolData) {
+          console.error('No school ID found');
+          setLoading(false);
+          return;
+        }
       }
-    
-      if (!schoolData) {
-        console.error('No school ID found');
-        setLoading(false);
-        return;
-      }
-    
-      setSchoolId(schoolData);
+      
+      // Use the schoolId from props or from the query
+      const schoolIdToUse = schoolId || '';
     
       // Get all students for this school
       const { data: studentsData, error: studentsError } = await supabase
         .from('students')
         .select('*')
-        .eq('school_id', schoolData);
+        .eq('school_id', schoolIdToUse);
 
       if (studentsError) {
         console.error('Error fetching students:', studentsError);
@@ -72,9 +75,14 @@ const AdminStudents = () => {
         return;
       }
 
-      // Filter out any records that don't match our expected structure
-      const validStudents = Array.isArray(studentsData) 
-        ? studentsData.filter(isStudentRecord)
+      // Convert to our expected Student type
+      const validStudents: Student[] = Array.isArray(studentsData) 
+        ? studentsData.map(s => ({
+            id: s.id,
+            school_id: s.school_id,
+            status: s.status || 'pending',
+            created_at: s.created_at
+          }))
         : [];
     
       setStudents(validStudents);
@@ -91,54 +99,53 @@ const AdminStudents = () => {
         if (profilesError) {
           console.error('Error fetching profiles:', profilesError);
         } else if (profilesData) {
-          // Filter and convert to our expected format
-          const validProfiles: { id: string; full_name: string }[] = Array.isArray(profilesData)
-            ? profilesData.filter(isProfileRecord)
+          // Convert to our expected StudentProfile type
+          const validProfiles: StudentProfile[] = Array.isArray(profilesData)
+            ? profilesData.map(p => ({
+                id: p.id,
+                full_name: p.full_name || 'Unnamed'
+              }))
             : [];
-        
-        setProfiles(validProfiles);
+          
+          setProfiles(validProfiles);
+        }
       }
+    } catch (error) {
+      console.error('Error in fetchStudents:', error);
+      toast.error('An error occurred while fetching student data');
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error('Error in fetchStudents:', error);
-    toast.error('An error occurred while fetching student data');
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
-// Update the handleApproveStudent function to properly type the update
-const handleApproveStudent = async (student: any) => {
-  if (!isStudentRecord(student)) {
-    console.error('Invalid student record');
-    return;
-  }
-  
-  try {
-    const { error } = await supabase
-      .from('students')
-      .update({ status: 'active' })
-      .eq('id', student.id);
-    
-    if (error) {
-      console.error('Error updating student status:', error);
-      toast.error('Failed to approve student');
-      return;
+  const handleApproveStudent = async (student: Student) => {
+    try {
+      const { error } = await supabase
+        .from('students')
+        .update({ 
+          status: 'active' 
+        })
+        .eq('id', student.id);
+      
+      if (error) {
+        console.error('Error updating student status:', error);
+        toast.error('Failed to approve student');
+        return;
+      }
+      
+      // Update local state
+      setStudents(prevStudents => 
+        prevStudents.map(s => 
+          s.id === student.id ? { ...s, status: 'active' } : s
+        )
+      );
+      
+      toast.success('Student approved successfully');
+    } catch (error) {
+      console.error('Error in handleApproveStudent:', error);
+      toast.error('An error occurred while approving the student');
     }
-    
-    // Update local state
-    setStudents(prevStudents => 
-      prevStudents.map(s => 
-        s.id === student.id ? { ...s, status: 'active' } : s
-      )
-    );
-    
-    toast.success('Student approved successfully');
-  } catch (error) {
-    console.error('Error in handleApproveStudent:', error);
-    toast.error('An error occurred while approving the student');
-  }
-};
+  };
 
   return (
     <Card className="w-full">
@@ -147,7 +154,7 @@ const handleApproveStudent = async (student: any) => {
         <CardDescription>Manage students in your school</CardDescription>
       </CardHeader>
       <CardContent>
-        {loading ? (
+        {loading || parentLoading ? (
           <div className="flex justify-center">
             <Loader2 className="h-6 w-6 animate-spin" />
           </div>
@@ -169,31 +176,39 @@ const handleApproveStudent = async (student: any) => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {students.map((student) => {
-                  const profile = profiles.find((p) => p.id === student.id);
-                  return (
-                    <tr key={student.id}>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{profile?.full_name || 'N/A'}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{student.id}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${student.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                          {student.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm leading-5">
-                        {student.status !== 'active' && (
-                          <Button onClick={() => handleApproveStudent(student)} variant="outline">
-                            Approve
-                          </Button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
+                {students.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-4 text-center text-gray-500">
+                      No students found
+                    </td>
+                  </tr>
+                ) : (
+                  students.map((student) => {
+                    const profile = profiles.find((p) => p.id === student.id);
+                    return (
+                      <tr key={student.id}>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">{profile?.full_name || 'N/A'}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">{student.id}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${student.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                            {student.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm leading-5">
+                          {student.status !== 'active' && (
+                            <Button onClick={() => handleApproveStudent(student)} variant="outline">
+                              Approve
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>

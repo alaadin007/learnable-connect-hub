@@ -49,17 +49,18 @@ export const RBACProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setIsLoading(true);
 
-      // If we have a test account based on ID, create appropriate roles
-      if (user.id.startsWith('test-')) {
-        if (userRole === 'school' || user.email?.includes('school.test@')) {
+      // If we have a test account based on ID or email, create appropriate roles
+      if (user.id.startsWith('test-') || (user.email && user.email.includes('.test@'))) {
+        if (userRole === 'school' || (user.email && user.email.includes('school.test@'))) {
           setRoles(['school_admin']);
-        } else if (userRole === 'teacher' || user.email?.includes('teacher.test@')) {
+        } else if (userRole === 'teacher' || (user.email && user.email.includes('teacher.test@'))) {
           setRoles(['teacher']);
-        } else if (userRole === 'student' || user.email?.includes('student.test@')) {
+        } else if (userRole === 'student' || (user.email && user.email.includes('student.test@'))) {
           setRoles(['student']);
         } else {
           setRoles([]);
         }
+        setIsLoading(false);
         return;
       }
 
