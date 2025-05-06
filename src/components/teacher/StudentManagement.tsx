@@ -35,6 +35,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({
   const [inviteMethod, setInviteMethod] = useState<'code' | 'email'>('code');
   const [schoolId, setSchoolId] = useState<string | null>(null);
   const [schoolInfo, setSchoolInfo] = useState<{name: string; code: string} | null>(null);
+  const [buttonLoading, setButtonLoading] = useState(false);
   const { user } = useAuth();
 
   // Use prop values if provided
@@ -149,8 +150,11 @@ const StudentManagement: React.FC<StudentManagementProps> = ({
     }
     
     try {
+      setButtonLoading(true);
+      
       if (inviteMethod === 'email' && !inviteEmail) {
         toast.error("Please enter an email address");
+        setButtonLoading(false);
         return;
       }
 
@@ -161,6 +165,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({
 
       if (!result.success) {
         toast.error(result.message || "Failed to create invite");
+        setButtonLoading(false);
         return;
       }
 
@@ -174,7 +179,23 @@ const StudentManagement: React.FC<StudentManagementProps> = ({
     } catch (error) {
       console.error("Error inviting student:", error);
       toast.error("Failed to create student invitation");
+    } finally {
+      setButtonLoading(false);
     }
+  };
+
+  const handleGenerateCode = async () => {
+    setInviteMethod('code');
+    await handleInviteStudent();
+  };
+
+  const handleSendEmail = async () => {
+    if (!inviteEmail) {
+      toast.error("Please enter an email address");
+      return;
+    }
+    setInviteMethod('email');
+    await handleInviteStudent();
   };
 
   const handleApproveStudent = async (studentId: string) => {
@@ -311,8 +332,24 @@ const StudentManagement: React.FC<StudentManagementProps> = ({
                       value={inviteEmail}
                       onChange={(e) => setInviteEmail(e.target.value)}
                     />
+                    <Button 
+                      onClick={handleSendEmail} 
+                      disabled={buttonLoading || !inviteEmail}
+                    >
+                      {buttonLoading ? 'Sending...' : 'Send Invitation'}
+                    </Button>
                   </div>
                 </div>
+              )}
+              
+              {inviteMethod === 'code' && !inviteCode && (
+                <Button 
+                  onClick={handleGenerateCode} 
+                  disabled={buttonLoading}
+                  className="w-full"
+                >
+                  {buttonLoading ? 'Generating...' : 'Generate Invitation Code'}
+                </Button>
               )}
               
               {inviteCode && (
@@ -338,14 +375,6 @@ const StudentManagement: React.FC<StudentManagementProps> = ({
               )}
             </div>
           </CardContent>
-          <CardFooter>
-            <Button 
-              onClick={handleInviteStudent}
-              disabled={inviteMethod === 'email' && !inviteEmail}
-            >
-              {inviteMethod === 'code' ? 'Generate Invitation Code' : 'Send Invitation'}
-            </Button>
-          </CardFooter>
         </Card>
 
         {/* Student List */}

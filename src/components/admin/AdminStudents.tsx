@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { approveStudentDirect, revokeStudentAccessDirect } from "@/utils/databaseUtils";
-import { RefreshCw, User } from "lucide-react";
+import { RefreshCw, User, Copy } from "lucide-react";
 
 type Student = {
   id: string;
