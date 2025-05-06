@@ -16,7 +16,6 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useNavigate, Link } from "react-router-dom";
-import { safeAnyCast } from "@/utils/supabaseHelpers";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address." }),
@@ -81,7 +80,7 @@ const RegisterForm = () => {
 
       const { error: profileError } = await supabase
         .from("profiles")
-        .insert([{ ...profileData, id: data.user.id }]);
+        .upsert([{ ...profileData, id: data.user.id }]);
 
       if (profileError) {
         toast.error(

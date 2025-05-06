@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
-import { safeAnyCast, safeResponse } from "@/utils/supabaseHelpers";
 
 interface StudentProfile {
   id: string;
@@ -67,7 +66,7 @@ const AdminStudents: React.FC<AdminStudentsProps> = ({ schoolId, schoolInfo, isL
       const { data: studentsData, error: studentsError } = await supabase
         .from('students')
         .select('id, school_id, status, created_at')
-        .eq('school_id', safeAnyCast<string>(schoolIdToUse));
+        .eq('school_id', schoolIdToUse as string);
 
       if (studentsError) {
         console.error('Error fetching students:', studentsError);
@@ -95,7 +94,7 @@ const AdminStudents: React.FC<AdminStudentsProps> = ({ schoolId, schoolInfo, isL
         const { data: profileData, error: profilesError } = await supabase
           .from('profiles')
           .select('id, full_name')
-          .in('id', safeAnyCast<string[]>(studentIds));
+          .in('id', studentIds);
       
         if (profilesError) {
           console.error('Error fetching profiles:', profilesError);
@@ -121,12 +120,10 @@ const AdminStudents: React.FC<AdminStudentsProps> = ({ schoolId, schoolInfo, isL
 
   const handleApproveStudent = async (student: Student) => {
     try {
-      const updateObject = safeAnyCast<{ status: string }>({ status: "active" });
-      
       const { error } = await supabase
         .from('students')
-        .update(updateObject)
-        .eq('id', safeAnyCast<string>(student.id));
+        .update({ status: "active" })
+        .eq('id', student.id);
       
       if (error) {
         console.error('Error updating student status:', error);

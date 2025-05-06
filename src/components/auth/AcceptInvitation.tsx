@@ -19,7 +19,6 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { safeAnyCast } from "@/utils/supabaseHelpers";
 
 const formSchema = z.object({
   fullName: z.string().min(2, "Full name must be at least 2 characters"),
@@ -78,8 +77,7 @@ const AcceptInvitation = () => {
 
         const typedInvitationData = invitationData as any;
         
-        // Check if invitation is valid based on some property from the response
-        // Assuming the RPC returns an 'expired' status if the invitation has expired
+        // For now we need to assume some properties until the RPC returns are properly typed
         if (typedInvitationData.status === 'expired') {
           setInvitationStatus("expired");
           setIsLoading(false);
@@ -96,10 +94,10 @@ const AcceptInvitation = () => {
         const { data: schoolData, error: schoolError } = await supabase
           .from('schools')
           .select('name')
-          .eq('id', safeAnyCast<string>(typedInvitationData.school_id))
+          .eq('id', typedInvitationData.school_id as string)
           .single();
 
-        const schoolName = schoolError ? undefined : (schoolData && 'name' in schoolData) ? schoolData.name : undefined;
+        const schoolName = schoolError ? undefined : (schoolData && schoolData.name);
 
         setInvitationDetails({
           id: typedInvitationData.invitation_id,
@@ -146,8 +144,7 @@ const AcceptInvitation = () => {
       // Accept the invitation
       const { error: acceptError } = await supabase
         .rpc("accept_teacher_invitation", {
-          invitation_id: invitationDetails.id,
-          teacher_id: authData.user.id
+          invitation_token: token as string
         });
 
       if (acceptError) {
@@ -163,6 +160,7 @@ const AcceptInvitation = () => {
         user_type: 'teacher'
       };
       
+      // Use upsert to handle profile creation
       const { error: profileError } = await supabase
         .from('profiles')
         .upsert([{ ...profileData, id: authData.user.id }]);

@@ -8,7 +8,6 @@ import { Loader2, UserPlus, Mail, Check, X, RefreshCcw } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useAuth } from "@/contexts/AuthContext";
-import { safeAnyCast } from "@/utils/supabaseHelpers";
 
 const TeacherInvitation = () => {
   const { user } = useAuth();
@@ -37,7 +36,7 @@ const TeacherInvitation = () => {
       const { data, error } = await supabase
         .from('teacher_invitations')
         .select('*')
-        .eq('school_id', safeAnyCast<string>(schoolData));
+        .eq('school_id', schoolData as string);
       
       if (error) {
         console.error("Error fetching invitations:", error);
