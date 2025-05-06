@@ -1,17 +1,51 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { inviteTeacherDirect } from '@/utils/databaseUtils';
+import { inviteTeacherDirect, createTeacherDirect } from '@/utils/analytics/teacherUtils';
+import { supabase } from "@/integrations/supabase/client";
+
+interface TeacherInvite {
+  id: string;
+  email: string;
+  status: string;
+  created_at: string;
+  expires_at: string;
+}
 
 const TeacherInvitation = () => {
   const [email, setEmail] = useState('');
   const [fullName, setFullName] = useState('');
   const [inviting, setInviting] = useState(false);
   const [inviteMethod, setInviteMethod] = useState<'invite' | 'create'>('invite');
+  const [invites, setInvites] = useState<TeacherInvite[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch teacher invitations on component mount
+  useEffect(() => {
+    fetchInvitations();
+  }, []);
+
+  const fetchInvitations = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('teacher_invitations')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setInvites(data || []);
+    } catch (error) {
+      console.error('Error fetching invitations:', error);
+      toast.error('Failed to load teacher invitations');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleInvite = async () => {
     if (!email) {
@@ -27,20 +61,41 @@ const TeacherInvitation = () => {
         if (result.success) {
           toast.success(`Invitation sent to ${email}`);
           setEmail('');
+          fetchInvitations(); // Refresh the invitations list
         } else {
           toast.error(result.message || "Failed to send invitation");
         }
       } else {
-        // For direct creation, we would normally use an edge function
-        // Since we're replacing edge functions, show a notification
-        toast.error("Direct teacher creation requires server-side privileges");
+        // Handle direct account creation
+        const result = await createTeacherDirect(email, fullName || undefined);
+        
+        if (result.success && result.data) {
+          // Show success with temp password
+          toast.success(
+            <div>
+              <p>Account created for {email}</p>
+              <p className="mt-2 font-mono text-xs">
+                Temporary password: {result.data.temp_password}
+              </p>
+            </div>,
+            { duration: 10000 }
+          );
+          setEmail('');
+          setFullName('');
+        } else {
+          toast.error(result.message || "Failed to create teacher account");
+        }
       }
-    } catch (error) {
-      console.error("Error inviting teacher:", error);
-      toast.error("An error occurred while sending the invitation");
+    } catch (error: any) {
+      console.error("Error:", error);
+      toast.error(error.message || "An error occurred");
     } finally {
       setInviting(false);
     }
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString();
   };
 
   return (
@@ -96,7 +151,7 @@ const TeacherInvitation = () => {
                 onChange={(e) => setFullName(e.target.value)}
               />
               <p className="text-sm text-muted-foreground mt-1">
-                Note: Creating teacher accounts directly is unavailable without server-side privileges.
+                The teacher's name will be pre-filled in their profile.
               </p>
             </div>
           )}
@@ -131,6 +186,55 @@ const TeacherInvitation = () => {
           )}
         </Button>
       </CardFooter>
+
+      <Separator className="my-4" />
+      
+      <CardHeader>
+        <CardTitle>Teacher Invitations</CardTitle>
+        <CardDescription>
+          Pending and accepted teacher invitations
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <p className="text-center py-4">Loading invitations...</p>
+        ) : invites.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2 px-1">Email</th>
+                  <th className="text-left py-2 px-1">Sent</th>
+                  <th className="text-left py-2 px-1">Expires</th>
+                  <th className="text-left py-2 px-1">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {invites.map((invite) => (
+                  <tr key={invite.id} className="border-b hover:bg-muted/50">
+                    <td className="py-2 px-1">{invite.email}</td>
+                    <td className="py-2 px-1">{formatDate(invite.created_at)}</td>
+                    <td className="py-2 px-1">{formatDate(invite.expires_at)}</td>
+                    <td className="py-2 px-1">
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded ${
+                        invite.status === "pending"
+                          ? "bg-yellow-100 text-yellow-800"
+                          : invite.status === "accepted"
+                          ? "bg-green-100 text-green-800"
+                          : "bg-red-100 text-red-800"
+                      }`}>
+                        {invite.status.charAt(0).toUpperCase() + invite.status.slice(1)}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-muted-foreground">No invitations found.</p>
+        )}
+      </CardContent>
     </Card>
   );
 };
