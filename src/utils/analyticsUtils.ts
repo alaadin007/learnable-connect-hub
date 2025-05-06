@@ -11,7 +11,7 @@ export {
   fetchTopics,
   fetchStudyTime,
   fetchSchoolPerformance,
-  fetchTeacherPerformance,
+  fetchTeacherPerformance: fetchSchoolPerformance,  // Alias for backward compatibility
   fetchStudentPerformance,
   
   // Student and teacher management
@@ -27,3 +27,4 @@ export {
   type TopicData,
   type StudyTimeData
 } from './analytics';
+

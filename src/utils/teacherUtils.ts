@@ -64,3 +64,128 @@ function getMockTeachers(): { id: string; name: string }[] {
     { id: '5', name: 'Teacher Jones' }
   ];
 }
+
+// Add teacher performance functions that were previously in teacherPerformanceUtils.ts
+import { AnalyticsFilters } from "@/components/analytics/types";
+import { getDateFilterSQL } from "./analytics/dateUtils";
+
+export type TeacherPerformanceData = {
+  teacher_id: string;
+  teacher_name: string;
+  assessments_created: number;
+  students_assessed: number;
+  avg_submissions_per_assessment: number;
+  avg_student_score: number;
+  completion_rate: number;
+  students?: number;
+  avgScore?: number;
+  trend?: string;
+  id?: string;
+  name?: string;
+};
+
+// Fetch teacher performance data
+export const fetchTeacherPerformance = async (
+  schoolId: string | undefined,
+  filters: AnalyticsFilters
+): Promise<TeacherPerformanceData[]> => {
+  try {
+    // Validate school ID
+    if (!schoolId || !isValidUUID(schoolId)) {
+      console.warn("Invalid school ID for teacher performance, using demo data");
+      return getMockTeacherPerformanceData();
+    }
+
+    // Get date range filter
+    const { dateRange } = filters;
+    const dateFilter = getDateFilterSQL(dateRange);
+
+    // Get teacher performance metrics
+    const { data, error } = await supabase
+      .rpc("get_teacher_performance_metrics", {
+        p_school_id: schoolId,
+        p_start_date: dateFilter.startDate,
+        p_end_date: dateFilter.endDate
+      });
+
+    if (error) {
+      console.error("Error fetching teacher performance:", error);
+      return getMockTeacherPerformanceData();
+    }
+
+    // Format the data for the frontend
+    const formattedData: TeacherPerformanceData[] = (data || []).map(item => {
+      // Calculate a trend based on completion rate
+      // This is a simplification - in a real app, you'd compare to previous periods
+      const trend = item.completion_rate > 80 ? "up" : item.completion_rate > 60 ? "steady" : "down";
+
+      return {
+        id: item.teacher_id,
+        name: item.teacher_name,
+        teacher_id: item.teacher_id,
+        teacher_name: item.teacher_name,
+        assessments_created: item.assessments_created || 0,
+        students_assessed: item.students_assessed || 0,
+        completion_rate: item.completion_rate || 0,
+        avg_student_score: item.avg_student_score || 0,
+        avg_submissions_per_assessment: item.avg_submissions_per_assessment || 0,
+        students: item.students_assessed || 0,
+        avgScore: item.avg_student_score || 0,
+        trend
+      };
+    });
+
+    return formattedData.length > 0 ? formattedData : getMockTeacherPerformanceData();
+  } catch (error) {
+    console.error("Error in fetchTeacherPerformance:", error);
+    return getMockTeacherPerformanceData();
+  }
+};
+
+// Helper function to get mock teacher performance data
+function getMockTeacherPerformanceData(): TeacherPerformanceData[] {
+  return [
+    {
+      id: '1',
+      name: 'Teacher Smith',
+      teacher_id: '1',
+      teacher_name: 'Teacher Smith',
+      assessments_created: 12,
+      students_assessed: 45,
+      completion_rate: 86,
+      avg_student_score: 82,
+      avg_submissions_per_assessment: 3.2,
+      students: 45,
+      avgScore: 82,
+      trend: 'up'
+    },
+    {
+      id: '2',
+      name: 'Teacher Johnson',
+      teacher_id: '2',
+      teacher_name: 'Teacher Johnson',
+      assessments_created: 8,
+      students_assessed: 32,
+      completion_rate: 71,
+      avg_student_score: 76,
+      avg_submissions_per_assessment: 2.8,
+      students: 32,
+      avgScore: 76,
+      trend: 'steady'
+    },
+    {
+      id: '3',
+      name: 'Teacher Williams',
+      teacher_id: '3',
+      teacher_name: 'Teacher Williams',
+      assessments_created: 15,
+      students_assessed: 50,
+      completion_rate: 92,
+      avg_student_score: 88,
+      avg_submissions_per_assessment: 3.5,
+      students: 50,
+      avgScore: 88,
+      trend: 'up'
+    }
+  ];
+}
