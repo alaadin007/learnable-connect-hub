@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
@@ -19,6 +20,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { getCurrentSchoolInfo } from "@/utils/databaseUtils";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export type TeacherInvitation = {
   id: string;
@@ -40,10 +42,16 @@ const SchoolAdmin = () => {
   const [schoolData, setSchoolData] = useState<{ name: string; code: string; id?: string } | null>(null);
   const [schoolId, setSchoolId] = useState<string | null>(null);
   const [hasRedirected, setHasRedirected] = useState(false); // to prevent redirect loop
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchSchoolInfo = async () => {
       try {
+        setIsLoading(true);
+        setError(null);
+        
+        // First try using the optimized RPC function
         const schoolInfo = await getCurrentSchoolInfo();
 
         if (schoolInfo) {
@@ -53,9 +61,11 @@ const SchoolAdmin = () => {
             code: schoolInfo.code
           });
           setSchoolId(schoolInfo.id);
+          setIsLoading(false);
           return;
         }
 
+        // Fallback to direct queries if the RPC function fails
         let schoolIdToUse = authSchoolId;
 
         if (!schoolIdToUse) {
@@ -63,7 +73,8 @@ const SchoolAdmin = () => {
 
           if (schoolIdError) {
             console.error('Error fetching school ID:', schoolIdError);
-            toast.error("Failed to load school information");
+            setError("Failed to load school information. Please try again.");
+            setIsLoading(false);
             return;
           }
 
@@ -81,16 +92,21 @@ const SchoolAdmin = () => {
 
           if (schoolError) {
             console.error("Error fetching school details:", schoolError);
+            setError("Failed to load school details. Please try again.");
           } else if (schoolDetails) {
             setSchoolData({
               name: schoolDetails.name,
               code: schoolDetails.code
             });
           }
+        } else {
+          setError("No school associated with your account.");
         }
       } catch (error) {
         console.error("Error fetching school information:", error);
-        toast.error("Failed to load school information");
+        setError("Failed to load school information. Please try again.");
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -132,19 +148,72 @@ const SchoolAdmin = () => {
     }
   };
 
-  // Removed navigate calls here - tabs control local state only
   const handleTabClick = (value: string) => {
     setActiveTab(value);
   };
 
-  if (!schoolData) {
-    // Render a placeholder until school data loaded to avoid render crashes
+  const handleRetry = () => {
+    window.location.reload();
+  };
+
+  if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col">
         <Navbar />
         <main className="flex-grow bg-learnable-super-light py-8">
-          <div className="container mx-auto text-center py-10 font-semibold text-lg">
-            Loading school data...
+          <div className="container mx-auto px-4">
+            <div className="mb-6">
+              <Skeleton className="h-10 w-48 mb-2" />
+              <Skeleton className="h-4 w-64" />
+            </div>
+            <Card>
+              <CardHeader>
+                <CardTitle>School Information</CardTitle>
+                <CardDescription>Your school details</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <Skeleton className="h-6 w-full" />
+                  <Skeleton className="h-6 w-full" />
+                  <Skeleton className="h-4 w-3/4" />
+                </div>
+              </CardContent>
+            </Card>
+            <div className="mt-8">
+              <Skeleton className="h-8 w-full" />
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Navbar />
+        <main className="flex-grow bg-learnable-super-light py-8">
+          <div className="container mx-auto px-4">
+            <Card className="w-full">
+              <CardHeader>
+                <CardTitle>School Admin Panel</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="p-6 text-center">
+                  <div className="mb-4 text-red-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-medium mb-2">Error Loading School Data</h3>
+                  <p className="text-gray-600 mb-4">{error}</p>
+                  <Button onClick={handleRetry} className="gradient-bg">
+                    Retry
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </main>
         <Footer />
