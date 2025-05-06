@@ -6,7 +6,7 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
-import { isDataResponse } from "@/utils/supabaseHelpers";
+import { isDataResponse, isValidInvitation } from "@/utils/supabaseHelpers";
 
 interface TeacherInvite {
   id: string;
@@ -40,15 +40,7 @@ const TeacherInvitation = () => {
       if (isDataResponse(response)) {
         // Filter and map the data to ensure it matches the TeacherInvite interface
         const validInvites: TeacherInvite[] = response.data
-          .filter(item => 
-            item && 
-            typeof item === 'object' && 
-            'id' in item && 
-            'email' in item && 
-            'status' in item && 
-            'created_at' in item && 
-            'expires_at' in item
-          )
+          .filter(item => isValidInvitation(item))
           .map(item => ({
             id: item.id,
             email: item.email,

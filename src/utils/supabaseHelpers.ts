@@ -9,7 +9,7 @@ export const isSupabaseError = (obj: any): boolean => {
 };
 
 // Type guard to check if a response contains data (not an error)
-export const isDataResponse = (obj: any): boolean => {
+export const isDataResponse = <T = any>(obj: any): obj is { data: T; error: null } => {
   return obj && typeof obj === 'object' && 'data' in obj && !isSupabaseError(obj);
 };
 
@@ -35,6 +35,12 @@ export const extractSupabaseData = <T>(response: { data: T | null, error: Error 
     return null;
   }
   return response.data;
+};
+
+// Convert string to UUID safely for database queries
+export const asUUID = (id: string | undefined): string => {
+  if (!id) return '00000000-0000-0000-0000-000000000000';
+  return id;
 };
 
 // Safe mapper for Supabase array results
@@ -76,8 +82,38 @@ export const safelyExtractData = <T>(response: any): T[] => {
   return response.data as T[];
 };
 
-// Convert string to UUID safely for database queries
-export const asUUID = (id: string | undefined): string => {
-  if (!id) return '00000000-0000-0000-0000-000000000000';
+// Helper to validate student object
+export const isValidStudent = (student: any): boolean => {
+  return student && 
+    typeof student === 'object' && 
+    'id' in student &&
+    'school_id' in student &&
+    'status' in student &&
+    'created_at' in student;
+};
+
+// Helper to validate profile object
+export const isValidProfile = (profile: any): boolean => {
+  return profile && 
+    typeof profile === 'object' && 
+    'id' in profile &&
+    'full_name' in profile;
+};
+
+// Helper to transform Supabase UUID parameters
+export const ensureUUID = (id: string | undefined): any => {
+  // This helps with Supabase UUID parameter issues
+  if (!id) return null;
   return id;
+};
+
+// Helper for strict type checking on teacher invitations
+export const isValidInvitation = (item: any): boolean => {
+  return item &&
+    typeof item === 'object' &&
+    'id' in item &&
+    'email' in item &&
+    'status' in item &&
+    'created_at' in item &&
+    'expires_at' in item;
 };

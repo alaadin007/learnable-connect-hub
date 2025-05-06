@@ -85,7 +85,7 @@ const FileList: React.FC = () => {
       console.log("Fetching documents for user:", user.id);
       const docs = await getUserDocuments(user.id);
       if (docs && Array.isArray(docs)) {
-        setFiles(docs);
+        setFiles(docs as FileItem[]);
       } else {
         // Fallback direct query with type safety
         const response = await supabase.from('documents').select('*').eq('user_id', user.id);

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +8,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { RefreshCw, User, Copy, AlertTriangle } from "lucide-react";
-import { isDataResponse, safelyExtractData, asUUID, isValidData } from "@/utils/supabaseHelpers";
+import { 
+  isDataResponse, 
+  safelyExtractData, 
+  ensureUUID, 
+  isValidStudent, 
+  isValidProfile 
+} from "@/utils/supabaseHelpers";
 
 type Student = {
   id: string;
@@ -46,7 +53,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
       const studentsResponse = await supabase
         .from("students")
         .select("id, school_id, status, created_at")
-        .eq("school_id", asUUID(schoolId));
+        .eq("school_id", ensureUUID(schoolId));
 
       if (!isDataResponse(studentsResponse)) {
         console.error("Error fetching students:", studentsResponse.error);
@@ -68,7 +75,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
       
       // Now fetch the profiles data separately
       const studentIds = studentsData
-        .filter(student => student && typeof student === 'object' && 'id' in student)
+        .filter(isValidStudent)
         .map(student => student.id);
 
       const profilesResponse = await supabase
@@ -81,17 +88,10 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
       
       // Create formatted students array with proper type safety
       const formattedStudents: Student[] = studentsData
-        .filter(student => 
-          student && 
-          typeof student === 'object' && 
-          'id' in student &&
-          'school_id' in student &&
-          'status' in student &&
-          'created_at' in student
-        )
+        .filter(isValidStudent)
         .map(student => {
           // Find the matching profile if it exists
-          const profile = profilesData.find(p => p && p.id === student.id);
+          const profile = profilesData.find(p => isValidProfile(p) && p.id === student.id);
             
           return {
             id: student.id,
@@ -122,8 +122,8 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
       // Update the student status directly in the database
       const { error } = await supabase
         .from("students")
-        .update({ status: "active" })
-        .eq("id", asUUID(studentId));
+        .update({ status: "active" } as any)
+        .eq("id", ensureUUID(studentId));
 
       if (error) {
         console.error("Error approving student:", error);
@@ -153,7 +153,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
       const { error } = await supabase
         .from("students")
         .delete()
-        .eq("id", asUUID(studentId));
+        .eq("id", ensureUUID(studentId));
 
       if (error) {
         console.error("Failed to revoke student access:", error);
