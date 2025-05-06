@@ -45,9 +45,11 @@ const SchoolAdmin = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Define navigation handlers up front to prevent duplicate declarations
+  // Define navigation handlers
   const handleRetry = () => {
-    window.location.reload();
+    setIsLoading(true);
+    setError(null);
+    fetchSchoolInfo();
   };
 
   const handleQuickActionSelect = (action: string) => {
@@ -78,96 +80,103 @@ const SchoolAdmin = () => {
     setActiveTab(value);
   };
 
-  useEffect(() => {
-    const fetchSchoolInfo = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        
-        console.log("Fetching school info...");
-        
-        // First try using the optimized function that combines multiple queries
-        const schoolInfo = await getCurrentSchoolInfo();
+  const fetchSchoolInfo = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      console.log("Fetching school info...");
+      
+      // First try using the optimized function that combines multiple queries
+      const schoolInfo = await getCurrentSchoolInfo();
 
-        if (schoolInfo) {
-          console.log("School info retrieved:", schoolInfo);
-          setSchoolData({
-            id: schoolInfo.id,
-            name: schoolInfo.name,
-            code: schoolInfo.code
-          });
-          setSchoolId(schoolInfo.id);
-          setIsLoading(false);
-          return;
-        }
-
-        // If getCurrentSchoolInfo failed, try direct fallback queries
-        let schoolIdToUse = authSchoolId;
-
-        if (!schoolIdToUse) {
-          try {
-            const { data: fetchedSchoolId, error: schoolIdError } = await supabase.rpc('get_user_school_id');
-
-            if (schoolIdError) {
-              console.error('Error fetching school ID:', schoolIdError);
-              
-              // Try teachers table directly
-              const { data: authUser } = await supabase.auth.getUser();
-              if (authUser?.user) {
-                const { data: teacherData, error: teacherError } = await supabase
-                  .from("teachers")
-                  .select("school_id")
-                  .eq("id", authUser.user.id)
-                  .single();
-                  
-                if (teacherError || !teacherData) {
-                  throw new Error("Failed to determine school ID");
-                }
-                schoolIdToUse = teacherData.school_id;
-              } else {
-                throw new Error("Not authenticated");
-              }
-            } else {
-              schoolIdToUse = fetchedSchoolId;
-            }
-          } catch (e) {
-            console.error("Error in school ID fallback:", e);
-            throw new Error("Failed to determine school ID");
-          }
-        }
-
-        if (schoolIdToUse) {
-          console.log("Using school ID:", schoolIdToUse);
-          setSchoolId(schoolIdToUse);
-
-          const { data: schoolDetails, error: schoolError } = await supabase
-            .from("schools")
-            .select("name, code")
-            .eq("id", schoolIdToUse)
-            .single();
-
-          if (schoolError) {
-            console.error("Error fetching school details:", schoolError);
-            setError("Failed to load school details. Please try again.");
-          } else if (schoolDetails) {
-            console.log("School details retrieved:", schoolDetails);
-            setSchoolData({
-              id: schoolIdToUse,
-              name: schoolDetails.name,
-              code: schoolDetails.code
-            });
-          }
-        } else {
-          setError("No school associated with your account.");
-        }
-      } catch (error) {
-        console.error("Error fetching school information:", error);
-        setError("Failed to load school information. Please try again.");
-      } finally {
+      if (schoolInfo) {
+        console.log("School info retrieved:", schoolInfo);
+        setSchoolData({
+          id: schoolInfo.id,
+          name: schoolInfo.name,
+          code: schoolInfo.code
+        });
+        setSchoolId(schoolInfo.id);
         setIsLoading(false);
+        return;
       }
-    };
 
+      // If getCurrentSchoolInfo failed, try direct fallback queries
+      let schoolIdToUse = authSchoolId;
+
+      if (!schoolIdToUse) {
+        try {
+          // Get current user to ensure we're authenticated
+          const { data: authData } = await supabase.auth.getUser();
+          if (!authData?.user?.id) {
+            throw new Error("Not authenticated");
+          }
+
+          const { data: fetchedSchoolId, error: schoolIdError } = await supabase.rpc('get_user_school_id');
+
+          if (schoolIdError) {
+            console.error('Error fetching school ID:', schoolIdError);
+            
+            // Try teachers table directly
+            const { data: teacherData, error: teacherError } = await supabase
+              .from("teachers")
+              .select("school_id")
+              .eq("id", authData.user.id)
+              .single();
+              
+            if (teacherError) {
+              console.error("Teacher query error:", teacherError);
+              throw new Error("Failed to determine school ID");
+            }
+            
+            if (teacherData?.school_id) {
+              schoolIdToUse = teacherData.school_id;
+            } else {
+              throw new Error("No school associated with account");
+            }
+          } else {
+            schoolIdToUse = fetchedSchoolId;
+          }
+        } catch (e) {
+          console.error("Error in school ID fallback:", e);
+          throw new Error("Failed to determine school ID");
+        }
+      }
+
+      if (schoolIdToUse) {
+        console.log("Using school ID:", schoolIdToUse);
+        setSchoolId(schoolIdToUse);
+
+        const { data: schoolDetails, error: schoolError } = await supabase
+          .from("schools")
+          .select("name, code")
+          .eq("id", schoolIdToUse)
+          .single();
+
+        if (schoolError) {
+          console.error("Error fetching school details:", schoolError);
+          setError("Failed to load school details. Please try again.");
+        } else if (schoolDetails) {
+          console.log("School details retrieved:", schoolDetails);
+          setSchoolData({
+            id: schoolIdToUse,
+            name: schoolDetails.name,
+            code: schoolDetails.code
+          });
+        }
+      } else {
+        setError("No school associated with your account.");
+      }
+    } catch (error: any) {
+      console.error("Error fetching school information:", error);
+      setError(error.message || "Failed to load school information. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchSchoolInfo();
   }, [authSchoolId]);
 

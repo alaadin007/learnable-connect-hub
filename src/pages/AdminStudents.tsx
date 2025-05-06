@@ -12,9 +12,10 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getCurrentSchoolInfo } from "@/utils/databaseUtils";
 
 const AdminStudents = () => {
-  const { user, schoolId: authSchoolId } = useAuth();
+  const { user } = useAuth();
   const { isAdmin } = useRBAC();
   const navigate = useNavigate();
 
@@ -23,94 +24,93 @@ const AdminStudents = () => {
   const [schoolId, setSchoolId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Define the retry handler at the component level to avoid duplicates
   const handleRetry = () => {
-    window.location.reload();
+    setLoading(true);
+    setError(null);
+    fetchSchoolData();
+  };
+
+  const fetchSchoolData = async () => {
+    try {
+      if (!user) {
+        setError("You must be logged in to access this page");
+        setLoading(false);
+        return;
+      }
+
+      console.log("Fetching school data...");
+      setError(null);
+      
+      // Try to get school info using the improved utility function
+      const schoolData = await getCurrentSchoolInfo();
+      
+      if (schoolData) {
+        console.log("School data retrieved:", schoolData);
+        setSchoolInfo({
+          id: schoolData.id,
+          name: schoolData.name,
+          code: schoolData.code
+        });
+        setSchoolId(schoolData.id);
+        setLoading(false);
+        return;
+      }
+      
+      // If we couldn't get the school info, try a direct query
+      const { data: authUser } = await supabase.auth.getUser();
+      if (!authUser?.user?.id) {
+        throw new Error("Authentication error");
+      }
+      
+      // Try direct query to get school_id from teachers table
+      const { data: teacherData, error: teacherError } = await supabase
+        .from("teachers")
+        .select("school_id")
+        .eq("id", authUser.user.id)
+        .single();
+        
+      if (teacherError) {
+        console.error("Error fetching teacher data:", teacherError);
+        throw new Error("Failed to determine your school");
+      }
+      
+      const resolvedSchoolId = teacherData?.school_id;
+      
+      if (!resolvedSchoolId) {
+        throw new Error("No school associated with your account");
+      }
+      
+      setSchoolId(resolvedSchoolId);
+      
+      // Fetch school details
+      const { data: schoolDetails, error: schoolError } = await supabase
+        .from("schools")
+        .select("id, name, code")
+        .eq("id", resolvedSchoolId)
+        .single();
+        
+      if (schoolError || !schoolDetails) {
+        console.error("Error fetching school details:", schoolError);
+        throw new Error("Failed to load school details");
+      }
+      
+      setSchoolInfo({
+        id: schoolDetails.id,
+        name: schoolDetails.name,
+        code: schoolDetails.code
+      });
+      
+    } catch (err: any) {
+      console.error("Error in fetchSchoolData:", err);
+      setError(err.message || "Failed to load data");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-
-    let isMounted = true;
-
-    const fetchSchoolInfo = async () => {
-      try {
-        setError(null);
-        setLoading(true);
-        
-        // First try using authSchoolId from context if available
-        let resolvedSchoolId = authSchoolId;
-
-        if (!resolvedSchoolId) {
-          // Try RPC function
-          const { data: rpcSchoolId, error: rpcError } = await supabase.rpc('get_user_school_id');
-          
-          if (rpcError) {
-            console.error("Error fetching school ID:", rpcError);
-            // Fallback to direct teachers table query
-            const { data: teacherData, error: teacherError } = await supabase
-              .from("teachers")
-              .select("school_id")
-              .eq("id", user.id)
-              .single();
-
-            if (teacherError || !teacherData?.school_id) {
-              throw new Error("Unable to determine your school.");
-            }
-
-            resolvedSchoolId = teacherData.school_id;
-          } else {
-            resolvedSchoolId = rpcSchoolId;
-          }
-        }
-
-        if (!resolvedSchoolId) {
-          throw new Error("No school associated with your account");
-        }
-
-        if (!isMounted) return;
-
-        setSchoolId(resolvedSchoolId);
-        console.log("School ID resolved:", resolvedSchoolId);
-
-        // Fetch school details
-        const { data: schoolDetails, error: schoolError } = await supabase
-          .from("schools")
-          .select("id, name, code")
-          .eq("id", resolvedSchoolId)
-          .single();
-
-        if (schoolError || !schoolDetails) {
-          console.error("Error fetching school details:", schoolError);
-          throw new Error("Failed to load school details.");
-        }
-
-        if (!isMounted) return;
-
-        console.log("School details retrieved:", schoolDetails);
-        setSchoolInfo({
-          id: schoolDetails.id,
-          name: schoolDetails.name,
-          code: schoolDetails.code,
-        });
-      } catch (err: any) {
-        if (!isMounted) return;
-        console.error("Error in fetchSchoolInfo:", err);
-        setError(err.message || "Failed to load data");
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    };
-
-    fetchSchoolInfo();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [user, authSchoolId]);
+    fetchSchoolData();
+  }, [user]);
 
   useEffect(() => {
     if (!user) {
