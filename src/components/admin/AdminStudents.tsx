@@ -28,6 +28,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
 
   useEffect(() => {
@@ -39,6 +40,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
   const fetchStudents = async () => {
     try {
       setError(null);
+      setLoading(true);
       
       // Fetch all students from this school
       const { data: studentsData, error: studentsError } = await supabase
@@ -55,6 +57,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
 
       if (!studentsData || studentsData.length === 0) {
         setStudents([]);
+        setLoading(false);
         return;
       }
       
@@ -89,6 +92,8 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
       console.error("Error fetching students:", error);
       setError("Failed to load students data. Please refresh.");
       toast.error("Failed to load students");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -247,7 +252,11 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
         </div>
       </CardHeader>
       <CardContent>
-        {students.length === 0 ? (
+        {loading ? (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">Loading students...</p>
+          </div>
+        ) : students.length === 0 ? (
           <div className="text-center py-12">
             <User className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
             <p className="text-muted-foreground">No students found.</p>

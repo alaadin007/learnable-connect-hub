@@ -69,6 +69,11 @@ const LoginForm = () => {
       
       // Handle normal login with credentials
       const result = await signIn(email, password);
+      if (!result) {
+        setLoginError('An error occurred during login.');
+        return;
+      }
+      
       const { data, error } = result;
       
       if (error) {
