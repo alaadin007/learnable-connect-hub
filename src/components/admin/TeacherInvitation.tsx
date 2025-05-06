@@ -5,8 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { inviteTeacherDirect, createTeacherDirect } from '@/utils/analytics/teacherUtils';
 import { supabase } from "@/integrations/supabase/client";
+import { Loader2 } from "lucide-react";
 
 interface TeacherInvite {
   id: string;
@@ -56,35 +56,58 @@ const TeacherInvitation = () => {
     setInviting(true);
     try {
       if (inviteMethod === 'invite') {
-        const result = await inviteTeacherDirect(email);
+        // Use database function directly to invite teacher
+        const { data, error } = await supabase
+          .rpc("invite_teacher", {
+            teacher_email: email
+          });
+
+        if (error) throw error;
         
-        if (result.success) {
-          toast.success(`Invitation sent to ${email}`);
-          setEmail('');
-          fetchInvitations(); // Refresh the invitations list
-        } else {
-          toast.error(result.message || "Failed to send invitation");
-        }
+        toast.success(`Invitation sent to ${email}`);
+        setEmail('');
+        await fetchInvitations(); // Refresh the invitations list
       } else {
         // Handle direct account creation
-        const result = await createTeacherDirect(email, fullName || undefined);
-        
-        if (result.success && result.data) {
-          // Show success with temp password
-          toast.success(
-            <div>
-              <p>Account created for {email}</p>
-              <p className="mt-2 font-mono text-xs">
-                Temporary password: {result.data.temp_password}
-              </p>
-            </div>,
-            { duration: 10000 }
-          );
-          setEmail('');
-          setFullName('');
-        } else {
-          toast.error(result.message || "Failed to create teacher account");
+        // First check if we have user school id
+        const { data: schoolId, error: schoolIdError } = await supabase
+          .rpc("get_user_school_id");
+
+        if (schoolIdError || !schoolId) {
+          toast.error("Could not determine your school");
+          return;
         }
+
+        // Generate a temporary password
+        const tempPassword = generateTemporaryPassword();
+
+        // Create the user account using supabase auth admin
+        const { data, error } = await supabase.auth.admin.createUser({
+          email: email,
+          password: tempPassword,
+          email_confirm: true,
+          user_metadata: {
+            full_name: fullName || email.split('@')[0],
+            user_type: 'teacher',
+            school_id: schoolId
+          }
+        });
+
+        if (error) throw error;
+
+        // Show success with temp password
+        toast.success(
+          <div>
+            <p>Account created for {email}</p>
+            <p className="mt-2 font-mono text-xs">
+              Temporary password: {tempPassword}
+            </p>
+          </div>,
+          { duration: 10000 }
+        );
+        
+        setEmail('');
+        setFullName('');
       }
     } catch (error: any) {
       console.error("Error:", error);
@@ -92,6 +115,18 @@ const TeacherInvitation = () => {
     } finally {
       setInviting(false);
     }
+  };
+
+  // Helper function to generate a temporary password
+  const generateTemporaryPassword = (length = 10): string => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+    let password = '';
+    
+    for (let i = 0; i < length; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    
+    return password;
   };
 
   const formatDate = (dateString: string) => {
@@ -178,7 +213,7 @@ const TeacherInvitation = () => {
         >
           {inviting ? (
             <>
-              <span className="animate-spin mr-2">⟳</span> 
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 
               {inviteMethod === 'invite' ? 'Sending...' : 'Creating...'}
             </>
           ) : (

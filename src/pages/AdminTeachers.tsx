@@ -1,43 +1,46 @@
 
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { useRBAC } from "@/contexts/RBACContext";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
 import TeacherInvitation from "@/components/admin/TeacherInvitation";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { toast } from "sonner";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Mail, UserPlus } from "lucide-react";
-
-// Define the schema for teacher form
-const addTeacherSchema = z.object({
-  email: z.string().email({ message: "Please enter a valid email address" }),
-  method: z.enum(["invite", "create"], {
-    required_error: "Please select a method",
-  }),
-  full_name: z.string().optional(),
-});
-
-type AddTeacherFormValues = z.infer<typeof addTeacherSchema>;
-
-type TeacherInvite = {
-  id: string;
-  email: string;
-  created_at: string;
-  expires_at: string;
-  status: string;
-};
+import { Loader2 } from "lucide-react";
 
 const AdminTeachers = () => {
-  const { user, profile, isSupervisor } = useAuth();
-  const [isLoading, setIsLoading] = useState(false);
-  const [invites, setInvites] = useState<TeacherInvite[]>([]);
+  const { user, profile } = useAuth();
+  const { isAdmin, isSupervisor, isLoading: rbacLoading } = useRBAC();
+
+  if (rbacLoading) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Navbar />
+        <main className="flex-grow bg-learnable-super-light py-8 flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-learnable-primary" />
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (!isAdmin && !isSupervisor) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Navbar />
+        <main className="flex-grow bg-learnable-super-light py-8">
+          <div className="container mx-auto px-4">
+            <div className="text-center">
+              <h1 className="text-3xl font-bold text-red-600 mb-2">Access Denied</h1>
+              <p className="text-learnable-gray">
+                You do not have permission to access teacher management.
+              </p>
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
