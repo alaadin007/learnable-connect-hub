@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { RefreshCw } from 'lucide-react';
 import { approveStudentDirect, inviteStudentDirect, revokeStudentAccessDirect } from '@/utils/databaseUtils';
 
 type Student = {
@@ -16,31 +16,63 @@ type Student = {
   status: string;
 };
 
-const StudentManagement = () => {
+interface StudentManagementProps {
+  schoolId?: string | null;
+}
+
+const StudentManagement: React.FC<StudentManagementProps> = ({ schoolId: propSchoolId }) => {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteMethod, setInviteMethod] = useState<'code' | 'email'>('code');
+  const [schoolId, setSchoolId] = useState<string | null>(null);
   const { user } = useAuth();
 
   useEffect(() => {
-    fetchStudents();
-  }, []);
+    // If school ID is provided as a prop, use it
+    if (propSchoolId) {
+      setSchoolId(propSchoolId);
+    } 
+    // Otherwise fetch it
+    else {
+      const fetchSchoolId = async () => {
+        try {
+          const { data: schoolIdData, error } = await supabase.rpc('get_user_school_id');
+          
+          if (error) {
+            console.error('Error fetching school ID:', error);
+            return;
+          }
+          
+          if (schoolIdData) {
+            setSchoolId(schoolIdData);
+          }
+        } catch (error) {
+          console.error('Error in fetchSchoolId:', error);
+        }
+      };
+      
+      fetchSchoolId();
+    }
+  }, [propSchoolId]);
+
+  // Load students when we have a school ID
+  useEffect(() => {
+    if (schoolId) {
+      fetchStudents();
+    }
+  }, [schoolId]);
 
   const fetchStudents = async () => {
+    if (!schoolId) {
+      console.warn("Cannot fetch students without a school ID");
+      setLoading(false);
+      return;
+    }
+    
     setLoading(true);
     try {
-      // Get the school ID for the current teacher
-      const { data: schoolId, error: schoolIdError } = await supabase.rpc('get_user_school_id');
-      
-      if (schoolIdError) {
-        toast.error("Could not get school information");
-        console.error("Error fetching school ID:", schoolIdError);
-        setLoading(false);
-        return;
-      }
-      
       // Get all students from the same school
       const { data: studentsData, error: studentsError } = await supabase
         .from('students')
@@ -61,13 +93,30 @@ const StudentManagement = () => {
         return;
       }
 
-      // Format the student data
-      const formattedStudents: Student[] = studentsData.map((student: any) => ({
-        id: student.id,
-        full_name: student.profiles?.full_name || "No name",
-        email: student.profiles?.email || "No email",
-        status: student.status || "pending"
-      }));
+      // Safely access profile data with proper type handling
+      const formattedStudents: Student[] = studentsData.map((student: any) => {
+        // Use type assertion to handle different possible shapes of profile data
+        const profileData = student.profiles as any;
+        let studentName = "No name";
+        let studentEmail = "No email";
+        
+        if (profileData) {
+          if (Array.isArray(profileData) && profileData.length > 0) {
+            studentName = profileData[0]?.full_name || "No name";
+            studentEmail = profileData[0]?.email || "No email";
+          } else if (typeof profileData === 'object') {
+            studentName = profileData.full_name || "No name";
+            studentEmail = profileData.email || "No email";
+          }
+        }
+        
+        return {
+          id: student.id,
+          full_name: studentName,
+          email: studentEmail || student.id,
+          status: student.status || "pending"
+        };
+      });
 
       setStudents(formattedStudents);
     } catch (error) {
@@ -79,6 +128,11 @@ const StudentManagement = () => {
   };
 
   const handleInviteStudent = async () => {
+    if (!schoolId) {
+      toast.error("School information is unavailable");
+      return;
+    }
+    
     try {
       if (inviteMethod === 'email' && !inviteEmail) {
         toast.error("Please enter an email address");
@@ -109,6 +163,11 @@ const StudentManagement = () => {
   };
 
   const handleApproveStudent = async (studentId: string) => {
+    if (!schoolId) {
+      toast.error("School information is unavailable");
+      return;
+    }
+    
     try {
       const success = await approveStudentDirect(studentId);
       
@@ -128,6 +187,11 @@ const StudentManagement = () => {
   };
 
   const handleRevokeAccess = async (studentId: string) => {
+    if (!schoolId) {
+      toast.error("School information is unavailable");
+      return;
+    }
+    
     try {
       const success = await revokeStudentAccessDirect(studentId);
       
@@ -222,9 +286,20 @@ const StudentManagement = () => {
 
         {/* Student List */}
         <Card>
-          <CardHeader>
-            <CardTitle>Student List</CardTitle>
-            <CardDescription>Manage your students and their access.</CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>Student List</CardTitle>
+              <CardDescription>Manage your students and their access.</CardDescription>
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={fetchStudents} 
+              className="flex items-center gap-2"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Refresh
+            </Button>
           </CardHeader>
           <CardContent>
             {loading ? (

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -53,7 +52,7 @@ type Student = {
 };
 
 const AdminStudents = () => {
-  const { user, profile, schoolId: authSchoolId } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [invites, setInvites] = useState<StudentInvite[]>([]);
@@ -62,14 +61,7 @@ const AdminStudents = () => {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [schoolData, setSchoolData] = useState<{ name: string; code: string } | null>(null);
   const [isSchoolDataLoading, setIsSchoolDataLoading] = useState(true);
-  
-  console.log("AdminStudents: User profile:", profile);
-  console.log("AdminStudents: School ID from auth context:", authSchoolId);
-  console.log("AdminStudents: Organization ID from profile:", profile?.organization?.id);
-  
-  // Get the schoolId properly
-  const schoolId = authSchoolId || profile?.organization?.id || null;
-  console.log("AdminStudents: Using school ID:", schoolId);
+  const [schoolId, setSchoolId] = useState<string | null>(null);
 
   const form = useForm<AddStudentFormValues>({
     resolver: zodResolver(addStudentSchema),
@@ -81,44 +73,66 @@ const AdminStudents = () => {
   
   const selectedMethod = form.watch("method");
 
-  // Fetch school data from Supabase
+  // Fetch school ID first, then use it to fetch school data
   useEffect(() => {
-    const fetchSchoolData = async () => {
-      if (!schoolId) return;
-      
+    const fetchSchoolId = async () => {
       try {
         setIsSchoolDataLoading(true);
         
-        // Attempt to get school data from the schools table
-        const { data: schoolData, error } = await supabase
-          .from('schools')
-          .select('name, code')
-          .eq('id', schoolId)
-          .single();
+        // Get the school ID using the RPC function
+        const { data: schoolIdData, error: schoolIdError } = await supabase
+          .rpc('get_user_school_id');
         
-        if (error) {
-          console.error('Error fetching school data:', error);
+        if (schoolIdError) {
+          console.error('Error fetching school ID:', schoolIdError);
+          toast.error("Failed to load school information");
+          setIsSchoolDataLoading(false);
           return;
         }
         
+        if (!schoolIdData) {
+          console.error('No school ID returned');
+          toast.error("Could not determine your school");
+          setIsSchoolDataLoading(false);
+          return;
+        }
+        
+        console.log("Fetched school ID:", schoolIdData);
+        setSchoolId(schoolIdData);
+        
+        // Now fetch the school data using the ID
+        const { data: schoolData, error: schoolDataError } = await supabase
+          .from('schools')
+          .select('name, code')
+          .eq('id', schoolIdData)
+          .single();
+        
+        if (schoolDataError) {
+          console.error('Error fetching school data:', schoolDataError);
+          toast.error("Failed to load school details");
+          setIsSchoolDataLoading(false);
+          return;
+        }
+        
+        console.log("Fetched school data:", schoolData);
         if (schoolData) {
-          console.log("Fetched school data:", schoolData);
           setSchoolData({
             name: schoolData.name,
             code: schoolData.code
           });
         }
       } catch (error) {
-        console.error('Error fetching school data:', error);
+        console.error('Error in fetchSchoolId:', error);
+        toast.error("An unexpected error occurred");
       } finally {
         setIsSchoolDataLoading(false);
       }
     };
     
-    fetchSchoolData();
-  }, [schoolId]);
+    fetchSchoolId();
+  }, []);
 
-  // Load students and invites
+  // Load students and invites once we have the school ID
   useEffect(() => {
     if (schoolId) {
       fetchInvites();
@@ -246,7 +260,6 @@ const AdminStudents = () => {
             .insert({
               email: values.email,
               school_id: schoolId,
-              created_by: user.id,
               status: "pending"
             })
             .select();
@@ -281,43 +294,18 @@ const AdminStudents = () => {
         toast.success(`Invitation sent to ${values.email}`);
         form.reset();
       } else {
-        // Generate invite code - try to use a stored procedure if available
-        let inviteCode;
-        
-        try {
-          // Try to use the stored procedure first
-          const { data, error } = await supabase
-            .rpc('create_student_invitation', { school_id_param: schoolId });
-            
-          if (error) {
-            console.error("Error using create_student_invitation RPC:", error);
-            // Fall back to client-side generation
-            inviteCode = Math.random().toString(36).substring(2, 10).toUpperCase();
-          } else if (data && data.length > 0) {
-            // Extract code from the result
-            inviteCode = data[0].code;
-            console.log("Generated invitation code via RPC:", inviteCode);
-          } else {
-            // Fall back to client-side generation
-            inviteCode = Math.random().toString(36).substring(2, 10).toUpperCase();
-          }
-        } catch (error) {
-          console.error("Error generating code:", error);
-          // Fall back to client-side generation
-          inviteCode = Math.random().toString(36).substring(2, 10).toUpperCase();
-        }
-        
-        console.log("Final invitation code:", inviteCode);
+        // Generate invite code
+        const inviteCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+        console.log("Generated invitation code:", inviteCode);
         setGeneratedCode(inviteCode);
         
-        // Try to store in student_invites if it exists
+        // Try to store in student_invites
         try {
           const { data, error } = await supabase
             .from("student_invites")
             .insert({
               code: inviteCode,
               school_id: schoolId,
-              created_by: user.id,
               status: "pending"
             });
           
@@ -355,6 +343,8 @@ const AdminStudents = () => {
   };
   
   const approveStudent = async (studentId: string) => {
+    if (!schoolId) return;
+    
     try {
       // Using the direct database function instead of edge function
       const { error } = await supabase
@@ -415,31 +405,31 @@ const AdminStudents = () => {
                 <div className="flex flex-col sm:flex-row sm:items-center">
                   <span className="font-medium min-w-32">School Name:</span>
                   {isSchoolDataLoading ? (
-                    <span className="text-muted-foreground">Loading...</span>
+                    <div className="h-5 w-32 bg-gray-200 animate-pulse rounded"></div>
                   ) : (
-                    <span>{schoolData?.name || profile?.organization?.name || "Not available"}</span>
+                    <span>{schoolData?.name || "Not available"}</span>
                   )}
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="font-medium min-w-32">School Code:</span>
                   {isSchoolDataLoading ? (
-                    <span className="text-muted-foreground font-mono">Loading...</span>
+                    <div className="h-5 w-24 bg-gray-200 animate-pulse rounded font-mono"></div>
                   ) : (
                     <div className="flex items-center gap-2">
                       <code className="px-2 py-1 bg-muted rounded text-sm font-mono">
-                        {schoolData?.code || profile?.organization?.code || "Not available"}
+                        {schoolData?.code || "Not available"}
                       </code>
                       <Button 
                         variant="outline" 
                         size="sm" 
                         onClick={() => {
-                          const code = schoolData?.code || profile?.organization?.code;
+                          const code = schoolData?.code;
                           if (code) {
                             navigator.clipboard.writeText(code);
                             toast.success("School code copied to clipboard!");
                           }
                         }}
-                        disabled={!schoolData?.code && !profile?.organization?.code}
+                        disabled={!schoolData?.code}
                       >
                         <Copy className="h-4 w-4" />
                       </Button>
