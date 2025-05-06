@@ -11,7 +11,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { 
   isValidObject,
   asSupabaseParam,
-  isDataResponse
+  isSupabaseError,
+  safelyCastData
 } from '@/utils/supabaseHelpers';
 
 // Define the FileItem type to match the file item structure
@@ -67,19 +68,19 @@ const FileList: React.FC = () => {
       const validFiles: FileItem[] = [];
       if (Array.isArray(data)) {
         for (const item of data) {
-          // Use null check guard for TypeScript
+          // Use null check guard and our helper function for TypeScript
           if (item && isValidObject(item, [
             'id', 'filename', 'file_type', 'file_size',
             'created_at', 'storage_path', 'processing_status'
           ])) {
             validFiles.push({
-              id: item.id,
-              filename: item.filename,
-              file_type: item.file_type,
-              file_size: item.file_size,
-              created_at: item.created_at,
-              storage_path: item.storage_path,
-              processing_status: item.processing_status
+              id: String(item.id),
+              filename: String(item.filename),
+              file_type: String(item.file_type),
+              file_size: Number(item.file_size),
+              created_at: String(item.created_at),
+              storage_path: String(item.storage_path),
+              processing_status: String(item.processing_status)
             });
           }
         }

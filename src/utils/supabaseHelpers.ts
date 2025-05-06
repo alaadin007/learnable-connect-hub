@@ -1,3 +1,4 @@
+
 /**
  * Helper functions for Supabase operations that ensure type safety
  */
@@ -29,7 +30,12 @@ export const prepareSupabaseUpdate = <T extends Record<string, any>>(data: T): a
  * @returns True if the object appears to be a Supabase error
  */
 export const isSupabaseError = (obj: any): boolean => {
-  return obj && typeof obj === 'object' && ('error' in obj || 'code' in obj || 'message' in obj);
+  return obj && typeof obj === 'object' && (
+    'error' in obj || 
+    'code' in obj || 
+    'message' in obj ||
+    (obj.error === true)
+  );
 };
 
 /**
@@ -38,7 +44,10 @@ export const isSupabaseError = (obj: any): boolean => {
  * @returns True if the response has data, false if it's an error
  */
 export const isDataResponse = <T>(response: any): response is { id: string } & T => {
-  return response && typeof response === 'object' && !isSupabaseError(response);
+  return response && 
+         typeof response === 'object' && 
+         !isSupabaseError(response) && 
+         ('id' in response);
 };
 
 /**
@@ -47,7 +56,11 @@ export const isDataResponse = <T>(response: any): response is { id: string } & T
  * @returns True if the file item is valid
  */
 export const isValidFileItem = (item: any): boolean => {
-  return item && typeof item === 'object' && 'id' in item && 'filename' in item && !isSupabaseError(item);
+  return item && 
+         typeof item === 'object' && 
+         'id' in item && 
+         'filename' in item && 
+         !isSupabaseError(item);
 };
 
 /**
@@ -56,7 +69,11 @@ export const isValidFileItem = (item: any): boolean => {
  * @returns True if the invitation is valid
  */
 export const isValidInvitation = (invitation: any): boolean => {
-  return invitation && typeof invitation === 'object' && 'id' in invitation && 'email' in invitation && !isSupabaseError(invitation);
+  return invitation && 
+         typeof invitation === 'object' && 
+         'id' in invitation && 
+         'email' in invitation && 
+         !isSupabaseError(invitation);
 };
 
 /**
@@ -122,12 +139,78 @@ export const isValidObject = (item: any, requiredProps: string[] = []): boolean 
  * @returns The value cast to the expected type, or a suitable default
  */
 export const asTypedValue = <T>(value: any, defaultValue: T): T => {
-  if (value === null || value === undefined) return defaultValue;
+  if (value === null || value === undefined || isSupabaseError(value)) return defaultValue;
   try {
     return value as T;
   } catch {
     return defaultValue;
   }
+};
+
+/**
+ * Helper to safely handle the responses from Supabase queries that might return errors
+ * @param response The response from a Supabase query
+ * @param defaultValue The default value to return if the response is an error
+ * @returns The response data or the default value
+ */
+export const safelyHandleResponse = <T>(response: any, defaultValue: T): T => {
+  if (!response || isSupabaseError(response)) {
+    return defaultValue;
+  }
+  return response as T;
+};
+
+/**
+ * Safely extract a string ID from a response that might be an error or contain an ID field
+ * @param data Response data that might contain an ID
+ * @returns The ID as a string or null if not available
+ */
+export const safelyExtractId = (data: any): string | null => {
+  if (!data || isSupabaseError(data) || !data.id) {
+    return null;
+  }
+  return String(data.id);
+};
+
+/**
+ * Safely extract a UUID from a Supabase function response
+ * @param data Response data that might be a UUID
+ * @returns The UUID as a string or null if not available
+ */
+export const safelyExtractUuid = (data: any): string | null => {
+  if (!data || isSupabaseError(data)) {
+    return null;
+  }
+  
+  // If data is directly a string and looks like a UUID
+  if (typeof data === 'string') {
+    return data;
+  }
+  
+  return null;
+};
+
+/**
+ * Type guard to check if an array item is valid for safe access
+ * @param item The item to check from an array response
+ * @returns True if the item is safe to access properties from
+ */
+export const isSafeArrayItem = (item: any): boolean => {
+  return item !== null && 
+         typeof item === 'object' && 
+         !isSupabaseError(item);
+};
+
+/**
+ * Helper for safely updating state with a string UUID from Supabase functions
+ * @param value The value from a Supabase function
+ * @returns A state update action compatible with React's setState
+ */
+export const toStringStateAction = (value: any): string => {
+  if (value === null || value === undefined || isSupabaseError(value)) {
+    return '';
+  }
+  return String(value);
 };
 
 export const supabaseHelpers = {
@@ -141,7 +224,12 @@ export const supabaseHelpers = {
   isSupabaseError,
   safelyCastData,
   isValidObject,
-  asTypedValue
+  asTypedValue,
+  safelyHandleResponse,
+  safelyExtractId,
+  safelyExtractUuid,
+  isSafeArrayItem,
+  toStringStateAction
 };
 
 export default supabaseHelpers;

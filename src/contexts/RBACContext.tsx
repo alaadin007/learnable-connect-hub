@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useAuth } from "./AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { isValidObject } from "@/utils/supabaseHelpers";
 
 export type AppRole = "school_admin" | "teacher_supervisor" | "teacher" | "student" | "system_admin";
 
@@ -31,8 +32,13 @@ export const RBACProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     if (usingTestAccount && testAccountRoles) {
       try {
-        const parsedRoles = JSON.parse(testAccountRoles) as AppRole[];
-        setRoles(parsedRoles);
+        const parsedRoles = JSON.parse(testAccountRoles);
+        // Ensure we only set valid roles
+        const validRoles = parsedRoles.filter((role: any) => 
+          typeof role === 'string' && 
+          ['school_admin', 'teacher_supervisor', 'teacher', 'student', 'system_admin'].includes(role)
+        );
+        setRoles(validRoles as AppRole[]);
         setIsLoading(false);
         return;
       } catch (e) {

@@ -7,7 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
-import { asSupabaseParam, isValidObject } from "@/utils/supabaseHelpers";
+import { asSupabaseParam, isValidObject, safelyCastData } from '@/utils/supabaseHelpers';
 import { useAuth } from "@/contexts/AuthContext";
 
 interface TeacherInvite {
@@ -65,11 +65,11 @@ const TeacherManagement = () => {
               'id', 'email', 'status', 'created_at', 'expires_at'
             ])) {
               validInvites.push({
-                id: item.id,
-                email: item.email,
-                status: item.status,
-                created_at: item.created_at,
-                expires_at: item.expires_at
+                id: String(item.id),
+                email: String(item.email),
+                status: String(item.status),
+                created_at: String(item.created_at),
+                expires_at: String(item.expires_at)
               });
             }
           }

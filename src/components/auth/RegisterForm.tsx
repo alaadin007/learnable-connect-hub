@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -15,7 +16,13 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useNavigate, Link } from "react-router-dom";
-import { asSupabaseParam, isValidObject, prepareTableInsert, prepareSupabaseUpdate } from "@/utils/supabaseHelpers";
+import { 
+  asSupabaseParam, 
+  isValidObject, 
+  prepareTableInsert, 
+  prepareSupabaseUpdate,
+  safelyExtractId
+} from "@/utils/supabaseHelpers";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address." }),
@@ -123,37 +130,36 @@ const RegisterForm = () => {
           return;
         }
 
-        // Safely check if the new school data has an ID
-        if (newSchoolData && isValidObject(newSchoolData, ['id'])) {
-          schoolId = String(newSchoolData.id);
-          
-          // Update the user's profile with the school ID if we have a valid ID
-          if (schoolId) {
-            const { error: updateError } = await supabase
-              .from("profiles")
-              .update(prepareSupabaseUpdate({ school_id: schoolId }))
-              .eq("id", asSupabaseParam(data.user.id));
-
-            if (updateError) {
-              toast.error(
-                "Registration successful, but failed to update profile with school ID. Please contact support."
-              );
-              setIsLoading(false);
-              return;
-            }
-            
-            // Add the student role to user_roles table
-            await supabase.rpc("assign_role", {
-              user_id_param: data.user.id,
-              role_param: "student"
-            });
-          }
-        }
-      } else if (schoolData && isValidObject(schoolData, ['id'])) {
-        schoolId = String(schoolData.id);
+        // Safely extract the school ID
+        schoolId = safelyExtractId(newSchoolData);
         
-        // Update the user's profile with the school ID if it exists
         if (schoolId) {
+          // Update the user's profile with the school ID
+          const { error: updateError } = await supabase
+            .from("profiles")
+            .update(prepareSupabaseUpdate({ school_id: schoolId }))
+            .eq("id", asSupabaseParam(data.user.id));
+
+          if (updateError) {
+            toast.error(
+              "Registration successful, but failed to update profile with school ID. Please contact support."
+            );
+            setIsLoading(false);
+            return;
+          }
+          
+          // Add the student role to user_roles table
+          await supabase.rpc("assign_role", {
+            user_id_param: data.user.id,
+            role_param: "student"
+          });
+        }
+      } else if (schoolData) {
+        // Safely extract the school ID
+        schoolId = safelyExtractId(schoolData);
+        
+        if (schoolId) {
+          // Update the user's profile with the school ID
           const { error: updateError } = await supabase
             .from("profiles")
             .update(prepareSupabaseUpdate({ school_id: schoolId }))

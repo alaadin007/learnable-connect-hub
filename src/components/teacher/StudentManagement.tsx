@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { RefreshCw, Copy } from 'lucide-react';
 import { approveStudentDirect, inviteStudentDirect, revokeStudentAccessDirect } from '@/utils/databaseUtils';
+import { asSupabaseParam, toStringStateAction } from '@/utils/supabaseHelpers';
 
 type Student = {
   id: string;
@@ -61,8 +61,9 @@ const StudentManagement: React.FC<StudentManagementProps> = ({
             return;
           }
           
+          // Safely convert to string for state update
           if (schoolIdData) {
-            setSchoolId(schoolIdData);
+            setSchoolId(toStringStateAction(schoolIdData));
           }
         } catch (error) {
           console.error('Error in fetchSchoolId:', error);

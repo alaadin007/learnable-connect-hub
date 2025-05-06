@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { FileIcon, Upload } from 'lucide-react';
@@ -7,7 +6,7 @@ import { CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from '@/contexts/AuthContext';
-import { asSupabaseParam, isValidObject } from '@/utils/supabaseHelpers';
+import { asSupabaseParam, isValidObject, safelyExtractId } from '@/utils/supabaseHelpers';
 
 type FileUploadProps = {
   onUploadComplete: () => void;
@@ -87,24 +86,19 @@ const FileUpload: React.FC<FileUploadProps> = ({ onUploadComplete }) => {
         return;
       }
 
-      // Safely check if we have valid data with an ID
-      const documentData = metadataResult.data;
-      if (documentData && isValidObject(documentData, ['id'])) {
-        const documentId = documentData.id;
-        console.log("Document metadata saved:", documentData);
+      // Safely extract the document ID
+      const documentId = safelyExtractId(metadataResult.data);
+      
+      if (documentId) {
+        console.log("Document metadata saved with ID:", documentId);
         setUploadProgress(100);
         
-        // Trigger content processing immediately if we have a valid ID
-        if (documentId) {
-          await triggerContentProcessing(documentId);
-          toast.success("File uploaded successfully!");
-          onUploadComplete();
-        } else {
-          console.error("Document ID is undefined", metadataResult);
-          toast.error("Error processing document information");
-        }
+        // Trigger content processing immediately with the valid ID
+        await triggerContentProcessing(documentId);
+        toast.success("File uploaded successfully!");
+        onUploadComplete();
       } else {
-        console.error("Invalid document data response:", metadataResult);
+        console.error("Document ID is undefined", metadataResult);
         toast.error("Error processing document information");
       }
       

@@ -57,9 +57,9 @@ const ApiKeyManagement = () => {
         data.forEach(item => {
           // Safely check the service_name property exists
           if (item && isValidObject(item, ['service_name', 'api_key'])) {
-            const serviceName = item.service_name as string;
-            if (serviceName in newApiKeys) {
-              newApiKeys[serviceName] = item.api_key as string;
+            const serviceName = String(item.service_name);
+            if (serviceName && serviceName in newApiKeys) {
+              newApiKeys[serviceName] = String(item.api_key || '');
             }
           }
         });

@@ -29,7 +29,7 @@ export const supabase = createClient<Database>(
       debug: process.env.NODE_ENV === 'development', // Enable debug mode in development
       
       // Set the redirect URLs for email confirmation
-      // Remove 'site' property as it's not supported in the current version
+      // Removed 'site' property as it's not supported
       redirectTo: `${getSiteUrl()}/auth/callback`,
     }
   }
