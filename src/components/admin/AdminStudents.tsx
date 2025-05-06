@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { RefreshCw, User, Copy, AlertTriangle } from "lucide-react";
+import { isDataResponse, safelyExtractData, asUUID } from "@/utils/supabaseHelpers";
 
 type Student = {
   id: string;
@@ -43,20 +43,20 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
       setError(null);
       setLoading(true);
 
-      // Using type assertion to handle the UUID type properly
-      const { data: studentsData, error: studentsError } = await supabase
+      const studentsResponse = await supabase
         .from("students")
         .select("id, school_id, status, created_at")
-        .eq("school_id", schoolId as any);
+        .eq("school_id", asUUID(schoolId));
 
-      if (studentsError) {
-        console.error("Error fetching students:", studentsError);
+      if (!isDataResponse(studentsResponse)) {
+        console.error("Error fetching students:", studentsResponse.error);
         setError("Error fetching students. Please refresh.");
         toast.error("Error fetching students");
         setLoading(false);
         return;
       }
 
+      const studentsData = studentsResponse.data;
       if (!studentsData || studentsData.length === 0) {
         console.log("No students found for school:", schoolId);
         setStudents([]);
@@ -69,22 +69,18 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
       // Now fetch the profiles data separately
       const studentIds = studentsData.map(student => student.id);
 
-      const { data: profilesData, error: profilesError } = await supabase
+      const profilesResponse = await supabase
         .from("profiles")
         .select("id, full_name")
         .in("id", studentIds);
 
-      if (profilesError) {
-        console.error("Error fetching profiles:", profilesError);
-        // Continue with partial data rather than failing entirely
-      }
-
-      // Using proper type guards to handle possible null/error cases
+      // Process student data with profiles using the safe extraction utility
+      const profilesData = isDataResponse(profilesResponse) ? profilesResponse.data : [];
+      
+      // Create formatted students array with proper type safety
       const formattedStudents: Student[] = studentsData.map(student => {
         // Find the matching profile if it exists
-        const profile = profilesData && !profilesError 
-          ? profilesData.find(p => p && p.id === student.id) 
-          : null;
+        const profile = profilesData.find(p => p && p.id === student.id);
           
         return {
           id: student.id,
@@ -115,8 +111,8 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
       // Update the student status directly in the database
       const { error } = await supabase
         .from("students")
-        .update({ status: "active" } as any)
-        .eq("id", studentId as any);
+        .update({ status: "active" })
+        .eq("id", asUUID(studentId));
 
       if (error) {
         console.error("Error approving student:", error);
@@ -146,7 +142,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
       const { error } = await supabase
         .from("students")
         .delete()
-        .eq("id", studentId as any);
+        .eq("id", asUUID(studentId));
 
       if (error) {
         console.error("Failed to revoke student access:", error);

@@ -79,29 +79,36 @@ const FileList: React.FC = () => {
     };
   }, []);
 
-  const fetchFiles = async () => {
-    if (!user) return;
+  // Ensure all code accesses data safely using our helper functions
+const fetchFiles = async () => {
+  if (!user) return;
+  
+  setLoading(true);
+  setError(null);
+  
+  try {
+    console.log("Fetching documents for user:", user.id);
+    // Use helper functions from databaseUtils which should be using our supabaseHelpers internally
+    const docs = await getUserDocuments(user.id);
     
-    setLoading(true);
-    setError(null);
-    
-    try {
-      console.log("Fetching documents for user:", user.id);
-      const docs = await getUserDocuments(user.id);
-      console.log("Retrieved documents:", docs);
-      setFiles(docs || []);
-    } catch (error) {
-      console.error('Error fetching files:', error);
-      setError('Failed to fetch your files. Please try again.');
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch your files',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
+    // Type-safe setting of state
+    if (docs && Array.isArray(docs)) {
+      setFiles(docs);
+    } else {
+      setFiles([]);
     }
-  };
+  } catch (error) {
+    console.error('Error fetching files:', error);
+    setError('Failed to fetch your files. Please try again.');
+    toast({
+      title: 'Error',
+      description: 'Failed to fetch your files',
+      variant: 'destructive',
+    });
+  } finally {
+    setLoading(false);
+  }
+};
 
   const getFileIcon = (fileType: string) => {
     if (fileType.includes('pdf')) return 'pdf';
