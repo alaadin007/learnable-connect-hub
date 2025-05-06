@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
@@ -9,8 +8,8 @@ import StudentManagement from "@/components/teacher/StudentManagement";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Link, useNavigate, useLocation } from "react-router-dom";
-import { Users, BarChart2, ChevronDown, Settings, User, School, Copy } from "lucide-react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { Users, BarChart2, ChevronDown, Settings, User, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -21,7 +20,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { getCurrentSchoolInfo } from "@/utils/databaseUtils";
 
-// Define the basic type for teacher invitations
 export type TeacherInvitation = {
   id: string;
   email: string;
@@ -40,16 +38,14 @@ const SchoolAdmin = () => {
   const location = useLocation();
   const [activeTab, setActiveTab] = useState("teachers");
   const [schoolData, setSchoolData] = useState<{ name: string; code: string; id?: string } | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
   const [schoolId, setSchoolId] = useState<string | null>(null);
-  
-  // Fetch school ID and data when component mounts
+  const [hasRedirected, setHasRedirected] = useState(false); // to prevent redirect loop
+
   useEffect(() => {
     const fetchSchoolInfo = async () => {
       try {
-        // Try to get complete school info from database
         const schoolInfo = await getCurrentSchoolInfo();
-        
+
         if (schoolInfo) {
           setSchoolData({
             id: schoolInfo.id,
@@ -59,34 +55,30 @@ const SchoolAdmin = () => {
           setSchoolId(schoolInfo.id);
           return;
         }
-        
-        // Fallback: Try to get school ID from auth context
+
         let schoolIdToUse = authSchoolId;
-        
-        // If not available, fetch it
+
         if (!schoolIdToUse) {
-          const { data: fetchedSchoolId, error: schoolIdError } = await supabase
-            .rpc('get_user_school_id');
-          
+          const { data: fetchedSchoolId, error: schoolIdError } = await supabase.rpc('get_user_school_id');
+
           if (schoolIdError) {
             console.error('Error fetching school ID:', schoolIdError);
             toast.error("Failed to load school information");
             return;
           }
-          
+
           schoolIdToUse = fetchedSchoolId;
         }
-        
+
         if (schoolIdToUse) {
           setSchoolId(schoolIdToUse);
-          
-          // Fetch school data
+
           const { data: schoolDetails, error: schoolError } = await supabase
             .from("schools")
             .select("name, code")
             .eq("id", schoolIdToUse)
             .single();
-            
+
           if (schoolError) {
             console.error("Error fetching school details:", schoolError);
           } else if (schoolDetails) {
@@ -101,21 +93,20 @@ const SchoolAdmin = () => {
         toast.error("Failed to load school information");
       }
     };
-    
+
     fetchSchoolInfo();
   }, [authSchoolId]);
-  
-  // Verify correct user role, but only if not coming from test accounts
+
   useEffect(() => {
     const fromTestAccounts = location.state?.fromTestAccounts === true;
-    
-    if (!fromTestAccounts && !isAdmin && userRole) {
+
+    if (!fromTestAccounts && !isAdmin && userRole && !hasRedirected) {
       toast.error("You don't have permission to access this page");
       navigate("/dashboard", { replace: true });
+      setHasRedirected(true);
     }
-  }, [userRole, isAdmin, navigate, location.state]);
+  }, [userRole, isAdmin, navigate, location.state, hasRedirected]);
 
-  // Fixed Quick actions dropdown handler to prevent navigation issues
   const handleQuickActionSelect = (action: string) => {
     switch (action) {
       case "manage-teachers":
@@ -131,8 +122,7 @@ const SchoolAdmin = () => {
         navigate("/admin/students");
         break;
       case "dashboard":
-        // Clear any previous state and set new state to prevent redirect loops
-        navigate("/dashboard", { 
+        navigate("/dashboard", {
           state: { fromNavigation: true },
           replace: true
         });
@@ -142,16 +132,25 @@ const SchoolAdmin = () => {
     }
   };
 
-  // Handle tab selections with consistency
+  // Removed navigate calls here - tabs control local state only
   const handleTabClick = (value: string) => {
     setActiveTab(value);
-    
-    if (value === "students") {
-      navigate("/admin/students");
-    } else if (value === "settings") {
-      navigate("/admin/settings");
-    }
   };
+
+  if (!schoolData) {
+    // Render a placeholder until school data loaded to avoid render crashes
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Navbar />
+        <main className="flex-grow bg-learnable-super-light py-8">
+          <div className="container mx-auto text-center py-10 font-semibold text-lg">
+            Loading school data...
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -164,7 +163,7 @@ const SchoolAdmin = () => {
               Manage your school settings, teachers, and students
             </p>
           </div>
-          
+
           <Card className="mb-6">
             <CardHeader>
               <CardTitle>School Information</CardTitle>
@@ -204,7 +203,7 @@ const SchoolAdmin = () => {
               </div>
             </CardContent>
           </Card>
-          
+
           <div className="mb-6 flex flex-wrap gap-3 justify-between items-center">
             <h2 className="text-xl font-semibold">Quick Actions</h2>
             <div className="flex flex-wrap gap-3">
@@ -240,7 +239,7 @@ const SchoolAdmin = () => {
               </DropdownMenu>
             </div>
           </div>
-          
+
           <Tabs defaultValue="teachers" value={activeTab} onValueChange={handleTabClick} className="space-y-4">
             <TabsList className="w-full border-b">
               <TabsTrigger value="teachers" className="flex-1">
@@ -253,21 +252,21 @@ const SchoolAdmin = () => {
                 School Settings
               </TabsTrigger>
             </TabsList>
-            
+
             <TabsContent value="teachers" className="space-y-4">
               <TeacherManagement />
             </TabsContent>
-            
+
             <TabsContent value="students" className="space-y-4">
               {activeTab === "students" && (
-                <StudentManagement 
-                  schoolId={schoolId} 
-                  isLoading={false} 
-                  schoolInfo={schoolData} 
+                <StudentManagement
+                  schoolId={schoolId}
+                  isLoading={false}
+                  schoolInfo={schoolData}
                 />
               )}
             </TabsContent>
-            
+
             <TabsContent value="settings" className="space-y-4">
               <Card>
                 <CardHeader>
