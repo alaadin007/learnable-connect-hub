@@ -1,8 +1,8 @@
+
 import React, { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, CheckCircle, AlertCircle } from "lucide-react";
@@ -19,7 +19,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { safeResponse, asSupabaseParam, safeAnyCast } from "@/utils/supabaseHelpers";
+import { safeAnyCast } from "@/utils/supabaseHelpers";
 
 const formSchema = z.object({
   fullName: z.string().min(2, "Full name must be at least 2 characters"),
@@ -64,35 +64,29 @@ const AcceptInvitation = () => {
       }
 
       try {
-        const { data, error } = await supabase
+        const { data: invitationData, error: invitationError } = await supabase
           .rpc("verify_teacher_invitation", {
             invitation_token: token
           });
         
-        if (error || !data) {
-          console.error("Error verifying invitation:", error || "No data returned");
+        if (invitationError || !invitationData) {
+          console.error("Error verifying invitation:", invitationError || "No data returned");
           setInvitationStatus("invalid");
           setIsLoading(false);
           return;
         }
 
-        // Cast data to the expected shape
-        const invitationData = data as {
-          invitation_id: string;
-          school_id: string;
-          school_name: string;
-          email: string;
-          status?: string;
-        };
-
-        // Check if invitation is valid
-        if (invitationData.status === 'expired') {
+        const typedInvitationData = invitationData as any;
+        
+        // Check if invitation is valid based on some property from the response
+        // Assuming the RPC returns an 'expired' status if the invitation has expired
+        if (typedInvitationData.status === 'expired') {
           setInvitationStatus("expired");
           setIsLoading(false);
           return;
         }
 
-        if (invitationData.status === 'accepted') {
+        if (typedInvitationData.status === 'accepted') {
           toast.info("This invitation has already been accepted.");
           navigate('/login');
           return;
@@ -102,19 +96,19 @@ const AcceptInvitation = () => {
         const { data: schoolData, error: schoolError } = await supabase
           .from('schools')
           .select('name')
-          .eq('id', invitationData.school_id)
+          .eq('id', safeAnyCast<string>(typedInvitationData.school_id))
           .single();
 
-        const schoolName = schoolError ? undefined : schoolData?.name;
+        const schoolName = schoolError ? undefined : (schoolData && 'name' in schoolData) ? schoolData.name : undefined;
 
         setInvitationDetails({
-          id: invitationData.invitation_id,
-          email: invitationData.email,
-          school_id: invitationData.school_id,
-          school_name: schoolName || invitationData.school_name
+          id: typedInvitationData.invitation_id,
+          email: typedInvitationData.email,
+          school_id: typedInvitationData.school_id,
+          school_name: schoolName || typedInvitationData.school_name
         });
 
-        form.setValue('email', invitationData.email);
+        form.setValue('email', typedInvitationData.email);
         setInvitationStatus("valid");
       } catch (error) {
         console.error("Error processing invitation:", error);
@@ -161,16 +155,17 @@ const AcceptInvitation = () => {
       }
 
       // Create profile
+      const profileData = {
+        email: data.email,
+        full_name: data.fullName,
+        role: 'teacher',
+        school_id: invitationDetails.school_id,
+        user_type: 'teacher'
+      };
+      
       const { error: profileError } = await supabase
         .from('profiles')
-        .insert({
-          id: authData.user.id,
-          email: data.email,
-          full_name: data.fullName,
-          role: 'teacher',
-          school_id: invitationDetails.school_id,
-          user_type: 'teacher'
-        });
+        .upsert([{ ...profileData, id: authData.user.id }]);
 
       if (profileError) {
         throw new Error(profileError.message || "Failed to create profile");

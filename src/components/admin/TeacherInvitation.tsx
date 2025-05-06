@@ -8,6 +8,7 @@ import { Loader2, UserPlus, Mail, Check, X, RefreshCcw } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useAuth } from "@/contexts/AuthContext";
+import { safeAnyCast } from "@/utils/supabaseHelpers";
 
 const TeacherInvitation = () => {
   const { user } = useAuth();
@@ -28,7 +29,7 @@ const TeacherInvitation = () => {
       if (schoolError || !schoolData) {
         console.error("Error fetching school ID:", schoolError);
         toast.error("Could not determine your school");
-        setLoading(false);
+        setIsLoading(false);
         return;
       }
       
@@ -36,7 +37,7 @@ const TeacherInvitation = () => {
       const { data, error } = await supabase
         .from('teacher_invitations')
         .select('*')
-        .eq('school_id', schoolData);
+        .eq('school_id', safeAnyCast<string>(schoolData));
       
       if (error) {
         console.error("Error fetching invitations:", error);

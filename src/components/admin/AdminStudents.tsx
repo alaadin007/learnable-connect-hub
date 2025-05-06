@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -59,14 +60,14 @@ const AdminStudents: React.FC<AdminStudentsProps> = ({ schoolId, schoolInfo, isL
           return;
         }
         
-        schoolIdToUse = schoolData;
+        schoolIdToUse = schoolData as string;
       }
       
       // Get all students for this school
       const { data: studentsData, error: studentsError } = await supabase
         .from('students')
         .select('id, school_id, status, created_at')
-        .eq('school_id', schoolIdToUse as string);
+        .eq('school_id', safeAnyCast<string>(schoolIdToUse));
 
       if (studentsError) {
         console.error('Error fetching students:', studentsError);
@@ -91,18 +92,18 @@ const AdminStudents: React.FC<AdminStudentsProps> = ({ schoolId, schoolInfo, isL
       if (validStudents.length > 0) {
         const studentIds = validStudents.map(s => s.id);
         
-        const { data: profilesData, error: profilesError } = await supabase
+        const { data: profileData, error: profilesError } = await supabase
           .from('profiles')
           .select('id, full_name')
-          .in('id', studentIds as string[]);
+          .in('id', safeAnyCast<string[]>(studentIds));
       
         if (profilesError) {
           console.error('Error fetching profiles:', profilesError);
-        } else if (profilesData) {
+        } else if (profileData) {
           // Convert to our expected StudentProfile type
-          const validProfiles: StudentProfile[] = Array.isArray(profilesData)
-            ? profilesData.map(p => ({
-                id: p.id,
+          const validProfiles: StudentProfile[] = Array.isArray(profileData)
+            ? profileData.map(p => ({
+                id: p.id || '',
                 full_name: p.full_name || 'Unnamed'
               }))
             : [];
@@ -120,10 +121,12 @@ const AdminStudents: React.FC<AdminStudentsProps> = ({ schoolId, schoolInfo, isL
 
   const handleApproveStudent = async (student: Student) => {
     try {
+      const updateObject = safeAnyCast<{ status: string }>({ status: "active" });
+      
       const { error } = await supabase
         .from('students')
-        .update({ status: 'active' })
-        .eq('id', student.id);
+        .update(updateObject)
+        .eq('id', safeAnyCast<string>(student.id));
       
       if (error) {
         console.error('Error updating student status:', error);
