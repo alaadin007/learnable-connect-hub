@@ -9,6 +9,14 @@ const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
+// Get the current site URL from deployment or development
+const getSiteUrl = () => {
+  if (typeof window !== 'undefined') {
+    return window.location.origin;
+  }
+  return 'https://your-published-site-url.com'; // Replace with your actual deployed URL
+};
+
 export const supabase = createClient<Database>(
   SUPABASE_URL, 
   SUPABASE_PUBLISHABLE_KEY,
@@ -21,8 +29,8 @@ export const supabase = createClient<Database>(
       debug: process.env.NODE_ENV === 'development', // Enable debug mode in development
       
       // Set the site URL and redirect URLs for email confirmation
-      site: typeof window !== 'undefined' ? window.location.origin : '',
-      redirectTo: typeof window !== 'undefined' ? window.location.origin + '/auth/callback' : '',
+      site: getSiteUrl(),
+      redirectTo: `${getSiteUrl()}/auth/callback`,
     }
   }
 );

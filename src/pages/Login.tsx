@@ -4,7 +4,8 @@ import Navbar from "@/components/layout/Navbar";
 import LoginForm from "@/components/auth/LoginForm";
 import Footer from "@/components/landing/Footer";
 import { Link } from "react-router-dom";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, HelpCircle } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const Login = () => {
   return (
@@ -12,6 +13,14 @@ const Login = () => {
       <Navbar />
       <main className="flex-grow bg-learnable-super-light flex flex-col items-center justify-center py-10">
         <div className="max-w-md w-full mx-auto mb-6">
+          <Alert className="bg-blue-50 border-l-4 border-blue-500 mb-4">
+            <HelpCircle className="h-5 w-5 text-blue-500" />
+            <AlertTitle className="text-blue-800">Auth Configuration</AlertTitle>
+            <AlertDescription className="text-blue-700">
+              For authentication to work in production, make sure to set the Site URL and Redirect URLs in Supabase Auth settings to your deployed site URL.
+            </AlertDescription>
+          </Alert>
+          
           <div className="bg-amber-100 border-l-4 border-amber-500 p-4 rounded-md shadow">
             <div className="flex items-start">
               <div className="flex-shrink-0">
