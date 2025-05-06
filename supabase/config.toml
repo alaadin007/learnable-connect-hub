@@ -20,8 +20,9 @@ enabled = true
 enabled = true
 
 [auth]
-site_url = "https://your-app-domain.com"
+site_url = "https://your-app-domain.com" 
 additional_redirect_urls = [
   "https://your-app-domain.com/auth/callback", 
-  "http://localhost:5173/auth/callback"
+  "http://localhost:5173/auth/callback",
+  "http://localhost:3000/auth/callback"
 ]

@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -78,7 +79,17 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSuccess }) => {
 
       if (data?.user?.id) {
         // Get the user role from the profiles table
-        const role = await getUserRole(data.user.id);
+        const response = await supabase
+          .from('profiles')
+          .select('user_type')
+          .eq('id', ensureUUID(data.user.id))
+          .single();
+        
+        // Get the user role using a safe approach
+        let role = null;
+        if (isDataResponse(response) && response.data && response.data.user_type) {
+          role = response.data.user_type;
+        }
 
         // Redirect based on user type
         if (userType === 'school') {
@@ -99,44 +110,6 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSuccess }) => {
       setRegistrationError(error.message || "An unexpected error occurred");
     } finally {
       setIsSubmitting(false);
-    }
-  };
-
-  const getUserRole = async (userId: string) => {
-    try {
-      const response = await supabase
-        .from('profiles')
-        .select('user_type')
-        .eq('id', userId)
-        .limit(1);
-        
-      if (!isDataResponse(response) || response.data.length === 0) {
-        return null;
-      }
-      
-      const profile = response.data[0];
-      if (!profile || !('user_type' in profile)) {
-        return null;
-      }
-      
-      const userTypeValue = profile.user_type;
-      if (!userTypeValue) {
-        return null;
-      }
-      
-      switch (userTypeValue) {
-        case 'school':
-          return 'School Admin';
-        case 'teacher':
-          return 'Teacher';
-        case 'student':
-          return 'Student';
-        default:
-          return userTypeValue;
-      }
-    } catch (error) {
-      console.error('Error getting user role:', error);
-      return null;
     }
   };
 
