@@ -20,6 +20,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { safeResponse, asSupabaseParam, safeAnyCast } from "@/utils/supabaseHelpers";
 
 const formSchema = z.object({
   fullName: z.string().min(2, "Full name must be at least 2 characters"),
@@ -62,17 +63,27 @@ const AcceptInvitation = () => {
       }
 
       try {
-        const { data: invitationData, error: invitationError } = await supabase
-          .rpc("verify_teacher_invitation", {
-            invitation_token: token
-          });
+        const invitationResponse = await safeResponse(
+          supabase
+            .rpc("verify_teacher_invitation", {
+              invitation_token: token
+            })
+        );
         
-        if (invitationError || !invitationData) {
-          console.error("Error verifying invitation:", invitationError);
+        if (!invitationResponse.success || !invitationResponse.data) {
+          console.error("Error verifying invitation:", invitationResponse.error || "No data returned");
           setInvitationStatus("invalid");
           setIsLoading(false);
           return;
         }
+
+        const invitationData = safeAnyCast<{
+          invitation_id: string;
+          school_id: string;
+          school_name: string;
+          email: string;
+          status?: string;
+        }>(invitationResponse.data);
 
         // Check if invitation is valid
         if (invitationData.status === 'expired') {
@@ -88,17 +99,21 @@ const AcceptInvitation = () => {
         }
 
         // Get school name if available
-        const { data: schoolData } = await supabase
-          .from('schools')
-          .select('name')
-          .eq('id', invitationData.school_id)
-          .single();
+        const schoolResponse = await safeResponse(
+          supabase
+            .from('schools')
+            .select('name')
+            .eq('id', invitationData.school_id)
+            .single()
+        );
+
+        const schoolName = schoolResponse.success ? schoolResponse.data?.name : undefined;
 
         setInvitationDetails({
-          id: invitationData.id,
+          id: invitationData.invitation_id,
           email: invitationData.email,
           school_id: invitationData.school_id,
-          school_name: schoolData?.name
+          school_name: schoolName || invitationData.school_name
         });
 
         form.setValue('email', invitationData.email);
@@ -137,29 +152,36 @@ const AcceptInvitation = () => {
       }
 
       // Accept the invitation
-      const { error: acceptError } = await supabase
-        .rpc("accept_teacher_invitation", {
-          invitation_id: invitationDetails.id,
-          teacher_id: authData.user.id
-        });
+      const acceptResponse = await safeResponse(
+        supabase
+          .rpc("accept_teacher_invitation", {
+            invitation_id: invitationDetails.id,
+            teacher_id: authData.user.id
+          })
+      );
 
-      if (acceptError) {
-        throw new Error(acceptError.message);
+      if (!acceptResponse.success) {
+        throw new Error(acceptResponse.message || "Failed to accept invitation");
       }
 
       // Create profile
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert({
-          id: authData.user.id,
-          email: data.email,
-          full_name: data.fullName,
-          role: 'teacher',
-          school_id: invitationDetails.school_id
-        });
+      const profileData = safeAnyCast({
+        id: authData.user.id,
+        email: data.email,
+        full_name: data.fullName,
+        role: 'teacher',
+        school_id: invitationDetails.school_id,
+        user_type: 'teacher'
+      });
 
-      if (profileError) {
-        throw new Error(profileError.message);
+      const profileResponse = await safeResponse(
+        supabase
+          .from('profiles')
+          .insert(profileData)
+      );
+
+      if (!profileResponse.success) {
+        throw new Error(profileResponse.message || "Failed to create profile");
       }
 
       toast.success("Account created successfully!");

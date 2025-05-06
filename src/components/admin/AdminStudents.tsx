@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
-import { safeAnyCast } from "@/utils/supabaseHelpers";
+import { safeAnyCast, safeResponse } from "@/utils/supabaseHelpers";
 
 interface StudentProfile {
   id: string;
@@ -63,21 +63,23 @@ const AdminStudents: React.FC<AdminStudentsProps> = ({ schoolId, schoolInfo, isL
       const schoolIdToUse = schoolId || '';
     
       // Get all students for this school
-      const { data: studentsData, error: studentsError } = await supabase
-        .from('students')
-        .select('*')
-        .eq('school_id', schoolIdToUse);
+      const response = await safeResponse(
+        supabase
+          .from('students')
+          .select('*')
+          .eq('school_id', schoolIdToUse)
+      );
 
-      if (studentsError) {
-        console.error('Error fetching students:', studentsError);
+      if (!response.success) {
+        console.error('Error fetching students:', response.error);
         toast.error('Failed to load students');
         setLoading(false);
         return;
       }
 
       // Convert to our expected Student type
-      const validStudents: Student[] = Array.isArray(studentsData) 
-        ? studentsData.map(s => ({
+      const validStudents: Student[] = Array.isArray(response.data) 
+        ? response.data.map(s => ({
             id: s.id,
             school_id: s.school_id,
             status: s.status || 'pending',
@@ -90,18 +92,18 @@ const AdminStudents: React.FC<AdminStudentsProps> = ({ schoolId, schoolInfo, isL
       // Get profiles for these students to get their names
       if (validStudents.length > 0) {
         const studentIds = validStudents.map(s => s.id);
+        
+        const profileResponse = await safeResponse(
+          supabase
+            .from('profiles')
+            .select('id, full_name')
+            .in('id', studentIds)
+        );
       
-        const { data: profilesData, error: profilesError } = await supabase
-          .from('profiles')
-          .select('id, full_name')
-          .in('id', studentIds);
-      
-        if (profilesError) {
-          console.error('Error fetching profiles:', profilesError);
-        } else if (profilesData) {
+        if (profileResponse.success && profileResponse.data) {
           // Convert to our expected StudentProfile type
-          const validProfiles: StudentProfile[] = Array.isArray(profilesData)
-            ? profilesData.map(p => ({
+          const validProfiles: StudentProfile[] = Array.isArray(profileResponse.data)
+            ? profileResponse.data.map(p => ({
                 id: p.id,
                 full_name: p.full_name || 'Unnamed'
               }))
@@ -120,15 +122,15 @@ const AdminStudents: React.FC<AdminStudentsProps> = ({ schoolId, schoolInfo, isL
 
   const handleApproveStudent = async (student: Student) => {
     try {
-      const { error } = await supabase
-        .from('students')
-        .update({ 
-          status: 'active' 
-        })
-        .eq('id', student.id);
+      const result = await safeResponse(
+        supabase
+          .from('students')
+          .update(safeAnyCast({ status: 'active' }))
+          .eq('id', student.id)
+      );
       
-      if (error) {
-        console.error('Error updating student status:', error);
+      if (!result.success) {
+        console.error('Error updating student status:', result.error);
         toast.error('Failed to approve student');
         return;
       }

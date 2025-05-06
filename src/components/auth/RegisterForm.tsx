@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -15,7 +16,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useNavigate, Link } from "react-router-dom";
-import { isDataResponse, asSupabaseParam } from "@/utils/supabaseHelpers";
+import { safeResponse, safeAnyCast } from "@/utils/supabaseHelpers";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address." }),
@@ -70,87 +71,95 @@ const RegisterForm = () => {
       }
 
       // Create a user profile
-      const profileData = asSupabaseParam({
-        id: data.user.id,
+      const profileData = safeAnyCast({
         email: email,
         school_code: schoolCode,
+        user_type: 'student'
       });
 
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .insert([profileData]);
+      const profileResponse = await safeResponse(
+        supabase
+          .from("profiles")
+          .insert([profileData])
+      );
 
-      if (profileError) {
+      if (!profileResponse.success) {
         toast.error(
-          `User created, but profile creation failed: ${profileError.message}`
+          `User created, but profile creation failed: ${profileResponse.message}`
         );
         return;
       }
 
       // Check if the school exists
-      const { data: schoolData, error: schoolError } = await supabase
-        .from("schools")
-        .select("id")
-        .eq("code", schoolCode)
-        .single();
+      const schoolResponse = await safeResponse(
+        supabase
+          .from("schools")
+          .select("id")
+          .eq("code", schoolCode)
+          .single()
+      );
 
-      if (schoolError) {
+      if (!schoolResponse.success) {
         toast.error(
           "Registration successful, but failed to verify school. Please contact support."
         );
         return;
       }
 
-      if (!schoolData) {
+      if (!schoolResponse.data) {
         // Create a new school if it doesn't exist
-        const newSchool = asSupabaseParam({
+        const newSchool = safeAnyCast({
           code: schoolCode,
           name: "Your School Name", // You might want to prompt the user for the school name
         });
 
-        const { data: newSchoolData, error: newSchoolError } = await supabase
-          .from("schools")
-          .insert([newSchool])
-          .select("id")
-          .single();
+        const newSchoolResponse = await safeResponse(
+          supabase
+            .from("schools")
+            .insert([newSchool])
+            .select("id")
+            .single()
+        );
 
-        if (newSchoolError) {
+        if (!newSchoolResponse.success || !newSchoolResponse.data) {
           toast.error(
             "Registration successful, but failed to create school. Please contact support."
           );
           return;
         }
 
-        if (newSchoolData) {
-          // Update the user's profile with the school ID
-          const updateData = asSupabaseParam({
-            school_id: newSchoolData.id,
-          });
+        // Update the user's profile with the school ID
+        const updateData = safeAnyCast({
+          school_id: newSchoolResponse.data.id,
+        });
 
-          const { error: updateError } = await supabase
+        const updateResponse = await safeResponse(
+          supabase
             .from("profiles")
             .update(updateData)
-            .eq("id", data.user.id);
+            .eq("id", data.user.id)
+        );
 
-          if (updateError) {
-            toast.error(
-              "Registration successful, but failed to update profile with school ID. Please contact support."
-            );
-            return;
-          }
+        if (!updateResponse.success) {
+          toast.error(
+            "Registration successful, but failed to update profile with school ID. Please contact support."
+          );
+          return;
         }
       } else {
         // Update the user's profile with the school ID
-        const updateData = asSupabaseParam({
-          school_id: schoolData.id,
+        const updateData = safeAnyCast({
+          school_id: schoolResponse.data.id,
         });
 
-        const { error: updateError } = await supabase
-          .from("profiles")
-          .update(updateData)
-          .eq("id", data.user.id);
+        const updateResponse = await safeResponse(
+          supabase
+            .from("profiles")
+            .update(updateData)
+            .eq("id", data.user.id)
+        );
 
-        if (updateError) {
+        if (!updateResponse.success) {
           toast.error(
             "Registration successful, but failed to update profile with school ID. Please contact support."
           );
