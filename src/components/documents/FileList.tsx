@@ -63,11 +63,18 @@ const FileList: React.FC = () => {
         return;
       }
 
-      // Process the data safely using the helper function
+      // Process the data safely
       const validFiles: FileItem[] = [];
       if (Array.isArray(data)) {
         for (const item of data) {
-          if (isValidFileItem(item)) {
+          if (item && typeof item === 'object' && 
+              'id' in item && 
+              'filename' in item && 
+              'file_type' in item && 
+              'file_size' in item && 
+              'created_at' in item && 
+              'storage_path' in item && 
+              'processing_status' in item) {
             validFiles.push({
               id: item.id,
               filename: item.filename,

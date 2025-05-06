@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -7,11 +6,7 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
-import { 
-  isDataResponse, 
-  isValidInvitation,
-  asSupabaseParam
-} from "@/utils/supabaseHelpers";
+import { asSupabaseParam } from "@/utils/supabaseHelpers";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface TeacherInvite {
@@ -64,7 +59,12 @@ const TeacherManagement = () => {
         
         if (Array.isArray(response.data)) {
           for (const item of response.data) {
-            if (isValidInvitation(item)) {
+            if (item && typeof item === 'object' && 
+                'id' in item && 
+                'email' in item && 
+                'status' in item && 
+                'created_at' in item && 
+                'expires_at' in item) {
               validInvites.push({
                 id: item.id,
                 email: item.email,

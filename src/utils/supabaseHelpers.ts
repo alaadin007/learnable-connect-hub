@@ -25,12 +25,21 @@ export const prepareTableInsert = <T extends Record<string, any>>(data: T): any 
 export const prepareSupabaseUpdate = <T extends Record<string, any>>(data: T): any => data;
 
 /**
+ * Type guard to check if an object is a Supabase error response
+ * @param obj The object to check
+ * @returns True if the object appears to be a Supabase error
+ */
+export const isSupabaseError = (obj: any): boolean => {
+  return obj && typeof obj === 'object' && ('error' in obj || 'code' in obj || 'message' in obj);
+};
+
+/**
  * Type guard to check if the response is a data response and not an error
  * @param response The response to check
  * @returns True if the response has data, false if it's an error
  */
 export const isDataResponse = <T>(response: any): response is { id: string } & T => {
-  return response && typeof response === 'object' && !('message' in response) && !('code' in response);
+  return response && typeof response === 'object' && !isSupabaseError(response);
 };
 
 /**
@@ -39,7 +48,7 @@ export const isDataResponse = <T>(response: any): response is { id: string } & T
  * @returns True if the file item is valid
  */
 export const isValidFileItem = (item: any): boolean => {
-  return item && typeof item === 'object' && 'id' in item && 'filename' in item;
+  return item && typeof item === 'object' && 'id' in item && 'filename' in item && !isSupabaseError(item);
 };
 
 /**
@@ -48,7 +57,7 @@ export const isValidFileItem = (item: any): boolean => {
  * @returns True if the invitation is valid
  */
 export const isValidInvitation = (invitation: any): boolean => {
-  return invitation && typeof invitation === 'object' && 'id' in invitation && 'email' in invitation;
+  return invitation && typeof invitation === 'object' && 'id' in invitation && 'email' in invitation && !isSupabaseError(invitation);
 };
 
 /**
@@ -67,7 +76,7 @@ export const safelyAccessData = <T, R>(
     if (data === null || data === undefined) return defaultValue;
     
     // Check if it looks like a Supabase error object
-    if (typeof data === 'object' && 'code' in data && 'message' in data) {
+    if (isSupabaseError(data)) {
       return defaultValue;
     }
     
@@ -85,7 +94,8 @@ export const supabaseHelpers = {
   safelyAccessData,
   isDataResponse,
   isValidFileItem,
-  isValidInvitation
+  isValidInvitation,
+  isSupabaseError
 };
 
 export default supabaseHelpers;

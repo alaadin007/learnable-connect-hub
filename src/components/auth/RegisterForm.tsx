@@ -124,34 +124,37 @@ const RegisterForm = () => {
           return;
         }
 
-        schoolId = supabaseHelpers.safelyAccessData(newSchoolData, data => data.id, null);
-        
-        if (schoolId) {
-          // Update the user's profile with the school ID
-          const { error: updateError } = await supabase
-            .from("profiles")
-            .update(supabaseHelpers.prepareSupabaseUpdate({ school_id: schoolId }))
-            .eq("id", supabaseHelpers.asSupabaseParam(data.user.id));
-
-          if (updateError) {
-            toast.error(
-              "Registration successful, but failed to update profile with school ID. Please contact support."
-            );
-            setIsLoading(false);
-            return;
-          }
+        // Safely check if the new school data has an ID
+        if (newSchoolData && typeof newSchoolData === 'object' && 'id' in newSchoolData) {
+          schoolId = newSchoolData.id;
           
-          // Add the student role to user_roles table
-          await supabase.rpc("assign_role", {
-            user_id_param: data.user.id,
-            role_param: "student"
-          });
+          // Update the user's profile with the school ID if we have a valid ID
+          if (schoolId) {
+            const { error: updateError } = await supabase
+              .from("profiles")
+              .update(supabaseHelpers.prepareSupabaseUpdate({ school_id: schoolId }))
+              .eq("id", supabaseHelpers.asSupabaseParam(data.user.id));
+
+            if (updateError) {
+              toast.error(
+                "Registration successful, but failed to update profile with school ID. Please contact support."
+              );
+              setIsLoading(false);
+              return;
+            }
+            
+            // Add the student role to user_roles table
+            await supabase.rpc("assign_role", {
+              user_id_param: data.user.id,
+              role_param: "student"
+            });
+          }
         }
-      } else if (schoolData) {
-        schoolId = supabaseHelpers.safelyAccessData(schoolData, data => data.id, null);
+      } else if (schoolData && typeof schoolData === 'object' && 'id' in schoolData) {
+        schoolId = schoolData.id;
         
+        // Update the user's profile with the school ID if it exists
         if (schoolId) {
-          // Update the user's profile with the school ID
           const { error: updateError } = await supabase
             .from("profiles")
             .update(supabaseHelpers.prepareSupabaseUpdate({ school_id: schoolId }))

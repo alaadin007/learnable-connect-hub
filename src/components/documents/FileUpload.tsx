@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { FileIcon, Upload } from 'lucide-react';
@@ -87,16 +86,15 @@ const FileUpload: React.FC<FileUploadProps> = ({ onUploadComplete }) => {
         return;
       }
 
-      let documentId: string | undefined;
-      
-      if (isDataResponse(metadataResult.data)) {
-        documentId = metadataResult.data.id;
+      // Safely check if we have valid data with an ID
+      const documentData = metadataResult.data;
+      if (documentData && typeof documentData === 'object' && 'id' in documentData) {
+        const documentId = documentData.id;
+        console.log("Document metadata saved:", documentData);
+        setUploadProgress(100);
         
+        // Trigger content processing immediately if we have a valid ID
         if (documentId) {
-          console.log("Document metadata saved:", metadataResult.data);
-          setUploadProgress(100);
-          
-          // Trigger content processing immediately
           await triggerContentProcessing(documentId);
           toast.success("File uploaded successfully!");
           onUploadComplete();

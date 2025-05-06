@@ -58,15 +58,19 @@ const ApiKeyManagement: React.FC = () => {
     
     try {
       // Check if keys exist (we don't fetch the actual keys for security)
+      const serviceNames = apiKeys.map(k => k.service_name);
       const { data, error } = await supabase
         .from('api_keys')
         .select('service_name')
-        .in('service_name', apiKeys.map(k => k.service_name));
+        .in('service_name', serviceNames as any);
         
       if (error) throw error;
       
       if (data) {
-        const existingServices = new Set(data.map(item => item.service_name));
+        const existingServices = new Set(
+          data.filter(item => item && typeof item === 'object' && 'service_name' in item)
+              .map(item => item.service_name)
+        );
         
         setApiKeys(prev => prev.map(key => ({
           ...key,

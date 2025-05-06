@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -15,7 +14,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { UserPlus, Search, MoreHorizontal } from "lucide-react";
-import { supabaseHelpers } from "@/utils/supabaseHelpers";
+import { supabaseHelpers, isDataResponse } from "@/utils/supabaseHelpers";
 import { getRoleDisplayName } from "@/utils/roleUtils";
 import { AppRole } from "@/contexts/RBACContext";
 
@@ -66,7 +65,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
 
       // Get student profiles to display names
       const studentIds = studentData
-        .filter(student => supabaseHelpers.isDataResponse(student))
+        .filter(student => isDataResponse(student))
         .map(student => student.id)
         .filter(Boolean);
       
@@ -101,10 +100,11 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
       }
 
       // Create a map of user_id to role
-      const roleMap = new Map();
+      const roleMap = new Map<string, string>();
       if (rolesData && Array.isArray(rolesData)) {
         rolesData.forEach(roleEntry => {
-          if (supabaseHelpers.isDataResponse(roleEntry)) {
+          // Safely check if the role entry is valid before using its properties
+          if (roleEntry && typeof roleEntry === 'object' && 'user_id' in roleEntry && 'role' in roleEntry) {
             roleMap.set(roleEntry.user_id, roleEntry.role);
           }
         });
@@ -115,43 +115,34 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
       
       if (Array.isArray(studentData) && Array.isArray(profileData)) {
         studentData.forEach(student => {
-          if (!supabaseHelpers.isDataResponse(student)) return;
+          // Skip invalid entries
+          if (!student || typeof student !== 'object' || !('id' in student)) return;
           
-          const profile = profileData.find(p => 
-            supabaseHelpers.isDataResponse(p) && p.id === student.id
-          );
+          const studentId = student.id;
+          if (!studentId) return;
+          
+          const profile = profileData.find(p => p && typeof p === 'object' && 'id' in p && p.id === studentId);
           
           let role = "student"; // Default role
           
-          // Check if we have valid profile data
-          if (profile && supabaseHelpers.isDataResponse(profile)) {
-            // Check if we have a role from user_roles
-            if (roleMap.has(student.id)) {
-              role = roleMap.get(student.id);
-            } else if (profile.user_type) {
-              // If no specific role, use user_type
-              role = profile.user_type;
-            }
-            
-            combinedStudents.push({
-              id: student.id,
-              full_name: profile.full_name || "Unknown",
-              email: profile.email || "No email",
-              status: student.status,
-              created_at: student.created_at,
-              role: role
-            });
-          } else {
-            // Add entry with minimal information if no profile found
-            combinedStudents.push({
-              id: student.id,
-              full_name: "Unknown",
-              email: "No email",
-              status: student.status,
-              created_at: student.created_at,
-              role: role
-            });
+          // If we have a role from user_roles, use that
+          if (roleMap.has(studentId)) {
+            role = roleMap.get(studentId) || role;
           }
+          // If no specific role but profile has user_type, use that
+          else if (profile && typeof profile === 'object' && 'user_type' in profile) {
+            role = profile.user_type || role;
+          }
+            
+          // Add entry with all the information we have
+          combinedStudents.push({
+            id: studentId,
+            full_name: profile && 'full_name' in profile ? profile.full_name || "Unknown" : "Unknown",
+            email: profile && 'email' in profile ? profile.email || "No email" : "No email",
+            status: student && 'status' in student ? student.status : "unknown",
+            created_at: student && 'created_at' in student ? student.created_at : new Date().toISOString(),
+            role: role
+          });
         });
       }
 
