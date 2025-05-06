@@ -19,6 +19,7 @@ const AdminStudents = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [schoolId, setSchoolId] = useState<string | null>(null);
   const [schoolInfo, setSchoolInfo] = useState<{ name: string; code: string; id?: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   // Fetch school data when component mounts
   useEffect(() => {
@@ -27,6 +28,7 @@ const AdminStudents = () => {
       
       try {
         setIsLoading(true);
+        setError(null);
         
         // Try to get complete school info from database
         const schoolData = await getCurrentSchoolInfo();
@@ -53,6 +55,7 @@ const AdminStudents = () => {
           if (schoolIdError) {
             console.error('Error fetching school ID:', schoolIdError);
             toast.error("Failed to load school information");
+            setError("Failed to load school information");
             setIsLoading(false);
             return;
           }
@@ -74,6 +77,7 @@ const AdminStudents = () => {
           if (schoolError) {
             console.error("Error fetching school details:", schoolError);
             toast.error("Failed to load school details");
+            setError("Failed to load school details");
           } else if (schoolDetails) {
             setSchoolInfo({
               name: schoolDetails.name,
@@ -84,6 +88,7 @@ const AdminStudents = () => {
       } catch (error) {
         console.error("Error in fetchSchoolId:", error);
         toast.error("Failed to load data");
+        setError("Failed to load data");
       } finally {
         setIsLoading(false);
       }
@@ -99,11 +104,11 @@ const AdminStudents = () => {
       return;
     }
     
-    if (!isAdmin) {
+    if (!isAdmin && !isLoading) {
       toast.error("You don't have permission to access this page");
       navigate("/dashboard", { replace: true });
     }
-  }, [user, isAdmin, navigate]);
+  }, [user, isAdmin, navigate, isLoading]);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -123,8 +128,21 @@ const AdminStudents = () => {
             <h1 className="text-3xl font-bold gradient-text">Student Management</h1>
           </div>
           
-          {/* Use the AdminStudents component directly */}
-          <AdminStudentsComponent />
+          {error ? (
+            <div className="p-4 bg-red-50 border border-red-200 rounded-md text-red-600 mb-4">
+              <p>{error}</p>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="mt-2"
+                onClick={() => window.location.reload()}
+              >
+                Retry
+              </Button>
+            </div>
+          ) : (
+            <AdminStudentsComponent />
+          )}
         </div>
       </main>
       <Footer />
