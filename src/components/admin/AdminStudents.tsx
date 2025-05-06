@@ -7,7 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { approveStudentDirect, revokeStudentAccessDirect, getCurrentSchoolInfo } from "@/utils/databaseUtils";
 import { RefreshCw, User, Copy, AlertTriangle } from "lucide-react";
 
 type Student = {
@@ -19,80 +18,25 @@ type Student = {
   email: string | null;
 };
 
-const AdminStudents = () => {
+interface AdminStudentsProps {
+  schoolId: string;
+  schoolInfo: { name: string; code: string; id?: string } | null;
+}
+
+const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
   const [students, setStudents] = useState<Student[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const [schoolInfo, setSchoolInfo] = useState<{ name: string; code: string; id?: string } | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
 
   useEffect(() => {
-    loadSchoolInfo();
-  }, []);
-
-  useEffect(() => {
-    if (schoolInfo?.id) {
+    if (schoolId) {
       fetchStudents();
     }
-  }, [refreshTrigger, schoolInfo?.id]);
-
-  const loadSchoolInfo = async () => {
-    try {
-      setError(null);
-      
-      const schoolData = await getCurrentSchoolInfo();
-      
-      if (schoolData) {
-        setSchoolInfo({
-          id: schoolData.id,
-          name: schoolData.name,
-          code: schoolData.code
-        });
-      } else {
-        // Fallback: Try to get school ID directly from Supabase RPC
-        try {
-          const { data: schoolId, error: schoolIdError } = await supabase.rpc('get_user_school_id');
-          
-          if (schoolIdError || !schoolId) {
-            throw new Error(schoolIdError?.message || 'No school ID found');
-          }
-          
-          const { data: schoolDetails, error: schoolError } = await supabase
-            .from("schools")
-            .select("id, name, code")
-            .eq("id", schoolId)
-            .single();
-            
-          if (schoolError || !schoolDetails) {
-            throw new Error(schoolError?.message || 'No school details found');
-          }
-          
-          setSchoolInfo({
-            id: schoolDetails.id,
-            name: schoolDetails.name,
-            code: schoolDetails.code
-          });
-        } catch (fallbackError) {
-          console.error("Error in fallback school info loading:", fallbackError);
-          setError("Could not load school information. Please refresh.");
-          toast.error("Could not load school information");
-        }
-      }
-    } catch (error) {
-      console.error("Error loading school information:", error);
-      setError("Failed to load school information. Please refresh.");
-      toast.error("Failed to load school information");
-    }
-  };
+  }, [refreshTrigger, schoolId]);
 
   const fetchStudents = async () => {
-    if (!schoolInfo?.id) {
-      console.error("No school ID available");
-      return;
-    }
-
     try {
       setError(null);
       
@@ -100,7 +44,7 @@ const AdminStudents = () => {
       const { data: studentsData, error: studentsError } = await supabase
         .from("students")
         .select("id, school_id, status, created_at")
-        .eq("school_id", schoolInfo.id);
+        .eq("school_id", schoolId);
 
       if (studentsError) {
         setError("Error fetching students. Please refresh.");
@@ -114,7 +58,7 @@ const AdminStudents = () => {
         return;
       }
       
-      // Now fetch the profiles data separately with only the columns that exist
+      // Now fetch the profiles data separately
       const studentIds = studentsData.map(student => student.id);
       
       const { data: profilesData, error: profilesError } = await supabase
@@ -151,17 +95,24 @@ const AdminStudents = () => {
   const handleApproveStudent = async (studentId: string) => {
     try {
       setActionInProgress(studentId);
-      const success = await approveStudentDirect(studentId);
       
-      if (success) {
-        toast.success("Student approved successfully");
-        // Update the local state
-        setStudents(students.map(student => 
-          student.id === studentId ? {...student, status: 'active'} : student
-        ));
-      } else {
+      // Update the student status directly in the database
+      const { error } = await supabase
+        .from("students")
+        .update({ status: "active" })
+        .eq("id", studentId);
+
+      if (error) {
+        console.error("Error approving student:", error);
         toast.error("Failed to approve student");
+        return;
       }
+      
+      toast.success("Student approved successfully");
+      // Update the local state
+      setStudents(students.map(student => 
+        student.id === studentId ? {...student, status: 'active'} : student
+      ));
     } catch (error) {
       console.error("Error approving student:", error);
       toast.error("Failed to approve student");
@@ -173,15 +124,22 @@ const AdminStudents = () => {
   const handleRevokeAccess = async (studentId: string) => {
     try {
       setActionInProgress(studentId);
-      const success = await revokeStudentAccessDirect(studentId);
       
-      if (success) {
-        toast.success("Student access revoked");
-        // Remove the student from the local state
-        setStudents(students.filter(student => student.id !== studentId));
-      } else {
+      // Delete the student record directly from the database
+      const { error } = await supabase
+        .from("students")
+        .delete()
+        .eq("id", studentId);
+
+      if (error) {
+        console.error("Failed to revoke student access:", error);
         toast.error("Failed to revoke student access");
+        return;
       }
+      
+      toast.success("Student access revoked");
+      // Remove the student from the local state
+      setStudents(students.filter(student => student.id !== studentId));
     } catch (error) {
       console.error("Error revoking student access:", error);
       toast.error("Failed to revoke student access");
@@ -226,7 +184,7 @@ const AdminStudents = () => {
               <Button 
                 variant="outline" 
                 size="sm" 
-                onClick={loadSchoolInfo} 
+                onClick={() => fetchStudents()} 
                 className="mt-2"
               >
                 Try Again

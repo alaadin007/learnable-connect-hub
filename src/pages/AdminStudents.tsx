@@ -10,18 +10,16 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import { getCurrentSchoolInfo } from "@/utils/databaseUtils";
 
 const AdminStudents = () => {
-  const { user, schoolId: authSchoolId } = useAuth();
+  const { user } = useAuth();
   const { isAdmin } = useRBAC();
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(false);
-  const [schoolId, setSchoolId] = useState<string | null>(null);
-  const [schoolInfo, setSchoolInfo] = useState<{ name: string; code: string; id?: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [schoolInfo, setSchoolInfo] = useState<{ name: string; code: string; id?: string } | null>(null);
+  const [schoolId, setSchoolId] = useState<string | null>(null);
 
-  // Fetch school data when component mounts
+  // Fetch school data directly when component mounts
   useEffect(() => {
     const fetchSchoolInfo = async () => {
       if (!user) return;
@@ -29,73 +27,55 @@ const AdminStudents = () => {
       try {
         setError(null);
         
-        // Try to get complete school info from database
-        const schoolData = await getCurrentSchoolInfo();
-        
-        if (schoolData) {
-          setSchoolInfo({
-            id: schoolData.id,
-            name: schoolData.name,
-            code: schoolData.code
-          });
-          setSchoolId(schoolData.id);
+        // Get the school ID directly from teachers table since the current user is an admin
+        const { data: teacherData, error: teacherError } = await supabase
+          .from("teachers")
+          .select("school_id")
+          .eq("id", user.id)
+          .single();
+          
+        if (teacherError) {
+          console.error("Error fetching school ID from teachers table:", teacherError);
+          setError("Unable to determine your school. Please refresh the page.");
           return;
         }
         
-        // Fallback: Try to get school ID from auth context
-        let schoolIdToUse = authSchoolId;
-        
-        // If not available, fetch it
-        if (!schoolIdToUse) {
-          const { data: fetchedSchoolId, error: schoolIdError } = await supabase
-            .rpc('get_user_school_id');
+        if (teacherData?.school_id) {
+          setSchoolId(teacherData.school_id);
           
-          if (schoolIdError) {
-            console.error('Error fetching school ID:', schoolIdError);
-            toast.error("Failed to load school information");
-            setError("Failed to load school information");
-            return;
-          }
-          
-          schoolIdToUse = fetchedSchoolId;
-        }
-        
-        if (schoolIdToUse) {
-          console.log("AdminStudents: School ID retrieved:", schoolIdToUse);
-          setSchoolId(schoolIdToUse);
-          
-          // Fetch school data
+          // Fetch school details using the school ID
           const { data: schoolDetails, error: schoolError } = await supabase
             .from("schools")
-            .select("name, code")
-            .eq("id", schoolIdToUse)
+            .select("id, name, code")
+            .eq("id", teacherData.school_id)
             .single();
             
           if (schoolError) {
             console.error("Error fetching school details:", schoolError);
-            toast.error("Failed to load school details");
             setError("Failed to load school details");
           } else if (schoolDetails) {
             setSchoolInfo({
+              id: schoolDetails.id,
               name: schoolDetails.name,
               code: schoolDetails.code
             });
           }
+        } else {
+          setError("No school associated with your account");
         }
       } catch (error) {
-        console.error("Error in fetchSchoolId:", error);
-        toast.error("Failed to load data");
+        console.error("Error in fetchSchoolInfo:", error);
         setError("Failed to load data");
       }
     };
     
     fetchSchoolInfo();
-  }, [user, authSchoolId]);
+  }, [user]);
 
-  // Protect route - only admin users should access
+  // Protect route - redirect if not authenticated or not admin
   useEffect(() => {
     if (!user) {
-      navigate("/login", { replace: true });
+      navigate("/login", { replace: true, state: { returnUrl: "/admin/students" } });
       return;
     }
     
@@ -136,7 +116,7 @@ const AdminStudents = () => {
               </Button>
             </div>
           ) : (
-            <AdminStudentsComponent />
+            schoolId && <AdminStudentsComponent schoolId={schoolId} schoolInfo={schoolInfo} />
           )}
         </div>
       </main>

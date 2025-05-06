@@ -20,10 +20,11 @@ const LoginForm = () => {
   const queryParams = new URLSearchParams(location.search);
   const invitationToken = queryParams.get('invitation');
   const emailConfirmed = queryParams.get('email_confirmed') === 'true';
+  const returnUrl = location.state?.returnUrl || '/dashboard';
   
   useEffect(() => {
     if (emailConfirmed) {
-      // Optionally show a toast or alert indicating email is confirmed
+      // Show a message indicating email is confirmed
       console.log('Email confirmed, you can now log in.');
     }
   }, [emailConfirmed]);
@@ -53,31 +54,19 @@ const LoginForm = () => {
         if (success) {
           localStorage.setItem('usingTestAccount', 'true');
           localStorage.setItem('testAccountType', detectedRole);
-          navigate('/dashboard');
+          
+          if (detectedRole === 'school') {
+            navigate('/admin');
+          } else if (detectedRole === 'teacher') {
+            navigate('/teacher/analytics');
+          } else {
+            navigate(returnUrl);
+          }
           return;
         }
       }
       
-      // Check if email has a specific pattern that indicates likely role
-      const emailPattern = {
-        school: /@school\.(edu|org|com)$/i,
-        teacher: /@(teacher|faculty|staff|edu)\.(edu|org|com)$/i,
-        student: /@(student)\.(edu|org|com)$/i
-      };
-      
-      let detectedRole = null;
-      for (const [role, pattern] of Object.entries(emailPattern)) {
-        if (pattern.test(email)) {
-          detectedRole = role;
-          break;
-        }
-      }
-      
-      if (detectedRole) {
-        console.log(`LoginForm: Detected potential role from email pattern: ${detectedRole}`);
-      }
-      
-      // Handle normal login with credentials - optimized for instant login
+      // Handle normal login with credentials
       const result = await signIn(email, password);
       const { data, error } = result;
       
@@ -104,7 +93,7 @@ const LoginForm = () => {
         } else if (data?.user?.user_metadata?.user_type === 'teacher') {
           navigate('/teacher/analytics');
         } else {
-          navigate('/dashboard');
+          navigate(returnUrl);
         }
       }
     } catch (error: any) {
