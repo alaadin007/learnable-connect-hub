@@ -13,6 +13,8 @@ import { DatePickerWithRange } from "@/components/ui/date-range-picker";
 import { useRBAC } from "@/contexts/RBACContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { DateRange } from "react-day-picker";
+import { AnalyticsExport } from "@/components/analytics/AnalyticsExport"; 
 
 // Define types for our data
 interface AnalyticsSummary {
@@ -44,7 +46,7 @@ interface StudyTimeData {
 const AdminAnalytics = () => {
   const { profile, userRole } = useAuth();
   const { isAdmin } = useRBAC();
-  const [dateRange, setDateRange] = useState({
+  const [dateRange, setDateRange] = useState<DateRange>({
     from: subDays(new Date(), 30),
     to: new Date(),
   });
@@ -81,7 +83,7 @@ const AdminAnalytics = () => {
 
       // Format date range for queries
       const fromDate = formatDateForSQL(dateRange.from);
-      const toDate = formatDateForSQL(dateRange.to);
+      const toDate = formatDateForSQL(dateRange.to || dateRange.from);
 
       // 1. Fetch sessions to calculate summary metrics
       const { data: sessionData, error: sessionError } = await supabase
@@ -227,46 +229,27 @@ const AdminAnalytics = () => {
     fetchAnalyticsData();
   }, [fetchAnalyticsData]);
 
-  // Handle export to CSV
-  const handleExport = useCallback(() => {
-    try {
-      let csvContent = "data:text/csv;charset=utf-8,";
-      
-      // Add header
-      csvContent += "Student,Topic,Queries,Duration,Date\n";
-      
-      // Add data rows
-      sessions.forEach(session => {
-        const row = [
-          session.student_name,
-          session.topic,
-          session.queries,
-          session.duration,
-          session.session_date
-        ].join(',');
-        csvContent += row + "\n";
-      });
-      
-      // Create download link
-      const encodedUri = encodeURI(csvContent);
-      const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-      link.setAttribute("download", `analytics_export_${format(new Date(), 'yyyy-MM-dd')}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      toast.success("Data exported successfully");
-    } catch (error) {
-      console.error("Export error:", error);
-      toast.error("Failed to export data");
+  // Handle date range change
+  const handleDateChange = useCallback((range: DateRange | undefined) => {
+    if (range) {
+      setDateRange(range);
     }
-  }, [sessions]);
+  }, []);
 
   // Fetch data on component mount and when date range changes
   useEffect(() => {
     fetchAnalyticsData();
   }, [fetchAnalyticsData]);
+
+  // Get date range text for export filename
+  const getDateRangeText = useCallback(() => {
+    if (!dateRange.from) return "all-time";
+    
+    const from = dateRange.from;
+    const to = dateRange.to || from;
+    
+    return `${format(from, 'MMM-d-yyyy')}_to_${format(to, 'MMM-d-yyyy')}`;
+  }, [dateRange]);
 
   // Redirect if not admin
   if (!isAdmin) {
@@ -298,16 +281,19 @@ const AdminAnalytics = () => {
           </div>
 
           <div className="flex flex-col sm:flex-row items-center justify-between mb-6 gap-4">
-            <DatePickerWithRange date={dateRange} onDateChange={setDateRange} />
+            <DatePickerWithRange date={dateRange} onDateChange={handleDateChange} />
             <div className="flex gap-2">
               <Button variant="outline" onClick={handleRefresh}>
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Refresh
               </Button>
-              <Button variant="outline" onClick={handleExport}>
-                <Download className="mr-2 h-4 w-4" />
-                Export Data
-              </Button>
+              <AnalyticsExport 
+                summary={summary}
+                sessions={sessions}
+                topics={topics}
+                studyTimes={studyTime}
+                dateRangeText={getDateRangeText()} 
+              />
             </div>
           </div>
 
@@ -374,7 +360,7 @@ const AdminAnalytics = () => {
                 <CardHeader>
                   <CardTitle>Recent Learning Sessions</CardTitle>
                   <CardDescription>
-                    Details of student learning sessions ({format(dateRange.from, "MMM d, yyyy")} - {format(dateRange.to, "MMM d, yyyy")})
+                    Details of student learning sessions ({dateRange.from ? format(dateRange.from, "MMM d, yyyy") : ""} - {dateRange.to ? format(dateRange.to, "MMM d, yyyy") : ""})
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -382,6 +368,7 @@ const AdminAnalytics = () => {
                     sessions={sessions}
                     title="Recent Learning Sessions" 
                     description="Details of student learning sessions"
+                    isLoading={isLoading}
                   />
                 </CardContent>
               </Card>
@@ -394,37 +381,45 @@ const AdminAnalytics = () => {
                     <CardDescription>Most popular topics students are studying</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead>
-                          <tr className="border-b">
-                            <th className="text-left py-2 px-4">Topic</th>
-                            <th className="text-right py-2 px-4">Sessions</th>
-                            <th className="text-right py-2 px-4">Percentage</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {topics.length > 0 ? (
-                            topics.map((topic, index) => {
-                              const percentage = summary.totalSessions > 0 
-                                ? ((topic.count / summary.totalSessions) * 100).toFixed(1) 
-                                : "0";
-                              return (
-                                <tr key={index} className="border-b">
-                                  <td className="py-2 px-4">{topic.topic}</td>
-                                  <td className="py-2 px-4 text-right">{topic.count}</td>
-                                  <td className="py-2 px-4 text-right">{percentage}%</td>
-                                </tr>
-                              );
-                            })
-                          ) : (
-                            <tr>
-                              <td colSpan={3} className="text-center py-4">No topic data available</td>
+                    {isLoading ? (
+                      <div className="h-[200px]">
+                        <div className="w-full h-full flex items-center justify-center">
+                          <p>Loading topic data...</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead>
+                            <tr className="border-b">
+                              <th className="text-left py-2 px-4">Topic</th>
+                              <th className="text-right py-2 px-4">Sessions</th>
+                              <th className="text-right py-2 px-4">Percentage</th>
                             </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
+                          </thead>
+                          <tbody>
+                            {topics.length > 0 ? (
+                              topics.map((topic, index) => {
+                                const percentage = summary.totalSessions > 0 
+                                  ? ((topic.count / summary.totalSessions) * 100).toFixed(1) 
+                                  : "0";
+                                return (
+                                  <tr key={index} className="border-b">
+                                    <td className="py-2 px-4">{topic.topic}</td>
+                                    <td className="py-2 px-4 text-right">{topic.count}</td>
+                                    <td className="py-2 px-4 text-right">{percentage}%</td>
+                                  </tr>
+                                );
+                              })
+                            ) : (
+                              <tr>
+                                <td colSpan={3} className="text-center py-4">No topic data available</td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
                 
@@ -434,30 +429,38 @@ const AdminAnalytics = () => {
                     <CardDescription>Hours spent by each student</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead>
-                          <tr className="border-b">
-                            <th className="text-left py-2 px-4">Student</th>
-                            <th className="text-right py-2 px-4">Hours</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {studyTime.length > 0 ? (
-                            studyTime.map((student, index) => (
-                              <tr key={index} className="border-b">
-                                <td className="py-2 px-4">{student.student_name}</td>
-                                <td className="py-2 px-4 text-right">{student.hours}</td>
-                              </tr>
-                            ))
-                          ) : (
-                            <tr>
-                              <td colSpan={2} className="text-center py-4">No study time data available</td>
+                    {isLoading ? (
+                      <div className="h-[200px]">
+                        <div className="w-full h-full flex items-center justify-center">
+                          <p>Loading study time data...</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead>
+                            <tr className="border-b">
+                              <th className="text-left py-2 px-4">Student</th>
+                              <th className="text-right py-2 px-4">Hours</th>
                             </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
+                          </thead>
+                          <tbody>
+                            {studyTime.length > 0 ? (
+                              studyTime.map((student, index) => (
+                                <tr key={index} className="border-b">
+                                  <td className="py-2 px-4">{student.student_name}</td>
+                                  <td className="py-2 px-4 text-right">{student.hours}</td>
+                                </tr>
+                              ))
+                            ) : (
+                              <tr>
+                                <td colSpan={2} className="text-center py-4">No study time data available</td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>

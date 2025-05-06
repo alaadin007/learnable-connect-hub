@@ -1,3 +1,4 @@
+
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { FileSpreadsheet } from "lucide-react";
@@ -86,13 +87,13 @@ export function AnalyticsExport({
     // Prepare sessions data
     const sessionsHeader = ["Student", "Topic", "Queries", "Duration", "Date"];
     const sessionsData = sessions.map(session => [
-      csvEscape(session.student_name ?? session.userName ?? session.student ?? "Unknown"),
+      csvEscape(session.student_name ?? session.userName ?? "Unknown"),
       csvEscape(
         Array.isArray(session.topics) && session.topics.length > 0
           ? session.topics[0]
-          : session.topicOrContent ?? session.topic ?? "General"
+          : session.topic ?? session.topicOrContent ?? "General"
       ),
-      csvEscape(session.questions_asked ?? session.numQueries ?? session.queries ?? 0),
+      csvEscape(session.questions_asked ?? session.queries ?? session.numQueries ?? 0),
       csvEscape(
         typeof session.duration_minutes === "number"
           ? `${session.duration_minutes} min`

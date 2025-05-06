@@ -10,18 +10,29 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { SessionData } from "./types";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface SessionsTableProps {
   sessions: SessionData[];
   title?: string;
   description?: string;
+  isLoading?: boolean; // Added isLoading prop
 }
 
 const SessionsTable = ({ 
   sessions, 
   title = "Recent Sessions", 
-  description = "Latest student learning sessions"
+  description = "Latest student learning sessions",
+  isLoading = false // Default to false
 }: SessionsTableProps) => {
+  if (isLoading) {
+    return (
+      <div className="w-full">
+        <Skeleton className="h-[300px] w-full" />
+      </div>
+    );
+  }
+
   return (
     <Table>
       <TableCaption>{description}</TableCaption>
@@ -39,13 +50,13 @@ const SessionsTable = ({
           sessions.map((session) => (
             <TableRow key={session.id}>
               <TableCell className="font-medium">
-                {session.student_name || session.userName || "Unknown"}
+                {session.student_name || session.userName || session.student || "Unknown"}
               </TableCell>
               <TableCell>
-                {session.topics?.[0] || session.topic || "General"}
+                {session.topics?.[0] || session.topic || session.topicOrContent || "General"}
               </TableCell>
               <TableCell>
-                {session.questions_asked || session.queries || 0}
+                {session.questions_asked || session.queries || session.numQueries || 0}
               </TableCell>
               <TableCell>
                 {typeof session.duration === 'string' ? 
@@ -57,6 +68,14 @@ const SessionsTable = ({
               <TableCell>
                 {session.session_date ? 
                   new Date(session.session_date).toLocaleString('en-US', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  }) : 
+                  session.startTime ? 
+                  new Date(session.startTime).toLocaleString('en-US', {
                     year: 'numeric',
                     month: '2-digit',
                     day: '2-digit',
