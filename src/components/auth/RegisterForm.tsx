@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +16,7 @@ const RegisterForm = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"teacher" | "student">("teacher");
-  const { signUp } = useAuth();
+  const { signUp, sendEmailVerification } = useAuth();
 
   // Teacher registration state
   const [teacherName, setTeacherName] = useState("");
@@ -26,6 +27,7 @@ const RegisterForm = () => {
   const [teacherSchoolName, setTeacherSchoolName] = useState("");
   const [teacherError, setTeacherError] = useState<string | null>(null);
   const [teacherExistingRole, setTeacherExistingRole] = useState<string | null>(null);
+  const [teacherSignupSuccess, setTeacherSignupSuccess] = useState(false); 
 
   // Student registration state
   const [studentName, setStudentName] = useState("");
@@ -36,6 +38,7 @@ const RegisterForm = () => {
   const [studentSchoolName, setStudentSchoolName] = useState("");
   const [studentError, setStudentError] = useState<string | null>(null);
   const [studentExistingRole, setStudentExistingRole] = useState<string | null>(null);
+  const [studentSignupSuccess, setStudentSignupSuccess] = useState(false);
 
   const validateSchoolCode = async (code: string, userType: "teacher" | "student") => {
     if (!code) {
@@ -174,6 +177,15 @@ const RegisterForm = () => {
     setStudentExistingRole(null);
   };
 
+  const handleResendVerification = async (email: string) => {
+    try {
+      await sendEmailVerification(email);
+    } catch (error: any) {
+      console.error("Error resending verification email:", error);
+      toast.error("Failed to resend verification email");
+    }
+  };
+
   const handleRegisterTeacher = async (event: React.FormEvent) => {
     event.preventDefault();
     clearTeacherErrors();
@@ -210,15 +222,28 @@ const RegisterForm = () => {
         return;
       }
 
-      // Fix: Pass only two arguments to signUp
-      await signUp(teacherEmail, teacherPassword);
+      // Register with Supabase Auth
+      const { data, error } = await supabase.auth.signUp({
+        email: teacherEmail,
+        password: teacherPassword,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          data: {
+            user_type: 'teacher',
+            full_name: teacherName,
+            school_code: teacherSchoolCode,
+            school_name: teacherSchoolName,
+          }
+        }
+      });
+
+      if (error) throw error;
       
+      // Show success message
+      setTeacherSignupSuccess(true);
       toast.success("Registration successful!", {
         description: "Please check your email to verify your account."
       });
-      
-      // Navigate to login page with a query parameter
-      navigate("/login?registered=true");
       
     } catch (error: any) {
       console.error("Registration error:", error);
@@ -280,15 +305,28 @@ const RegisterForm = () => {
         return;
       }
 
-      // Fix: Pass only two arguments to signUp
-      await signUp(studentEmail, studentPassword);
+      // Register with Supabase Auth
+      const { data, error } = await supabase.auth.signUp({
+        email: studentEmail,
+        password: studentPassword,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          data: {
+            user_type: 'student',
+            full_name: studentName,
+            school_code: studentSchoolCode,
+            school_name: studentSchoolName,
+          }
+        }
+      });
       
+      if (error) throw error;
+      
+      // Show success message
+      setStudentSignupSuccess(true);
       toast.success("Registration successful!", {
         description: "Please check your email to verify your account."
       });
-      
-      // Navigate to login page with a query parameter
-      navigate("/login?registered=true");
       
     } catch (error: any) {
       console.error("Registration error:", error);
@@ -313,6 +351,102 @@ const RegisterForm = () => {
       setIsLoading(false);
     }
   };
+
+  // Render success message for teacher signup
+  if (teacherSignupSuccess) {
+    return (
+      <Card className="w-full">
+        <CardHeader className="space-y-1">
+          <CardTitle className="text-2xl text-center text-green-600">Registration Successful!</CardTitle>
+          <CardDescription className="text-center">
+            Check your email to verify your account
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Alert className="bg-green-50 border-green-200">
+            <AlertCircle className="h-5 w-5 text-green-600" />
+            <AlertTitle className="text-green-800">Verification Email Sent</AlertTitle>
+            <AlertDescription className="text-green-700">
+              We've sent a verification email to <span className="font-bold">{teacherEmail}</span>. 
+              Please check your inbox (and spam folder) and click the verification link.
+            </AlertDescription>
+          </Alert>
+          <div className="text-center space-y-4">
+            <p className="text-gray-600">
+              After verifying your email, you'll be able to log in to your account.
+            </p>
+            <Button 
+              onClick={() => handleResendVerification(teacherEmail)}
+              variant="outline"
+              className="w-full"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Sending...
+                </>
+              ) : "Resend Verification Email"}
+            </Button>
+            <Button 
+              onClick={() => navigate("/login")}
+              className="w-full gradient-bg"
+            >
+              Go to Login
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Render success message for student signup
+  if (studentSignupSuccess) {
+    return (
+      <Card className="w-full">
+        <CardHeader className="space-y-1">
+          <CardTitle className="text-2xl text-center text-green-600">Registration Successful!</CardTitle>
+          <CardDescription className="text-center">
+            Check your email to verify your account
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Alert className="bg-green-50 border-green-200">
+            <AlertCircle className="h-5 w-5 text-green-600" />
+            <AlertTitle className="text-green-800">Verification Email Sent</AlertTitle>
+            <AlertDescription className="text-green-700">
+              We've sent a verification email to <span className="font-bold">{studentEmail}</span>. 
+              Please check your inbox (and spam folder) and click the verification link.
+            </AlertDescription>
+          </Alert>
+          <div className="text-center space-y-4">
+            <p className="text-gray-600">
+              After verifying your email, you'll be able to log in to your account.
+            </p>
+            <Button 
+              onClick={() => handleResendVerification(studentEmail)}
+              variant="outline"
+              className="w-full"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Sending...
+                </>
+              ) : "Resend Verification Email"}
+            </Button>
+            <Button 
+              onClick={() => navigate("/login")}
+              className="w-full gradient-bg"
+            >
+              Go to Login
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="w-full">

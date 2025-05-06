@@ -1,6 +1,8 @@
+
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 export type UserRole = 'school' | 'teacher' | 'student';
 
@@ -31,6 +33,7 @@ interface AuthContextProps {
   setTestUser: (type: UserRole) => Promise<boolean>;
   isLoading: boolean;
   error: string | null;
+  sendEmailVerification: (email: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextProps | undefined>(undefined);
@@ -160,6 +163,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Send email verification
+  const sendEmailVerification = async (email: string) => {
+    try {
+      setError(null);
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        }
+      });
+      
+      if (error) throw error;
+      
+      toast.success('Verification email sent!', {
+        description: 'Please check your inbox (and spam folder) for the verification link.'
+      });
+    } catch (error: any) {
+      console.error('Error sending verification email:', error);
+      setError(error.message);
+      toast.error('Failed to send verification email', {
+        description: error.message
+      });
+    }
+  };
+
   useEffect(() => {
     const setupAuth = async () => {
       try {
@@ -212,7 +241,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signUp = async (email: string, password: string) => {
     try {
       setError(null);
-      const { error } = await supabase.auth.signUp({ email, password });
+      const { error } = await supabase.auth.signUp({ 
+        email, 
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        }
+      });
       if (error) throw error;
     } catch (error: any) {
       console.error('Sign up error:', error);
@@ -258,6 +293,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setTestUser,
     isLoading,
     error,
+    sendEmailVerification,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -6,36 +6,62 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, CheckCircle } from "lucide-react";
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 const LoginForm = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
-  const { signIn, setTestUser } = useAuth();
+  const [verificationSent, setVerificationSent] = useState(false);
+  const { signIn, setTestUser, sendEmailVerification } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
   const invitationToken = queryParams.get('invitation');
   const emailConfirmed = queryParams.get('email_confirmed') === 'true';
+  const registered = queryParams.get('registered') === 'true';
   const returnUrl = location.state?.returnUrl || '/dashboard';
   
   useEffect(() => {
     if (emailConfirmed) {
-      // Show a message indicating email is confirmed
-      console.log('Email confirmed, you can now log in.');
+      toast.success('Email confirmed! You can now log in.');
     }
-  }, [emailConfirmed]);
+    
+    if (registered) {
+      toast.info('Registration successful! Please verify your email before logging in.');
+    }
+  }, [emailConfirmed, registered]);
 
   const handleEmailChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setEmail(event.target.value);
+    setLoginError(null);
+    setVerificationSent(false);
   };
 
   const handlePasswordChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setPassword(event.target.value);
+    setLoginError(null);
+  };
+
+  const handleResendVerification = async () => {
+    if (!email) {
+      toast.error('Please enter your email address');
+      return;
+    }
+    
+    setIsSubmitting(true);
+    try {
+      await sendEmailVerification(email);
+      setVerificationSent(true);
+    } catch (error: any) {
+      toast.error('Failed to send verification email');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleLogin = async (event: React.FormEvent) => {
@@ -80,7 +106,11 @@ const LoginForm = () => {
         console.error("Login error:", error);
         
         if (error.message.includes('Email not confirmed')) {
-          setLoginError('Please check your email to confirm your account before logging in.');
+          setLoginError('Please verify your email before logging in.');
+          toast.error('Email not verified', {
+            description: 'Please check your inbox for the verification link or request a new one.'
+          });
+          return;
         } else if (error.message.includes('Invalid login credentials')) {
           setLoginError('Invalid email or password. Please try again.');
         } else {
@@ -105,6 +135,16 @@ const LoginForm = () => {
     } catch (error: any) {
       console.error("Login catch block error:", error);
       setLoginError(error.message || 'An unexpected error occurred');
+      
+      // Check if this is a verification issue
+      if (error.message && 
+          (error.message.includes('Email not confirmed') || 
+           error.message.includes('not verified') || 
+           error.message.includes('verification'))) {
+        toast.error('Email not verified', {
+          description: 'Please check your inbox for the verification link or request a new one below.'
+        });
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -125,6 +165,17 @@ const LoginForm = () => {
               <AlertDescription>{loginError}</AlertDescription>
             </Alert>
           )}
+          
+          {verificationSent && (
+            <Alert className="bg-green-50 border-green-200">
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <AlertTitle className="text-green-800">Verification Email Sent</AlertTitle>
+              <AlertDescription className="text-green-700">
+                Please check your inbox (including spam folder) and click the verification link.
+              </AlertDescription>
+            </Alert>
+          )}
+          
           <form onSubmit={handleLogin}>
             <div className="grid gap-2 mb-4">
               <Label htmlFor="email">Email</Label>
@@ -160,7 +211,32 @@ const LoginForm = () => {
                 'Log In'
               )}
             </Button>
+            
+            {loginError && loginError.includes('verify') && (
+              <Button 
+                type="button" 
+                variant="outline" 
+                className="w-full mt-4"
+                onClick={handleResendVerification}
+                disabled={isSubmitting || !email}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Sending verification...
+                  </>
+                ) : (
+                  'Resend Verification Email'
+                )}
+              </Button>
+            )}
           </form>
+          
+          <div className="text-center mt-4">
+            <p className="text-sm text-gray-500">
+              Don't have an account? <Link to="/register" className="text-blue-600 hover:underline">Register here</Link>
+            </p>
+          </div>
         </CardContent>
       </Card>
     </div>

@@ -30,6 +30,7 @@ import StudentProgress from "@/pages/StudentProgress";
 import StudentSettings from "@/pages/StudentSettings";
 import AdminStudents from "@/pages/AdminStudents";
 import SchoolSettings from "@/pages/SchoolSettings";
+import AuthCallback from "@/components/auth/AuthCallback";
 
 function App() {
   return (
@@ -46,6 +47,7 @@ function App() {
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route path="/register" element={<Register />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/school-registration" element={<SchoolRegistration />} />
           <Route path="/invitation/:token" element={<TeacherInvitation />} />
           <Route path="/test-accounts" element={<TestAccounts />} />
