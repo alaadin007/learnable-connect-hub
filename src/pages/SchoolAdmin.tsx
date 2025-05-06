@@ -3,12 +3,14 @@ import React, { useEffect, useState } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
 import { useAuth } from "@/contexts/AuthContext";
+import { useRBAC } from "@/contexts/RBACContext";
 import TeacherManagement from "@/components/school-admin/TeacherManagement";
+import StudentManagement from "@/components/teacher/StudentManagement";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { Users, BarChart2, ChevronDown, Settings, User } from "lucide-react";
+import { Users, BarChart2, ChevronDown, Settings, User, School } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -17,6 +19,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { getSchoolData } from "@/utils/studentUtils";
 
 // Define the basic type for teacher invitations
 export type TeacherInvitation = {
@@ -31,58 +34,67 @@ export type TeacherInvitation = {
 };
 
 const SchoolAdmin = () => {
-  const { profile, userRole } = useAuth();
+  const { profile, userRole, schoolId: authSchoolId } = useAuth();
+  const { isAdmin } = useRBAC();
   const navigate = useNavigate();
   const location = useLocation();
   const [activeTab, setActiveTab] = useState("teachers");
   const [schoolData, setSchoolData] = useState<{ name: string; code: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [schoolId, setSchoolId] = useState<string | null>(null);
   
-  // Use optional chaining for organization properties
-  const schoolId = profile?.organization?.id || null;
-  
-  // Fetch school data from Supabase
+  // Fetch school ID and data when component mounts
   useEffect(() => {
-    const fetchSchoolData = async () => {
-      if (!schoolId) return;
-      
+    const fetchSchoolInfo = async () => {
+      setIsLoading(true);
       try {
-        // Attempt to get school data from the schools table
-        const { data: schoolData, error } = await supabase
-          .from('schools')
-          .select('name, code')
-          .eq('id', schoolId)
-          .single();
+        // Try to get school ID from auth context first
+        let schoolIdToUse = authSchoolId;
         
-        if (error) {
-          console.error('Error fetching school data:', error);
-          return;
+        // If not available, fetch it
+        if (!schoolIdToUse) {
+          const { data: fetchedSchoolId, error: schoolIdError } = await supabase
+            .rpc('get_user_school_id');
+          
+          if (schoolIdError) {
+            console.error('Error fetching school ID:', schoolIdError);
+            toast.error("Failed to load school information");
+            setIsLoading(false);
+            return;
+          }
+          
+          schoolIdToUse = fetchedSchoolId;
         }
         
-        if (schoolData) {
-          setSchoolData({
-            name: schoolData.name,
-            code: schoolData.code
-          });
+        if (schoolIdToUse) {
+          setSchoolId(schoolIdToUse);
+          
+          // Fetch school data
+          const schoolInfo = await getSchoolData(schoolIdToUse);
+          if (schoolInfo) {
+            setSchoolData(schoolInfo);
+          }
         }
       } catch (error) {
-        console.error('Error fetching school data:', error);
+        console.error("Error fetching school information:", error);
+        toast.error("Failed to load school information");
       } finally {
         setIsLoading(false);
       }
     };
     
-    fetchSchoolData();
-  }, [schoolId]);
+    fetchSchoolInfo();
+  }, [authSchoolId]);
   
   // Verify correct user role, but only if not coming from test accounts
   useEffect(() => {
     const fromTestAccounts = location.state?.fromTestAccounts === true;
     
-    if (userRole && userRole !== "school" && !fromTestAccounts) {
-      navigate("/dashboard");
+    if (!fromTestAccounts && !isAdmin && userRole) {
+      toast.error("You don't have permission to access this page");
+      navigate("/dashboard", { replace: true });
     }
-  }, [userRole, navigate, location.state]);
+  }, [userRole, isAdmin, navigate, location.state]);
 
   // Fixed Quick actions dropdown handler to prevent navigation issues
   const handleQuickActionSelect = (action: string) => {
@@ -144,7 +156,7 @@ const SchoolAdmin = () => {
                 <div className="flex flex-col sm:flex-row sm:items-center">
                   <span className="font-medium min-w-32">School Name:</span>
                   {isLoading ? (
-                    <span className="text-muted-foreground">Loading...</span>
+                    <div className="h-5 w-32 bg-gray-200 animate-pulse rounded"></div>
                   ) : (
                     <span>{schoolData?.name || profile?.organization?.name || "Not available"}</span>
                   )}
@@ -152,9 +164,27 @@ const SchoolAdmin = () => {
                 <div className="flex flex-col sm:flex-row sm:items-center">
                   <span className="font-medium min-w-32">School Code:</span>
                   {isLoading ? (
-                    <span className="font-mono text-muted-foreground">Loading...</span>
+                    <div className="h-5 w-24 bg-gray-200 animate-pulse rounded font-mono"></div>
                   ) : (
-                    <span className="font-mono">{schoolData?.code || profile?.organization?.code || "Not available"}</span>
+                    <div className="flex items-center gap-2">
+                      <code className="px-2 py-1 bg-muted rounded text-sm font-mono">
+                        {schoolData?.code || profile?.organization?.code || "Not available"}
+                      </code>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => {
+                          const code = schoolData?.code || profile?.organization?.code;
+                          if (code) {
+                            navigator.clipboard.writeText(code);
+                            toast.success("School code copied to clipboard!");
+                          }
+                        }}
+                        disabled={!schoolData?.code && !profile?.organization?.code}
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </div>
                   )}
                 </div>
                 <p className="text-sm text-muted-foreground mt-2">
@@ -218,26 +248,13 @@ const SchoolAdmin = () => {
             </TabsContent>
             
             <TabsContent value="students" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Student Management</CardTitle>
-                  <CardDescription>Manage students at your school</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-col gap-4">
-                    <p className="text-muted-foreground mb-4">
-                      Manage your school's students, including enrollment and class assignments.
-                    </p>
-                    <Button 
-                      onClick={() => navigate('/admin/students')} 
-                      className="w-full sm:w-auto gradient-bg"
-                    >
-                      <User className="mr-2 h-4 w-4" />
-                      Go to Student Management
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+              {activeTab === "students" && (
+                <StudentManagement 
+                  schoolId={schoolId} 
+                  isLoading={isLoading} 
+                  schoolInfo={schoolData} 
+                />
+              )}
             </TabsContent>
             
             <TabsContent value="settings" className="space-y-4">

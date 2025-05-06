@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Copy } from 'lucide-react';
 import { approveStudentDirect, inviteStudentDirect, revokeStudentAccessDirect } from '@/utils/databaseUtils';
 
 type Student = {
@@ -264,7 +264,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({
                     }}
                     disabled={!schoolInfo?.code}
                   >
-                    Copy
+                    <Copy className="h-4 w-4" />
                   </Button>
                 </div>
               )}
@@ -328,7 +328,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({
                         toast.success("Code copied to clipboard");
                       }}
                     >
-                      Copy
+                      <Copy className="h-4 w-4" />
                     </Button>
                   </div>
                   <p className="text-xs mt-2 text-muted-foreground">
