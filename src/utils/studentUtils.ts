@@ -124,19 +124,23 @@ export const getSchoolData = async (schoolId: string): Promise<{name: string; co
     
     if (error) {
       console.error('Error fetching school data:', error);
+      toast.error('Could not load school information');
       return null;
     }
     
     if (data) {
+      console.log('School data retrieved successfully:', data);
       return {
         name: data.name,
         code: data.code
       };
     }
     
+    console.warn('No school data found for ID:', schoolId);
     return null;
   } catch (error) {
     console.error('Error in getSchoolData:', error);
+    toast.error('An unexpected error occurred');
     return null;
   }
 };

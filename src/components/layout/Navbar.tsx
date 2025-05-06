@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -104,6 +105,16 @@ const Navbar = () => {
   const isActiveLink = useCallback((href: string): boolean => {
     const currentPath = location.pathname;
 
+    // Special case for admin/students path
+    if (href === "/admin/students" && currentPath === "/admin/students") {
+      return true;
+    }
+
+    // Check if the path starts with the href for students links
+    if (href === "/teacher/students" && currentPath.startsWith("/teacher/students")) {
+      return true;
+    }
+
     switch (href) {
       case "/dashboard":
         return currentPath === "/dashboard";
@@ -112,8 +123,7 @@ const Navbar = () => {
         return currentPath === "/admin";
       case "/admin/teacher-management":
       case "/admin/analytics":
-      case "/admin/students":
-      case "/teacher/students":
+        return currentPath === href;
       case "/teacher/analytics":
         return currentPath === href;
       case "/chat":

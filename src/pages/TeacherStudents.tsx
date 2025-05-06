@@ -8,6 +8,8 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { getSchoolData } from "@/utils/studentUtils";
 
 const TeacherStudents = () => {
   const navigate = useNavigate();
@@ -15,6 +17,8 @@ const TeacherStudents = () => {
   const { user, profile, userRole } = useAuth();
   const [pageInitialized, setPageInitialized] = useState(false);
   const [schoolId, setSchoolId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [schoolInfo, setSchoolInfo] = useState<{name: string; code: string} | null>(null);
   
   // Process location state once on first render
   useEffect(() => {
@@ -30,20 +34,34 @@ const TeacherStudents = () => {
       if (!user) return;
       
       try {
+        setIsLoading(true);
         const { data: schoolIdData, error: schoolIdError } = await supabase
           .rpc('get_user_school_id');
         
         if (schoolIdError) {
           console.error('Error fetching school ID:', schoolIdError);
+          toast.error('Failed to load school information');
+          setIsLoading(false);
           return;
         }
         
         if (schoolIdData) {
           console.log("TeacherStudents: School ID retrieved:", schoolIdData);
           setSchoolId(schoolIdData);
+          
+          // Fetch school data
+          const schoolData = await getSchoolData(schoolIdData);
+          if (schoolData) {
+            setSchoolInfo(schoolData);
+          } else {
+            toast.error('Failed to load school details');
+          }
         }
       } catch (error) {
         console.error("Error in fetchSchoolId:", error);
+        toast.error('Failed to load data');
+      } finally {
+        setIsLoading(false);
       }
     };
     
@@ -109,7 +127,7 @@ const TeacherStudents = () => {
             <h1 className="text-3xl font-bold gradient-text">Student Management</h1>
           </div>
           
-          <StudentManagement schoolId={schoolId} />
+          <StudentManagement schoolId={schoolId} isLoading={isLoading} schoolInfo={schoolInfo} />
         </div>
       </main>
       <Footer />
