@@ -42,72 +42,67 @@ const AdminStudents = () => {
         return;
       }
 
-      console.log("Fetching school data...");
       setError(null);
-
-      // First try using the utility function for most reliable method
       const schoolData = await getCurrentSchoolInfo();
+
       if (schoolData) {
-        console.log("School info retrieved from utility:", schoolData);
         setSchoolInfo({
           id: schoolData.id,
           name: schoolData.name,
-          code: schoolData.code
+          code: schoolData.code,
         });
         setSchoolId(schoolData.id);
         setLoading(false);
         return;
       }
 
-      // Try using profile data if it's available
-      if (profile?.organization?.id && profile?.organization?.name && profile?.organization?.code) {
-        console.log("Using profile data for school:", profile.organization);
+      if (
+        profile?.organization?.id &&
+        profile?.organization?.name &&
+        profile?.organization?.code
+      ) {
         setSchoolInfo({
           id: profile.organization.id,
           name: profile.organization.name,
-          code: profile.organization.code
+          code: profile.organization.code,
         });
         setSchoolId(profile.organization.id);
         setLoading(false);
         return;
       }
 
-      // Get user metadata from auth
-      const { data: authData } = await supabase.auth.getUser();
-      if (!authData?.user) {
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError || !authData?.user) {
         throw new Error("Authentication error");
       }
 
-      // Try to extract school info from user metadata
       const userMeta = authData.user.user_metadata;
-      console.log("User metadata:", userMeta);
 
       if (userMeta?.school_name && userMeta?.school_code) {
-        // Get the school ID from the school code
         const { data: schoolDetails, error: schoolCodeError } = await supabase
           .from("schools")
           .select("id, name, code")
           .eq("code", userMeta.school_code)
           .single();
 
-        if (!schoolCodeError && schoolDetails) {
-          console.log("Found school by code:", schoolDetails);
+        if (schoolCodeError || !schoolDetails) {
+          console.error("Error finding school by code:", schoolCodeError);
+        } else {
           setSchoolInfo({
             id: schoolDetails.id,
             name: schoolDetails.name,
-            code: schoolDetails.code
+            code: schoolDetails.code,
           });
           setSchoolId(schoolDetails.id);
           setLoading(false);
           return;
-        } else {
-          console.log("Error finding school by code:", schoolCodeError);
         }
       }
 
-      throw new Error("Could not determine your school information. Please check your API configuration in School Settings.");
+      throw new Error(
+        "Could not determine your school information. Please check your API configuration in School Settings."
+      );
     } catch (err: any) {
-      console.error("Error in fetchSchoolData:", err);
       setError(err.message || "Failed to load data");
     } finally {
       setLoading(false);
@@ -136,7 +131,12 @@ const AdminStudents = () => {
       <main className="flex-grow bg-learnable-super-light py-8">
         <div className="container mx-auto px-4">
           <div className="flex items-center gap-4 mb-6">
-            <Button variant="outline" size="sm" className="flex items-center gap-1" onClick={() => navigate("/admin")}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-1"
+              onClick={() => navigate("/admin")}
+            >
               <ArrowLeft className="h-4 w-4" />
               Back to Admin
             </Button>
@@ -166,11 +166,7 @@ const AdminStudents = () => {
                   <Button variant="outline" size="sm" onClick={handleRetry}>
                     Retry
                   </Button>
-                  <Button 
-                    size="sm" 
-                    className="flex items-center gap-1" 
-                    onClick={goToSettings}
-                  >
+                  <Button size="sm" className="flex items-center gap-1" onClick={goToSettings}>
                     <Settings className="h-4 w-4" />
                     Go to School Settings
                   </Button>
