@@ -128,7 +128,7 @@ export const fetchTeachers = async (
       .from('teachers')
       .select(`
         id,
-        profiles!inner(full_name)
+        profiles(full_name)
       `)
       .eq('school_id', schoolId);
 
@@ -138,10 +138,18 @@ export const fetchTeachers = async (
     }
 
     // Transform the data to the expected format
-    return (data || []).map(teacher => ({
-      id: teacher.id,
-      name: teacher.profiles?.full_name || 'Unknown Teacher'
-    }));
+    return (data || []).map(teacher => {
+      // Safely access profile data
+      const profileData = teacher.profiles;
+      const teacherName = profileData ? 
+        (Array.isArray(profileData) ? profileData[0]?.full_name : profileData.full_name) || 'Unknown Teacher' 
+        : 'Unknown Teacher';
+        
+      return {
+        id: teacher.id,
+        name: teacherName
+      };
+    });
   } catch (error) {
     console.error("Error in fetchTeachers:", error);
     return getMockTeachers();

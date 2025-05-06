@@ -28,7 +28,7 @@ export const fetchStudyTime = async (
         user_id,
         session_start,
         session_end,
-        profiles:profiles(full_name)
+        profiles(full_name)
       `)
       .eq('school_id', schoolId)
       .gte('session_start', dateFilter.startDate)
@@ -57,7 +57,12 @@ export const fetchStudyTime = async (
     (data || []).forEach(session => {
       if (session.session_start && session.session_end) {
         const studentId = session.user_id;
-        const studentName = session.profiles?.full_name || 'Unknown Student';
+        // Safely access profile data
+        const profileData = session.profiles;
+        const studentName = profileData ? 
+            (Array.isArray(profileData) ? profileData[0]?.full_name : profileData.full_name) || 'Unknown Student' 
+            : 'Unknown Student';
+            
         const start = new Date(session.session_start);
         const end = new Date(session.session_end);
         let minutes = Math.round((end.getTime() - start.getTime()) / (1000 * 60));

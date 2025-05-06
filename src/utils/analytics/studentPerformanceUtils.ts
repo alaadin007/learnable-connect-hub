@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { AnalyticsFilters, StudentPerformanceData } from "@/components/analytics/types";
 import { getDateFilterSQL } from "./dateUtils";
@@ -152,7 +151,7 @@ export const fetchStudents = async (
       .from('students')
       .select(`
         id,
-        profiles:profiles!inner(full_name)
+        profiles(full_name)
       `)
       .eq('school_id', schoolId);
 
@@ -162,10 +161,18 @@ export const fetchStudents = async (
     }
 
     // Transform the data to the expected format
-    return (data || []).map(student => ({
-      id: student.id,
-      name: student.profiles?.full_name || 'Unknown Student'
-    }));
+    return (data || []).map(student => {
+      // Safely access profile data
+      const profileData = student.profiles;
+      const studentName = profileData ? 
+        (Array.isArray(profileData) ? profileData[0]?.full_name : profileData.full_name) || 'Unknown Student' 
+        : 'Unknown Student';
+        
+      return {
+        id: student.id,
+        name: studentName
+      };
+    });
   } catch (error) {
     console.error("Error in fetchStudents:", error);
     return getMockStudents();

@@ -31,7 +31,7 @@ export const fetchSessionLogs = async (
         session_end,
         topic_or_content_used,
         num_queries,
-        profiles!inner(full_name)
+        profiles(full_name)
       `)
       .eq('school_id', schoolId)
       .gte('session_start', dateFilter.startDate)
@@ -62,10 +62,16 @@ export const fetchSessionLogs = async (
         session.topic_or_content_used.split(',').map(t => t.trim()) : 
         ['General'];
 
+      // Safely access profiles data
+      const profileData = session.profiles;
+      const studentName = profileData ? 
+          (Array.isArray(profileData) ? profileData[0]?.full_name : profileData.full_name) || 'Unknown Student' 
+          : 'Unknown Student';
+
       return {
         id: session.id,
         student_id: session.user_id,
-        student_name: session.profiles?.full_name || 'Unknown Student',
+        student_name: studentName,
         session_date: session.session_start,
         duration_minutes: durationMinutes > 0 ? durationMinutes : 0,
         topics: topicsList,
@@ -74,7 +80,7 @@ export const fetchSessionLogs = async (
         
         // Compatibility fields
         userId: session.user_id,
-        userName: session.profiles?.full_name || 'Unknown Student',
+        userName: studentName,
         topic: session.topic_or_content_used || 'General',
         queries: session.num_queries || 0
       };
