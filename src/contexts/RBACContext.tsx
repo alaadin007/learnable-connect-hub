@@ -1,10 +1,8 @@
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { useAuth } from "./AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { useAuth } from './AuthContext';
-import { supabase } from '@/integrations/supabase/client';
-
-// Define the role type based on our database enum
-export type AppRole = 'school_admin' | 'teacher_supervisor' | 'teacher' | 'student' | 'system_admin';
+export type AppRole = "school_admin" | "teacher_supervisor" | "teacher" | "student" | "system_admin";
 
 interface RBACContextType {
   roles: AppRole[];
@@ -34,42 +32,37 @@ export const RBACProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       setIsLoading(true);
-      const { data, error } = await supabase.rpc('get_user_roles');
-      
+      const { data, error } = await supabase.rpc("get_user_roles");
+
       if (error) {
-        console.error('Error fetching user roles:', error);
+        console.error("Error fetching user roles:", error);
         setRoles([]);
       } else {
         setRoles(data || []);
       }
     } catch (error) {
-      console.error('Error in fetchUserRoles:', error);
+      console.error("Error in fetchUserRoles:", error);
       setRoles([]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Fetch roles when user changes
   useEffect(() => {
     if (!authLoading) {
       fetchUserRoles();
     }
   }, [user, authLoading]);
 
-  const hasRole = (role: AppRole): boolean => {
-    return roles.includes(role);
-  };
+  const hasRole = (role: AppRole): boolean => roles.includes(role);
 
-  const hasAnyRole = (rolesToCheck: AppRole[]): boolean => {
-    return roles.some(role => rolesToCheck.includes(role));
-  };
+  const hasAnyRole = (rolesToCheck: AppRole[]): boolean =>
+    roles.some((role) => rolesToCheck.includes(role));
 
-  // Computed properties for common role checks
-  const isAdmin = hasRole('school_admin') || hasRole('system_admin');
-  const isSupervisor = hasRole('teacher_supervisor') || isAdmin;
-  const isTeacher = hasRole('teacher') || isSupervisor;
-  const isStudent = hasRole('student');
+  const isAdmin = hasRole("school_admin") || hasRole("system_admin");
+  const isSupervisor = hasRole("teacher_supervisor") || isAdmin;
+  const isTeacher = hasRole("teacher") || isSupervisor;
+  const isStudent = hasRole("student");
 
   const value = {
     roles,
@@ -80,7 +73,7 @@ export const RBACProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isTeacher,
     isStudent,
     isLoading: authLoading || isLoading,
-    refreshRoles: fetchUserRoles
+    refreshRoles: fetchUserRoles,
   };
 
   return <RBACContext.Provider value={value}>{children}</RBACContext.Provider>;
@@ -88,8 +81,8 @@ export const RBACProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 export const useRBAC = (): RBACContextType => {
   const context = useContext(RBACContext);
-  if (context === undefined) {
-    throw new Error('useRBAC must be used within an RBACProvider');
+  if (!context) {
+    throw new Error("useRBAC must be used within an RBACProvider");
   }
   return context;
 };
