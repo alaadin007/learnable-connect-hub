@@ -105,33 +105,31 @@ const Navbar = () => {
   const isActiveLink = useCallback((href: string): boolean => {
     const currentPath = location.pathname;
 
-    // Special case for admin/students path
-    if (href === "/admin/students" && currentPath === "/admin/students") {
-      return true;
-    }
-
-    // Check if the path starts with the href for students links
-    if (href === "/teacher/students" && currentPath.startsWith("/teacher/students")) {
-      return true;
-    }
-
+    // Handle special cases for different paths
     switch (href) {
       case "/dashboard":
         return currentPath === "/dashboard";
       case "/admin":
-        // Active for /admin exactly but not for known subpaths handled separately
         return currentPath === "/admin";
       case "/admin/teacher-management":
         return currentPath === "/admin/teacher-management" || currentPath === "/admin/teachers";
+      case "/admin/students":
+        return currentPath === "/admin/students";
       case "/admin/analytics":
         return currentPath === "/admin/analytics";
+      case "/teacher/students":
+        return currentPath.startsWith("/teacher/students");
       case "/teacher/analytics":
         return currentPath === "/teacher/analytics";
+      case "/student/assessments":
+        return currentPath === "/student/assessments";
+      case "/student/progress":
+        return currentPath === "/student/progress";
       case "/chat":
-        // Fix for Chat links - check if it starts with /chat
+        // Check if path starts with /chat
         return currentPath === "/chat" || currentPath.startsWith("/chat/");
       case "/documents":
-        // Fix for Documents links - check if it starts with /documents
+        // Check if path starts with /documents
         return currentPath === "/documents" || currentPath.startsWith("/documents/");
       default:
         return currentPath === href;
