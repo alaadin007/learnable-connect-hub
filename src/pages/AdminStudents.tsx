@@ -4,14 +4,16 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useRBAC } from "@/contexts/RBACContext";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/layout/Navbar";
-import Footer from "@/components/landing/Footer";
+import Footer from "@/components/layout/Footer";
 import AdminStudentsComponent from "@/components/admin/AdminStudents";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Settings } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { getCurrentSchoolInfo } from "@/utils/databaseUtils";
 
 const AdminStudents = () => {
   const { user, profile } = useAuth();
@@ -29,6 +31,10 @@ const AdminStudents = () => {
     fetchSchoolData();
   };
 
+  const goToSettings = () => {
+    navigate("/admin/settings");
+  };
+
   const fetchSchoolData = async () => {
     try {
       if (!user) {
@@ -40,8 +46,23 @@ const AdminStudents = () => {
       console.log("Fetching school data...");
       setError(null);
       
-      // First try using profile data if it's available
+      // First try using the utility function for most reliable method
+      const schoolData = await getCurrentSchoolInfo();
+      if (schoolData) {
+        console.log("School info retrieved from utility:", schoolData);
+        setSchoolInfo({
+          id: schoolData.school_id,
+          name: schoolData.school_name,
+          code: schoolData.school_code
+        });
+        setSchoolId(schoolData.school_id);
+        setLoading(false);
+        return;
+      }
+      
+      // Try using profile data if it's available
       if (profile?.organization?.id && profile?.organization?.name && profile?.organization?.code) {
+        console.log("Using profile data for school:", profile.organization);
         setSchoolInfo({
           id: profile.organization.id,
           name: profile.organization.name,
@@ -60,6 +81,8 @@ const AdminStudents = () => {
       
       // Try to extract school info from user metadata
       const userMeta = authData.user.user_metadata;
+      console.log("User metadata:", userMeta);
+      
       if (userMeta?.school_name && userMeta?.school_code) {
         // Get the school ID from the school code
         const { data: schoolDetails, error: schoolCodeError } = await supabase
@@ -69,6 +92,7 @@ const AdminStudents = () => {
           .single();
           
         if (!schoolCodeError && schoolDetails) {
+          console.log("Found school by code:", schoolDetails);
           setSchoolInfo({
             id: schoolDetails.id,
             name: schoolDetails.name,
@@ -77,46 +101,12 @@ const AdminStudents = () => {
           setSchoolId(schoolDetails.id);
           setLoading(false);
           return;
+        } else {
+          console.log("Error finding school by code:", schoolCodeError);
         }
       }
       
-      // Direct query to the teachers table
-      const { data: teacherData, error: teacherError } = await supabase
-        .from("teachers")
-        .select("school_id")
-        .eq("id", authData.user.id)
-        .single();
-        
-      if (teacherError) {
-        console.error("Error fetching teacher data:", teacherError);
-        throw new Error("Failed to determine your school");
-      }
-      
-      const resolvedSchoolId = teacherData?.school_id;
-      
-      if (!resolvedSchoolId) {
-        throw new Error("No school associated with your account");
-      }
-      
-      setSchoolId(resolvedSchoolId);
-      
-      // Fetch school details
-      const { data: schoolDetails, error: schoolError } = await supabase
-        .from("schools")
-        .select("id, name, code")
-        .eq("id", resolvedSchoolId)
-        .single();
-        
-      if (schoolError || !schoolDetails) {
-        console.error("Error fetching school details:", schoolError);
-        throw new Error("Failed to load school details");
-      }
-      
-      setSchoolInfo({
-        id: schoolDetails.id,
-        name: schoolDetails.name,
-        code: schoolDetails.code
-      });
+      throw new Error("Could not determine your school information. Please check your API configuration in School Settings.");
       
     } catch (err: any) {
       console.error("Error in fetchSchoolData:", err);
@@ -170,10 +160,25 @@ const AdminStudents = () => {
               </CardContent>
             </Card>
           ) : error ? (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-md text-red-600 mb-4">
-              <p>{error}</p>
-              <Button variant="outline" size="sm" className="mt-2" onClick={handleRetry}>Retry</Button>
-            </div>
+            <Alert variant="destructive" className="mb-6">
+              <AlertTitle className="text-lg font-semibold">Error Determining School</AlertTitle>
+              <AlertDescription className="mt-2">
+                <p className="mb-4">{error}</p>
+                <div className="flex flex-wrap gap-3 mt-2">
+                  <Button variant="outline" size="sm" onClick={handleRetry}>
+                    Retry
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    className="flex items-center gap-1" 
+                    onClick={goToSettings}
+                  >
+                    <Settings className="h-4 w-4" />
+                    Go to School Settings
+                  </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
           ) : schoolId ? (
             <AdminStudentsComponent schoolId={schoolId} schoolInfo={schoolInfo} />
           ) : (

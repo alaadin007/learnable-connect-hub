@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
@@ -10,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Users, BarChart2, ChevronDown, Settings, User, Copy, AlertCircle } from "lucide-react";
+import { Users, BarChart2, ChevronDown, Settings, User, Copy, AlertCircle, Key } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getCurrentSchoolInfo } from "@/utils/databaseUtils";
@@ -276,6 +275,12 @@ const SchoolAdmin = () => {
     );
   }
 
+  // Define navigation handlers (adding navigation to settings)
+  const navigateToSettings = () => {
+    navigate("/admin/settings");
+  };
+
+  // In the return statement, update the button section to include a clear API settings button
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
@@ -324,6 +329,38 @@ const SchoolAdmin = () => {
                 <p className="text-sm text-muted-foreground mt-2">
                   Your school code is used to invite teachers and students to join your school.
                 </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Add a clear API Configuration card */}
+          <Card className="mb-6 border-blue-200 bg-blue-50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Key className="h-5 w-5 text-blue-500" />
+                API Configuration
+              </CardTitle>
+              <CardDescription>
+                Configure API keys for AI services
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm mb-2">
+                    You need to set up API keys for AI services to use the chat functionality.
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Go to School Settings to configure OpenAI and Gemini API keys.
+                  </p>
+                </div>
+                <Button 
+                  onClick={navigateToSettings}
+                  className="gradient-bg"
+                >
+                  <Settings className="mr-2 h-4 w-4" />
+                  Configure API Keys
+                </Button>
               </div>
             </CardContent>
           </Card>

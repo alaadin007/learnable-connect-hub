@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,13 +9,33 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRBAC } from "@/contexts/RBACContext";
-import { Navigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import ApiKeyManagement from "@/components/settings/ApiKeyManagement";
+import { toast } from "sonner";
+import { AlertCircle } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const SchoolSettings: React.FC = () => {
   const { user, profile } = useAuth();
   const { isAdmin } = useRBAC();
+  const navigate = useNavigate();
   const [selectedTab, setSelectedTab] = useState("general");
+  const [isLoading, setIsLoading] = useState(false);
+  
+  useEffect(() => {
+    // Auto-select the integrations tab when navigating from the error message
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('tab') === 'api') {
+      setSelectedTab("integrations");
+    }
+  }, []);
+
+  const copyToClipboard = (text: string) => {
+    if (text) {
+      navigator.clipboard.writeText(text);
+      toast.success("Copied to clipboard!");
+    }
+  };
   
   if (!user) {
     return <Navigate to="/login" replace />;
@@ -37,6 +57,17 @@ const SchoolSettings: React.FC = () => {
             </p>
           </div>
 
+          {selectedTab === "integrations" && (
+            <Alert className="mb-6 bg-blue-50 border-blue-200">
+              <AlertCircle className="h-4 w-4 text-blue-500" />
+              <AlertTitle className="text-blue-700">API Keys Required</AlertTitle>
+              <AlertDescription className="text-blue-600">
+                To use AI chat features, you need to configure API keys for OpenAI or Gemini.
+                These keys are stored securely and used only for your school's AI features.
+              </AlertDescription>
+            </Alert>
+          )}
+
           <Tabs
             defaultValue="general"
             value={selectedTab}
@@ -46,7 +77,7 @@ const SchoolSettings: React.FC = () => {
             <TabsList className="grid grid-cols-3 md:w-[400px] mb-4">
               <TabsTrigger value="general">General</TabsTrigger>
               <TabsTrigger value="notifications">Notifications</TabsTrigger>
-              <TabsTrigger value="integrations">Integrations</TabsTrigger>
+              <TabsTrigger value="integrations">API Keys</TabsTrigger>
             </TabsList>
 
             <TabsContent value="general">
@@ -73,7 +104,12 @@ const SchoolSettings: React.FC = () => {
                         value={profile?.organization?.code || ""}
                         className="bg-gray-50"
                       />
-                      <Button variant="outline">Copy</Button>
+                      <Button 
+                        variant="outline"
+                        onClick={() => copyToClipboard(profile?.organization?.code || "")}
+                      >
+                        Copy
+                      </Button>
                     </div>
                     <p className="text-xs text-muted-foreground">
                       This code is used for teacher and student registrations
