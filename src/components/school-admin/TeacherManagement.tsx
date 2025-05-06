@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,8 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 import { 
   isDataResponse, 
-  isValidInvitation, 
-  safelyExtractData,
+  isValidInvitation,
   asSupabaseParam
 } from "@/utils/supabaseHelpers";
 import { useAuth } from "@/contexts/AuthContext";
@@ -55,18 +55,21 @@ const TeacherManagement = () => {
         .eq('school_id', asSupabaseParam<string>(schoolId))
         .order('created_at', { ascending: false });
 
-      if (isDataResponse(response)) {
-        const validInvites = response.data.filter(isValidInvitation).map(item => ({
-          id: item.id, 
-          email: item.email,
-          status: item.status,
-          created_at: item.created_at,
-          expires_at: item.expires_at
-        }));
-        setInvitations(validInvites as TeacherInvite[]);
-      } else {
+      if (response.error) {
         console.error('Error fetching invitations:', response.error);
         toast.error('Failed to load teacher invitations');
+        setInvitations([]);
+      } else {
+        const validInvites = (response.data || [])
+          .filter(isValidInvitation)
+          .map(item => ({
+            id: item.id, 
+            email: item.email,
+            status: item.status,
+            created_at: item.created_at,
+            expires_at: item.expires_at
+          }));
+        setInvitations(validInvites as TeacherInvite[]);
       }
     } catch (error) {
       console.error('Error fetching invitations:', error);

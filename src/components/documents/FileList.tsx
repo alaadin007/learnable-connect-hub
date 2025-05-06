@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from '@/components/ui/button';
@@ -8,7 +9,7 @@ import { Loader2, File, FileText, Image, Trash2, RefreshCw } from 'lucide-react'
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { 
-  isDataResponse, 
+  isValidSupabaseData, 
   isValidFileItem,
   asSupabaseParam
 } from '@/utils/supabaseHelpers';
@@ -49,32 +50,34 @@ const FileList: React.FC = () => {
       setError(null);
 
       // Fetch the user's files
-      const response = await supabase
+      const { data, error } = await supabase
         .from('documents')
         .select('*')
         .eq('user_id', asSupabaseParam(user.id))
         .order('created_at', { ascending: false });
 
-      if (!isDataResponse(response)) {
-        console.error("Error fetching files:", response.error);
+      if (error) {
+        console.error("Error fetching files:", error);
         setError("Failed to load your files");
-        setLoading(false);
+        setFiles([]);
         return;
       }
 
       // Process the data safely using the helper function
       const validFiles: FileItem[] = [];
-      for (const item of response.data) {
-        if (isValidFileItem(item)) {
-          validFiles.push({
-            id: item.id,
-            filename: item.filename,
-            file_type: item.file_type,
-            file_size: item.file_size,
-            created_at: item.created_at,
-            storage_path: item.storage_path,
-            processing_status: item.processing_status
-          });
+      if (Array.isArray(data)) {
+        for (const item of data) {
+          if (isValidFileItem(item)) {
+            validFiles.push({
+              id: item.id,
+              filename: item.filename,
+              file_type: item.file_type,
+              file_size: item.file_size,
+              created_at: item.created_at,
+              storage_path: item.storage_path,
+              processing_status: item.processing_status
+            });
+          }
         }
       }
 
@@ -123,6 +126,7 @@ const FileList: React.FC = () => {
     }
   };
 
+  // Helper functions moved inside component for clarity
   const getFileIcon = (fileType: string) => {
     if (fileType.includes('pdf')) return <FileText className="h-5 w-5 text-red-500" />;
     if (fileType.includes('image')) return <Image className="h-5 w-5 text-blue-500" />;
@@ -245,36 +249,6 @@ const FileList: React.FC = () => {
       </div>
     </div>
   );
-};
-
-// Helper functions
-const getFileIcon = (fileType: string) => {
-  if (fileType.includes('pdf')) return <FileText className="h-5 w-5 text-red-500" />;
-  if (fileType.includes('image')) return <Image className="h-5 w-5 text-blue-500" />;
-  return <File className="h-5 w-5 text-gray-500" />;
-};
-
-const formatFileSize = (sizeInBytes: number) => {
-  if (sizeInBytes < 1024) return `${sizeInBytes} B`;
-  if (sizeInBytes < 1024 * 1024) return `${(sizeInBytes / 1024).toFixed(1)} KB`;
-  return `${(sizeInBytes / (1024 * 1024)).toFixed(1)} MB`;
-};
-
-const formatDate = (dateString: string) => {
-  return new Date(dateString).toLocaleString();
-};
-
-const getStatusBadge = (status: string) => {
-  switch (status) {
-    case 'pending':
-      return <Badge variant="outline" className="text-yellow-500 border-yellow-500">Processing</Badge>;
-    case 'completed':
-      return <Badge variant="outline" className="text-green-500 border-green-500">Ready</Badge>;
-    case 'error':
-      return <Badge variant="outline" className="text-red-500 border-red-500">Error</Badge>;
-    default:
-      return <Badge variant="outline">{status}</Badge>;
-  }
 };
 
 export default FileList;

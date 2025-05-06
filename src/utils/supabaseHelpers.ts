@@ -61,6 +61,35 @@ export function isValidSupabaseData(data: any): boolean {
          !('error' in data && data.error !== null);
 }
 
+// Helper function to check if a teacher invitation is valid
+export function isValidInvitation(item: any): boolean {
+  return item && 
+         typeof item === 'object' && 
+         'id' in item && 
+         'email' in item &&
+         'status' in item &&
+         'created_at' in item &&
+         'expires_at' in item;
+}
+
+// Helper function to check if a file item is valid
+export function isValidFileItem(item: any): boolean {
+  return item && 
+         typeof item === 'object' && 
+         'id' in item && 
+         'filename' in item &&
+         'file_type' in item &&
+         'file_size' in item;
+}
+
+// Helper function to safely extract data from Supabase response
+export function safelyExtractData<T>(data: any, defaultValue: T): T {
+  if (isValidSupabaseData(data)) {
+    return data as T;
+  }
+  return defaultValue;
+}
+
 // Safe casting for any type - used for type assertions where needed
 export function safeAnyCast<T>(value: any): T {
   return value as T;
