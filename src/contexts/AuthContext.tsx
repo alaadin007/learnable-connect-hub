@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -26,10 +25,10 @@ interface AuthContextProps {
   isSupervisor: boolean;
   schoolId: string | null;
   signUp: (email: string, password: string) => Promise<void>;
-  signIn: (email: string, password: string) => Promise<{ data: any, error: any }>;
+  signIn: (email: string, password: string) => Promise<{ data: any; error: any }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
-  setTestUser: (type: "school" | "teacher" | "student") => Promise<boolean>;
+  setTestUser: (type: UserRole) => Promise<boolean>;
   isLoading: boolean;
   error: string | null;
 }
@@ -46,18 +45,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Get user profile data including organization info
-  const fetchProfile = async (userId: string) => {
+  // Fetch user profile + organization info
+  const fetchProfile = async (userId: string): Promise<Profile | null> => {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select(`
-          id,
-          user_type,
-          full_name,
-          school_code,
-          school_name
-        `)
+        .select('id, user_type, full_name, school_code, school_name')
         .eq('id', userId)
         .single();
 
@@ -66,61 +59,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return null;
       }
 
-      // If user is a school admin or teacher, get the organization info
-      if (data && (data.user_type === 'school' || data.user_type === 'teacher')) {
-        // Get school ID for this user
+      // For school/teacher, fetch org info and supervisor status
+      if (data && ['school', 'teacher'].includes(data.user_type)) {
         const { data: userData, error: userError } = await supabase.rpc('get_user_school_id');
-        
         if (!userError && userData) {
           setSchoolId(userData);
-          
-          // Fetch school details
           const { data: schoolData, error: schoolError } = await supabase
             .from('schools')
             .select('id, name, code')
             .eq('id', userData)
             .single();
-            
+
           if (!schoolError && schoolData) {
-            const profileWithOrg = { 
-              ...data, 
-              organization: schoolData 
-            } as Profile;
+            const profileWithOrg = { ...data, organization: schoolData } as Profile;
+
+            // Check supervisor status
+            const { data: supervisorData, error: supervisorError } = await supabase.rpc('is_supervisor');
+            if (!supervisorError) {
+              setIsSupervisor(!!supervisorData);
+            }
             return profileWithOrg;
           }
         }
-        
-        // Check if user is a supervisor (for teachers)
-        if (data.user_type === 'teacher' || data.user_type === 'school') {
-          const { data: supervisorData, error: supervisorError } = await supabase.rpc('is_supervisor');
-          
-          if (!supervisorError) {
-            setIsSupervisor(!!supervisorData);
-          }
-        }
-      } else if (data && data.user_type === 'student') {
-        // For students, get their school_id
+      }
+
+      // For students, fetch school_id and org details
+      if (data && data.user_type === 'student') {
         const { data: studentData, error: studentError } = await supabase
           .from('students')
           .select('school_id')
           .eq('id', userId)
           .single();
-          
+
         if (!studentError && studentData) {
           setSchoolId(studentData.school_id);
-          
-          // Fetch school details
           const { data: schoolData, error: schoolError } = await supabase
             .from('schools')
             .select('id, name, code')
             .eq('id', studentData.school_id)
             .single();
-            
+
           if (!schoolError && schoolData) {
-            const profileWithOrg = { 
-              ...data, 
-              organization: schoolData 
-            } as Profile;
+            const profileWithOrg = { ...data, organization: schoolData } as Profile;
             return profileWithOrg;
           }
         }
@@ -133,55 +113,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Refresh user profile data
+  // Refresh profile data manually
   const refreshProfile = async () => {
     if (user) {
       const profileData = await fetchProfile(user.id);
       if (profileData) {
-        setProfile(profileData as Profile);
-        setUserRole(profileData.user_type as UserRole);
+        setProfile(profileData);
+        setUserRole(profileData.user_type);
       }
     }
   };
 
-  // Set up a test user without authentication (for demo purposes)
-  const setTestUser = async (type: "school" | "teacher" | "student"): Promise<boolean> => {
+  // Setup test user, for demo / development without actual auth
+  const setTestUser = async (type: UserRole): Promise<boolean> => {
     try {
-      console.log(`Setting up test ${type} user`);
-      
-      // Create a mock user and profile
       const mockUser = {
         id: `test-${type}-${Date.now()}`,
         email: `${type}.test@learnable.edu`,
         user_metadata: { user_type: type },
-        // Add minimal required User properties
         app_metadata: {},
         aud: 'authenticated',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         role: null,
-        confirmed_at: new Date().toISOString()
+        confirmed_at: new Date().toISOString(),
       } as unknown as User;
-      
-      const mockProfile = {
+
+      const mockProfile: Profile = {
         id: mockUser.id,
-        user_type: type as UserRole,
+        user_type: type,
         full_name: `Test ${type.charAt(0).toUpperCase() + type.slice(1)} User`,
         school_code: 'TEST123',
-        school_name: 'Test School'
+        school_name: 'Test School',
       };
-      
-      // Set up the test user state
+
       setUser(mockUser);
       setProfile(mockProfile);
-      setUserRole(type as UserRole);
-      
-      // Set supervisor status based on type
+      setUserRole(type);
       setIsSupervisor(type === 'school');
-      
-      // Set mock school ID
       setSchoolId('test-school-id');
-      
+
       return true;
     } catch (error) {
       console.error('Error setting up test user:', error);
@@ -189,53 +160,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Check for existing session on page load
   useEffect(() => {
     const setupAuth = async () => {
       try {
         setIsLoading(true);
-        
-        // Set up the auth state listener
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(
-          async (_event, session) => {
-            setSession(session);
-            setUser(session?.user || null);
-            
-            if (session?.user) {
-              // Using setTimeout prevents Supabase auth deadlocks when fetching data
-              // during auth state changes
-              setTimeout(async () => {
-                const profileData = await fetchProfile(session.user.id);
-                if (profileData) {
-                  setProfile(profileData as Profile);
-                  setUserRole(profileData.user_type as UserRole);
-                }
-              }, 0);
-            } else {
-              setProfile(null);
-              setUserRole(null);
-              setIsSupervisor(false);
-              setSchoolId(null);
-            }
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+          setSession(session);
+          setUser(session?.user || null);
+
+          if (session?.user) {
+            setTimeout(async () => {
+              const profileData = await fetchProfile(session.user.id);
+              if (profileData) {
+                setProfile(profileData);
+                setUserRole(profileData.user_type);
+              }
+            }, 0);
+          } else {
+            setProfile(null);
+            setUserRole(null);
+            setIsSupervisor(false);
+            setSchoolId(null);
           }
-        );
-        
-        // Check for existing session
+        });
+
         const { data: { session } } = await supabase.auth.getSession();
         setSession(session);
         setUser(session?.user || null);
-        
+
         if (session?.user) {
           const profileData = await fetchProfile(session.user.id);
           if (profileData) {
-            setProfile(profileData as Profile);
-            setUserRole(profileData.user_type as UserRole);
+            setProfile(profileData);
+            setUserRole(profileData.user_type);
           }
         }
-        
-        return () => {
-          subscription?.unsubscribe();
-        };
+
+        return () => subscription?.unsubscribe();
       } catch (error: any) {
         console.error('Error setting up auth:', error);
         setError(error.message);
@@ -243,19 +205,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsLoading(false);
       }
     };
-    
+
     setupAuth();
   }, []);
 
-  // Sign up function
   const signUp = async (email: string, password: string) => {
     try {
       setError(null);
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-      });
-      
+      const { error } = await supabase.auth.signUp({ email, password });
       if (error) throw error;
     } catch (error: any) {
       console.error('Sign up error:', error);
@@ -264,14 +221,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Sign in function
   const signIn = async (email: string, password: string) => {
     try {
       setError(null);
-      return await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      return await supabase.auth.signInWithPassword({ email, password });
     } catch (error: any) {
       console.error('Sign in error:', error);
       setError(error.message);
@@ -279,7 +232,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Sign out function
   const signOut = async () => {
     try {
       setError(null);
@@ -292,7 +244,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const value = {
+  const value: AuthContextProps = {
     session,
     user,
     profile,
