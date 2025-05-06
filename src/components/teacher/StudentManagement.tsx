@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,16 +19,30 @@ type Student = {
 
 interface StudentManagementProps {
   schoolId?: string | null;
+  isLoading?: boolean;
+  schoolInfo?: {name: string; code: string} | null;
 }
 
-const StudentManagement: React.FC<StudentManagementProps> = ({ schoolId: propSchoolId }) => {
+const StudentManagement: React.FC<StudentManagementProps> = ({ 
+  schoolId: propSchoolId, 
+  isLoading: propIsLoading = false,
+  schoolInfo: propSchoolInfo = null
+}) => {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteMethod, setInviteMethod] = useState<'code' | 'email'>('code');
   const [schoolId, setSchoolId] = useState<string | null>(null);
+  const [schoolInfo, setSchoolInfo] = useState<{name: string; code: string} | null>(null);
   const { user } = useAuth();
+
+  // Use prop values if provided
+  useEffect(() => {
+    if (propSchoolInfo) {
+      setSchoolInfo(propSchoolInfo);
+    }
+  }, [propSchoolInfo]);
 
   useEffect(() => {
     // If school ID is provided as a prop, use it
@@ -210,7 +225,56 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ schoolId: propSch
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-6">Student Management</h1>
+      {/* School Information */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>School Information</CardTitle>
+          <CardDescription>
+            Use this code when inviting students to your school
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            <div className="flex flex-col sm:flex-row sm:items-center">
+              <span className="font-medium min-w-32">School Name:</span>
+              {propIsLoading ? (
+                <div className="h-5 w-32 bg-gray-200 animate-pulse rounded"></div>
+              ) : (
+                <span>{schoolInfo?.name || "Not available"}</span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-medium min-w-32">School Code:</span>
+              {propIsLoading ? (
+                <div className="h-5 w-24 bg-gray-200 animate-pulse rounded font-mono"></div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <code className="px-2 py-1 bg-muted rounded text-sm font-mono">
+                    {schoolInfo?.code || "Not available"}
+                  </code>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => {
+                      const code = schoolInfo?.code;
+                      if (code) {
+                        navigator.clipboard.writeText(code);
+                        toast.success("School code copied to clipboard!");
+                      }
+                    }}
+                    disabled={!schoolInfo?.code}
+                  >
+                    Copy
+                  </Button>
+                </div>
+              )}
+            </div>
+            <p className="text-sm text-muted-foreground mt-2">
+              Students will need this code to register for an account at your school.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
       
       <div className="grid md:grid-cols-2 gap-6">
         {/* Invite Students */}
@@ -302,7 +366,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ schoolId: propSch
             </Button>
           </CardHeader>
           <CardContent>
-            {loading ? (
+            {loading || propIsLoading ? (
               <div className="flex justify-center p-4">
                 <div className="animate-spin h-6 w-6 border-2 border-primary rounded-full border-t-transparent"></div>
               </div>
