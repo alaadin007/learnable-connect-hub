@@ -1,71 +1,78 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+// Define Student type to match returned structure
+export type Student = {
+  id: string;
+  email: string;       // Ideally actual email, fallback if not available
+  full_name: string | null;
+  status: string;
+  created_at: string;
+};
+
 // Get school data by ID
-export const getSchoolData = async (schoolId: string): Promise<{name: string; code: string} | null> => {
+export const getSchoolData = async (schoolId: string): Promise<{ name: string; code: string } | null> => {
   try {
     const { data, error } = await supabase
-      .from('schools')
-      .select('name, code')
-      .eq('id', schoolId)
+      .from("schools")
+      .select("name, code")
+      .eq("id", schoolId)
       .single();
-    
+
     if (error) {
-      console.error('Error fetching school data:', error);
+      console.error("Error fetching school data:", error);
       return null;
     }
-    
+
     if (data) {
-      console.log('School data retrieved successfully:', data);
-      return {
-        name: data.name,
-        code: data.code
-      };
+      console.log("School data retrieved successfully:", data);
+      return { name: data.name, code: data.code };
     }
-    
-    console.warn('No school data found for ID:', schoolId);
+
+    console.warn("No school data found for ID:", schoolId);
     return null;
   } catch (error) {
-    console.error('Error in getSchoolData:', error);
+    console.error("Error in getSchoolData:", error);
     return null;
   }
 };
 
 // Fetch all students for a school
-export const fetchSchoolStudents = async (schoolId: string) => {
+export const fetchSchoolStudents = async (schoolId: string): Promise<Student[]> => {
   try {
-    // Get students with their status for this school
     const { data: studentData, error: studentError } = await supabase
       .from("students")
       .select("id, status, created_at")
       .eq("school_id", schoolId)
       .order("created_at", { ascending: false });
-      
+
     if (studentError) throw studentError;
-    
-    if (!studentData || studentData.length === 0) {
+
+    if (!studentData?.length) {
       return [];
     }
-    
-    // Get user profiles for these students
-    const studentIds = studentData.map(s => s.id);
+
+    const studentIds = studentData.map((s) => s.id);
+
+    // Fetch profiles, include email if available
     const { data: profileData, error: profileError } = await supabase
       .from("profiles")
-      .select("id, full_name")
+      .select("id, full_name, email")
       .in("id", studentIds);
-      
-    if (profileError) throw profileError;
-    
-    // Combine the data
-    return studentData.map(student => {
-      const profile = profileData?.find(p => p.id === student.id);
+
+    if (profileError) {
+      console.error("Error fetching profiles:", profileError);
+      // Proceed with partial data
+    }
+
+    return studentData.map((student) => {
+      const profile = profileData?.find((p) => p.id === student.id);
       return {
         id: student.id,
-        email: student.id, // Using ID as placeholder since we can't access auth.users
+        email: profile?.email || "N/A",
         full_name: profile?.full_name || null,
         status: student.status || "pending",
-        created_at: student.created_at
+        created_at: student.created_at,
       };
     });
   } catch (error) {
@@ -78,18 +85,16 @@ export const fetchSchoolStudents = async (schoolId: string) => {
 // Approve student
 export const approveStudent = async (studentId: string, schoolId: string): Promise<boolean> => {
   try {
-    // Update student status to "active"
     const { error } = await supabase
       .from("students")
       .update({ status: "active" })
       .eq("id", studentId)
       .eq("school_id", schoolId);
-        
+
     if (error) {
       console.error("Error updating student status:", error);
       return false;
     }
-
     return true;
   } catch (error) {
     console.error("Error in approveStudent:", error);
@@ -100,7 +105,6 @@ export const approveStudent = async (studentId: string, schoolId: string): Promi
 // Revoke student access
 export const revokeStudentAccess = async (studentId: string, schoolId: string): Promise<boolean> => {
   try {
-    // Delete the student record
     const { error } = await supabase
       .from("students")
       .delete()
@@ -111,7 +115,6 @@ export const revokeStudentAccess = async (studentId: string, schoolId: string): 
       console.error("Failed to revoke student access:", error);
       return false;
     }
-
     return true;
   } catch (error) {
     console.error("Error in revokeStudentAccess:", error);
@@ -125,76 +128,72 @@ export const generateInviteCode = (): string => {
 };
 
 // Invite student via code or email
-export const inviteStudent = async (method: "code" | "email", schoolId: string, email?: string): Promise<{
-  success: boolean; 
-  code?: string; 
+export const inviteStudent = async (
+  method: "code" | "email",
+  schoolId: string,
+  email?: string
+): Promise<{
+  success: boolean;
+  code?: string;
   email?: string;
   message?: string;
 }> => {
   try {
     if (method === "code") {
-      // Try to use Supabase RPC function first
       try {
-        const { data, error } = await supabase.rpc('create_student_invitation', {
-          school_id_param: schoolId
+        const { data, error } = await supabase.rpc("create_student_invitation", {
+          school_id_param: schoolId,
         });
 
         if (!error && data && data.length > 0) {
-          return { 
-            success: true, 
+          return {
+            success: true,
             code: data[0].code,
-            message: "Student invite code generated successfully" 
+            message: "Student invite code generated successfully",
           };
         }
       } catch (rpcError) {
         console.error("RPC error, falling back to direct insert:", rpcError);
       }
 
-      // Fallback - Generate a unique invite code directly
       const inviteCode = generateInviteCode();
-      
-      const { error: inviteError } = await supabase
-        .from("student_invites")
-        .insert({
-          school_id: schoolId,
-          code: inviteCode,
-          status: "pending",
-          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-        });
 
-      if (inviteError) {
-        console.error("Error creating invite:", inviteError);
-        return { success: false, message: "Failed to create invite" };
-      }
-
-      return { 
-        success: true, 
+      const { error: inviteError } = await supabase.from("student_invites").insert({
+        school_id: schoolId,
         code: inviteCode,
-        message: "Student invite code generated successfully" 
-      };
-    } 
-    else if (method === "email" && email) {
-      const { error: inviteError } = await supabase
-        .from("student_invites")
-        .insert({
-          school_id: schoolId,
-          email: email,
-          status: "pending",
-          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-        });
+        status: "pending",
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      });
 
       if (inviteError) {
         console.error("Error creating invite:", inviteError);
         return { success: false, message: "Failed to create invite" };
       }
 
-      return { 
-        success: true, 
-        email: email,
-        message: "Student invite created successfully" 
+      return {
+        success: true,
+        code: inviteCode,
+        message: "Student invite code generated successfully",
       };
-    } 
-    else {
+    } else if (method === "email" && email) {
+      const { error: inviteError } = await supabase.from("student_invites").insert({
+        school_id: schoolId,
+        email: email,
+        status: "pending",
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      });
+
+      if (inviteError) {
+        console.error("Error creating invite:", inviteError);
+        return { success: false, message: "Failed to create invite" };
+      }
+
+      return {
+        success: true,
+        email,
+        message: "Student invite created successfully",
+      };
+    } else {
       return { success: false, message: "Invalid request parameters" };
     }
   } catch (error) {
