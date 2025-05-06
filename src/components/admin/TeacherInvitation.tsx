@@ -8,7 +8,6 @@ import { Loader2, UserPlus, Mail, Check, X, RefreshCcw } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useAuth } from "@/contexts/AuthContext";
-import { safeResponse } from "@/utils/supabaseHelpers";
 
 const TeacherInvitation = () => {
   const { user } = useAuth();
@@ -23,10 +22,13 @@ const TeacherInvitation = () => {
     setIsLoading(true);
     try {
       // Get school ID first
-      const { data: schoolData } = await supabase.rpc('get_user_school_id');
+      const { data: schoolData, error: schoolError } = await supabase
+        .rpc('get_user_school_id');
       
-      if (!schoolData) {
+      if (schoolError || !schoolData) {
+        console.error("Error fetching school ID:", schoolError);
         toast.error("Could not determine your school");
+        setLoading(false);
         return;
       }
       
@@ -65,20 +67,18 @@ const TeacherInvitation = () => {
     
     setIsSending(true);
     try {
-      const result = await safeResponse(
-        supabase.rpc('invite_teacher', { 
-          teacher_email: email 
-        })
-      );
+      const { data, error } = await supabase.rpc('invite_teacher', { 
+        teacher_email: email 
+      });
       
-      if (result.success) {
+      if (error) {
+        console.error("Error sending invitation:", error);
+        toast.error(error.message || "Failed to send invitation");
+      } else {
         toast.success(`Invitation sent to ${email}`);
         setEmail("");
         // Refresh the invitations list
         fetchInvitations();
-      } else {
-        console.error("Error sending invitation:", result.error);
-        toast.error(result.message || "Failed to send invitation");
       }
     } catch (error: any) {
       console.error("Error in handleSendInvitation:", error);

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -40,7 +39,9 @@ const AdminStudents: React.FC<AdminStudentsProps> = ({ schoolId, schoolInfo, isL
     setLoading(true);
     try {
       // If we already have the schoolId from props, use it
-      if (!schoolId) {
+      let schoolIdToUse = schoolId;
+      
+      if (!schoolIdToUse) {
         // Get school ID for the current user
         const { data: schoolData, error: schoolError } = await supabase
           .rpc('get_user_school_id');
@@ -57,29 +58,26 @@ const AdminStudents: React.FC<AdminStudentsProps> = ({ schoolId, schoolInfo, isL
           setLoading(false);
           return;
         }
+        
+        schoolIdToUse = schoolData;
       }
       
-      // Use the schoolId from props or from the query
-      const schoolIdToUse = schoolId || '';
-    
       // Get all students for this school
-      const response = await safeResponse(
-        supabase
-          .from('students')
-          .select('*')
-          .eq('school_id', schoolIdToUse)
-      );
+      const { data: studentsData, error: studentsError } = await supabase
+        .from('students')
+        .select('id, school_id, status, created_at')
+        .eq('school_id', schoolIdToUse as string);
 
-      if (!response.success) {
-        console.error('Error fetching students:', response.error);
+      if (studentsError) {
+        console.error('Error fetching students:', studentsError);
         toast.error('Failed to load students');
         setLoading(false);
         return;
       }
 
       // Convert to our expected Student type
-      const validStudents: Student[] = Array.isArray(response.data) 
-        ? response.data.map(s => ({
+      const validStudents: Student[] = Array.isArray(studentsData) 
+        ? studentsData.map(s => ({
             id: s.id,
             school_id: s.school_id,
             status: s.status || 'pending',
@@ -93,17 +91,17 @@ const AdminStudents: React.FC<AdminStudentsProps> = ({ schoolId, schoolInfo, isL
       if (validStudents.length > 0) {
         const studentIds = validStudents.map(s => s.id);
         
-        const profileResponse = await safeResponse(
-          supabase
-            .from('profiles')
-            .select('id, full_name')
-            .in('id', studentIds)
-        );
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, full_name')
+          .in('id', studentIds as string[]);
       
-        if (profileResponse.success && profileResponse.data) {
+        if (profilesError) {
+          console.error('Error fetching profiles:', profilesError);
+        } else if (profilesData) {
           // Convert to our expected StudentProfile type
-          const validProfiles: StudentProfile[] = Array.isArray(profileResponse.data)
-            ? profileResponse.data.map(p => ({
+          const validProfiles: StudentProfile[] = Array.isArray(profilesData)
+            ? profilesData.map(p => ({
                 id: p.id,
                 full_name: p.full_name || 'Unnamed'
               }))
@@ -122,15 +120,13 @@ const AdminStudents: React.FC<AdminStudentsProps> = ({ schoolId, schoolInfo, isL
 
   const handleApproveStudent = async (student: Student) => {
     try {
-      const result = await safeResponse(
-        supabase
-          .from('students')
-          .update(safeAnyCast({ status: 'active' }))
-          .eq('id', student.id)
-      );
+      const { error } = await supabase
+        .from('students')
+        .update({ status: 'active' })
+        .eq('id', student.id);
       
-      if (!result.success) {
-        console.error('Error updating student status:', result.error);
+      if (error) {
+        console.error('Error updating student status:', error);
         toast.error('Failed to approve student');
         return;
       }

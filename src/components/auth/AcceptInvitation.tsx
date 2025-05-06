@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -30,6 +29,13 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
+type InvitationDetails = {
+  id: string;
+  email: string;
+  school_id: string;
+  school_name?: string;
+}
+
 const AcceptInvitation = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -38,12 +44,7 @@ const AcceptInvitation = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [invitationStatus, setInvitationStatus] = useState<"loading" | "valid" | "invalid" | "expired">("loading");
-  const [invitationDetails, setInvitationDetails] = useState<{
-    id: string;
-    email: string;
-    school_id: string;
-    school_name?: string;
-  } | null>(null);
+  const [invitationDetails, setInvitationDetails] = useState<InvitationDetails | null>(null);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -63,27 +64,26 @@ const AcceptInvitation = () => {
       }
 
       try {
-        const invitationResponse = await safeResponse(
-          supabase
-            .rpc("verify_teacher_invitation", {
-              invitation_token: token
-            })
-        );
+        const { data, error } = await supabase
+          .rpc("verify_teacher_invitation", {
+            invitation_token: token
+          });
         
-        if (!invitationResponse.success || !invitationResponse.data) {
-          console.error("Error verifying invitation:", invitationResponse.error || "No data returned");
+        if (error || !data) {
+          console.error("Error verifying invitation:", error || "No data returned");
           setInvitationStatus("invalid");
           setIsLoading(false);
           return;
         }
 
-        const invitationData = safeAnyCast<{
+        // Cast data to the expected shape
+        const invitationData = data as {
           invitation_id: string;
           school_id: string;
           school_name: string;
           email: string;
           status?: string;
-        }>(invitationResponse.data);
+        };
 
         // Check if invitation is valid
         if (invitationData.status === 'expired') {
@@ -99,15 +99,13 @@ const AcceptInvitation = () => {
         }
 
         // Get school name if available
-        const schoolResponse = await safeResponse(
-          supabase
-            .from('schools')
-            .select('name')
-            .eq('id', invitationData.school_id)
-            .single()
-        );
+        const { data: schoolData, error: schoolError } = await supabase
+          .from('schools')
+          .select('name')
+          .eq('id', invitationData.school_id)
+          .single();
 
-        const schoolName = schoolResponse.success ? schoolResponse.data?.name : undefined;
+        const schoolName = schoolError ? undefined : schoolData?.name;
 
         setInvitationDetails({
           id: invitationData.invitation_id,
@@ -152,36 +150,30 @@ const AcceptInvitation = () => {
       }
 
       // Accept the invitation
-      const acceptResponse = await safeResponse(
-        supabase
-          .rpc("accept_teacher_invitation", {
-            invitation_id: invitationDetails.id,
-            teacher_id: authData.user.id
-          })
-      );
+      const { error: acceptError } = await supabase
+        .rpc("accept_teacher_invitation", {
+          invitation_id: invitationDetails.id,
+          teacher_id: authData.user.id
+        });
 
-      if (!acceptResponse.success) {
-        throw new Error(acceptResponse.message || "Failed to accept invitation");
+      if (acceptError) {
+        throw new Error(acceptError?.message || "Failed to accept invitation");
       }
 
       // Create profile
-      const profileData = safeAnyCast({
-        id: authData.user.id,
-        email: data.email,
-        full_name: data.fullName,
-        role: 'teacher',
-        school_id: invitationDetails.school_id,
-        user_type: 'teacher'
-      });
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert({
+          id: authData.user.id,
+          email: data.email,
+          full_name: data.fullName,
+          role: 'teacher',
+          school_id: invitationDetails.school_id,
+          user_type: 'teacher'
+        });
 
-      const profileResponse = await safeResponse(
-        supabase
-          .from('profiles')
-          .insert(profileData)
-      );
-
-      if (!profileResponse.success) {
-        throw new Error(profileResponse.message || "Failed to create profile");
+      if (profileError) {
+        throw new Error(profileError.message || "Failed to create profile");
       }
 
       toast.success("Account created successfully!");
