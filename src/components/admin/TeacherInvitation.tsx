@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import {
   Card,
@@ -13,6 +14,7 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
+import { asSupabaseParam, isValidSupabaseData } from "@/utils/supabaseHelpers";
 
 interface TeacherInvite {
   id: string;
@@ -52,15 +54,26 @@ const TeacherInvitation: React.FC = () => {
       const data = response.data;
 
       if (Array.isArray(data)) {
-        setInvites(
-          data.map((item) => ({
-            id: String(item.id),
-            email: String(item.email),
-            status: String(item.status),
-            created_at: String(item.created_at),
-            expires_at: String(item.expires_at),
-          }))
-        );
+        const validInvites: TeacherInvite[] = data.map((item) => {
+          if (item) {
+            return {
+              id: String(item.id || ""),
+              email: String(item.email || ""),
+              status: String(item.status || "pending"),
+              created_at: String(item.created_at || new Date().toISOString()),
+              expires_at: String(item.expires_at || new Date().toISOString()),
+            };
+          }
+          return {
+            id: "",
+            email: "",
+            status: "unknown",
+            created_at: new Date().toISOString(),
+            expires_at: new Date().toISOString(),
+          };
+        }).filter(invite => invite.id !== "");
+        
+        setInvites(validInvites);
       } else {
         setInvites([]);
       }
@@ -150,6 +163,28 @@ const TeacherInvitation: React.FC = () => {
 
   const formatDate = (dateString: string) =>
     new Date(dateString).toLocaleString();
+
+  const handleResendInvitation = async (inviteId: string) => {
+    try {
+      // First update the status back to pending and reset expiration date
+      const newExpiryDate = new Date();
+      newExpiryDate.setDate(newExpiryDate.getDate() + 7); // 7 days from now
+      
+      await supabase
+        .from("teacher_invitations")
+        .update(asSupabaseParam({
+          status: "pending",
+          expires_at: newExpiryDate.toISOString()
+        }))
+        .eq("id", inviteId);
+      
+      toast.success("Invitation resent successfully");
+      await fetchInvitations();
+    } catch (error: any) {
+      console.error("Error resending invitation:", error);
+      toast.error(error.message || "Failed to resend invitation");
+    }
+  };
 
   return (
     <Card className="w-full max-w-lg">
@@ -260,6 +295,7 @@ const TeacherInvitation: React.FC = () => {
                   <th className="text-left py-2 px-1">Sent</th>
                   <th className="text-left py-2 px-1">Expires</th>
                   <th className="text-left py-2 px-1">Status</th>
+                  <th className="text-left py-2 px-1">Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -280,6 +316,17 @@ const TeacherInvitation: React.FC = () => {
                       >
                         {invite.status.charAt(0).toUpperCase() + invite.status.slice(1)}
                       </span>
+                    </td>
+                    <td className="py-2 px-1">
+                      {invite.status === "pending" && (
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleResendInvitation(invite.id)}
+                        >
+                          Resend
+                        </Button>
+                      )}
                     </td>
                   </tr>
                 ))}

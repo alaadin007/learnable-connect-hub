@@ -148,6 +148,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         full_name: `Test ${type.charAt(0).toUpperCase() + type.slice(1)} User`,
         school_code: 'TEST123',
         school_name: 'Test School',
+        organization: {
+          id: 'test-school-id',
+          name: 'Test School',
+          code: 'TEST123'
+        }
       };
 
       setUser(mockUser);
@@ -155,6 +160,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUserRole(type);
       setIsSupervisor(type === 'school');
       setSchoolId('test-school-id');
+
+      // For test accounts, set up RBAC roles
+      if (type === 'school') {
+        localStorage.setItem('testAccountRoles', JSON.stringify(['school_admin']));
+      } else if (type === 'teacher') {
+        localStorage.setItem('testAccountRoles', JSON.stringify(['teacher']));
+      } else {
+        localStorage.setItem('testAccountRoles', JSON.stringify(['student']));
+      }
 
       return true;
     } catch (error) {

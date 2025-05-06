@@ -82,9 +82,11 @@ const Navbar = () => {
       links.push(
         { name: "School Admin", href: "/admin" },
         { name: "Teachers", href: "/admin/teachers" },
-        { name: "Students", href: "/admin/students" },
-        { name: "Analytics", href: "/admin/analytics" }
+        { name: "Students", href: "/admin/students" }
       );
+      
+      // Add Analytics link
+      links.push({ name: "Analytics", href: "/admin/analytics" });
     }
 
     // Teacher links (both regular and supervisors)
@@ -157,11 +159,18 @@ const Navbar = () => {
       setIsOpen(false);
     }
     
+    // For test accounts, add state to preserve context
+    const navState = isTestAccount ? { 
+      fromNavigation: true, 
+      fromTestAccounts: localStorage.getItem('usingTestAccount') === 'true',
+      accountType: localStorage.getItem('testAccountType')
+    } : {};
+    
     // Navigate with small delay to ensure menu closing animation completes
     setTimeout(() => {
-      navigate(path);
+      navigate(path, { state: navState });
     }, 50);
-  }, [navigate, isOpen]);
+  }, [navigate, isOpen, isTestAccount]);
 
   // Don't render until we've determined loading state to prevent flickering
   if (!isLoaded) {

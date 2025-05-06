@@ -7,12 +7,13 @@ import { CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from '@/contexts/AuthContext';
+import { asSupabaseParam, isValidSupabaseData } from '@/utils/supabaseHelpers';
 
-interface FileUploadProps {
+type FileUploadProps = {
   onUploadComplete: () => void;
-}
+};
 
-const FileUpload = ({ onUploadComplete }: FileUploadProps) => {
+const FileUpload: React.FC<FileUploadProps> = ({ onUploadComplete }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const { user } = useAuth();
@@ -38,14 +39,17 @@ const FileUpload = ({ onUploadComplete }: FileUploadProps) => {
     const filePath = `documents/${fileName}`;
 
     try {
-      // Check if the documents bucket exists, if not use the default user-content bucket
-      const { data: bucketData, error: bucketError } = await supabase.storage.listBuckets();
+      // Make sure to check if 'documents' bucket exists
+      // If not, we use 'user-content' or create a new bucket
+      const { data: bucketData, error: bucketError } = await supabase.storage.getBucket('documents');
+      let bucketName = 'documents';
       
-      const bucketName = bucketData?.some(bucket => bucket.name === 'documents') 
-        ? 'documents' 
-        : 'user-content';
-      
-      // Upload the file to storage
+      if (bucketError) {
+        console.log("Documents bucket not found, using user-content bucket instead");
+        bucketName = 'user-content';
+      }
+
+      // Upload the file
       const { data, error } = await supabase.storage
         .from(bucketName)
         .upload(filePath, file, {
@@ -62,37 +66,42 @@ const FileUpload = ({ onUploadComplete }: FileUploadProps) => {
 
       console.log("File uploaded successfully:", data);
 
-      // Store the document metadata
-      const { data: metadataData, error: metadataError } = await supabase
+      // Save document metadata to the database
+      const metadataResult = await supabase
         .from('documents')
-        .insert({
+        .insert(asSupabaseParam({
           user_id: user.id,
           filename: file.name,
           file_type: file.type,
           file_size: file.size,
           storage_path: filePath,
           processing_status: 'pending'
-        })
+        }))
         .select()
         .single();
 
-      if (metadataError) {
-        console.error("Error saving document metadata:", metadataError);
+      if (metadataResult.error) {
+        console.error("Error saving document metadata:", metadataResult.error);
         toast.error("Error saving document information");
         setIsUploading(false);
         return;
       }
 
-      console.log("Document metadata saved:", metadataData);
-      setUploadProgress(100);
+      const documentId = metadataResult.data?.id;
       
-      // Trigger content processing immediately
-      if (metadataData?.id) {
-        await triggerContentProcessing(metadataData.id);
+      if (documentId) {
+        console.log("Document metadata saved:", metadataResult.data);
+        setUploadProgress(100);
+        
+        // Trigger content processing immediately
+        await triggerContentProcessing(documentId);
+        toast.success("File uploaded successfully!");
+        onUploadComplete();
+      } else {
+        console.error("Unexpected response format:", metadataResult);
+        toast.error("Error processing document information");
       }
-
-      toast.success("File uploaded successfully!");
-      onUploadComplete();
+      
     } catch (err) {
       console.error("Error during upload:", err);
       toast.error("Failed to upload file");
@@ -104,7 +113,6 @@ const FileUpload = ({ onUploadComplete }: FileUploadProps) => {
   const triggerContentProcessing = async (documentId: string) => {
     try {
       console.log("Triggering content processing for document:", documentId);
-
       // Call the function to start processing
       const { data, error } = await supabase.functions.invoke('process-document', {
         body: { document_id: documentId },
@@ -137,7 +145,7 @@ const FileUpload = ({ onUploadComplete }: FileUploadProps) => {
       'application/vnd.ms-excel': ['.xls'],
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
       'application/vnd.oasis.opendocument.text': ['.odt'],
-      'application/rtf': ['.rtf']
+      'application/rtf': ['.rtf'],
     },
     maxFiles: 1,
     disabled: isUploading
@@ -145,11 +153,9 @@ const FileUpload = ({ onUploadComplete }: FileUploadProps) => {
 
   return (
     <CardContent>
-      <div
-        {...getRootProps()}
-        className={`relative border-2 border-dashed rounded-md p-6 text-center ${
-          isDragActive ? 'border-primary' : 'border-muted-foreground'
-        }`}
+      <div 
+        {...getRootProps()} 
+        className={`relative border-2 border-dashed rounded-md p-6 text-center ${isDragActive ? 'border-primary' : 'border-muted-foreground'}`}
       >
         <input {...getInputProps()} />
         <div className="flex flex-col items-center justify-center">
@@ -163,9 +169,7 @@ const FileUpload = ({ onUploadComplete }: FileUploadProps) => {
             <>
               <FileIcon className="h-6 w-6 text-muted-foreground mb-2" />
               <p className="text-sm text-muted-foreground">
-                {isDragActive
-                  ? "Drop the file here..."
-                  : "Drag 'n' drop a file here, or click to select a file"}
+                {isDragActive ? "Drop the file here..." : "Drag 'n' drop a file here, or click to select a file"}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
                 (Only PDF, Images, and Text files will be accepted)

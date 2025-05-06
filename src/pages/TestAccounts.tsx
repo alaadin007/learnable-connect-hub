@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
@@ -21,15 +22,29 @@ const TestAccounts = () => {
         localStorage.setItem('usingTestAccount', 'true');
         localStorage.setItem('testAccountType', role);
         
+        // Store roles in localStorage for RBAC to use
+        if (role === 'school') {
+          localStorage.setItem('testAccountRoles', JSON.stringify(['school_admin']));
+        } else if (role === 'teacher') {
+          localStorage.setItem('testAccountRoles', JSON.stringify(['teacher']));
+        } else {
+          localStorage.setItem('testAccountRoles', JSON.stringify(['student']));
+        }
+        
         toast.success(`${role.charAt(0).toUpperCase() + role.slice(1)} test account created successfully!`);
         
-        // Redirect based on role
+        // Redirect based on role with navigation state
+        const navState = { 
+          fromTestAccounts: true,
+          accountType: role
+        };
+        
         if (role === 'school') {
-          navigate('/admin');
+          navigate('/admin', { state: navState });
         } else if (role === 'teacher') {
-          navigate('/teacher/analytics');
+          navigate('/teacher/analytics', { state: navState });
         } else {
-          navigate('/dashboard');
+          navigate('/dashboard', { state: navState });
         }
       } else {
         toast.error(`Failed to create ${role} test account`);
