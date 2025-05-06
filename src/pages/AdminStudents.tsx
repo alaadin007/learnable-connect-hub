@@ -16,7 +16,7 @@ const AdminStudents = () => {
   const { user, schoolId: authSchoolId } = useAuth();
   const { isAdmin } = useRBAC();
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [schoolId, setSchoolId] = useState<string | null>(null);
   const [schoolInfo, setSchoolInfo] = useState<{ name: string; code: string; id?: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -27,7 +27,6 @@ const AdminStudents = () => {
       if (!user) return;
       
       try {
-        setIsLoading(true);
         setError(null);
         
         // Try to get complete school info from database
@@ -40,7 +39,6 @@ const AdminStudents = () => {
             code: schoolData.code
           });
           setSchoolId(schoolData.id);
-          setIsLoading(false);
           return;
         }
         
@@ -56,7 +54,6 @@ const AdminStudents = () => {
             console.error('Error fetching school ID:', schoolIdError);
             toast.error("Failed to load school information");
             setError("Failed to load school information");
-            setIsLoading(false);
             return;
           }
           
@@ -89,8 +86,6 @@ const AdminStudents = () => {
         console.error("Error in fetchSchoolId:", error);
         toast.error("Failed to load data");
         setError("Failed to load data");
-      } finally {
-        setIsLoading(false);
       }
     };
     
@@ -104,11 +99,11 @@ const AdminStudents = () => {
       return;
     }
     
-    if (!isAdmin && !isLoading) {
+    if (!isAdmin) {
       toast.error("You don't have permission to access this page");
       navigate("/dashboard", { replace: true });
     }
-  }, [user, isAdmin, navigate, isLoading]);
+  }, [user, isAdmin, navigate]);
 
   return (
     <div className="min-h-screen flex flex-col">

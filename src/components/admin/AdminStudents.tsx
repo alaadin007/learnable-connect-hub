@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,33 +24,12 @@ const AdminStudents = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [schoolInfo, setSchoolInfo] = useState<{ name: string; code: string; id?: string } | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
-  const [loadTimeout, setLoadTimeout] = useState<NodeJS.Timeout | null>(null);
-
-  // Set up a timeout to prevent hanging state
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      if (isLoading) {
-        setIsLoading(false);
-        setError("Loading timed out. Please try again.");
-        toast.error("Loading timed out. Please try again.");
-      }
-    }, 15000); // 15 seconds timeout
-    
-    setLoadTimeout(timeout);
-    
-    return () => {
-      if (loadTimeout) clearTimeout(loadTimeout);
-    };
-  }, [isLoading]);
 
   useEffect(() => {
     loadSchoolInfo();
-    return () => {
-      if (loadTimeout) clearTimeout(loadTimeout);
-    };
   }, []);
 
   useEffect(() => {
@@ -60,7 +40,6 @@ const AdminStudents = () => {
 
   const loadSchoolInfo = async () => {
     try {
-      setIsLoading(true);
       setError(null);
       
       const schoolData = await getCurrentSchoolInfo();
@@ -105,9 +84,6 @@ const AdminStudents = () => {
       console.error("Error loading school information:", error);
       setError("Failed to load school information. Please refresh.");
       toast.error("Failed to load school information");
-    } finally {
-      if (loadTimeout) clearTimeout(loadTimeout);
-      setIsLoading(false);
     }
   };
 
@@ -118,7 +94,6 @@ const AdminStudents = () => {
     }
 
     try {
-      setIsLoading(true);
       setError(null);
       
       // Fetch all students from this school
@@ -136,7 +111,6 @@ const AdminStudents = () => {
 
       if (!studentsData || studentsData.length === 0) {
         setStudents([]);
-        setIsLoading(false);
         return;
       }
       
@@ -171,9 +145,6 @@ const AdminStudents = () => {
       console.error("Error fetching students:", error);
       setError("Failed to load students data. Please refresh.");
       toast.error("Failed to load students");
-    } finally {
-      if (loadTimeout) clearTimeout(loadTimeout);
-      setIsLoading(false);
     }
   };
 
@@ -283,7 +254,7 @@ const AdminStudents = () => {
           
           <div className="flex flex-col md:flex-row gap-2">
             {/* School Code Display */}
-            {!isLoading && schoolInfo?.code && (
+            {schoolInfo?.code && (
               <div className="flex items-center gap-2 mr-4">
                 <span className="text-sm font-medium">School Code:</span>
                 <code className="px-2 py-1 bg-muted rounded text-sm font-mono">
@@ -305,26 +276,20 @@ const AdminStudents = () => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="max-w-xs"
-              disabled={isLoading}
             />
             <Button 
               variant="outline" 
               onClick={handleRefresh} 
               className="flex items-center gap-2"
-              disabled={isLoading}
             >
-              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+              <RefreshCw className="h-4 w-4" />
               Refresh
             </Button>
           </div>
         </div>
       </CardHeader>
       <CardContent>
-        {isLoading ? (
-          <div className="flex justify-center py-12">
-            <div className="animate-spin h-8 w-8 border-2 border-primary rounded-full border-t-transparent"></div>
-          </div>
-        ) : students.length === 0 ? (
+        {students.length === 0 ? (
           <div className="text-center py-12">
             <User className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
             <p className="text-muted-foreground">No students found.</p>

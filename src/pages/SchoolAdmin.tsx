@@ -40,13 +40,12 @@ const SchoolAdmin = () => {
   const location = useLocation();
   const [activeTab, setActiveTab] = useState("teachers");
   const [schoolData, setSchoolData] = useState<{ name: string; code: string; id?: string } | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [schoolId, setSchoolId] = useState<string | null>(null);
   
   // Fetch school ID and data when component mounts
   useEffect(() => {
     const fetchSchoolInfo = async () => {
-      setIsLoading(true);
       try {
         // Try to get complete school info from database
         const schoolInfo = await getCurrentSchoolInfo();
@@ -58,7 +57,6 @@ const SchoolAdmin = () => {
             code: schoolInfo.code
           });
           setSchoolId(schoolInfo.id);
-          setIsLoading(false);
           return;
         }
         
@@ -73,7 +71,6 @@ const SchoolAdmin = () => {
           if (schoolIdError) {
             console.error('Error fetching school ID:', schoolIdError);
             toast.error("Failed to load school information");
-            setIsLoading(false);
             return;
           }
           
@@ -102,8 +99,6 @@ const SchoolAdmin = () => {
       } catch (error) {
         console.error("Error fetching school information:", error);
         toast.error("Failed to load school information");
-      } finally {
-        setIsLoading(false);
       }
     };
     
@@ -179,37 +174,29 @@ const SchoolAdmin = () => {
               <div className="space-y-2">
                 <div className="flex flex-col sm:flex-row sm:items-center">
                   <span className="font-medium min-w-32">School Name:</span>
-                  {isLoading ? (
-                    <div className="h-5 w-32 bg-gray-200 animate-pulse rounded"></div>
-                  ) : (
-                    <span>{schoolData?.name || profile?.organization?.name || "Not available"}</span>
-                  )}
+                  <span>{schoolData?.name || profile?.organization?.name || "Not available"}</span>
                 </div>
                 <div className="flex flex-col sm:flex-row sm:items-center">
                   <span className="font-medium min-w-32">School Code:</span>
-                  {isLoading ? (
-                    <div className="h-5 w-24 bg-gray-200 animate-pulse rounded font-mono"></div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <code className="px-2 py-1 bg-muted rounded text-sm font-mono">
-                        {schoolData?.code || profile?.organization?.code || "Not available"}
-                      </code>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={() => {
-                          const code = schoolData?.code || profile?.organization?.code;
-                          if (code) {
-                            navigator.clipboard.writeText(code);
-                            toast.success("School code copied to clipboard!");
-                          }
-                        }}
-                        disabled={!schoolData?.code && !profile?.organization?.code}
-                      >
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <code className="px-2 py-1 bg-muted rounded text-sm font-mono">
+                      {schoolData?.code || profile?.organization?.code || "Not available"}
+                    </code>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => {
+                        const code = schoolData?.code || profile?.organization?.code;
+                        if (code) {
+                          navigator.clipboard.writeText(code);
+                          toast.success("School code copied to clipboard!");
+                        }
+                      }}
+                      disabled={!schoolData?.code && !profile?.organization?.code}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
                 <p className="text-sm text-muted-foreground mt-2">
                   Your school code is used to invite teachers and students to join your school.
@@ -275,7 +262,7 @@ const SchoolAdmin = () => {
               {activeTab === "students" && (
                 <StudentManagement 
                   schoolId={schoolId} 
-                  isLoading={isLoading} 
+                  isLoading={false} 
                   schoolInfo={schoolData} 
                 />
               )}
