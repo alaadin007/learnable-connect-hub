@@ -275,3 +275,72 @@ export const inviteStudentDirect = async (method: "code" | "email", email?: stri
     return { success: false, message: "Internal error" };
   }
 };
+
+// Add teacher invite function
+export const inviteTeacherDirect = async (email: string): Promise<{
+  success: boolean; 
+  message?: string;
+}> => {
+  try {
+    // Get the authenticated user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return { success: false, message: "You must be logged in to invite a teacher" };
+    }
+
+    // Get the school ID of the logged in user
+    const { data: schoolId, error: schoolIdError } = await supabase
+      .rpc("get_user_school_id");
+
+    if (schoolIdError || !schoolId) {
+      console.error("Could not determine school ID:", schoolIdError);
+      return { success: false, message: "Could not determine your school" };
+    }
+
+    // Check if user has permission to invite teachers (must be admin or supervisor)
+    const { data: isAdmin, error: roleError } = await supabase
+      .rpc('is_supervisor', { user_id: user.id });
+
+    if (roleError || !isAdmin) {
+      console.error("Permission check failed:", roleError);
+      return { success: false, message: "You don't have permission to invite teachers" };
+    }
+
+    // Generate a unique invitation token
+    const token = generateInviteCode();
+
+    // Create the invitation record
+    const { data: invitation, error: inviteError } = await supabase
+      .from("teacher_invitations")
+      .insert({
+        school_id: schoolId,
+        email: email,
+        invitation_token: token,
+        created_by: user.id
+      })
+      .select()
+      .single();
+
+    if (inviteError) {
+      console.error("Error creating invitation:", inviteError);
+      
+      // Check if it's a duplicate email error
+      if (inviteError.message?.includes('duplicate')) {
+        return { 
+          success: false, 
+          message: "This email has already been invited" 
+        };
+      }
+      
+      return { success: false, message: "Failed to create invitation" };
+    }
+
+    return { 
+      success: true, 
+      message: "Teacher invitation created successfully" 
+    };
+  } catch (error) {
+    console.error("Error in inviteTeacher:", error);
+    return { success: false, message: "Internal error" };
+  }
+};

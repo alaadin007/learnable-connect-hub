@@ -41,9 +41,42 @@ const SchoolAdmin = () => {
   const [activeTab, setActiveTab] = useState("teachers");
   const [schoolData, setSchoolData] = useState<{ name: string; code: string; id?: string } | null>(null);
   const [schoolId, setSchoolId] = useState<string | null>(null);
-  const [hasRedirected, setHasRedirected] = useState(false); // to prevent redirect loop
+  const [hasRedirected, setHasRedirected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Define navigation handlers up front to prevent duplicate declarations
+  const handleRetry = () => {
+    window.location.reload();
+  };
+
+  const handleQuickActionSelect = (action: string) => {
+    switch (action) {
+      case "manage-teachers":
+        navigate("/admin/teacher-management");
+        break;
+      case "view-analytics":
+        navigate("/admin/analytics");
+        break;
+      case "school-settings":
+        navigate("/admin/settings");
+        break;
+      case "student-management":
+        navigate("/admin/students");
+        break;
+      case "dashboard":
+        navigate("/dashboard", {
+          state: { fromNavigation: true }
+        });
+        break;
+      default:
+        break;
+    }
+  };
+
+  const handleTabClick = (value: string) => {
+    setActiveTab(value);
+  };
 
   useEffect(() => {
     const fetchSchoolInfo = async () => {
@@ -147,39 +180,6 @@ const SchoolAdmin = () => {
       setHasRedirected(true);
     }
   }, [userRole, isAdmin, navigate, location.state, hasRedirected]);
-
-  const handleQuickActionSelect = (action: string) => {
-    switch (action) {
-      case "manage-teachers":
-        navigate("/admin/teacher-management");
-        break;
-      case "view-analytics":
-        navigate("/admin/analytics");
-        break;
-      case "school-settings":
-        navigate("/admin/settings");
-        break;
-      case "student-management":
-        navigate("/admin/students");
-        break;
-      case "dashboard":
-        navigate("/dashboard", {
-          state: { fromNavigation: true },
-          replace: true
-        });
-        break;
-      default:
-        break;
-    }
-  };
-
-  const handleTabClick = (value: string) => {
-    setActiveTab(value);
-  };
-
-  const handleRetry = () => {
-    window.location.reload();
-  };
 
   if (isLoading) {
     return (

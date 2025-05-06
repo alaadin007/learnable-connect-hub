@@ -23,6 +23,11 @@ const AdminStudents = () => {
   const [schoolId, setSchoolId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Define the retry handler at the component level to avoid duplicates
+  const handleRetry = () => {
+    window.location.reload();
+  };
+
   useEffect(() => {
     if (!user) {
       setLoading(false);
@@ -118,10 +123,6 @@ const AdminStudents = () => {
       navigate("/dashboard", { replace: true });
     }
   }, [user, isAdmin, navigate]);
-
-  const handleRetry = () => {
-    window.location.reload();
-  };
 
   return (
     <div className="min-h-screen flex flex-col">

@@ -25,15 +25,29 @@ const Navbar = () => {
   const toggleMenu = () => setIsOpen((open) => !open);
 
   const handleLogout = useCallback(async () => {
-    await signOut();
-    navigate("/");
-    setIsOpen(false);
+    try {
+      await signOut();
+      navigate("/");
+    } catch (error) {
+      console.error("Logout error:", error);
+      // If logout fails, try to force a reload to clear the state
+      window.location.href = "/";
+    } finally {
+      setIsOpen(false);
+    }
   }, [signOut, navigate]);
 
   const handleBackToTestAccounts = useCallback(async () => {
-    await signOut();
-    navigate("/test-accounts");
-    setIsOpen(false);
+    try {
+      await signOut();
+      navigate("/test-accounts");
+    } catch (error) {
+      console.error("Error returning to test accounts:", error);
+      // If it fails, force navigate
+      window.location.href = "/test-accounts";
+    } finally {
+      setIsOpen(false);
+    }
   }, [signOut, navigate]);
 
   const isTestAccount = user?.email?.includes(".test@learnable.edu") || user?.id?.startsWith("test-");
@@ -42,9 +56,9 @@ const Navbar = () => {
     location.pathname === path || location.pathname.startsWith("/invitation/")
   );
   const isLoggedIn = !!user && !isPublicPage && !isAuthPage;
-
   const isTestAccountsPage = location.pathname === "/test-accounts";
 
+  // Move nav links calculation out of render to improve performance
   const getNavLinks = useCallback(() => {
     if (isTestAccountsPage) return [];
 
@@ -134,6 +148,21 @@ const Navbar = () => {
     }
   }, [location.pathname]);
 
+  // Safe navigation handler to prevent freezes
+  const handleNavigation = useCallback((e: React.MouseEvent, path: string) => {
+    e.preventDefault();
+    
+    // Close mobile menu if open
+    if (isOpen) {
+      setIsOpen(false);
+    }
+    
+    // Navigate with small delay to ensure menu closing animation completes
+    setTimeout(() => {
+      navigate(path);
+    }, 50);
+  }, [navigate, isOpen]);
+
   // Don't render until we've determined loading state to prevent flickering
   if (!isLoaded) {
     return (
@@ -181,16 +210,17 @@ const Navbar = () => {
           {/* Desktop nav */}
           <nav className="hidden md:flex space-x-8">
             {navLinks.map((link) => (
-              <Link
+              <a
                 key={link.name}
-                to={link.href}
+                href={link.href}
+                onClick={(e) => handleNavigation(e, link.href)}
                 className={cn(
                   "text-learnable-gray hover:text-learnable-blue font-medium transition-colors duration-200",
                   isActiveLink(link.href) && "text-learnable-blue font-bold"
                 )}
               >
                 {link.name}
-              </Link>
+              </a>
             ))}
           </nav>
 
@@ -229,12 +259,12 @@ const Navbar = () => {
               <>
                 {!isAuthPage && (
                   <>
-                    <Link to="/login">
+                    <a href="/login" onClick={(e) => handleNavigation(e, "/login")}>
                       <Button variant="outline">Log In</Button>
-                    </Link>
-                    <Link to="/register">
+                    </a>
+                    <a href="/register" onClick={(e) => handleNavigation(e, "/register")}>
                       <Button>Get Started</Button>
-                    </Link>
+                    </a>
                   </>
                 )}
               </>
@@ -256,19 +286,19 @@ const Navbar = () => {
         <div className="px-4 space-y-4 divide-y divide-gray-100 h-full overflow-y-auto">
           <div className="space-y-1">
             {navLinks.map((link) => (
-              <Link
+              <a
                 key={link.name}
-                to={link.href}
+                href={link.href}
                 className={cn(
                   "block w-full text-left px-3 py-2 text-base font-medium rounded-md",
                   isActiveLink(link.href)
                     ? "bg-learnable-super-light text-learnable-blue"
                     : "text-learnable-dark hover:bg-learnable-super-light"
                 )}
-                onClick={() => setIsOpen(false)}
+                onClick={(e) => handleNavigation(e, link.href)}
               >
                 {link.name}
-              </Link>
+              </a>
             ))}
           </div>
           <div className="pt-4 space-y-4">
@@ -297,12 +327,12 @@ const Navbar = () => {
               <>
                 {!isAuthPage && (
                   <>
-                    <Link to="/login">
+                    <a href="/login" onClick={(e) => handleNavigation(e, "/login")}>
                       <Button variant="outline" className="w-full">Log In</Button>
-                    </Link>
-                    <Link to="/register">
+                    </a>
+                    <a href="/register" onClick={(e) => handleNavigation(e, "/register")}>
                       <Button className="w-full">Get Started</Button>
-                    </Link>
+                    </a>
                   </>
                 )}
               </>
