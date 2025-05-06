@@ -12,10 +12,9 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getCurrentSchoolInfo } from "@/utils/databaseUtils";
 
 const AdminStudents = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { isAdmin } = useRBAC();
   const navigate = useNavigate();
 
@@ -41,32 +40,51 @@ const AdminStudents = () => {
       console.log("Fetching school data...");
       setError(null);
       
-      // Try to get school info using the improved utility function
-      const schoolData = await getCurrentSchoolInfo();
-      
-      if (schoolData) {
-        console.log("School data retrieved:", schoolData);
+      // First try using profile data if it's available
+      if (profile?.organization?.id && profile?.organization?.name && profile?.organization?.code) {
         setSchoolInfo({
-          id: schoolData.id,
-          name: schoolData.name,
-          code: schoolData.code
+          id: profile.organization.id,
+          name: profile.organization.name,
+          code: profile.organization.code
         });
-        setSchoolId(schoolData.id);
+        setSchoolId(profile.organization.id);
         setLoading(false);
         return;
       }
       
-      // If we couldn't get the school info, try a direct query
-      const { data: authUser } = await supabase.auth.getUser();
-      if (!authUser?.user?.id) {
+      // Get user metadata from auth
+      const { data: authData } = await supabase.auth.getUser();
+      if (!authData?.user) {
         throw new Error("Authentication error");
       }
       
-      // Try direct query to get school_id from teachers table
+      // Try to extract school info from user metadata
+      const userMeta = authData.user.user_metadata;
+      if (userMeta?.school_name && userMeta?.school_code) {
+        // Get the school ID from the school code
+        const { data: schoolDetails, error: schoolCodeError } = await supabase
+          .from("schools")
+          .select("id, name, code")
+          .eq("code", userMeta.school_code)
+          .single();
+          
+        if (!schoolCodeError && schoolDetails) {
+          setSchoolInfo({
+            id: schoolDetails.id,
+            name: schoolDetails.name,
+            code: schoolDetails.code
+          });
+          setSchoolId(schoolDetails.id);
+          setLoading(false);
+          return;
+        }
+      }
+      
+      // Direct query to the teachers table
       const { data: teacherData, error: teacherError } = await supabase
         .from("teachers")
         .select("school_id")
-        .eq("id", authUser.user.id)
+        .eq("id", authData.user.id)
         .single();
         
       if (teacherError) {
@@ -110,7 +128,7 @@ const AdminStudents = () => {
 
   useEffect(() => {
     fetchSchoolData();
-  }, [user]);
+  }, [user, profile]);
 
   useEffect(() => {
     if (!user) {
