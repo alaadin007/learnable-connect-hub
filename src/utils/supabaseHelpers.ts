@@ -94,3 +94,32 @@ export function safelyExtractData<T>(data: any, defaultValue: T): T {
 export function safeAnyCast<T>(value: any): T {
   return value as T;
 }
+
+// Create a type assertion function for Supabase queries
+export function asSupabaseFilter<T>(value: any): T {
+  return value as T;
+}
+
+// Create a function to handle Supabase data validation
+export function validateSupabaseData<T>(data: any, validator: (item: any) => boolean): T[] {
+  if (!Array.isArray(data)) {
+    return [];
+  }
+  
+  return data.filter(validator) as T[];
+}
+
+// Function to safely handle Supabase update operations
+export function prepareSupabaseUpdate<T>(update: any): T {
+  return update as T;
+}
+
+// Create a function to match a filter with the correct type
+export function createSupabaseFilter<T>(value: any): T {
+  return value as T;
+}
+
+// Function to convert data for table insert
+export function prepareTableInsert<T>(data: any): T {
+  return data as T;
+}
