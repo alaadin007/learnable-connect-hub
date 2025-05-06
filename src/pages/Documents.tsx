@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/landing/Footer';
 import { useAuth } from '@/contexts/AuthContext';
@@ -33,14 +33,16 @@ const Documents: React.FC = () => {
     }
   }, [user, navigate, authLoading]);
 
-  const fetchUserDocuments = async () => {
+  const fetchUserDocuments = useCallback(async () => {
     if (!user) return;
     
     setLoadingDocuments(true);
     setError(null);
     
     try {
+      console.log("Fetching documents in Documents.tsx for user:", user.id);
       const docs = await getUserDocuments(user.id);
+      console.log("Documents retrieved in Documents.tsx:", docs);
       setDocuments(docs);
     } catch (error) {
       console.error("Error fetching documents:", error);
@@ -48,7 +50,7 @@ const Documents: React.FC = () => {
     } finally {
       setLoadingDocuments(false);
     }
-  };
+  }, [user]);
 
   // If still loading or not authenticated, show loading state
   if (pageLoading) {

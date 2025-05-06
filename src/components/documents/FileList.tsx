@@ -19,6 +19,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getUserDocuments, getDocumentContent } from '@/utils/databaseUtils';
 
 type FileItem = {
   id: string;
@@ -51,34 +52,32 @@ const FileList: React.FC = () => {
 
   // Pre-fetch files immediately when component mounts
   useEffect(() => {
-    if (user) {
-      fetchFiles();
-      
-      // Set up a real-time subscription to detect changes to documents
-      const channel = supabase
-        .channel('public:documents')
-        .on('postgres_changes', 
-          { 
-            event: 'UPDATE', 
-            schema: 'public', 
-            table: 'documents'
-          }, 
-          (payload) => {
-            // Update the file in our state if it exists
-            setFiles(currentFiles => 
-              currentFiles.map(file => 
-                file.id === payload.new.id ? {...file, ...payload.new} : file
-              )
-            );
-          }
-        )
-        .subscribe();
+    fetchFiles();
+    
+    // Set up a real-time subscription to detect changes to documents
+    const channel = supabase
+      .channel('public:documents')
+      .on('postgres_changes', 
+        { 
+          event: 'UPDATE', 
+          schema: 'public', 
+          table: 'documents'
+        }, 
+        (payload) => {
+          // Update the file in our state if it exists
+          setFiles(currentFiles => 
+            currentFiles.map(file => 
+              file.id === payload.new.id ? {...file, ...payload.new} : file
+            )
+          );
+        }
+      )
+      .subscribe();
 
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    }
-  }, [user]);
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const fetchFiles = async () => {
     if (!user) return;
@@ -87,17 +86,10 @@ const FileList: React.FC = () => {
     setError(null);
     
     try {
-      const { data, error } = await supabase
-        .from('documents')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-      
-      if (error) {
-        throw new Error(error.message);
-      }
-      
-      setFiles(data || []);
+      console.log("Fetching documents for user:", user.id);
+      const docs = await getUserDocuments(user.id);
+      console.log("Retrieved documents:", docs);
+      setFiles(docs || []);
     } catch (error) {
       console.error('Error fetching files:', error);
       setError('Failed to fetch your files. Please try again.');
@@ -233,18 +225,10 @@ const FileList: React.FC = () => {
       
       // Only fetch content if processing is complete
       if (file.processing_status === 'completed') {
-        const { data, error } = await supabase
-          .from('document_content')
-          .select('*')
-          .eq('document_id', file.id)
-          .order('section_number', { ascending: true });
-          
-        if (error) {
-          throw new Error(error.message);
-        }
+        const content = await getDocumentContent(file.id);
         
-        if (data && data.length > 0) {
-          setFileContent(data);
+        if (content && content.length > 0) {
+          setFileContent(content);
           setActiveSection(1);
           setShowContent(true);
         } else {
@@ -406,7 +390,37 @@ const FileList: React.FC = () => {
     );
   }
 
-  // Render the content
+  // Render empty state
+  if (files.length === 0) {
+    return (
+      <div>
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-medium">Your Files</h3>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={fetchFiles} 
+            className="flex items-center gap-1"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            <span>Refresh</span>
+          </Button>
+        </div>
+        
+        <div className="text-center py-12 border border-dashed border-gray-300 rounded-md bg-gray-50">
+          <FileIcon className="h-12 w-12 mx-auto text-gray-400" />
+          <p className="text-gray-500 mt-3 mb-1">
+            You haven't uploaded any files yet
+          </p>
+          <p className="text-gray-400 text-sm">
+            Files you upload will appear here
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Render the content with files
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
@@ -422,95 +436,83 @@ const FileList: React.FC = () => {
         </Button>
       </div>
       
-      {files.length === 0 ? (
-        <div className="text-center py-12 border border-dashed border-gray-300 rounded-md bg-gray-50">
-          <FileIcon className="h-12 w-12 mx-auto text-gray-400" />
-          <p className="text-gray-500 mt-3 mb-1">
-            You haven't uploaded any files yet
-          </p>
-          <p className="text-gray-400 text-sm">
-            Files you upload will appear here
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {files.map((file) => (
-            <Card key={file.id} className="overflow-hidden hover:shadow-md transition-shadow">
-              <CardContent className="p-3">
-                <div className="flex items-center">
-                  <div className="mr-3 flex-shrink-0">
-                    <FileIcon className="h-10 w-10 text-blue-500" />
-                  </div>
-                  <div className="flex-grow min-w-0">
-                    <div className="flex items-center">
-                      <p className="font-medium text-sm truncate flex-grow" title={file.filename}>
-                        {file.filename}
-                      </p>
-                      <div className="ml-2">
-                        {getProcessingStatusBadge(file.processing_status)}
-                      </div>
-                    </div>
-                    <div className="flex items-center text-xs text-gray-500">
-                      <span>{formatFileSize(file.file_size)}</span>
-                      <span className="mx-1.5">•</span>
-                      <span title={new Date(file.created_at).toLocaleString()}>
-                        {formatDistanceToNow(new Date(file.created_at), { addSuffix: true })}
-                      </span>
+      <div className="space-y-3">
+        {files.map((file) => (
+          <Card key={file.id} className="overflow-hidden hover:shadow-md transition-shadow">
+            <CardContent className="p-3">
+              <div className="flex items-center">
+                <div className="mr-3 flex-shrink-0">
+                  <FileIcon className="h-10 w-10 text-blue-500" />
+                </div>
+                <div className="flex-grow min-w-0">
+                  <div className="flex items-center">
+                    <p className="font-medium text-sm truncate flex-grow" title={file.filename}>
+                      {file.filename}
+                    </p>
+                    <div className="ml-2">
+                      {getProcessingStatusBadge(file.processing_status)}
                     </div>
                   </div>
-                  <div className="flex items-center space-x-1 ml-2">
-                    {file.processing_status === 'completed' && (
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        onClick={() => viewExtractedContent(file)}
-                        title="View Extracted Content"
-                      >
-                        <CheckCircle2 className="h-4 w-4" />
-                      </Button>
-                    )}
-                    {(file.processing_status === 'error' || file.processing_status === 'unsupported') && (
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        onClick={() => retryProcessing(file)}
-                        title="Retry Processing"
-                      >
-                        <RefreshCw className="h-4 w-4 text-amber-500" />
-                      </Button>
-                    )}
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      onClick={() => downloadFile(file)}
-                      title="Download"
-                    >
-                      <Download className="h-4 w-4" />
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      onClick={() => openFile(file)}
-                      title="Open"
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      onClick={() => confirmDelete(file)}
-                      className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                      title="Delete"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                  <div className="flex items-center text-xs text-gray-500">
+                    <span>{formatFileSize(file.file_size)}</span>
+                    <span className="mx-1.5">•</span>
+                    <span title={new Date(file.created_at).toLocaleString()}>
+                      {formatDistanceToNow(new Date(file.created_at), { addSuffix: true })}
+                    </span>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+                <div className="flex items-center space-x-1 ml-2">
+                  {file.processing_status === 'completed' && (
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={() => viewExtractedContent(file)}
+                      title="View Extracted Content"
+                    >
+                      <CheckCircle2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                  {(file.processing_status === 'error' || file.processing_status === 'unsupported') && (
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={() => retryProcessing(file)}
+                      title="Retry Processing"
+                    >
+                      <RefreshCw className="h-4 w-4 text-amber-500" />
+                    </Button>
+                  )}
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={() => downloadFile(file)}
+                    title="Download"
+                  >
+                    <Download className="h-4 w-4" />
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={() => openFile(file)}
+                    title="Open"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={() => confirmDelete(file)}
+                    className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                    title="Delete"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
 
       {/* Delete confirmation dialog */}
       <AlertDialog open={!!fileToDelete} onOpenChange={(open) => !open && setFileToDelete(null)}>

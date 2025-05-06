@@ -131,8 +131,11 @@ export const getCurrentSchoolInfo = async () => {
 export const getUserDocuments = async (userId: string) => {
   try {
     if (!userId) {
+      console.error("getUserDocuments: User ID is required");
       throw new Error("User ID is required");
     }
+
+    console.log("Fetching documents for user:", userId);
 
     const { data, error } = await supabase
       .from('documents')
@@ -141,9 +144,11 @@ export const getUserDocuments = async (userId: string) => {
       .order('created_at', { ascending: false });
       
     if (error) {
+      console.error("Error in getUserDocuments Supabase query:", error);
       throw new Error(error.message);
     }
     
+    console.log(`Retrieved ${data?.length || 0} documents for user ${userId}`);
     return data || [];
   } catch (error) {
     console.error("Error in getUserDocuments:", error);
@@ -155,8 +160,11 @@ export const getUserDocuments = async (userId: string) => {
 export const getDocumentContent = async (documentId: string) => {
   try {
     if (!documentId) {
+      console.error("getDocumentContent: Document ID is required");
       throw new Error("Document ID is required");
     }
+
+    console.log("Fetching content for document:", documentId);
 
     const { data, error } = await supabase
       .from('document_content')
@@ -165,9 +173,11 @@ export const getDocumentContent = async (documentId: string) => {
       .order('section_number', { ascending: true });
       
     if (error) {
+      console.error("Error in getDocumentContent Supabase query:", error);
       throw new Error(error.message);
     }
     
+    console.log(`Retrieved ${data?.length || 0} content sections for document ${documentId}`);
     return data || [];
   } catch (error) {
     console.error("Error in getDocumentContent:", error);

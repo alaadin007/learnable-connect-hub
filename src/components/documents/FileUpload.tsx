@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -101,6 +100,39 @@ const FileUpload: React.FC<FileUploadProps> = ({ onUploadComplete }) => {
     }
   };
   
+  // Function to ensure storage bucket exists
+  const ensureStorageBucketExists = async (): Promise<boolean> => {
+    try {
+      // Check if bucket exists
+      const { data: buckets, error: listError } = await supabase.storage.listBuckets();
+      
+      if (listError) {
+        console.error("Error listing buckets:", listError);
+        return false;
+      }
+      
+      const bucketExists = buckets.some(bucket => bucket.name === 'user-content');
+      
+      // If bucket doesn't exist, create it
+      if (!bucketExists) {
+        console.log("Creating user-content bucket");
+        const { error: createError } = await supabase.storage.createBucket('user-content', {
+          public: false
+        });
+        
+        if (createError) {
+          console.error("Error creating bucket:", createError);
+          return false;
+        }
+      }
+      
+      return true;
+    } catch (error) {
+      console.error("Error in ensureStorageBucketExists:", error);
+      return false;
+    }
+  };
+  
   // Function to trigger content processing after upload
   const triggerContentProcessing = async (documentId: string) => {
     try {
@@ -148,22 +180,19 @@ const FileUpload: React.FC<FileUploadProps> = ({ onUploadComplete }) => {
     try {
       // Create a unique file path using user ID
       const filePath = `${user.id}/${Date.now()}_${file.name}`;
-
-      // Check if storage bucket exists, create it if not
-      const { data: bucketsData, error: bucketsError } = await supabase.storage
-        .listBuckets();
       
-      const userContentBucketExists = bucketsData?.some(b => b.name === 'user-content');
-      
-      if (!userContentBucketExists) {
-        await supabase.storage
-          .createBucket('user-content', {
-            public: false
-          });
+      // Ensure storage bucket exists
+      const bucketExists = await ensureStorageBucketExists();
+      if (!bucketExists) {
+        throw new Error("Failed to ensure storage bucket exists");
       }
-
+      
+      setUploadProgress(20);
+      
       // Show immediate progress feedback
       setUploadProgress(30);
+      
+      console.log(`Uploading file to path: ${filePath}`);
       
       // Upload to Supabase Storage
       const { data: uploadData, error: uploadError } = await supabase.storage
@@ -173,11 +202,14 @@ const FileUpload: React.FC<FileUploadProps> = ({ onUploadComplete }) => {
           upsert: false,
         });
       
-      setUploadProgress(70);
-      
       if (uploadError) {
+        console.error("Storage upload error:", uploadError);
         throw new Error(uploadError.message);
       }
+      
+      console.log("File uploaded successfully:", uploadData);
+      
+      setUploadProgress(70);
       
       // Store metadata in documents table
       const { data: metadataData, error: metadataError } = await supabase
@@ -196,15 +228,18 @@ const FileUpload: React.FC<FileUploadProps> = ({ onUploadComplete }) => {
       setUploadProgress(90);
       
       if (metadataError) {
+        console.error("Metadata storage error:", metadataError);
         // If metadata storage fails, attempt to delete the uploaded file
         await supabase.storage.from('user-content').remove([filePath]);
         throw new Error(metadataError.message);
       }
       
+      console.log("Document metadata saved:", metadataData);
+      
       setUploadProgress(100);
       
       // Trigger content processing immediately
-      triggerContentProcessing(metadataData.id);
+      await triggerContentProcessing(metadataData.id);
       
       setFile(null);
       // Reset file input by clearing the form
@@ -212,6 +247,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onUploadComplete }) => {
       if (fileInput) fileInput.value = '';
       
     } catch (error) {
+      console.error("Upload process error:", error);
       toast({
         title: 'Upload Failed',
         description: error instanceof Error ? error.message : 'An unknown error occurred',
