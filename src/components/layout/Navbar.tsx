@@ -136,23 +136,6 @@ const Navbar = () => {
     }
   }, [location.pathname]);
 
-  // Fixed navigation handler - use Link components instead of manual navigation
-  const handleNavigation = useCallback((path: string) => {
-    if (path === location.pathname) {
-      setIsOpen(false);
-      return;
-    }
-    
-    navigate(path, { 
-      state: { 
-        fromNavigation: true,
-        preserveContext: true,
-        timestamp: Date.now() // Add timestamp to ensure state is unique
-      } 
-    });
-    setIsOpen(false);
-  }, [location.pathname, navigate]);
-
   if (isTestAccountsPage) {
     // optionally hide navbar entirely on test accounts page:
     return null;
@@ -197,7 +180,7 @@ const Navbar = () => {
             </Button>
           </div>
 
-          {/* Desktop nav - Using Link components directly instead of buttons */}
+          {/* Desktop nav */}
           <nav className="hidden md:flex space-x-8">
             {navLinks.map((link) => (
               <Link
@@ -248,17 +231,12 @@ const Navbar = () => {
               <>
                 {!isAuthPage && (
                   <>
-                    <Button 
-                      variant="outline" 
-                      onClick={() => navigate("/login")}
-                    >
-                      Log In
-                    </Button>
-                    <Button 
-                      onClick={() => navigate("/register")}
-                    >
-                      Get Started
-                    </Button>
+                    <Link to="/login">
+                      <Button variant="outline">Log In</Button>
+                    </Link>
+                    <Link to="/register">
+                      <Button>Get Started</Button>
+                    </Link>
                   </>
                 )}
               </>
@@ -267,7 +245,7 @@ const Navbar = () => {
         </div>
       </div>
 
-      {/* Mobile menu - Also using Link components directly */}
+      {/* Mobile menu */}
       <div
         className={cn(
           "fixed inset-0 z-40 bg-white transform transition-transform duration-300 ease-in-out md:hidden pt-16",
@@ -321,25 +299,12 @@ const Navbar = () => {
               <>
                 {!isAuthPage && (
                   <>
-                    <Button 
-                      variant="outline" 
-                      onClick={() => {
-                        navigate("/login");
-                        setIsOpen(false);
-                      }}
-                      className="w-full"
-                    >
-                      Log In
-                    </Button>
-                    <Button 
-                      onClick={() => {
-                        navigate("/register");
-                        setIsOpen(false);
-                      }}
-                      className="w-full"
-                    >
-                      Get Started
-                    </Button>
+                    <Link to="/login">
+                      <Button variant="outline" className="w-full">Log In</Button>
+                    </Link>
+                    <Link to="/register">
+                      <Button className="w-full">Get Started</Button>
+                    </Link>
                   </>
                 )}
               </>
