@@ -19,7 +19,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { getSchoolData } from "@/utils/studentUtils";
+import { getCurrentSchoolInfo } from "@/utils/databaseUtils";
 
 // Define the basic type for teacher invitations
 export type TeacherInvitation = {
@@ -39,7 +39,7 @@ const SchoolAdmin = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [activeTab, setActiveTab] = useState("teachers");
-  const [schoolData, setSchoolData] = useState<{ name: string; code: string } | null>(null);
+  const [schoolData, setSchoolData] = useState<{ name: string; code: string; id?: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [schoolId, setSchoolId] = useState<string | null>(null);
   
@@ -48,7 +48,21 @@ const SchoolAdmin = () => {
     const fetchSchoolInfo = async () => {
       setIsLoading(true);
       try {
-        // Try to get school ID from auth context first
+        // Try to get complete school info from database
+        const schoolInfo = await getCurrentSchoolInfo();
+        
+        if (schoolInfo) {
+          setSchoolData({
+            id: schoolInfo.id,
+            name: schoolInfo.name,
+            code: schoolInfo.code
+          });
+          setSchoolId(schoolInfo.id);
+          setIsLoading(false);
+          return;
+        }
+        
+        // Fallback: Try to get school ID from auth context
         let schoolIdToUse = authSchoolId;
         
         // If not available, fetch it
@@ -70,9 +84,19 @@ const SchoolAdmin = () => {
           setSchoolId(schoolIdToUse);
           
           // Fetch school data
-          const schoolInfo = await getSchoolData(schoolIdToUse);
-          if (schoolInfo) {
-            setSchoolData(schoolInfo);
+          const { data: schoolDetails, error: schoolError } = await supabase
+            .from("schools")
+            .select("name, code")
+            .eq("id", schoolIdToUse)
+            .single();
+            
+          if (schoolError) {
+            console.error("Error fetching school details:", schoolError);
+          } else if (schoolDetails) {
+            setSchoolData({
+              name: schoolDetails.name,
+              code: schoolDetails.code
+            });
           }
         }
       } catch (error) {

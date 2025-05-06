@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 
 // Approve student directly
@@ -209,5 +210,78 @@ export const inviteTeacherDirect = async (email: string): Promise<{
   } catch (error) {
     console.error("Error in inviteTeacher:", error);
     return { success: false, message: "Internal error" };
+  }
+};
+
+// Generate school code for registration
+export const generateSchoolCode = async (): Promise<string> => {
+  try {
+    const { data, error } = await supabase.rpc("generate_school_code");
+    
+    if (error) {
+      console.error("Error generating school code:", error);
+      // Fallback to client-side generation if RPC fails
+      return Math.random().toString(36).substring(2, 10).toUpperCase();
+    }
+    
+    return data || Math.random().toString(36).substring(2, 10).toUpperCase();
+  } catch (error) {
+    console.error("Error in generateSchoolCode:", error);
+    return Math.random().toString(36).substring(2, 10).toUpperCase();
+  }
+};
+
+// Get school data including name and code
+export const getSchoolDataByUserId = async (userId?: string): Promise<{ name: string; code: string } | null> => {
+  try {
+    // Get school ID from user's profile
+    const { data: schoolId, error: schoolIdError } = await supabase
+      .rpc("get_user_school_id", { user_id: userId });
+
+    if (schoolIdError || !schoolId) {
+      console.error("Error getting user's school ID:", schoolIdError);
+      return null;
+    }
+
+    // Get school info
+    const { data: schoolData, error: schoolError } = await supabase
+      .from("schools")
+      .select("name, code")
+      .eq("id", schoolId)
+      .single();
+
+    if (schoolError || !schoolData) {
+      console.error("Error getting school data:", schoolError);
+      return null;
+    }
+
+    return {
+      name: schoolData.name,
+      code: schoolData.code
+    };
+  } catch (error) {
+    console.error("Error in getSchoolDataByUserId:", error);
+    return null;
+  }
+};
+
+// Get current school information
+export const getCurrentSchoolInfo = async (): Promise<{ id: string; name: string; code: string } | null> => {
+  try {
+    const { data: schoolInfo, error } = await supabase.rpc("get_current_school_info");
+    
+    if (error || !schoolInfo || schoolInfo.length === 0) {
+      console.error("Error getting current school info:", error);
+      return null;
+    }
+    
+    return {
+      id: schoolInfo[0].school_id,
+      name: schoolInfo[0].school_name,
+      code: schoolInfo[0].school_code
+    };
+  } catch (error) {
+    console.error("Error in getCurrentSchoolInfo:", error);
+    return null;
   }
 };

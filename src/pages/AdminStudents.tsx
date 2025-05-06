@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import { getSchoolData } from "@/utils/studentUtils";
+import { getCurrentSchoolInfo } from "@/utils/databaseUtils";
 
 const AdminStudents = () => {
   const { user, schoolId: authSchoolId } = useAuth();
@@ -18,7 +18,7 @@ const AdminStudents = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
   const [schoolId, setSchoolId] = useState<string | null>(null);
-  const [schoolInfo, setSchoolInfo] = useState<{ name: string; code: string } | null>(null);
+  const [schoolInfo, setSchoolInfo] = useState<{ name: string; code: string; id?: string } | null>(null);
 
   // Fetch school data when component mounts
   useEffect(() => {
@@ -28,7 +28,21 @@ const AdminStudents = () => {
       try {
         setIsLoading(true);
         
-        // Try to get school ID from auth context first
+        // Try to get complete school info from database
+        const schoolData = await getCurrentSchoolInfo();
+        
+        if (schoolData) {
+          setSchoolInfo({
+            id: schoolData.id,
+            name: schoolData.name,
+            code: schoolData.code
+          });
+          setSchoolId(schoolData.id);
+          setIsLoading(false);
+          return;
+        }
+        
+        // Fallback: Try to get school ID from auth context
         let schoolIdToUse = authSchoolId;
         
         // If not available, fetch it
@@ -51,11 +65,20 @@ const AdminStudents = () => {
           setSchoolId(schoolIdToUse);
           
           // Fetch school data
-          const schoolData = await getSchoolData(schoolIdToUse);
-          if (schoolData) {
-            setSchoolInfo(schoolData);
-          } else {
+          const { data: schoolDetails, error: schoolError } = await supabase
+            .from("schools")
+            .select("name, code")
+            .eq("id", schoolIdToUse)
+            .single();
+            
+          if (schoolError) {
+            console.error("Error fetching school details:", schoolError);
             toast.error("Failed to load school details");
+          } else if (schoolDetails) {
+            setSchoolInfo({
+              name: schoolDetails.name,
+              code: schoolDetails.code
+            });
           }
         }
       } catch (error) {

@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/landing/Footer';
 import { useAuth } from '@/contexts/AuthContext';
@@ -8,18 +8,37 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import FileUpload from '@/components/documents/FileUpload';
 import FileList from '@/components/documents/FileList';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const Documents: React.FC = () => {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('upload');
+  const [pageLoading, setPageLoading] = useState(true);
 
-  // Immediate conditional rendering instead of waiting
-  if (!user) {
-    navigate('/login', { state: { from: '/documents' } });
-    return null;
+  // Handle authentication and loading states
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        navigate('/login', { state: { from: '/documents' } });
+      } else {
+        setPageLoading(false);
+      }
+    }
+  }, [user, navigate, authLoading]);
+
+  // If still loading or not authenticated, show loading state
+  if (pageLoading) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Navbar />
+        <div className="flex-grow flex justify-center items-center">
+          <Loader2 className="h-8 w-8 animate-spin text-learnable-purple" />
+        </div>
+        <Footer />
+      </div>
+    );
   }
 
   return (
