@@ -128,8 +128,10 @@ const Navbar = () => {
       case "/teacher/analytics":
         return currentPath === "/teacher/analytics";
       case "/chat":
+        // Fix for Chat links - check if it starts with /chat
         return currentPath === "/chat" || currentPath.startsWith("/chat/");
       case "/documents":
+        // Fix for Documents links - check if it starts with /documents
         return currentPath === "/documents" || currentPath.startsWith("/documents/");
       default:
         return currentPath === href;
