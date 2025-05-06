@@ -43,6 +43,12 @@ export const asUUID = (id: string | undefined): string => {
   return id;
 };
 
+// Ensure a value is a valid UUID for Supabase queries
+export const ensureUUID = (id: string | undefined): string => {
+  if (!id) return null as unknown as string;
+  return id;
+};
+
 // Safe mapper for Supabase array results
 export const safelyMapSupabaseData = <T, R>(
   data: T[] | null | undefined,
@@ -82,8 +88,18 @@ export const safelyExtractData = <T>(response: any): T[] => {
   return response.data as T[];
 };
 
+// Helper for non-null items
+export const isNonNullable = <T>(value: T | null | undefined): value is T => {
+  return value !== null && value !== undefined;
+};
+
 // Helper to validate student object
-export const isValidStudent = (student: any): boolean => {
+export const isValidStudent = (student: any): student is { 
+  id: string; 
+  school_id: string; 
+  status: string; 
+  created_at: string; 
+} => {
   return student && 
     typeof student === 'object' && 
     'id' in student &&
@@ -93,22 +109,24 @@ export const isValidStudent = (student: any): boolean => {
 };
 
 // Helper to validate profile object
-export const isValidProfile = (profile: any): boolean => {
+export const isValidProfile = (profile: any): profile is {
+  id: string;
+  full_name: string | null;
+} => {
   return profile && 
     typeof profile === 'object' && 
     'id' in profile &&
     'full_name' in profile;
 };
 
-// Helper to transform Supabase UUID parameters
-export const ensureUUID = (id: string | undefined): any => {
-  // This helps with Supabase UUID parameter issues
-  if (!id) return null;
-  return id;
-};
-
 // Helper for strict type checking on teacher invitations
-export const isValidInvitation = (item: any): boolean => {
+export const isValidInvitation = (item: any): item is {
+  id: string;
+  email: string;
+  status: string;
+  created_at: string;
+  expires_at: string;
+} => {
   return item &&
     typeof item === 'object' &&
     'id' in item &&
@@ -116,4 +134,25 @@ export const isValidInvitation = (item: any): boolean => {
     'status' in item &&
     'created_at' in item &&
     'expires_at' in item;
+};
+
+// Helper for validating file items
+export const isValidFileItem = (item: any): item is {
+  id: string;
+  filename: string;
+  file_type: string;
+  file_size: number;
+  created_at: string;
+  storage_path: string;
+  processing_status: string;
+} => {
+  return item && 
+    typeof item === 'object' && 
+    'id' in item && 
+    'filename' in item && 
+    'file_type' in item && 
+    'file_size' in item && 
+    'created_at' in item && 
+    'storage_path' in item && 
+    'processing_status' in item;
 };

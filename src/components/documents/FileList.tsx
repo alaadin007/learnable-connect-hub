@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -24,7 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getUserDocuments, getDocumentContent } from '@/utils/databaseUtils';
-import { isDataResponse } from "@/utils/supabaseHelpers";
+import { isDataResponse, isValidFileItem } from "@/utils/supabaseHelpers";
 
 type FileItem = {
   id: string;
@@ -84,26 +83,22 @@ const FileList: React.FC = () => {
     try {
       console.log("Fetching documents for user:", user.id);
       const docs = await getUserDocuments(user.id);
+      
       if (docs && Array.isArray(docs)) {
-        setFiles(docs as FileItem[]);
+        // Filter to ensure only valid FileItems are included
+        const validDocs = docs.filter(isValidFileItem);
+        setFiles(validDocs as FileItem[]);
       } else {
         // Fallback direct query with type safety
-        const response = await supabase.from('documents').select('*').eq('user_id', user.id);
+        const response = await supabase
+          .from('documents')
+          .select('*')
+          .eq('user_id', user.id);
 
         if (isDataResponse(response)) {
           // Ensure we have valid FileItem objects
           const validFiles: FileItem[] = response.data
-            .filter(item => 
-              item && 
-              typeof item === 'object' &&
-              'id' in item &&
-              'filename' in item &&
-              'file_type' in item &&
-              'file_size' in item &&
-              'created_at' in item &&
-              'storage_path' in item &&
-              'processing_status' in item
-            )
+            .filter(isValidFileItem)
             .map(item => ({
               id: item.id,
               filename: item.filename,

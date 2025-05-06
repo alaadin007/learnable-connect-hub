@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -40,7 +41,7 @@ const TeacherInvitation = () => {
       if (isDataResponse(response)) {
         // Filter and map the data to ensure it matches the TeacherInvite interface
         const validInvites: TeacherInvite[] = response.data
-          .filter(item => isValidInvitation(item))
+          .filter(isValidInvitation)
           .map(item => ({
             id: item.id,
             email: item.email,

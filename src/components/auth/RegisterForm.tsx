@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -103,13 +102,12 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSuccess }) => {
     }
   };
 
-  // Update the getUserRole function to use the helper
   const getUserRole = async (userId: string) => {
     try {
       const response = await supabase
         .from('profiles')
         .select('user_type')
-        .eq('id', ensureUUID(userId))
+        .eq('id', userId)
         .limit(1);
         
       if (!isDataResponse(response) || response.data.length === 0) {
