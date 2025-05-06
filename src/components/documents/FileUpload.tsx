@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Button } from "@/components/ui/button";
@@ -40,7 +41,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onUploadComplete }) => {
 
     try {
       const { data, error } = await supabase.storage
-        .from('documents')
+        .from('user-content')
         .upload(filePath, file, {
           cacheControl: '3600',
           upsert: false
@@ -55,16 +56,18 @@ const FileUpload: React.FC<FileUploadProps> = ({ onUploadComplete }) => {
 
       console.log("File uploaded successfully:", data);
 
+      const insertData = {
+        user_id: user.id,
+        filename: file.name,
+        file_type: file.type,
+        file_size: file.size,
+        storage_path: filePath,
+        processing_status: 'pending'
+      };
+
       const { data: metadataData, error: metadataError } = await supabase
         .from('documents')
-        .insert(asSupabaseParam({
-          user_id: user.id,
-          filename: file.name,
-          file_type: file.type,
-          file_size: file.size,
-          storage_path: filePath,
-          processing_status: 'pending'
-        }))
+        .insert(insertData)
         .select()
         .single();
 

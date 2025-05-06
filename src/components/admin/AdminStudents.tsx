@@ -101,7 +101,10 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
       let profiles: { id: string; full_name: string | null }[] = [];
       
       if (isDataResponse(profilesResponse)) {
-        profiles = profilesResponse.data.filter(isValidProfile);
+        profiles = profilesResponse.data
+          .filter((p): p is {id: string, full_name: string | null} => 
+            p && typeof p === 'object' && 'id' in p && typeof p.id === 'string'
+          );
       } else {
         console.error("Error fetching profiles:", profilesResponse.error);
       }
@@ -140,7 +143,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
       // Update the student status directly in the database
       const { error } = await supabase
         .from("students")
-        .update(createInsertData({ status: "active" }))
+        .update({ status: "active" })
         .eq("id", asSupabaseParam(studentId));
 
       if (error) {
