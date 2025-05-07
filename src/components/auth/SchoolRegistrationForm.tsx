@@ -1,3 +1,4 @@
+
 import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -139,7 +140,7 @@ const SchoolRegistrationForm: React.FC = () => {
       console.log("Using redirect URL:", redirectTo);
 
       // Register user with Supabase auth
-      const { data: userData, error: userError } = await supabase.auth.signUp({
+      const { data: authData, error: userError } = await supabase.auth.signUp({
         email: data.adminEmail,
         password: data.adminPassword,
         options: {
@@ -154,7 +155,7 @@ const SchoolRegistrationForm: React.FC = () => {
         },
       });
 
-      if (userError || !userData || !userData.user) {
+      if (userError || !authData || !authData.user) {
         toast.dismiss(loadingToast);
         setRegistrationError(
           "Failed to create school account: " + (userError?.message || "Unknown error")
@@ -165,20 +166,34 @@ const SchoolRegistrationForm: React.FC = () => {
         return;
       }
 
-      toast.dismiss(loadingToast);
-      setRegisteredEmail(data.adminEmail);
-      setSchoolCode(newSchoolCode);
-      setEmailSent(true);
+      // Check if email confirmation is required
+      if (authData.user && !authData.user.confirmed_at) {
+        toast.dismiss(loadingToast);
+        setRegisteredEmail(data.adminEmail);
+        setSchoolCode(newSchoolCode);
+        setEmailSent(true);
 
-      toast.success(`School "${data.schoolName}" successfully registered!`, {
-        description: `Your school code is ${newSchoolCode}. Check your email to verify your account.`,
-        duration: 10000,
-      });
+        toast.success(`School "${data.schoolName}" registration initiated!`, {
+          description: `Your school code is ${newSchoolCode}. You MUST verify your email before accessing your dashboard.`,
+          duration: 10000,
+        });
 
-      toast.info("Please verify your email before accessing your dashboard.", {
-        duration: 15000,
-        icon: <Mail className="h-4 w-4" />,
-      });
+        toast.info("Please check your email to verify your account.", {
+          duration: 15000,
+          icon: <Mail className="h-4 w-4" />,
+        });
+      } else {
+        // This should generally not happen if email confirmation is properly enabled
+        toast.dismiss(loadingToast);
+        toast.warning("Important: Email verification appears to be disabled in your Supabase project.", {
+          description: "For security, it's recommended to enable email verification in Supabase Auth settings.",
+          duration: 10000,
+        });
+        
+        setRegisteredEmail(data.adminEmail);
+        setSchoolCode(newSchoolCode);
+        setEmailSent(true);
+      }
     } catch (err: any) {
       toast.error(`Registration error: ${err.message || err}`);
       setRegistrationError(err.message || "Unknown error during registration");
@@ -197,8 +212,12 @@ const SchoolRegistrationForm: React.FC = () => {
       const siteUrl = window.location.origin;
       const redirectTo = `${siteUrl}/login?email_confirmed=true`;
 
-      const { error } = await supabase.auth.resetPasswordForEmail(registeredEmail, {
-        redirectTo: redirectTo,
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: registeredEmail,
+        options: {
+          redirectTo: redirectTo,
+        }
       });
       if (error) toast.error("Failed to send verification email: " + error.message);
       else toast.success("Verification email sent. Check inbox and spam folder.");

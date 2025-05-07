@@ -5,7 +5,7 @@ import Footer from "@/components/landing/Footer";
 import SchoolRegistrationForm from "@/components/auth/SchoolRegistrationForm";
 import { Toaster } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { HelpCircle, AlertTriangle } from "lucide-react";
+import { HelpCircle, AlertTriangle, Mail } from "lucide-react";
 
 const SchoolRegistration = () => {
   return (
@@ -26,6 +26,14 @@ const SchoolRegistration = () => {
             <AlertTitle className="text-yellow-800">Important Notice</AlertTitle>
             <AlertDescription className="text-yellow-700">
               If you get "requested path is invalid" errors during registration, please make sure your Supabase project has the correct Site URL and Redirect URLs configured in Authentication Settings.
+            </AlertDescription>
+          </Alert>
+          
+          <Alert className="bg-green-50 border-l-4 border-green-500 mb-6 max-w-2xl mx-auto">
+            <Mail className="h-5 w-5 text-green-500" />
+            <AlertTitle className="text-green-800">Email Verification Required</AlertTitle>
+            <AlertDescription className="text-green-700">
+              Users must verify their email address before they can log in. Make sure to check the "Confirm Email" setting is enabled in your Supabase Auth settings.
             </AlertDescription>
           </Alert>
           
