@@ -135,9 +135,9 @@ const SchoolRegistrationForm: React.FC = () => {
 
       // Get current site URL for proper redirects
       const siteUrl = window.location.origin;
-      const redirectTo = `${siteUrl}/login?email_confirmed=true`;
+      const emailRedirectTo = `${siteUrl}/login?email_confirmed=true`;
       
-      console.log("Using redirect URL:", redirectTo);
+      console.log("Using redirect URL:", emailRedirectTo);
 
       // Register user with Supabase auth
       const { data: authData, error: userError } = await supabase.auth.signUp({
@@ -151,7 +151,7 @@ const SchoolRegistrationForm: React.FC = () => {
             school_name: data.schoolName,
             email: data.adminEmail,
           },
-          emailRedirectTo: redirectTo,
+          emailRedirectTo: emailRedirectTo,
         },
       });
 
@@ -210,13 +210,13 @@ const SchoolRegistrationForm: React.FC = () => {
     try {
       // Get current site URL for proper redirects
       const siteUrl = window.location.origin;
-      const redirectTo = `${siteUrl}/login?email_confirmed=true`;
+      const emailRedirectTo = `${siteUrl}/login?email_confirmed=true`;
 
       const { error } = await supabase.auth.resend({
         type: 'signup',
         email: registeredEmail,
         options: {
-          redirectTo: redirectTo,
+          emailRedirectTo: emailRedirectTo,
         }
       });
       if (error) toast.error("Failed to send verification email: " + error.message);
