@@ -123,10 +123,9 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
           if (!studentId) return;
           
           // Find matching profile with null safety
-          // Using non-null assertion for p.id only after checking p exists and has id property
           const profile = profileData.find(p => {
-            return p && typeof p === 'object' && 'id' in p && p.id === studentId;
-          }) || null;
+            return p && typeof p === 'object' && 'id' in p && p?.id === studentId;
+          });
           
           let role = "student"; // Default role
           
@@ -136,7 +135,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
           }
           // If no specific role but profile has user_type, use that
           else if (profile && typeof profile === 'object' && 'user_type' in profile) {
-            const userType = profile && 'user_type' in profile ? profile.user_type as string | null : null;
+            const userType = profile ? (profile as any).user_type as string | null : null;
             role = userType || role;
           }
             
