@@ -122,7 +122,8 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
           const studentId = student.id;
           if (!studentId) return;
           
-          const profile = profileData.find(p => p && typeof p === 'object' && 'id' in p && p.id === studentId);
+          // Find matching profile with null safety
+          const profile = profileData.find(p => p && typeof p === 'object' && 'id' in p && p.id === studentId) || null;
           
           let role = "student"; // Default role
           
@@ -132,20 +133,29 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
           }
           // If no specific role but profile has user_type, use that
           else if (profile && typeof profile === 'object' && 'user_type' in profile) {
-            // Make a null check before accessing properties
-            const userType = profile ? profile.user_type : null;
+            const userType = profile.user_type as string | null;
             role = userType || role;
           }
             
           // Add entry with all the information we have, with proper null checks
+          const fullName = profile && typeof profile === 'object' && 'full_name' in profile ? 
+            String(profile.full_name || "Unknown") : "Unknown";
+            
+          const email = profile && typeof profile === 'object' && 'email' in profile ? 
+            String(profile.email || "No email") : "No email";
+            
+          const status = student && 'status' in student ? 
+            String(student.status || "unknown") : "unknown";
+            
+          const createdAt = student && 'created_at' in student ? 
+            String(student.created_at) : new Date().toISOString();
+            
           combinedStudents.push({
             id: studentId,
-            full_name: profile && typeof profile === 'object' && 'full_name' in profile ? 
-              String(profile.full_name || "Unknown") : "Unknown",
-            email: profile && typeof profile === 'object' && 'email' in profile ? 
-              String(profile.email || "No email") : "No email",
-            status: student && 'status' in student ? String(student.status) : "unknown",
-            created_at: student && 'created_at' in student ? String(student.created_at) : new Date().toISOString(),
+            full_name: fullName,
+            email: email,
+            status: status,
+            created_at: createdAt,
             role: role
           });
         });
