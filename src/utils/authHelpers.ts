@@ -180,3 +180,99 @@ export const handleRegistrationError = (error: any) => {
     });
   }
 };
+
+// New email authentication helper functions
+export const sendPasswordResetEmail = async (email: string): Promise<boolean> => {
+  try {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+
+    if (error) {
+      console.error("Error sending password reset email:", error);
+      toast.error("Failed to send password reset email", {
+        description: error.message || "An error occurred while sending the reset email.",
+      });
+      return false;
+    }
+
+    toast.success("Password reset email sent", {
+      description: "Check your inbox for further instructions to reset your password.",
+    });
+    return true;
+  } catch (error: any) {
+    console.error("Error in sendPasswordResetEmail:", error);
+    toast.error("Failed to send password reset email", {
+      description: error.message || "An unexpected error occurred.",
+    });
+    return false;
+  }
+};
+
+export const updateUserPassword = async (newPassword: string): Promise<boolean> => {
+  try {
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+
+    if (error) {
+      console.error("Error updating password:", error);
+      toast.error("Failed to update password", {
+        description: error.message || "An error occurred while updating your password.",
+      });
+      return false;
+    }
+
+    toast.success("Password updated successfully", {
+      description: "Your password has been changed. You can now log in with your new password.",
+    });
+    return true;
+  } catch (error: any) {
+    console.error("Error in updateUserPassword:", error);
+    toast.error("Failed to update password", {
+      description: error.message || "An unexpected error occurred.",
+    });
+    return false;
+  }
+};
+
+export const updateUserEmail = async (newEmail: string): Promise<boolean> => {
+  try {
+    const { error } = await supabase.auth.updateUser({
+      email: newEmail,
+    });
+
+    if (error) {
+      console.error("Error updating email:", error);
+      toast.error("Failed to update email", {
+        description: error.message || "An error occurred while updating your email.",
+      });
+      return false;
+    }
+
+    toast.success("Email update initiated", {
+      description: "Check your new email for a confirmation link to complete the email change.",
+    });
+    return true;
+  } catch (error: any) {
+    console.error("Error in updateUserEmail:", error);
+    toast.error("Failed to update email", {
+      description: error.message || "An unexpected error occurred.",
+    });
+    return false;
+  }
+};
+
+export const checkAuthSession = async (): Promise<boolean> => {
+  try {
+    const { data, error } = await supabase.auth.getSession();
+    if (error) {
+      console.error("Error checking session:", error);
+      return false;
+    }
+    return !!data.session;
+  } catch (error) {
+    console.error("Error in checkAuthSession:", error);
+    return false;
+  }
+};

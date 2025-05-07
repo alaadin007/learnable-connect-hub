@@ -218,7 +218,7 @@ const LoginForm = () => {
                 required
               />
             </div>
-            <div className="grid gap-2 mb-6">
+            <div className="grid gap-2 mb-2">
               <Label htmlFor="password">Password</Label>
               <Input
                 id="password"
@@ -230,6 +230,13 @@ const LoginForm = () => {
                 required
               />
             </div>
+            
+            <div className="flex justify-end mb-4">
+              <Link to="/forgot-password" className="text-sm text-primary hover:underline">
+                Forgot password?
+              </Link>
+            </div>
+            
             <Button className="w-full gradient-bg" type="submit" disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
