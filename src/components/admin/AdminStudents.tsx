@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRBAC } from "@/contexts/RBACContext";
@@ -275,7 +276,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
                     <Badge
                       variant={
                         student.status === "active"
-                          ? "success"
+                          ? "default"
                           : student.status === "pending"
                             ? "secondary"
                             : "destructive"
@@ -284,7 +285,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
                       {student.status}
                     </Badge>
                   </TableCell>
-                  <TableCell>{getRoleDisplayName(student.role)}</TableCell>
+                  <TableCell>{getRoleDisplayName(student.role as AppRole)}</TableCell>
                   <TableCell>
                     {new Date(student.created_at).toLocaleDateString()}
                   </TableCell>
