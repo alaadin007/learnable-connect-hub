@@ -37,7 +37,7 @@ interface ProfileData {
   id: string;
   full_name: string | null;
   email: string | null;
-  user_type?: string;
+  user_type?: string | null;
 }
 
 const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
