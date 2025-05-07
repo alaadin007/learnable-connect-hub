@@ -144,9 +144,8 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
           // If no specific role but profile has user_type, use that
           else if (profile && typeof profile === 'object' && 'user_type' in profile) {
             // Safely access user_type with proper type assertion
-            const profileWithUserType = profile as ProfileData;
-            const userType = profileWithUserType.user_type ? String(profileWithUserType.user_type) : null;
-            role = userType || role;
+            const profileWithType = profile as ProfileData;
+            role = profileWithType.user_type || role;
           }
             
           // Add entry with all the information we have, with proper null checks
