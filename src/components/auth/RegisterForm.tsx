@@ -19,11 +19,15 @@ import { useNavigate, Link } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import {
   checkEmailExists,
-  validateSchoolCode,
-  createUserProfile,
   assignUserRole,
-  handleRegistrationError
+  handleRegistrationError,
+  registerUser
 } from "@/utils/authHelpers";
+import { 
+  createUserProfile,
+  validateUserType 
+} from "@/utils/userHelpers";
+import { validateSchoolCode } from "@/utils/schoolHelpers";
 import { AppRole } from "@/contexts/RBACContext";
 
 const formSchema = z.object({
@@ -76,17 +80,14 @@ const RegisterForm = () => {
       }
 
       // Sign up user
-      const { data, error } = await supabase.auth.signUp({
-        email,
+      const { data, error } = await registerUser(
+        email, 
         password,
-        options: {
-          data: {
-            school_code: schoolCode,
-            user_type: 'student',
-          },
-          emailRedirectTo: `${window.location.origin}/login?email_confirmed=true`,
-        },
-      });
+        {
+          school_code: schoolCode,
+          user_type: 'student',
+        }
+      );
 
       if (error) throw error;
       if (!data.user) throw new Error("Failed to create user account");

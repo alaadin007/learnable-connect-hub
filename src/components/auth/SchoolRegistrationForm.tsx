@@ -1,4 +1,3 @@
-
 import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -22,10 +21,18 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   checkEmailExists,
-  createUserProfile,
   assignUserRole,
-  handleRegistrationError
+  handleRegistrationError,
+  registerUser
 } from "@/utils/authHelpers";
+import { 
+  createUserProfile 
+} from "@/utils/userHelpers"; 
+import {
+  generateSchoolCode,
+  createSchoolCode,
+  createSchool
+} from "@/utils/schoolHelpers";
 
 // Schema definition & validation using zod
 const schoolRegistrationSchema = z
@@ -99,33 +106,27 @@ const SchoolRegistrationForm: React.FC = () => {
       console.log("Generated school code:", newSchoolCode);
 
       // First create the entry in school_codes table
-      const { error: codeError } = await supabase
-        .from("school_codes")
-        .insert({
-          code: newSchoolCode,
-          school_name: data.schoolName,
-          active: true
-        });
+      const { success: codeSuccess, error: codeError } = await createSchoolCode(
+        newSchoolCode, 
+        data.schoolName
+      );
 
-      if (codeError) {
+      if (!codeSuccess) {
         console.error('Error creating school code:', codeError);
         throw new Error(`Failed to create school code: ${codeError.message}`);
       }
 
       // Register user with Supabase auth first
-      const { data: authData, error: userError } = await supabase.auth.signUp({
-        email: data.adminEmail,
-        password: data.adminPassword,
-        options: {
-          data: {
-            full_name: data.adminFullName,
-            user_type: "school_admin",
-            school_code: newSchoolCode,
-            school_name: data.schoolName,
-          },
-          emailRedirectTo: `${window.location.origin}/login?email_confirmed=true`,
-        },
-      });
+      const { data: authData, error: userError } = await registerUser(
+        data.adminEmail, 
+        data.adminPassword,
+        {
+          full_name: data.adminFullName,
+          user_type: "school_admin",
+          school_code: newSchoolCode,
+          school_name: data.schoolName,
+        }
+      );
 
       if (userError || !authData.user) {
         throw new Error(userError?.message || "Failed to create user account");
@@ -134,16 +135,10 @@ const SchoolRegistrationForm: React.FC = () => {
       console.log("User registered successfully:", authData.user.id);
 
       // Create school record
-      const { data: schoolData, error: schoolError } = await supabase
-        .from("schools")
-        .insert({
-          code: newSchoolCode,
-          name: data.schoolName,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .select("id")
-        .single();
+      const { data: schoolData, error: schoolError } = await createSchool(
+        newSchoolCode, 
+        data.schoolName
+      );
 
       if (schoolError) {
         console.error("School creation error:", schoolError);
