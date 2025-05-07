@@ -71,11 +71,11 @@ export const createUserProfile = async (
     }
     
     // Add user to the appropriate role-specific table
-    if (validUserType === 'school_admin' || validUserType === 'teacher') {
+    if (validUserType === 'school_admin' || validUserType === 'teacher' || validUserType === 'teacher_supervisor') {
       const { error: teacherError } = await supabase.from('teachers').insert({
         id: userId,
         school_id: schoolId,
-        is_supervisor: validUserType === 'school_admin',
+        is_supervisor: validUserType === 'school_admin' || validUserType === 'teacher_supervisor',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       });
@@ -109,8 +109,8 @@ export const createUserProfile = async (
  * @returns Valid user type string
  */
 export const validateUserType = (userType: string): string => {
-  // Based on the database constraint, only these types are valid
-  const validTypes = ['school_admin', 'teacher', 'student'];
+  // Based on the updated database constraint, these types are valid
+  const validTypes = ['school_admin', 'teacher', 'student', 'teacher_supervisor', 'system_admin', 'school', 'admin'];
   
   // If it's already one of our valid types, return it
   if (validTypes.includes(userType)) {
@@ -126,6 +126,9 @@ export const validateUserType = (userType: string): string => {
       return 'teacher';
     case 'student':
       return 'student';
+    case 'supervisor':
+    case 'teacher_supervisor':
+      return 'teacher_supervisor';
     default:
       console.warn(`Unknown user type: ${userType}, defaulting to 'student'`);
       return 'student';

@@ -104,7 +104,7 @@ const RegisterForm = () => {
         password,
         {
           full_name: fullName,
-          user_type: validateUserType(userType),
+          user_type: userType, // We're passing the simplified type, the trigger will handle the mapping
           school_code: schoolCode,
         }
       );
@@ -112,17 +112,23 @@ const RegisterForm = () => {
       if (error) throw error;
       if (!data.user) throw new Error("Failed to create user account");
 
-      // Create user profile
-      await createUserProfile(
-        data.user.id, 
-        email, 
-        validateUserType(userType), 
-        schoolId,
-        fullName
-      );
+      // User is now created through the database trigger, but we'll still create the profile
+      // to ensure data consistency on the client side
+      try {
+        await createUserProfile(
+          data.user.id, 
+          email, 
+          userType, // validateUserType is called inside createUserProfile
+          schoolId,
+          fullName
+        );
 
-      // Assign appropriate role
-      await assignUserRole(data.user.id, userType as AppRole);
+        // Assign appropriate role (may be redundant as the trigger also does this)
+        await assignUserRole(data.user.id, userType as AppRole);
+      } catch (profileError) {
+        console.log("Profile may have been created by trigger already:", profileError);
+        // We don't need to throw here as the trigger should have handled this
+      }
 
       toast.dismiss(loadingToast);
       setRegisteredEmail(email);
