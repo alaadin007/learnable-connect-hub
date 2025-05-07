@@ -1,8 +1,48 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { v4 as uuidv4 } from 'uuid';
 
-class SessionLogger {
+// Define types for session logger
+export interface SessionLogEvent {
+  type: string;
+  data?: any;
+  timestamp?: string;
+}
+
+export interface SessionLogData {
+  id: string;
+  user_id: string;
+  school_id: string | null;
+  topic_or_content_used: string | null;
+  num_queries: number;
+  session_start: string;
+  session_end: string | null;
+}
+
+export interface SessionLogger {
+  startSession(topic?: string): Promise<string | null>;
+  endSession(sessionId: string): Promise<void>;
+  updateTopic(sessionId: string, topic: string): Promise<void>;
+  incrementQuery(sessionId: string): Promise<void>;
+  logEvent(eventType: string, eventData?: any): void;
+}
+
+class SessionLoggerImpl implements SessionLogger {
+  private async logToDatabase(event: SessionLogEvent): Promise<void> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      await supabase.from("session_events").insert({
+        user_id: user.id,
+        event_type: event.type,
+        event_data: event.data,
+        timestamp: event.timestamp || new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Error logging event:", error);
+    }
+  }
+
   async startSession(topic?: string): Promise<string | null> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -30,7 +70,8 @@ class SessionLogger {
           id: sessionId,
           user_id: user.id,
           school_id: profile?.school_id || null,
-          topic_or_content_used: topic || null
+          topic_or_content_used: topic || null,
+          session_start: new Date().toISOString()
         }]);
 
       if (logError) {
@@ -38,6 +79,7 @@ class SessionLogger {
         return null;
       }
 
+      this.logEvent('session_started', { sessionId, topic });
       return sessionId;
     } catch (error) {
       console.error("Error starting session:", error);
@@ -54,6 +96,8 @@ class SessionLogger {
 
       if (error) {
         console.error("Error ending session:", error);
+      } else {
+        this.logEvent('session_ended', { sessionId });
       }
     } catch (error) {
       console.error("Error in endSession:", error);
@@ -69,6 +113,8 @@ class SessionLogger {
 
       if (error) {
         console.error("Error updating topic:", error);
+      } else {
+        this.logEvent('topic_updated', { sessionId, topic });
       }
     } catch (error) {
       console.error("Error in updateTopic:", error);
@@ -99,14 +145,25 @@ class SessionLogger {
 
       if (updateError) {
         console.error("Error incrementing query count:", updateError);
+      } else {
+        this.logEvent('query_incremented', { sessionId, newCount: currentCount + 1 });
       }
     } catch (error) {
       console.error("Error in incrementQuery:", error);
     }
   }
+
+  logEvent(eventType: string, eventData?: any): void {
+    const event: SessionLogEvent = {
+      type: eventType,
+      data: eventData,
+      timestamp: new Date().toISOString()
+    };
+    this.logToDatabase(event);
+  }
 }
 
-export const sessionLogger = new SessionLogger();
+export const sessionLogger = new SessionLoggerImpl();
 
 // For backward compatibility
 export default sessionLogger;

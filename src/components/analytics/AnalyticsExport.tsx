@@ -1,8 +1,7 @@
-
 import { SessionData, TopicData, StudyTimeData, AnalyticsSummary } from "./types";
 import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
-import * as XLSX from 'xlsx';
+import * as XLSX from 'xlsx-js-style';
 
 interface AnalyticsExportProps {
   summary: AnalyticsSummary;
