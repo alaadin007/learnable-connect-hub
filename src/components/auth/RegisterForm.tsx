@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -16,24 +15,29 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useNavigate, Link } from "react-router-dom";
-import { 
-  asSupabaseParam, 
-  isValidObject, 
-  prepareTableInsert, 
-  prepareSupabaseUpdate,
-  safelyExtractId
-} from "@/utils/supabaseHelpers";
+import { Loader2 } from "lucide-react";
+import {
+  checkEmailExists,
+  validateSchoolCode,
+  createUserProfile,
+  assignUserRole,
+  handleRegistrationError
+} from "@/utils/authHelpers";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address." }),
   password: z
     .string()
-    .min(8, { message: "Password must be at least 8 characters." }),
+    .min(8, { message: "Password must be at least 8 characters." })
+    .regex(
+      /^(?=.*[A-Za-z])(?=.*\d).*$/,
+      "Password must contain at least one letter and one number"
+    ),
   confirmPassword: z.string(),
   schoolCode: z.string().min(5, { message: "School code must be at least 5 characters." }),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
-  path: ["confirmPassword"], // path of error
+  path: ["confirmPassword"],
 });
 
 const RegisterForm = () => {
@@ -55,136 +59,50 @@ const RegisterForm = () => {
     try {
       const { email, password, schoolCode } = values;
 
+      // Check if email already exists
+      const emailExists = await checkEmailExists(email);
+      if (emailExists) {
+        toast.error("This email is already registered. Please use a different email address.");
+        return;
+      }
+
+      // Validate school code
+      const { isValid, schoolId } = await validateSchoolCode(schoolCode);
+      if (!isValid) {
+        toast.error("Invalid school code. Please check and try again.");
+        return;
+      }
+
       // Sign up user
       const { data, error } = await supabase.auth.signUp({
-        email: email,
-        password: password,
+        email,
+        password,
         options: {
           data: {
             school_code: schoolCode,
-            user_type: 'student', // Default role
+            user_type: 'student',
           },
-          emailRedirectTo: window.location.origin + "/login?email_confirmed=true",
+          emailRedirectTo: `${window.location.origin}/login?email_confirmed=true`,
         },
       });
 
-      if (error) {
-        toast.error(error.message);
-        setIsLoading(false);
-        return;
-      }
+      if (error) throw error;
+      if (!data.user) throw new Error("Failed to create user account");
 
-      if (!data.user) {
-        toast.error("Failed to create user. Please try again.");
-        setIsLoading(false);
-        return;
-      }
+      // Create user profile
+      await createUserProfile(data.user.id, email, 'student', schoolId);
 
-      // Create a user profile
-      const profileData = prepareTableInsert({
-        id: data.user.id,
-        email: email,
-        school_code: schoolCode,
-        user_type: 'student'
-      });
-
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .upsert([profileData]);
-
-      if (profileError) {
-        toast.error(
-          `User created, but profile creation failed: ${profileError.message}`
-        );
-        setIsLoading(false);
-        return;
-      }
-
-      // Check if the school exists
-      const { data: schoolData, error: schoolError } = await supabase
-        .from("schools")
-        .select("id")
-        .eq("code", asSupabaseParam(schoolCode))
-        .single();
-
-      let schoolId: string | null = null;
-      
-      if (schoolError) {
-        // Create a new school if it doesn't exist
-        const newSchool = prepareTableInsert({
-          code: schoolCode,
-          name: "Your School Name", // You might want to prompt the user for the school name
-        });
-
-        const { data: newSchoolData, error: newSchoolError } = await supabase
-          .from("schools")
-          .insert([newSchool])
-          .select("id")
-          .single();
-
-        if (newSchoolError || !newSchoolData) {
-          toast.error(
-            "Registration successful, but failed to create school. Please contact support."
-          );
-          setIsLoading(false);
-          return;
-        }
-
-        // Safely extract the school ID
-        schoolId = safelyExtractId(newSchoolData);
-        
-        if (schoolId) {
-          // Update the user's profile with the school ID
-          const { error: updateError } = await supabase
-            .from("profiles")
-            .update(prepareSupabaseUpdate({ school_id: schoolId }))
-            .eq("id", asSupabaseParam(data.user.id));
-
-          if (updateError) {
-            toast.error(
-              "Registration successful, but failed to update profile with school ID. Please contact support."
-            );
-            setIsLoading(false);
-            return;
-          }
-          
-          // Add the student role to user_roles table
-          await supabase.rpc("assign_role", {
-            user_id_param: data.user.id,
-            role_param: "student"
-          });
-        }
-      } else if (schoolData) {
-        // Safely extract the school ID
-        schoolId = safelyExtractId(schoolData);
-        
-        if (schoolId) {
-          // Update the user's profile with the school ID
-          const { error: updateError } = await supabase
-            .from("profiles")
-            .update(prepareSupabaseUpdate({ school_id: schoolId }))
-            .eq("id", asSupabaseParam(data.user.id));
-
-          if (updateError) {
-            toast.error(
-              "Registration successful, but failed to update profile with school ID. Please contact support."
-            );
-            setIsLoading(false);
-            return;
-          }
-          
-          // Add the student role to user_roles table
-          await supabase.rpc("assign_role", {
-            user_id_param: data.user.id,
-            role_param: "student"
-          });
-        }
-      }
+      // Assign student role
+      await assignUserRole(data.user.id, 'student');
 
       toast.success("Registration successful! Please check your email to verify your account.");
-      navigate("/login");
+      navigate("/login", { 
+        state: { 
+          message: "Registration successful! Please verify your email before logging in." 
+        } 
+      });
     } catch (error: any) {
-      toast.error(`An error occurred: ${error.message}`);
+      handleRegistrationError(error);
     } finally {
       setIsLoading(false);
     }
@@ -251,14 +169,25 @@ const RegisterForm = () => {
               <FormItem>
                 <FormLabel>School Code</FormLabel>
                 <FormControl>
-                  <Input placeholder="School Code" {...field} />
+                  <Input
+                    placeholder="Enter your school code"
+                    {...field}
+                    type="text"
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
-          <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? "Creating account..." : "Create account"}
+          <Button type="submit" disabled={isLoading} className="w-full">
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Registering...
+              </>
+            ) : (
+              "Register"
+            )}
           </Button>
         </form>
       </Form>
