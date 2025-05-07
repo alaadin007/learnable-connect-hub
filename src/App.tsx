@@ -1,8 +1,8 @@
 
 import React from 'react';
-import { Toaster } from 'sonner';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { RBACProvider } from '@/contexts/RBACContext';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import AppRoutes from '@/routes';
 
@@ -25,9 +25,11 @@ function App() {
     >
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <ErrorBoundary>
-            <AppRoutes />
-          </ErrorBoundary>
+          <RBACProvider>
+            <ErrorBoundary>
+              <AppRoutes />
+            </ErrorBoundary>
+          </RBACProvider>
         </AuthProvider>
       </QueryClientProvider>
     </ErrorBoundary>
