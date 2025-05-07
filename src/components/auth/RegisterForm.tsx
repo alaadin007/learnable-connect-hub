@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -23,6 +24,7 @@ import {
   assignUserRole,
   handleRegistrationError
 } from "@/utils/authHelpers";
+import { AppRole } from "@/contexts/RBACContext";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address." }),
@@ -90,10 +92,10 @@ const RegisterForm = () => {
       if (!data.user) throw new Error("Failed to create user account");
 
       // Create user profile
-      await createUserProfile(data.user.id, email, 'student', schoolId);
+      await createUserProfile(data.user.id, email, 'student', schoolId as string);
 
       // Assign student role
-      await assignUserRole(data.user.id, 'student');
+      await assignUserRole(data.user.id, 'student' as AppRole);
 
       toast.success("Registration successful! Please check your email to verify your account.");
       navigate("/login", { 
