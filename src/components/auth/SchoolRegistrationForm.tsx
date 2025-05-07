@@ -1,3 +1,4 @@
+
 import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -47,22 +48,6 @@ const schoolRegistrationSchema = z
 
 type SchoolRegistrationFormValues = z.infer<typeof schoolRegistrationSchema>;
 
-const labels: Record<keyof SchoolRegistrationFormValues, string> = {
-  schoolName: "School Name",
-  adminFullName: "Admin Full Name",
-  adminEmail: "Admin Email",
-  adminPassword: "Admin Password",
-  confirmPassword: "Confirm Password",
-};
-
-const inputTypes: Record<keyof SchoolRegistrationFormValues, string> = {
-  schoolName: "text",
-  adminFullName: "text",
-  adminEmail: "email",
-  adminPassword: "password",
-  confirmPassword: "password",
-};
-
 const SchoolRegistrationForm: React.FC = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = React.useState(false);
@@ -93,10 +78,9 @@ const SchoolRegistrationForm: React.FC = () => {
 
   const onSubmit = async (data: SchoolRegistrationFormValues) => {
     setIsLoading(true);
+    const loadingToast = toast.loading("Registering your school...");
 
     try {
-      const loadingToast = toast.loading("Registering your school...");
-
       // Check if email exists
       const emailExists = await checkEmailExists(data.adminEmail);
       if (emailExists) {
@@ -106,27 +90,14 @@ const SchoolRegistrationForm: React.FC = () => {
           duration: 8000,
           icon: <AlertCircle className="h-5 w-5" />,
         });
+        setIsLoading(false);
         return;
       }
 
       const newSchoolCode = generateSchoolCode();
+      console.log("Generated school code:", newSchoolCode);
 
-      // Create school record
-      const { data: schoolData, error: schoolError } = await supabase
-        .from("schools")
-        .insert([{
-          code: newSchoolCode,
-          name: data.schoolName,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        }])
-        .select("id")
-        .single();
-
-      if (schoolError) throw new Error(`Failed to create school: ${schoolError.message}`);
-      if (!schoolData) throw new Error("Failed to create school record");
-
-      // Register user with Supabase auth
+      // Register user with Supabase auth first
       const { data: authData, error: userError } = await supabase.auth.signUp({
         email: data.adminEmail,
         password: data.adminPassword,
@@ -145,6 +116,31 @@ const SchoolRegistrationForm: React.FC = () => {
       if (userError || !authData.user) {
         throw new Error(userError?.message || "Failed to create user account");
       }
+
+      console.log("User registered successfully:", authData.user.id);
+
+      // Create school record
+      const { data: schoolData, error: schoolError } = await supabase
+        .from("schools")
+        .insert([{
+          code: newSchoolCode,
+          name: data.schoolName,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }])
+        .select("id")
+        .single();
+
+      if (schoolError) {
+        console.error("School creation error:", schoolError);
+        // If school creation fails, we should clean up the user
+        await supabase.auth.admin.deleteUser(authData.user.id);
+        throw new Error(`Failed to create school: ${schoolError.message}`);
+      }
+
+      if (!schoolData) throw new Error("Failed to create school record");
+
+      console.log("School created successfully:", schoolData.id);
 
       // Create user profile
       await createUserProfile(
@@ -172,7 +168,9 @@ const SchoolRegistrationForm: React.FC = () => {
         duration: 15000,
         icon: <Mail className="h-4 w-4" />,
       });
+
     } catch (error: any) {
+      toast.dismiss(loadingToast);
       handleRegistrationError(error);
     } finally {
       setIsLoading(false);
@@ -263,36 +261,96 @@ const SchoolRegistrationForm: React.FC = () => {
         
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            {(Object.keys(labels) as (keyof SchoolRegistrationFormValues)[]).map((fieldName) => (
-              <FormField
-                key={fieldName}
-                control={form.control}
-                name={fieldName}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{labels[fieldName]}</FormLabel>
-                    <FormControl>
-                      <Input
-                        type={inputTypes[fieldName]}
-                        placeholder={
-                          fieldName === "adminEmail"
-                            ? "admin@school.edu"
-                            : fieldName.toLowerCase().includes("password")
-                            ? "••••••••"
-                            : fieldName === "schoolName"
-                            ? "Enter school name"
-                            : fieldName === "adminFullName"
-                            ? "Enter admin's full name"
-                            : undefined
-                        }
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            ))}
+            <FormField
+              control={form.control}
+              name="schoolName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>School Name</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="text"
+                      placeholder="Enter school name"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <FormField
+              control={form.control}
+              name="adminFullName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Admin Full Name</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="text"
+                      placeholder="Enter admin's full name"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <FormField
+              control={form.control}
+              name="adminEmail"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Admin Email</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="email"
+                      placeholder="admin@school.edu"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <FormField
+              control={form.control}
+              name="adminPassword"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Admin Password</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="password"
+                      placeholder="••••••••"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <FormField
+              control={form.control}
+              name="confirmPassword"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Confirm Password</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="password"
+                      placeholder="••••••••"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
             <Button type="submit" disabled={isLoading} className="w-full gradient-bg">
               {isLoading ? (
                 <>
