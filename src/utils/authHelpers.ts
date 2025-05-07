@@ -4,12 +4,25 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 /**
- * Assigns a role to a user
+ * Assigns a role to a user in the database
+ * @param userId User ID
  * @param role Role to assign
- * @returns The assigned role
+ * @returns Promise<void>
  */
-export const assignUserRole = (role: AppRole): AppRole => {
-  return role;
+export const assignUserRole = async (userId: string, role: AppRole): Promise<void> => {
+  try {
+    const { error } = await supabase.from('user_roles').insert({
+      user_id: userId,
+      role,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+    
+    if (error) throw error;
+  } catch (error) {
+    console.error('Error assigning user role:', error);
+    throw error;
+  }
 };
 
 /**
@@ -19,7 +32,8 @@ export const assignUserRole = (role: AppRole): AppRole => {
  */
 export const checkEmailExists = async (email: string): Promise<boolean> => {
   try {
-    const { data, error } = await supabase.rpc('check_email_exists', { email_to_check: email });
+    // Using check_if_email_exists instead of check_email_exists which is the correct function name
+    const { data, error } = await supabase.rpc('check_if_email_exists', { input_email: email });
     
     if (error) {
       console.error('Error checking email existence:', error);
@@ -40,18 +54,15 @@ export const checkEmailExists = async (email: string): Promise<boolean> => {
  */
 export const validateSchoolCode = async (code: string): Promise<{ isValid: boolean; schoolId: string | null }> => {
   try {
-    const { data, error } = await supabase
-      .from('schools')
-      .select('id')
-      .eq('code', code)
-      .single();
+    // Use the get_school_by_code function which returns the school details
+    const { data, error } = await supabase.rpc('get_school_by_code', { input_code: code });
     
-    if (error || !data) {
+    if (error || !data || data.length === 0) {
       console.error('School code validation error:', error);
       return { isValid: false, schoolId: null };
     }
     
-    return { isValid: true, schoolId: data.id };
+    return { isValid: true, schoolId: data[0].id };
   } catch (error) {
     console.error('Error in validateSchoolCode:', error);
     return { isValid: false, schoolId: null };
@@ -87,27 +98,6 @@ export const createUserProfile = async (
     if (error) throw error;
   } catch (error) {
     console.error('Error creating user profile:', error);
-    throw error;
-  }
-};
-
-/**
- * Assigns a role to a user in the database
- * @param userId User ID
- * @param role Role to assign
- */
-export const assignUserRole = async (userId: string, role: AppRole): Promise<void> => {
-  try {
-    const { error } = await supabase.from('user_roles').insert({
-      user_id: userId,
-      role,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    });
-    
-    if (error) throw error;
-  } catch (error) {
-    console.error('Error assigning user role:', error);
     throw error;
   }
 };
