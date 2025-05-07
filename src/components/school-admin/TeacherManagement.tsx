@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -7,7 +6,13 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
-import { asSupabaseParam, isValidObject, safelyCastData } from '@/utils/supabaseHelpers';
+import { 
+  asSupabaseParam, 
+  isValidObject, 
+  safelyCastData,
+  safeCastArrayItem,
+  safeString
+} from '@/utils/supabaseHelpers';
 import { useAuth } from "@/contexts/AuthContext";
 
 interface TeacherInvite {
@@ -60,16 +65,17 @@ const TeacherManagement = () => {
         
         if (Array.isArray(response.data)) {
           for (const item of response.data) {
-            // Safely check if each item is valid
-            if (item && isValidObject(item, [
+            const safeItem = safeCastArrayItem<TeacherInvite>(item, [
               'id', 'email', 'status', 'created_at', 'expires_at'
-            ])) {
+            ]);
+            
+            if (safeItem) {
               validInvites.push({
-                id: String(item.id),
-                email: String(item.email),
-                status: String(item.status),
-                created_at: String(item.created_at),
-                expires_at: String(item.expires_at)
+                id: safeString(safeItem, 'id'),
+                email: safeString(safeItem, 'email'),
+                status: safeString(safeItem, 'status'),
+                created_at: safeString(safeItem, 'created_at'),
+                expires_at: safeString(safeItem, 'expires_at')
               });
             }
           }

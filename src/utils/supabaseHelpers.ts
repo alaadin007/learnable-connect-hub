@@ -1,4 +1,3 @@
-
 /**
  * Helper functions for Supabase operations that ensure type safety
  */
@@ -166,7 +165,7 @@ export const safelyHandleResponse = <T>(response: any, defaultValue: T): T => {
  * @returns The ID as a string or null if not available
  */
 export const safelyExtractId = (data: any): string | null => {
-  if (!data || isSupabaseError(data) || !data.id) {
+  if (!data || isSupabaseError(data) || typeof data !== 'object' || !('id' in data)) {
     return null;
   }
   return String(data.id);
@@ -213,6 +212,72 @@ export const toStringStateAction = (value: any): string => {
   return String(value);
 };
 
+/**
+ * Improved type checking for use with array data from Supabase
+ * First checks if the item is valid, then returns a properly typed value or null
+ * @param item Array item from Supabase response
+ * @returns A safely typed object or null
+ */
+export const safeCastArrayItem = <T extends Record<string, any>>(
+  item: any, 
+  requiredProps: (keyof T)[] = []
+): T | null => {
+  // First check if the item is a valid object (not null, not an error)
+  if (!item || typeof item !== 'object' || isSupabaseError(item)) {
+    return null;
+  }
+  
+  // Then check required properties if specified
+  if (requiredProps.length > 0) {
+    for (const prop of requiredProps) {
+      if (!(String(prop) in item)) {
+        return null;
+      }
+    }
+  }
+  
+  // If it passes, return it as the expected type
+  return item as T;
+};
+
+/**
+ * Safely extract a string property from any object, with fallback to default
+ * @param obj The object to extract from
+ * @param prop The property name to extract
+ * @param defaultValue The default value if property doesn't exist
+ * @returns Safe string value
+ */
+export const safeString = (obj: any, prop: string, defaultValue: string = ''): string => {
+  if (!obj || typeof obj !== 'object' || !(prop in obj)) {
+    return defaultValue;
+  }
+  return String(obj[prop]);
+};
+
+/**
+ * Safely extract a number property from any object, with fallback to default
+ * @param obj The object to extract from
+ * @param prop The property name to extract
+ * @param defaultValue The default value if property doesn't exist
+ * @returns Safe number value
+ */
+export const safeNumber = (obj: any, prop: string, defaultValue: number = 0): number => {
+  if (!obj || typeof obj !== 'object' || !(prop in obj)) {
+    return defaultValue;
+  }
+  const val = obj[prop];
+  return typeof val === 'number' ? val : Number(val) || defaultValue;
+};
+
+/**
+ * Special helper for supabase API key functions to cast parameters safely
+ * @param serviceName The service name to use
+ * @returns A safely typed parameter
+ */
+export const asServiceParam = (serviceName: string): any => {
+  return serviceName;
+};
+
 export const supabaseHelpers = {
   asSupabaseParam,
   prepareTableInsert,
@@ -229,7 +294,11 @@ export const supabaseHelpers = {
   safelyExtractId,
   safelyExtractUuid,
   isSafeArrayItem,
-  toStringStateAction
+  toStringStateAction,
+  safeCastArrayItem,
+  safeString,
+  safeNumber,
+  asServiceParam
 };
 
 export default supabaseHelpers;

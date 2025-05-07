@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -7,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { isValidObject } from "@/utils/supabaseHelpers";
+import { isValidObject, asServiceParam } from '@/utils/supabaseHelpers';
 
 const API_PROVIDERS = [
   { id: 'openai', name: 'OpenAI', description: 'Used for AI tutoring and content generation' },
@@ -56,7 +55,7 @@ const ApiKeyManagement = () => {
       if (Array.isArray(data)) {
         data.forEach(item => {
           // Safely check the service_name property exists
-          if (item && isValidObject(item, ['service_name', 'api_key'])) {
+          if (item && typeof item === 'object' && 'service_name' in item && 'api_key' in item) {
             const serviceName = String(item.service_name);
             if (serviceName && serviceName in newApiKeys) {
               newApiKeys[serviceName] = String(item.api_key || '');
@@ -83,7 +82,7 @@ const ApiKeyManagement = () => {
     setSavingKey(serviceId);
     try {
       const { data, error } = await supabase.rpc('set_api_key', {
-        service: serviceId,
+        service: asServiceParam(serviceId),
         key_value: apiKeys[serviceId].trim()
       });
 

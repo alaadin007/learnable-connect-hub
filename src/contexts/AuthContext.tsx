@@ -1,4 +1,3 @@
-
 // Only updating function implementations that use Supabase helpers
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
@@ -10,7 +9,10 @@ import {
   safelyCastData, 
   asTypedValue, 
   safelyExtractId,
-  toStringStateAction
+  toStringStateAction,
+  safeString,
+  isSupabaseError,
+  safeCastArrayItem
 } from '@/utils/supabaseHelpers';
 
 export type UserRole = 'school' | 'teacher' | 'student';
@@ -67,24 +69,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .eq('id', asSupabaseParam(userId))
         .single();
 
-      if (error || !data) {
+      if (error) {
         console.error('Error fetching profile:', error);
         return null;
       }
 
-      // Safely check the profile data
-      if (!isValidObject(data, ['id', 'user_type'])) {
+      // Check if data is valid and not an error response
+      if (isSupabaseError(data)) {
         console.error('Invalid profile data:', data);
         return null;
       }
 
-      // Cast data to safe Profile object
+      // Create safe profile object
       const safeProfile: Profile = {
-        id: String(data.id),
-        user_type: data.user_type as UserRole,
-        full_name: data.full_name ? String(data.full_name) : undefined,
-        school_code: data.school_code ? String(data.school_code) : undefined,
-        school_name: data.school_name ? String(data.school_name) : undefined
+        id: safeString(data, 'id'),
+        user_type: safeString(data, 'user_type') as UserRole,
+        full_name: safeString(data, 'full_name') || undefined,
+        school_code: safeString(data, 'school_code') || undefined,
+        school_name: safeString(data, 'school_name') || undefined
       };
 
       // For school/teacher, fetch org info and supervisor status
@@ -105,27 +107,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               .eq('id', asSupabaseParam(schoolIdStr))
               .single();
 
-            if (!schoolError && schoolData && isValidObject(schoolData, ['id', 'name', 'code'])) {
+            if (!schoolError && schoolData && !isSupabaseError(schoolData)) {
               // Create organization object with safe type conversions
               const organization = {
-                id: String(schoolData.id),
-                name: String(schoolData.name),
-                code: String(schoolData.code)
+                id: safeString(schoolData, 'id'),
+                name: safeString(schoolData, 'name'),
+                code: safeString(schoolData, 'code')
               };
 
-              // Copy profile and add organization
-              const profileWithOrg = { 
-                ...safeProfile, 
-                organization 
-              };
+              // Add organization to profile
+              safeProfile.organization = organization;
 
               // Check supervisor status
               const { data: supervisorData, error: supervisorError } = await supabase.rpc('is_supervisor');
               if (!supervisorError) {
                 setIsSupervisor(!!supervisorData);
               }
-              
-              return profileWithOrg;
             }
           }
         }
@@ -139,31 +136,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .eq('id', asSupabaseParam(userId))
           .single();
 
-        if (!studentError && studentData && isValidObject(studentData, ['school_id'])) {
-          const schoolIdStr = String(studentData.school_id);
+        if (!studentError && studentData && !isSupabaseError(studentData)) {
+          const schoolIdStr = safeString(studentData, 'school_id');
           setSchoolId(schoolIdStr);
           
-          const { data: schoolData, error: schoolError } = await supabase
-            .from('schools')
-            .select('id, name, code')
-            .eq('id', asSupabaseParam(schoolIdStr))
-            .single();
+          if (schoolIdStr) {
+            const { data: schoolData, error: schoolError } = await supabase
+              .from('schools')
+              .select('id, name, code')
+              .eq('id', asSupabaseParam(schoolIdStr))
+              .single();
 
-          if (!schoolError && schoolData && isValidObject(schoolData, ['id', 'name', 'code'])) {
-            // Create organization object with safe type conversions
-            const organization = {
-              id: String(schoolData.id),
-              name: String(schoolData.name),
-              code: String(schoolData.code)
-            };
+            if (!schoolError && schoolData && !isSupabaseError(schoolData)) {
+              // Create organization object with safe type conversions
+              const organization = {
+                id: safeString(schoolData, 'id'),
+                name: safeString(schoolData, 'name'),
+                code: safeString(schoolData, 'code')
+              };
 
-            // Copy profile and add organization
-            const profileWithOrg = { 
-              ...safeProfile, 
-              organization 
-            };
-            
-            return profileWithOrg;
+              // Add organization to profile
+              safeProfile.organization = organization;
+            }
           }
         }
       }

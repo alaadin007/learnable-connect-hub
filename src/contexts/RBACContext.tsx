@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useAuth } from "./AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { isValidObject } from "@/utils/supabaseHelpers";
+import { isValidObject, isSupabaseError } from "@/utils/supabaseHelpers";
 
 export type AppRole = "school_admin" | "teacher_supervisor" | "teacher" | "student" | "system_admin";
 
@@ -77,13 +77,12 @@ export const RBACProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error("Error fetching user roles:", error);
         setRoles([]);
       } else if (Array.isArray(data)) {
-        // Ensure data is an array of valid role values
-        const validRoles = data.filter(role => 
-          typeof role === 'string' && 
-          ['school_admin', 'teacher_supervisor', 'teacher', 'student', 'system_admin'].includes(role)
-        ) as AppRole[];
+        // Convert returned data to proper roles array
+        const validRoles = data
+          .filter(role => !isSupabaseError(role) && typeof role === 'string')
+          .filter(role => ['school_admin', 'teacher_supervisor', 'teacher', 'student', 'system_admin'].includes(role));
         
-        setRoles(validRoles);
+        setRoles(validRoles as AppRole[]);
       } else {
         setRoles([]);
       }
@@ -134,3 +133,4 @@ export const useRBAC = (): RBACContextType => {
   }
   return context;
 };
+

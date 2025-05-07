@@ -12,7 +12,9 @@ import {
   isValidObject,
   asSupabaseParam,
   isSupabaseError,
-  safelyCastData
+  safeCastArrayItem,
+  safeString,
+  safeNumber
 } from '@/utils/supabaseHelpers';
 
 // Define the FileItem type to match the file item structure
@@ -68,19 +70,21 @@ const FileList: React.FC = () => {
       const validFiles: FileItem[] = [];
       if (Array.isArray(data)) {
         for (const item of data) {
-          // Use null check guard and our helper function for TypeScript
-          if (item && isValidObject(item, [
-            'id', 'filename', 'file_type', 'file_size',
+          // Use our enhanced helper function for type safety
+          const safeItem = safeCastArrayItem<FileItem>(item, [
+            'id', 'filename', 'file_type', 'file_size', 
             'created_at', 'storage_path', 'processing_status'
-          ])) {
+          ]);
+          
+          if (safeItem) {
             validFiles.push({
-              id: String(item.id),
-              filename: String(item.filename),
-              file_type: String(item.file_type),
-              file_size: Number(item.file_size),
-              created_at: String(item.created_at),
-              storage_path: String(item.storage_path),
-              processing_status: String(item.processing_status)
+              id: safeString(safeItem, 'id'),
+              filename: safeString(safeItem, 'filename'),
+              file_type: safeString(safeItem, 'file_type'),
+              file_size: safeNumber(safeItem, 'file_size'),
+              created_at: safeString(safeItem, 'created_at'),
+              storage_path: safeString(safeItem, 'storage_path'),
+              processing_status: safeString(safeItem, 'processing_status')
             });
           }
         }

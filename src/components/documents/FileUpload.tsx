@@ -6,7 +6,12 @@ import { CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from '@/contexts/AuthContext';
-import { asSupabaseParam, isValidObject, safelyExtractId } from '@/utils/supabaseHelpers';
+import { 
+  asSupabaseParam, 
+  isValidObject, 
+  safelyExtractId, 
+  isSupabaseError 
+} from '@/utils/supabaseHelpers';
 
 type FileUploadProps = {
   onUploadComplete: () => void;
@@ -82,6 +87,14 @@ const FileUpload: React.FC<FileUploadProps> = ({ onUploadComplete }) => {
       if (metadataResult.error) {
         console.error("Error saving document metadata:", metadataResult.error);
         toast.error("Error saving document information");
+        setIsUploading(false);
+        return;
+      }
+
+      // Check for data validity before extracting ID
+      if (isSupabaseError(metadataResult.data)) {
+        console.error("Error in document metadata response", metadataResult.data);
+        toast.error("Error processing document information");
         setIsUploading(false);
         return;
       }
