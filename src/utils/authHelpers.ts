@@ -122,7 +122,7 @@ export const createUserProfile = async (
   }
 };
 
-// Fix the infinite type instantiation by properly typing the role parameter
+// Fix the infinite type instantiation by explicitly typing the role parameter
 export const assignUserRole = async (userId: string, role: AppRole): Promise<boolean> => {
   try {
     console.log("Assigning role:", role, "to user:", userId);
