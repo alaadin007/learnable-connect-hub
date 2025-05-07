@@ -132,7 +132,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
           // Find matching profile with proper null safety
           const profile = profileData.find(p => {
             // Make sure p is not null before accessing its properties
-            return p && typeof p === 'object' && 'id' in p && p.id === studentId;
+            return p !== null && typeof p === 'object' && 'id' in p && p.id === studentId;
           });
           
           let role = "student"; // Default role
@@ -144,7 +144,8 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
           // If no specific role but profile has user_type, use that
           else if (profile && typeof profile === 'object' && 'user_type' in profile) {
             // Safely access user_type with proper type assertion
-            const userType = profile && profile.user_type ? String(profile.user_type) : null;
+            const profileWithUserType = profile as ProfileData;
+            const userType = profileWithUserType.user_type ? String(profileWithUserType.user_type) : null;
             role = userType || role;
           }
             
