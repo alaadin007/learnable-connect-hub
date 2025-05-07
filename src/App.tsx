@@ -1,9 +1,9 @@
+
 import React from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/contexts/AuthContext';
-import { ThemeProvider } from '@/contexts/ThemeContext';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import AppRoutes from '@/routes';
 
@@ -24,18 +24,13 @@ function App() {
         console.error('App Error:', error, errorInfo);
       }}
     >
-      <ThemeProvider>
-        <QueryClientProvider client={queryClient}>
-          <BrowserRouter>
-            <AuthProvider>
-              <ErrorBoundary>
-                <AppRoutes />
-              </ErrorBoundary>
-              <Toaster position="top-center" expand={true} richColors />
-            </AuthProvider>
-          </BrowserRouter>
-        </QueryClientProvider>
-      </ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <ErrorBoundary>
+            <AppRoutes />
+          </ErrorBoundary>
+        </AuthProvider>
+      </QueryClientProvider>
     </ErrorBoundary>
   );
 }

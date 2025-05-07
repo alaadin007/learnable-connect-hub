@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { v4 as uuidv4 } from 'uuid';
 
@@ -52,16 +53,17 @@ class SessionLoggerImpl implements SessionLogger {
       }
 
       // Get school_id from the user's profile
-      const { data: profile, error: profileError } = await supabase
+      const { data, error: profileError } = await supabase
         .from("profiles")
         .select("school_id")
         .eq("id", user.id)
         .single();
 
-      if (profileError) {
+      if (profileError && profileError.code !== 'PGRST116') {
         console.error("Error fetching user profile:", profileError);
       }
 
+      const schoolId = data?.school_id || null;
       const sessionId = uuidv4();
       
       const { error: logError } = await supabase
@@ -69,7 +71,7 @@ class SessionLoggerImpl implements SessionLogger {
         .insert([{
           id: sessionId,
           user_id: user.id,
-          school_id: profile?.school_id || null,
+          school_id: schoolId,
           topic_or_content_used: topic || null,
           session_start: new Date().toISOString()
         }]);

@@ -1,8 +1,10 @@
+
 import React from 'react';
 import { sessionLogger } from '../utils/sessionLogger';
 
 interface Props {
   children: React.ReactNode;
+  onError?: (error: Error, errorInfo: React.ErrorInfo) => void;
 }
 
 interface State {
@@ -32,6 +34,11 @@ class ErrorBoundary extends React.Component<Props, State> {
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('Error caught by boundary:', error);
     console.error('Component stack:', errorInfo.componentStack);
+    
+    // Call the onError callback if provided
+    if (this.props.onError) {
+      this.props.onError(error, errorInfo);
+    }
     
     // Log the error to our session logger
     try {
@@ -109,4 +116,4 @@ class ErrorBoundary extends React.Component<Props, State> {
   }
 }
 
-export default ErrorBoundary; 
+export default ErrorBoundary;
