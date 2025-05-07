@@ -65,8 +65,18 @@ export function AnalyticsExport({
         XLSX.writeFile(wb, "analytics_data.xlsx");
     };
     
-    // Fix references to missing properties
-    const formatSessionsData = (sessions: SessionData[]): any[] => {
+    interface FormattedSession {
+        "Session ID": string;
+        "Student": string;
+        "Date": string;
+        "Topic": string;
+        "Duration (min)": number;
+        "Queries": number;
+        "Questions Asked": number;
+        "Questions Answered": number;
+        "Start Time": string;
+    }
+    const formatSessionsData = (sessions: SessionData[]): FormattedSession[] => {
         return sessions.map(session => {
             return {
                 "Session ID": session.id,

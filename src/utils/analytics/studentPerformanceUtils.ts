@@ -33,7 +33,7 @@ export const fetchStudentPerformance = async (
     }
 
     // Format the data for the frontend
-    let formattedData: StudentPerformanceData[] = (data || []).map(item => {
+    const formattedData: StudentPerformanceData[] = (data || []).map(item => {
       // Calculate a trend based on score
       // This is a simplification - in a real app, you'd compare to previous periods
       const trend = item.avg_score > 80 ? "up" : item.avg_score > 60 ? "steady" : "down";

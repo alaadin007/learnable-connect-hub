@@ -104,6 +104,12 @@ export const getMockAnalyticsData = (schoolId: string, options?: { startDate?: s
 // Chart colors
 const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff8042', '#0088fe', '#00C49F'];
 
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: Array<{ name: string; value: number } & Record<string, unknown>>;
+  label?: string;
+}
+
 const AnalyticsDashboard: React.FC = () => {
   const { profile, schoolId, user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -236,7 +242,7 @@ const AnalyticsDashboard: React.FC = () => {
   }, [analyticsData]);
 
   // Custom tooltip for charts
-  const CustomTooltip = ({ active, payload, label }: any) => {
+  const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
     if (active && payload && payload.length) {
       return (
         <div className="bg-white p-2 border rounded shadow text-sm">

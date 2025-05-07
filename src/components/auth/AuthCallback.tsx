@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -68,12 +67,19 @@ const AuthCallback = () => {
           // No auth parameters found
           setError('No authentication parameters found in the URL.');
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Auth callback error:', err);
-        setError(err.message || 'An error occurred during authentication.');
-        toast.error('Authentication error', { 
-          description: err.message || 'Please try again' 
-        });
+        if (err instanceof Error) {
+          setError(err.message || 'An error occurred during authentication.');
+          toast.error('Authentication error', { 
+            description: err.message || 'Please try again' 
+          });
+        } else {
+          setError('An error occurred during authentication.');
+          toast.error('Authentication error', { 
+            description: 'Please try again' 
+          });
+        }
       } finally {
         setLoading(false);
       }

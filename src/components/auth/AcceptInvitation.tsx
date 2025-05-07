@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -76,7 +75,15 @@ const AcceptInvitation = () => {
           return;
         }
 
-        const typedInvitationData = invitationData as any;
+        // Define a type for the invitation data
+        type VerifiedInvitation = {
+          invitation_id: string;
+          email: string;
+          school_id: string;
+          school_name?: string;
+          status: string;
+        };
+        const typedInvitationData = invitationData as VerifiedInvitation;
         
         // For now we need to assume some properties until the RPC returns are properly typed
         if (typedInvitationData.status === 'expired') {
@@ -98,7 +105,7 @@ const AcceptInvitation = () => {
           .eq('id', supabaseHelpers.asSupabaseParam(typedInvitationData.school_id))
           .single();
 
-        const schoolName = schoolError ? undefined : (schoolData && (schoolData as any).name);
+        const schoolName = schoolError ? undefined : (schoolData && (schoolData as { name?: string }).name);
 
         setInvitationDetails({
           id: typedInvitationData.invitation_id,
@@ -175,10 +182,14 @@ const AcceptInvitation = () => {
       toast.success("Account created successfully!");
       navigate('/login', { state: { message: "Account created! Please sign in with your new credentials." } });
       
-    } catch (error: any) {
-      console.error("Error accepting invitation:", error);
-      toast.error(error.message || "Failed to accept invitation");
-    } finally {
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        console.error("Error accepting invitation:", error);
+        toast.error(error.message || "Failed to accept invitation");
+      } else {
+        console.error("Error accepting invitation:", error);
+        toast.error("Failed to accept invitation");
+      }
       setIsSubmitting(false);
     }
   };

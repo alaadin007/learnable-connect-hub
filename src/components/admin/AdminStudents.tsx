@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRBAC } from "@/contexts/RBACContext";
@@ -149,7 +148,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
         .filter((s): s is Student => s !== null);
 
       setStudents(combinedStudents);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error("An error occurred while loading students");
       console.error("Error in fetchStudents:", error);
       setStudents([]);
@@ -176,7 +175,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
 
       toast.success(`Student status updated to ${newStatus}`);
       fetchStudents();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error("An error occurred while updating status");
       console.error("Error updating status:", error);
     }
@@ -200,7 +199,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
         return;
       }
       toast.error("No invite code returned");
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error("An error occurred while generating invite code");
       console.error("Error generating invite code:", error);
     } finally {

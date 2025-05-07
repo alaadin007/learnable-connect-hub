@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
@@ -59,8 +58,12 @@ const LoginForm = () => {
     try {
       await sendEmailVerification(email);
       setVerificationSent(true);
-    } catch (error: any) {
-      toast.error('Failed to send verification email');
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        toast.error(error.message || 'Failed to send verification email');
+      } else {
+        toast.error('Failed to send verification email');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -74,9 +77,13 @@ const LoginForm = () => {
       await signInWithGoogle();
       // The redirect to Google will happen automatically
       // Return handling is done in AuthCallback component
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Google login error:", error);
-      setLoginError(error.message || 'An error occurred during Google sign in');
+      if (error instanceof Error) {
+        setLoginError(error.message || 'An error occurred during Google sign in');
+      } else {
+        setLoginError('An error occurred during Google sign in');
+      }
     } finally {
       setIsGoogleLoading(false);
     }
@@ -150,18 +157,22 @@ const LoginForm = () => {
           navigate(returnUrl);
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Login catch block error:", error);
-      setLoginError(error.message || 'An unexpected error occurred');
-      
-      // Check if this is a verification issue
-      if (error.message && 
-          (error.message.includes('Email not confirmed') || 
-           error.message.includes('not verified') || 
-           error.message.includes('verification'))) {
-        toast.error('Email not verified', {
-          description: 'Please check your inbox for the verification link or request a new one below.'
-        });
+      if (error instanceof Error) {
+        setLoginError(error.message || 'An unexpected error occurred');
+        if (
+          error.message &&
+          (error.message.includes('Email not confirmed') ||
+            error.message.includes('not verified') ||
+            error.message.includes('verification'))
+        ) {
+          toast.error('Email not verified', {
+            description: 'Please check your inbox for the verification link or request a new one below.'
+          });
+        }
+      } else {
+        setLoginError('An unexpected error occurred');
       }
     } finally {
       setIsSubmitting(false);

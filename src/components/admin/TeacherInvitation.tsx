@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,10 +8,18 @@ import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useAuth } from "@/contexts/AuthContext";
 
+interface Invitation {
+  id: string;
+  email: string;
+  status: string;
+  created_at: string;
+  expires_at: string;
+}
+
 const TeacherInvitation = () => {
   const { user } = useAuth();
   const [email, setEmail] = useState("");
-  const [invitations, setInvitations] = useState<any[]>([]);
+  const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
   
@@ -36,7 +43,7 @@ const TeacherInvitation = () => {
       const { data, error } = await supabase
         .from('teacher_invitations')
         .select('*')
-        .eq('school_id', schoolData as any);
+        .eq('school_id', schoolData as string);
       
       if (error) {
         console.error("Error fetching invitations:", error);
@@ -80,9 +87,13 @@ const TeacherInvitation = () => {
         // Refresh the invitations list
         fetchInvitations();
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error in handleSendInvitation:", error);
-      toast.error(error.message || "An error occurred");
+      if (error instanceof Error) {
+        toast.error(error.message || "An error occurred");
+      } else {
+        toast.error("An error occurred");
+      }
     } finally {
       setIsSending(false);
     }
