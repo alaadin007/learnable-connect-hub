@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
@@ -10,10 +11,15 @@ import { SessionsTable } from "@/components/analytics";
 import { format, subDays } from "date-fns";
 import { DatePickerWithRange } from "@/components/ui/date-range-picker";
 import { useRBAC } from "@/contexts/RBACContext";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, asSupabaseParam } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { DateRange } from "react-day-picker";
 import { AnalyticsExport } from "@/components/analytics/AnalyticsExport"; 
+import { 
+  isValidObject, 
+  safeString, 
+  safelyHandleResponse 
+} from "@/utils/supabaseHelpers";
 
 // Define types for our data
 interface AnalyticsSummary {
@@ -40,6 +46,20 @@ interface TopicData {
 interface StudyTimeData {
   student_name: string;
   hours: number;
+}
+
+interface ProfileData {
+  full_name?: string;
+}
+
+interface SessionLogData {
+  id: string;
+  user_id: string;
+  session_start: string;
+  session_end?: string;
+  num_queries?: number;
+  topic_or_content_used?: string;
+  profiles?: ProfileData[];
 }
 
 const AdminAnalytics = () => {
@@ -81,8 +101,8 @@ const AdminAnalytics = () => {
       }
 
       // Format date range for queries
-      const fromDate = formatDateForSQL(dateRange.from);
-      const toDate = formatDateForSQL(dateRange.to || dateRange.from);
+      const fromDate = formatDateForSQL(dateRange.from || new Date());
+      const toDate = formatDateForSQL(dateRange.to || dateRange.from || new Date());
 
       // 1. Fetch sessions to calculate summary metrics
       const { data: sessionData, error: sessionError } = await supabase
@@ -96,7 +116,7 @@ const AdminAnalytics = () => {
           topic_or_content_used,
           profiles (full_name)
         `)
-        .eq('school_id', schoolId)
+        .eq('school_id', asSupabaseParam(schoolId))
         .gte('session_start', fromDate)
         .lte('session_start', toDate);
 
@@ -104,100 +124,156 @@ const AdminAnalytics = () => {
         console.error("Error fetching sessions:", sessionError);
         toast.error("Error loading session data");
       } else {
-        // Transform session data
-        const formattedSessions: SessionData[] = (sessionData || []).map(session => {
-          const startTime = new Date(session.session_start);
-          const endTime = session.session_end ? new Date(session.session_end) : new Date(startTime.getTime() + 30 * 60000);
-          const durationMinutes = Math.round((endTime.getTime() - startTime.getTime()) / (1000 * 60));
-          
-          // Access profile data safely
-          const profileData = session.profiles as any;
-          const studentName = profileData?.full_name || 'Unknown Student';
-          
-          return {
-            id: session.id,
-            student_name: studentName,
-            topic: session.topic_or_content_used || 'General',
-            queries: session.num_queries || 0,
-            duration: `${durationMinutes} min`,
-            session_date: format(startTime, 'yyyy-MM-dd HH:mm:ss')
-          };
-        });
+        // Transform session data safely
+        const formattedSessions: SessionData[] = [];
+        
+        if (Array.isArray(sessionData)) {
+          sessionData.forEach(session => {
+            if (isValidObject(session, ['id', 'session_start'])) {
+              try {
+                const startTime = new Date(safeString(session, 'session_start'));
+                let endTime;
+                
+                if (session.session_end) {
+                  endTime = new Date(session.session_end);
+                } else {
+                  endTime = new Date(startTime.getTime() + 30 * 60000);
+                }
+                
+                const durationMinutes = Math.round((endTime.getTime() - startTime.getTime()) / (1000 * 60));
+                
+                // Access profile data safely
+                let studentName = 'Unknown Student';
+                if (session.profiles && Array.isArray(session.profiles) && session.profiles.length > 0) {
+                  const profileData = session.profiles[0];
+                  if (profileData && profileData.full_name) {
+                    studentName = String(profileData.full_name);
+                  }
+                }
+                
+                formattedSessions.push({
+                  id: safeString(session, 'id'),
+                  student_name: studentName,
+                  topic: safeString(session, 'topic_or_content_used', 'General'),
+                  queries: Number(session.num_queries || 0),
+                  duration: `${durationMinutes} min`,
+                  session_date: format(startTime, 'yyyy-MM-dd HH:mm:ss')
+                });
+              } catch (err) {
+                console.error("Error processing session data:", err);
+              }
+            }
+          });
+        }
         
         setSessions(formattedSessions);
         
-        // Calculate summary metrics
-        const uniqueStudents = new Set(sessionData.map(s => s.user_id)).size;
-        const totalSessions = sessionData.length;
-        const totalQueries = sessionData.reduce((sum, s) => sum + (s.num_queries || 0), 0);
-        
-        // Calculate average session duration
-        let totalMinutes = 0;
-        let validSessionsCount = 0;
-        
-        sessionData.forEach(session => {
-          if (session.session_start && session.session_end) {
-            const start = new Date(session.session_start);
-            const end = new Date(session.session_end);
-            const minutes = Math.round((end.getTime() - start.getTime()) / (1000 * 60));
-            
-            // Only count sessions with valid durations (less than 4 hours)
-            if (minutes > 0 && minutes < 240) {
-              totalMinutes += minutes;
-              validSessionsCount++;
+        // Calculate summary metrics safely
+        if (Array.isArray(sessionData)) {
+          // Safe calculations
+          const validSessionData = sessionData.filter(s => 
+            isValidObject(s, ['user_id', 'id'])
+          );
+          
+          const uniqueStudents = new Set(validSessionData
+            .filter(s => s.user_id)
+            .map(s => s.user_id)).size;
+          
+          const totalSessions = validSessionData.length;
+          
+          const totalQueries = validSessionData.reduce((sum, s) => 
+            sum + (Number(s.num_queries) || 0), 0);
+          
+          // Calculate average session duration
+          let totalMinutes = 0;
+          let validSessionsCount = 0;
+          
+          validSessionData.forEach(session => {
+            if (session.session_start && session.session_end) {
+              try {
+                const start = new Date(session.session_start);
+                const end = new Date(session.session_end);
+                const minutes = Math.round((end.getTime() - start.getTime()) / (1000 * 60));
+                
+                // Only count sessions with valid durations (less than 4 hours)
+                if (minutes > 0 && minutes < 240) {
+                  totalMinutes += minutes;
+                  validSessionsCount++;
+                }
+              } catch (e) {
+                console.error("Error calculating session duration:", e);
+              }
             }
-          }
-        });
-        
-        const avgSessionMinutes = validSessionsCount > 0 ? Math.round(totalMinutes / validSessionsCount) : 0;
-        
-        setSummary({
-          activeStudents: uniqueStudents,
-          totalSessions,
-          totalQueries,
-          avgSessionMinutes
-        });
-        
-        // 2. Calculate topic distribution
-        const topicCounts: Record<string, number> = {};
-        sessionData.forEach(session => {
-          const topic = session.topic_or_content_used || 'General';
-          topicCounts[topic] = (topicCounts[topic] || 0) + 1;
-        });
-        
-        const formattedTopics: TopicData[] = Object.keys(topicCounts).map(topic => ({
-          topic,
-          count: topicCounts[topic]
-        }));
-        
-        setTopics(formattedTopics);
-        
-        // 3. Calculate study time per student
-        const studentTimes: Record<string, { name: string, minutes: number }> = {};
-        
-        sessionData.forEach(session => {
-          if (session.session_start && session.session_end) {
-            const start = new Date(session.session_start);
-            const end = session.session_end ? new Date(session.session_end) : new Date(start.getTime() + 30 * 60000);
-            const minutes = Math.round((end.getTime() - start.getTime()) / (1000 * 60));
-            
-            const profileData = session.profiles as any;
-            const studentName = profileData?.full_name || `Student (${session.user_id})`;
-            
-            if (!studentTimes[session.user_id]) {
-              studentTimes[session.user_id] = { name: studentName, minutes: 0 };
+          });
+          
+          const avgSessionMinutes = validSessionsCount > 0 ? Math.round(totalMinutes / validSessionsCount) : 0;
+          
+          setSummary({
+            activeStudents: uniqueStudents,
+            totalSessions,
+            totalQueries,
+            avgSessionMinutes
+          });
+          
+          // 2. Calculate topic distribution safely
+          const topicCounts: Record<string, number> = {};
+          
+          validSessionData.forEach(session => {
+            const topic = safeString(session, 'topic_or_content_used', 'General');
+            topicCounts[topic] = (topicCounts[topic] || 0) + 1;
+          });
+          
+          const formattedTopics: TopicData[] = Object.keys(topicCounts).map(topic => ({
+            topic,
+            count: topicCounts[topic]
+          }));
+          
+          setTopics(formattedTopics);
+          
+          // 3. Calculate study time per student safely
+          const studentTimes: Record<string, { name: string, minutes: number }> = {};
+          
+          validSessionData.forEach(session => {
+            if (session.session_start) {
+              try {
+                const start = new Date(session.session_start);
+                const end = session.session_end 
+                  ? new Date(session.session_end) 
+                  : new Date(start.getTime() + 30 * 60000);
+                  
+                const minutes = Math.round((end.getTime() - start.getTime()) / (1000 * 60));
+                
+                let studentName = `Student (${session.user_id})`;
+                
+                // Safely extract profile name
+                if (session.profiles && Array.isArray(session.profiles) && session.profiles.length > 0) {
+                  const profileData = session.profiles[0];
+                  if (profileData && profileData.full_name) {
+                    studentName = String(profileData.full_name);
+                  }
+                }
+                
+                const userId = safeString(session, 'user_id');
+                if (userId) {
+                  if (!studentTimes[userId]) {
+                    studentTimes[userId] = { name: studentName, minutes: 0 };
+                  }
+                  
+                  studentTimes[userId].minutes += minutes;
+                }
+              } catch (e) {
+                console.error("Error calculating student study time:", e);
+              }
             }
-            
-            studentTimes[session.user_id].minutes += minutes;
-          }
-        });
-        
-        const formattedStudyTime: StudyTimeData[] = Object.values(studentTimes).map(student => ({
-          student_name: student.name,
-          hours: parseFloat((student.minutes / 60).toFixed(1))
-        }));
-        
-        setStudyTime(formattedStudyTime);
+          });
+          
+          const formattedStudyTime: StudyTimeData[] = Object.values(studentTimes).map(student => ({
+            student_name: student.name,
+            hours: parseFloat((student.minutes / 60).toFixed(1))
+          }));
+          
+          setStudyTime(formattedStudyTime);
+        }
       }
     } catch (error) {
       console.error("Error fetching analytics data:", error);

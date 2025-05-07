@@ -28,12 +28,48 @@ export const supabase = createClient<Database>(
       flowType: 'pkce', // Use PKCE flow for more security but better compatibility
       debug: process.env.NODE_ENV === 'development', // Enable debug mode in development
       
-      // Set the redirect URLs for email confirmation
-      // Updated to use redirectTo without 'site' property as it's not supported
-      redirectTo: `${getSiteUrl()}/auth/callback`,
+      // Set the callback URL for authentication
+      // Note: We're using a callback URL directly rather than a site URL with redirect
+      storage: {
+        getItem: (key) => {
+          try {
+            return Promise.resolve(localStorage.getItem(key));
+          } catch (error) {
+            return Promise.resolve(null);
+          }
+        },
+        setItem: (key, value) => {
+          try {
+            localStorage.setItem(key, value);
+            return Promise.resolve();
+          } catch (error) {
+            return Promise.resolve();
+          }
+        },
+        removeItem: (key) => {
+          try {
+            localStorage.removeItem(key);
+            return Promise.resolve();
+          } catch (error) {
+            return Promise.resolve();
+          }
+        }
+      }
     }
   }
 );
+
+// Configure the auth.callbackUrl
+if (typeof window !== 'undefined') {
+  supabase.auth.setSession({
+    access_token: '',
+    refresh_token: ''
+  }).then(() => {
+    supabase.auth.onAuthStateChange((event, session) => {
+      // Handle auth events
+    });
+  });
+}
 
 // Helper function to detect test accounts
 export const isTestAccount = (email: string): boolean => {
@@ -70,6 +106,9 @@ export const getMockOrValidUUID = (id?: string): string | undefined => {
   // This prevents database errors when the app is in test/demo mode
   return '00000000-0000-0000-0000-000000000000';
 };
+
+// Export functions for safe parameter handling in supabase queries
+export const asSupabaseParam = <T>(value: T): any => value;
 
 // Export the URL and key for direct access without using the protected properties
 export const SUPABASE_PUBLIC_URL = SUPABASE_URL;

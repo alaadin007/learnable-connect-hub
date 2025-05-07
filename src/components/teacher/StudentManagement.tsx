@@ -5,10 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, asSupabaseParam } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 import { 
-  asSupabaseParam, 
+  isValidObject, 
   safelyHandleResponse, 
   toStringStateAction 
 } from '@/utils/supabaseHelpers';
@@ -21,40 +21,21 @@ interface StudentInvite {
   created_at: string;
 }
 
-const StudentManagement = () => {
+const StudentManagement = ({ schoolId, isLoading: parentLoading, schoolInfo }: { 
+  schoolId: string | null;
+  isLoading?: boolean;
+  schoolInfo?: { name: string; code: string } | null;
+}) => {
   const [invites, setInvites] = useState<StudentInvite[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
-  const [schoolId, setSchoolId] = useState<string>('');
   const { user } = useAuth();
-
-  useEffect(() => {
-    if (user) {
-      loadSchoolId();
-    }
-  }, [user]);
 
   useEffect(() => {
     if (schoolId) {
       fetchInvites();
     }
   }, [schoolId]);
-
-  const loadSchoolId = async () => {
-    try {
-      const { data, error } = await supabase.rpc('get_user_school_id');
-      
-      if (error) {
-        console.error("Error getting school ID:", error);
-        return;
-      }
-      
-      // Convert to string safely
-      setSchoolId(toStringStateAction(data));
-    } catch (err) {
-      console.error("Error loading school ID:", err);
-    }
-  };
 
   const fetchInvites = async () => {
     try {
@@ -70,7 +51,19 @@ const StudentManagement = () => {
         return;
       }
 
-      setInvites(data || []);
+      // Transform data to ensure type safety
+      const safeInvites: StudentInvite[] = Array.isArray(data) 
+        ? data
+            .filter(item => isValidObject(item, ['id', 'code', 'expires_at', 'created_at']))
+            .map(item => ({
+              id: String(item.id),
+              code: String(item.code || ''),
+              expires_at: String(item.expires_at || ''),
+              created_at: String(item.created_at || '')
+            }))
+        : [];
+
+      setInvites(safeInvites);
     } catch (error) {
       console.error('Error fetching invites:', error);
       toast.error('Failed to load invitation codes');
@@ -138,7 +131,7 @@ const StudentManagement = () => {
 
           <Separator className="my-4" />
 
-          {loading ? (
+          {loading || parentLoading ? (
             <div className="py-4 text-center">
               <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
               <p className="text-sm text-muted-foreground">Loading invitations...</p>

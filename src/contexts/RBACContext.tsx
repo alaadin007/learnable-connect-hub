@@ -76,15 +76,21 @@ export const RBACProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (error) {
         console.error("Error fetching user roles:", error);
         setRoles([]);
-      } else if (Array.isArray(data)) {
-        // Convert returned data to proper roles array
-        const validRoles = data
-          .filter(role => !isSupabaseError(role) && typeof role === 'string')
-          .filter(role => ['school_admin', 'teacher_supervisor', 'teacher', 'student', 'system_admin'].includes(role));
-        
-        setRoles(validRoles as AppRole[]);
       } else {
-        setRoles([]);
+        // Convert returned data to proper roles array
+        const validRoles: AppRole[] = [];
+        
+        if (Array.isArray(data)) {
+          data.forEach(role => {
+            // Check if each role is a valid AppRole
+            if (typeof role === 'string' && 
+                ['school_admin', 'teacher_supervisor', 'teacher', 'student', 'system_admin'].includes(role)) {
+              validRoles.push(role as AppRole);
+            }
+          });
+        }
+        
+        setRoles(validRoles);
       }
     } catch (error) {
       console.error("Error in fetchUserRoles:", error);
@@ -133,4 +139,3 @@ export const useRBAC = (): RBACContextType => {
   }
   return context;
 };
-

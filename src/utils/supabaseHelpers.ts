@@ -1,3 +1,4 @@
+
 /**
  * Helper functions for Supabase operations that ensure type safety
  */
@@ -29,7 +30,8 @@ export const prepareSupabaseUpdate = <T extends Record<string, any>>(data: T): a
  * @returns True if the object appears to be a Supabase error
  */
 export const isSupabaseError = (obj: any): boolean => {
-  return obj && typeof obj === 'object' && (
+  if (!obj || typeof obj !== 'object') return false;
+  return (
     'error' in obj || 
     'code' in obj || 
     'message' in obj ||
@@ -278,6 +280,45 @@ export const asServiceParam = (serviceName: string): any => {
   return serviceName;
 };
 
+/**
+ * Safely map an array of items from a Supabase response
+ * @param data Array of data items that might contain errors
+ * @param mapper Function to transform each valid item
+ * @returns Array of safely transformed items
+ */
+export const safelyMapArray = <T, R>(
+  data: any[],
+  mapper: (item: T) => R
+): R[] => {
+  if (!Array.isArray(data)) return [];
+  
+  return data
+    .filter(item => !isSupabaseError(item) && item !== null)
+    .map(item => {
+      try {
+        return mapper(item as T);
+      } catch (error) {
+        console.error("Error mapping item:", error);
+        return null;
+      }
+    })
+    .filter((item): item is R => item !== null);
+};
+
+/**
+ * Convert any value to a safe boolean
+ * @param value Value to convert to boolean
+ * @param defaultValue Default value if conversion fails
+ * @returns Safe boolean value
+ */
+export const safeBoolean = (value: any, defaultValue: boolean = false): boolean => {
+  if (typeof value === 'boolean') return value;
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  if (typeof value === 'number') return value !== 0;
+  return defaultValue;
+};
+
 export const supabaseHelpers = {
   asSupabaseParam,
   prepareTableInsert,
@@ -298,7 +339,9 @@ export const supabaseHelpers = {
   safeCastArrayItem,
   safeString,
   safeNumber,
-  asServiceParam
+  asServiceParam,
+  safelyMapArray,
+  safeBoolean
 };
 
 export default supabaseHelpers;
