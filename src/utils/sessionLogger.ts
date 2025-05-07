@@ -1,5 +1,6 @@
 
 // A simple session logger for tracking auth events
+import { createSessionLog, endSessionLog, updateSessionTopic } from "./analytics/sessionUtils";
 
 class SessionLogger {
   private isDevMode: boolean;
@@ -29,6 +30,60 @@ class SessionLogger {
     // Log in dev mode
     if (this.isDevMode) {
       console.log(`[Auth Session] ${event}`, details || '');
+    }
+  }
+  
+  /**
+   * Start a new session and return the session ID
+   */
+  async startSession(topic?: string): Promise<string | null> {
+    try {
+      const sessionId = await createSessionLog(topic);
+      this.logEvent('session_started', { sessionId, topic });
+      return sessionId;
+    } catch (error) {
+      this.logEvent('session_start_failed', { error });
+      console.error('Error starting session:', error);
+      return null;
+    }
+  }
+  
+  /**
+   * End a session
+   */
+  async endSession(sessionId: string): Promise<void> {
+    try {
+      await endSessionLog(sessionId);
+      this.logEvent('session_ended', { sessionId });
+    } catch (error) {
+      this.logEvent('session_end_failed', { sessionId, error });
+      console.error('Error ending session:', error);
+    }
+  }
+  
+  /**
+   * Update the topic of a session
+   */
+  async updateTopic(sessionId: string, topic: string): Promise<void> {
+    try {
+      await updateSessionTopic(sessionId, topic);
+      this.logEvent('topic_updated', { sessionId, topic });
+    } catch (error) {
+      this.logEvent('topic_update_failed', { sessionId, topic, error });
+      console.error('Error updating topic:', error);
+    }
+  }
+  
+  /**
+   * Increment query count for a session
+   */
+  async incrementQuery(sessionId: string): Promise<void> {
+    try {
+      // For now, we just log the event. In the future, we could update a count in the database
+      this.logEvent('query_incremented', { sessionId });
+    } catch (error) {
+      this.logEvent('query_increment_failed', { sessionId, error });
+      console.error('Error incrementing query:', error);
     }
   }
   
