@@ -1,59 +1,110 @@
 
-import { supabase } from '@/integrations/supabase/client';
+// A simple session logger for tracking auth events
 
-// Session logging functions
-export const sessionLogger = {
-  startSession: async (topic?: string) => {
-    try {
-      const { data, error } = await supabase.rpc('create_session_log', { topic });
-      if (error) throw error;
-      return data as string;
-    } catch (error: any) {
-      console.error('Error starting session:', error.message);
-      return null;
+class SessionLogger {
+  private isDevMode: boolean;
+  private sessionEvents: Array<{timestamp: Date, event: string, details?: any}> = [];
+  private maxEvents: number = 100;
+  
+  constructor() {
+    this.isDevMode = process.env.NODE_ENV === 'development';
+  }
+  
+  /**
+   * Log an authentication event
+   */
+  logEvent(event: string, details?: any): void {
+    // Add to history
+    this.sessionEvents.unshift({
+      timestamp: new Date(),
+      event,
+      details
+    });
+    
+    // Trim history if too long
+    if (this.sessionEvents.length > this.maxEvents) {
+      this.sessionEvents = this.sessionEvents.slice(0, this.maxEvents);
     }
-  },
-
-  updateTopic: async (sessionId: string, topic: string) => {
-    try {
-      const { error } = await supabase.rpc('update_session_topic', {
-        log_id: sessionId,
-        topic
-      });
-      if (error) throw error;
-      return true;
-    } catch (error: any) {
-      console.error('Error updating session topic:', error.message);
-      return false;
-    }
-  },
-
-  incrementQuery: async (sessionId: string) => {
-    try {
-      const { error } = await supabase.rpc('increment_session_query_count', {
-        log_id: sessionId
-      });
-      if (error) throw error;
-      return true;
-    } catch (error: any) {
-      console.error('Error incrementing query count:', error.message);
-      return false;
-    }
-  },
-
-  endSession: async (sessionId: string, performanceData?: any) => {
-    try {
-      const { error } = await supabase.rpc('end_session_log', {
-        log_id: sessionId,
-        performance_data: performanceData
-      });
-      if (error) throw error;
-      return true;
-    } catch (error: any) {
-      console.error('Error ending session:', error.message);
-      return false;
+    
+    // Log in dev mode
+    if (this.isDevMode) {
+      console.log(`[Auth Session] ${event}`, details || '');
     }
   }
-};
+  
+  /**
+   * Get the history of events
+   */
+  getHistory(): Array<{timestamp: Date, event: string, details?: any}> {
+    return [...this.sessionEvents];
+  }
+  
+  /**
+   * Clear the history of events
+   */
+  clearHistory(): void {
+    this.sessionEvents = [];
+  }
+  
+  /**
+   * Debug helper to check for common auth issues
+   */
+  checkForAuthIssues(): {hasIssues: boolean, issues: string[]} {
+    const issues: string[] = [];
+    
+    // Check local storage for auth items
+    try {
+      const hasAuthKey = !!localStorage.getItem('sb-ldlgckwkdsvrfuymidrr-auth-token');
+      if (!hasAuthKey) {
+        issues.push('Missing auth token in localStorage');
+      }
+    } catch (e) {
+      issues.push(`localStorage access error: ${e}`);
+    }
+    
+    // Check for suspicious auth events
+    const recentEvents = this.sessionEvents.slice(0, 10);
+    const signOutCount = recentEvents.filter(e => e.event.includes('sign out') || e.event.includes('signed out')).length;
+    if (signOutCount > 2) {
+      issues.push('Multiple sign-out events detected recently');
+    }
+    
+    // Look for error events
+    const errorEvents = recentEvents.filter(e => e.event.includes('error') || e.event.includes('failed'));
+    if (errorEvents.length > 0) {
+      issues.push(`${errorEvents.length} auth error events detected recently`);
+    }
+    
+    return {
+      hasIssues: issues.length > 0,
+      issues
+    };
+  }
+  
+  /**
+   * Get auth session status from localStorage
+   */
+  getStoredSessionInfo(): {exists: boolean, expiry?: Date} {
+    try {
+      const tokenData = localStorage.getItem('sb-ldlgckwkdsvrfuymidrr-auth-token');
+      if (!tokenData) {
+        return {exists: false};
+      }
+      
+      const parsed = JSON.parse(tokenData);
+      if (parsed.expiresAt) {
+        return {
+          exists: true,
+          expiry: new Date(parsed.expiresAt * 1000)
+        };
+      }
+      
+      return {exists: true};
+    } catch (e) {
+      return {exists: false};
+    }
+  }
+}
 
+export const sessionLogger = new SessionLogger();
 export default sessionLogger;

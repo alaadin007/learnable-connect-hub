@@ -34,6 +34,7 @@ export const supabase = createClient<Database>(
           try {
             return Promise.resolve(localStorage.getItem(key));
           } catch (error) {
+            console.error('Error getting auth item from storage:', error);
             return Promise.resolve(null);
           }
         },
@@ -42,6 +43,7 @@ export const supabase = createClient<Database>(
             localStorage.setItem(key, value);
             return Promise.resolve();
           } catch (error) {
+            console.error('Error setting auth item in storage:', error);
             return Promise.resolve();
           }
         },
@@ -50,23 +52,44 @@ export const supabase = createClient<Database>(
             localStorage.removeItem(key);
             return Promise.resolve();
           } catch (error) {
+            console.error('Error removing auth item from storage:', error);
             return Promise.resolve();
           }
         }
+      }
+    },
+    global: {
+      headers: {
+        'X-Client-Info': 'supabase-js-v2'
+      }
+    },
+    realtime: {
+      params: {
+        eventsPerSecond: 10
       }
     }
   }
 );
 
-// Configure the auth.callbackUrl
+// Set up auth session initialization
 if (typeof window !== 'undefined') {
-  supabase.auth.setSession({
-    access_token: '',
-    refresh_token: ''
-  }).then(() => {
-    supabase.auth.onAuthStateChange((event, session) => {
-      // Handle auth events
-    });
+  // Initialize session
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    // Set up auth state change listener to handle token refreshes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, newSession) => {
+        if (event === 'TOKEN_REFRESHED') {
+          console.log('Token refreshed automatically');
+        } else if (event === 'SIGNED_OUT') {
+          console.log('User signed out');
+        } else if (event === 'SIGNED_IN') {
+          console.log('User signed in');
+        }
+      }
+    );
+    
+    // Return cleanup function for React components that use this
+    return () => subscription.unsubscribe();
   });
 }
 
@@ -112,3 +135,43 @@ export const asSupabaseParam = <T>(value: T): any => value;
 // Export the URL and key for direct access without using the protected properties
 export const SUPABASE_PUBLIC_URL = SUPABASE_URL;
 export const SUPABASE_PUBLIC_KEY = SUPABASE_PUBLISHABLE_KEY;
+
+// Helper function to refresh the session token manually if needed
+export const refreshToken = async (): Promise<boolean> => {
+  try {
+    const { data, error } = await supabase.auth.refreshSession();
+    if (error) {
+      console.error('Error refreshing token:', error);
+      return false;
+    }
+    return !!data.session;
+  } catch (err) {
+    console.error('Exception during token refresh:', err);
+    return false;
+  }
+};
+
+// Utility to check if session is valid (not expired)
+export const isSessionValid = (session: any): boolean => {
+  if (!session) return false;
+  try {
+    // If the session has an expires_at property, check if it's in the future
+    if (session.expires_at) {
+      const expiresAt = new Date(session.expires_at * 1000); // Convert to milliseconds
+      return expiresAt > new Date();
+    }
+    return !!session.access_token; // Fallback: if there's an access token, consider it valid
+  } catch (err) {
+    console.error('Error checking session validity:', err);
+    return false;
+  }
+};
+
+// Create a session logger that can be used to track auth related events for debugging
+export const sessionLogger = {
+  logEvent: (event: string, details?: any) => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[Auth Session] ${event}`, details || '');
+    }
+  }
+};
