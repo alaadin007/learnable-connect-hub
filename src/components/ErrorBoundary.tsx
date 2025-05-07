@@ -1,22 +1,17 @@
-import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { AlertTriangle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import React from 'react';
+import { sessionLogger } from '../utils/sessionLogger';
 
 interface Props {
-  children: ReactNode;
-  fallback?: ReactNode;
-  onError?: (error: Error, errorInfo: ErrorInfo) => void;
-  resetCondition?: any;
+  children: React.ReactNode;
 }
 
 interface State {
   hasError: boolean;
   error: Error | null;
-  errorInfo: ErrorInfo | null;
+  errorInfo: React.ErrorInfo | null;
 }
 
-class ErrorBoundary extends Component<Props, State> {
+class ErrorBoundary extends React.Component<Props, State> {
   constructor(props: Props) {
     super(props);
     this.state = {
@@ -34,33 +29,31 @@ class ErrorBoundary extends Component<Props, State> {
     };
   }
 
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('Error caught by boundary:', error);
+    console.error('Component stack:', errorInfo.componentStack);
+    
+    // Log the error to our session logger
+    try {
+      sessionLogger.logEvent('error_boundary_catch', {
+        error: {
+          name: error.name,
+          message: error.message,
+          stack: error.stack,
+          componentStack: errorInfo.componentStack
+        }
+      });
+    } catch (logError) {
+      console.error('Failed to log error to session logger:', logError);
+    }
+
     this.setState({
       error,
       errorInfo
     });
-
-    // Call the onError prop if provided
-    if (this.props.onError) {
-      this.props.onError(error, errorInfo);
-    }
-
-    // Log the error
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
   }
 
-  componentDidUpdate(prevProps: Props) {
-    // Reset the error state if the resetCondition prop changes
-    if (this.state.hasError && this.props.resetCondition !== prevProps.resetCondition) {
-      this.setState({
-        hasError: false,
-        error: null,
-        errorInfo: null
-      });
-    }
-  }
-
-  private handleReset = () => {
+  handleReset = () => {
     this.setState({
       hasError: false,
       error: null,
@@ -70,44 +63,44 @@ class ErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
-      // Check if a fallback component was provided
-      if (this.props.fallback) {
-        return this.props.fallback;
-      }
-
-      // Default error UI
       return (
-        <div className="min-h-[400px] flex items-center justify-center p-6">
-          <Alert variant="destructive" className="max-w-lg">
-            <AlertTriangle className="h-6 w-6" />
-            <AlertTitle className="text-lg font-semibold mb-2">
-              Something went wrong
-            </AlertTitle>
-            <AlertDescription className="mt-2">
-              <div className="text-sm mb-4">
-                {this.state.error?.message || 'An unexpected error occurred'}
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+          <div className="max-w-md w-full space-y-8">
+            <div>
+              <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+                Something went wrong
+              </h2>
+              <p className="mt-2 text-center text-sm text-gray-600">
+                We've been notified and are working to fix the issue.
+              </p>
+            </div>
+            <div className="mt-8 bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">Error Details</h3>
+                  <div className="mt-2 text-sm text-gray-500">
+                    <p><strong>Error:</strong> {this.state.error?.message}</p>
+                    {this.state.errorInfo && (
+                      <div className="mt-2">
+                        <p><strong>Component Stack:</strong></p>
+                        <pre className="mt-1 text-xs bg-gray-100 p-2 rounded overflow-auto max-h-40">
+                          {this.state.errorInfo.componentStack}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <button
+                    onClick={this.handleReset}
+                    className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  >
+                    Try Again
+                  </button>
+                </div>
               </div>
-              {process.env.NODE_ENV === 'development' && this.state.errorInfo && (
-                <pre className="text-xs bg-secondary/10 p-4 rounded-md overflow-auto max-h-[200px] mb-4">
-                  {this.state.errorInfo.componentStack}
-                </pre>
-              )}
-              <div className="flex gap-4 mt-4">
-                <Button
-                  variant="secondary"
-                  onClick={() => window.location.reload()}
-                >
-                  Refresh Page
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={this.handleReset}
-                >
-                  Try Again
-                </Button>
-              </div>
-            </AlertDescription>
-          </Alert>
+            </div>
+          </div>
         </div>
       );
     }

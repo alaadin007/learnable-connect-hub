@@ -74,10 +74,16 @@ export const supabase = createClient<Database>(
 // Set up auth session initialization
 if (typeof window !== 'undefined') {
   // Initialize session
-  supabase.auth.getSession().then(({ data: { session } }) => {
+  supabase.auth.getSession().then(({ data: { session }, error: sessionError }) => {
+    if (sessionError) {
+      console.error('Error getting initial session:', sessionError);
+    }
+
     // Set up auth state change listener to handle token refreshes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+    const { data: { subscription }, error: subscriptionError } = supabase.auth.onAuthStateChange(
       (event, newSession) => {
+        console.log('Auth state changed:', event, newSession?.user?.email);
+        
         if (event === 'TOKEN_REFRESHED') {
           console.log('Token refreshed automatically');
           sessionLogger.logEvent('token_refreshed');
@@ -90,17 +96,37 @@ if (typeof window !== 'undefined') {
             console.log('User signed in but email not verified');
             sessionLogger.logEvent('signed_in_unverified');
             // Sign out the user if email is not verified
-            supabase.auth.signOut();
+            supabase.auth.signOut().catch(error => {
+              console.error('Error signing out unverified user:', error);
+            });
           } else {
-            console.log('User signed in');
+            console.log('User signed in successfully');
             sessionLogger.logEvent('signed_in');
           }
+        } else if (event === 'USER_UPDATED') {
+          console.log('User updated:', newSession?.user);
+          sessionLogger.logEvent('user_updated');
+        } else if (event === 'PASSWORD_RECOVERY') {
+          console.log('Password recovery initiated');
+          sessionLogger.logEvent('password_recovery');
         }
       }
     );
+
+    if (subscriptionError) {
+      console.error('Error setting up auth state change listener:', subscriptionError);
+    }
     
     // Return cleanup function for React components that use this
-    return () => subscription.unsubscribe();
+    return () => {
+      try {
+        subscription.unsubscribe();
+      } catch (error) {
+        console.error('Error unsubscribing from auth state changes:', error);
+      }
+    };
+  }).catch(error => {
+    console.error('Error in session initialization:', error);
   });
 }
 
