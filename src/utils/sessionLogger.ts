@@ -33,11 +33,12 @@ class SessionLoggerImpl implements SessionLogger {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      await supabase.from("session_events").insert({
+      // Instead of using session_events table which doesn't exist,
+      // log to the session_logs table with minimal data
+      await supabase.from("session_logs").insert({
         user_id: user.id,
-        event_type: event.type,
-        event_data: event.data,
-        timestamp: event.timestamp || new Date().toISOString()
+        topic_or_content_used: event.type,
+        performance_metric: event.data ? JSON.stringify(event.data) : null
       });
     } catch (error) {
       console.error("Error logging event:", error);
@@ -52,18 +53,31 @@ class SessionLoggerImpl implements SessionLogger {
         return null;
       }
 
-      // Get school_id from the user's profile
-      const { data, error: profileError } = await supabase
-        .from("profiles")
+      // Get school_id from the user's profile or other sources
+      let schoolId = null;
+      
+      // Try to get school_id from teachers table
+      const { data: teacherData } = await supabase
+        .from("teachers")
         .select("school_id")
         .eq("id", user.id)
         .single();
-
-      if (profileError && profileError.code !== 'PGRST116') {
-        console.error("Error fetching user profile:", profileError);
+        
+      if (teacherData?.school_id) {
+        schoolId = teacherData.school_id;
+      } else {
+        // Try to get school_id from students table
+        const { data: studentData } = await supabase
+          .from("students")
+          .select("school_id")
+          .eq("id", user.id)
+          .single();
+          
+        if (studentData?.school_id) {
+          schoolId = studentData.school_id;
+        }
       }
 
-      const schoolId = data?.school_id || null;
       const sessionId = uuidv4();
       
       const { error: logError } = await supabase

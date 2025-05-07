@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { AppRole } from "@/contexts/RBACContext";
@@ -122,8 +121,8 @@ export const createUserProfile = async (
   }
 };
 
-// Use the proper AppRole type to prevent infinite type recursion
-export const assignUserRole = async (userId: string, role: AppRole) => {
+// Fix the infinite type instantiation by properly typing the role parameter
+export const assignUserRole = async (userId: string, role: AppRole): Promise<boolean> => {
   try {
     console.log("Assigning role:", role, "to user:", userId);
     
