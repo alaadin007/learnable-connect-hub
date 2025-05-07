@@ -132,7 +132,7 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
           // Find matching profile with proper null safety
           const profile = profileData.find(p => {
             // Make sure p is not null before accessing its properties
-            return p !== null && typeof p === 'object' && 'id' in p && p.id === studentId;
+            return p != null && typeof p === 'object' && 'id' in p && p.id === studentId;
           });
           
           let role = "student"; // Default role
