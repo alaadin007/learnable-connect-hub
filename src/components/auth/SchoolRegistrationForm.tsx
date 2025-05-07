@@ -142,11 +142,11 @@ const SchoolRegistrationForm: React.FC = () => {
 
       console.log("School created successfully:", schoolData.id);
 
-      // Create user profile
+      // Create user profile with the proper user_type value
       await createUserProfile(
         authData.user.id,
         data.adminEmail,
-        "school_admin",
+        "school_admin", // Make sure this matches the valid user types in the database
         schoolData.id,
         data.adminFullName
       );

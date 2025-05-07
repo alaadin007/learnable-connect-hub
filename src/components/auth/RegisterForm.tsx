@@ -92,7 +92,12 @@ const RegisterForm = () => {
       if (!data.user) throw new Error("Failed to create user account");
 
       // Create user profile
-      await createUserProfile(data.user.id, email, 'student', schoolId as string);
+      await createUserProfile(
+        data.user.id, 
+        email, 
+        'student', // Make sure to use a valid user_type
+        schoolId as string
+      );
 
       // Assign student role
       await assignUserRole(data.user.id, 'student' as AppRole);

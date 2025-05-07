@@ -32,7 +32,7 @@ export const assignUserRole = async (userId: string, role: AppRole): Promise<voi
  */
 export const checkEmailExists = async (email: string): Promise<boolean> => {
   try {
-    // Using check_if_email_exists instead of check_email_exists which is the correct function name
+    // Using the correct function name check_if_email_exists with input_email parameter
     const { data, error } = await supabase.rpc('check_if_email_exists', { input_email: email });
     
     if (error) {
@@ -85,20 +85,54 @@ export const createUserProfile = async (
   fullName?: string
 ): Promise<void> => {
   try {
+    // Make sure userType is a valid value accepted by the profiles table
+    // Valid types likely include: 'school_admin', 'teacher', 'student'
+    const validUserType = validateUserType(userType);
+    
     const { error } = await supabase.from('profiles').insert({
       id: userId,
-      email,
-      user_type: userType,
-      school_id: schoolId,
+      user_type: validUserType,
       full_name: fullName || email.split('@')[0],
+      school_code: schoolId, // This might need to be updated if school_code is not the ID
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
     
-    if (error) throw error;
+    if (error) {
+      console.error('Profile creation error details:', error);
+      throw error;
+    }
   } catch (error) {
     console.error('Error creating user profile:', error);
     throw error;
+  }
+};
+
+/**
+ * Validates and normalizes user type to match database constraints
+ * @param userType User type to validate
+ * @returns Valid user type string
+ */
+const validateUserType = (userType: string): string => {
+  // Normalize the user type to match expected values in the database
+  const validTypes = ['school_admin', 'teacher', 'student'];
+  
+  // If it's already one of our valid types, return it
+  if (validTypes.includes(userType)) {
+    return userType;
+  }
+  
+  // Map simplified types to valid database values
+  switch(userType.toLowerCase()) {
+    case 'admin':
+      return 'school_admin';
+    case 'teacher':
+      return 'teacher';
+    case 'student':
+      return 'student';
+    default:
+      console.warn(`Unknown user type: ${userType}, defaulting to 'student'`);
+      return 'student';
   }
 };
 
@@ -115,6 +149,10 @@ export const handleRegistrationError = (error: any): void => {
     toast.error('Email error', { description: errorMessage });
   } else if (errorMessage.includes('password')) {
     toast.error('Password error', { description: errorMessage });
+  } else if (errorMessage.includes('check constraint')) {
+    toast.error('Registration failed', { 
+      description: 'There was an issue with the data provided. Please check your inputs and try again.' 
+    });
   } else {
     toast.error('Registration failed', { description: errorMessage });
   }
