@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRBAC } from "@/contexts/RBACContext";
@@ -38,7 +37,6 @@ interface Student {
 interface ProfileData {
   id: string;
   full_name: string | null;
-  email: string | null;
   user_type?: string | null;
 }
 
@@ -87,11 +85,12 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
       // Fetch student profiles safely
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
-        .select("id, full_name, email, user_type")
+        .select("id, full_name, user_type")
         .in("id", studentIds);
 
-      if (profileError || !Array.isArray(profileData)) {
+      if (profileError) {
         toast.error("Failed to load student details");
+        console.error("Profile fetch error:", profileError);
         setStudents([]);
         setLoading(false);
         return;
@@ -108,33 +107,45 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
       }
 
       const roleMap = new Map<string, string>();
-      rolesData?.forEach((roleEntry) => {
-        if (roleEntry && typeof roleEntry === "object" && "user_id" in roleEntry && "role" in roleEntry) {
-          roleMap.set(roleEntry.user_id, roleEntry.role);
-        }
-      });
+      if (rolesData) {
+        rolesData.forEach((roleEntry) => {
+          if (roleEntry && typeof roleEntry === "object" && "user_id" in roleEntry && "role" in roleEntry) {
+            roleMap.set(roleEntry.user_id, roleEntry.role);
+          }
+        });
+      }
 
-      const combinedStudents: Student[] = studentData.map((student) => {
-        if (!student || typeof student !== "object" || !("id" in student)) return null;
+      const combinedStudents: Student[] = studentData
+        .map((student) => {
+          if (!student || typeof student !== "object" || !("id" in student)) return null;
 
-        const studentId = student.id;
-        if (!studentId) return null;
+          const studentId = student.id;
+          if (!studentId) return null;
 
-        const profile = profileData.find((p) => p && p.id === studentId);
+          // Find the profile for this student
+          const profile = profileData && Array.isArray(profileData)
+            ? profileData.find((p) => p && p.id === studentId)
+            : null;
 
-        let role = "student"; // default
-        if (roleMap.has(studentId)) role = roleMap.get(studentId) ?? role;
-        else if (profile?.user_type) role = profile.user_type;
+          // Get role for this student - prioritize role from user_roles table
+          let role = "student"; // default
+          if (roleMap.has(studentId)) {
+            role = roleMap.get(studentId) ?? role;
+          } else if (profile && profile.user_type) {
+            role = profile.user_type;
+          }
 
-        return {
-          id: studentId,
-          full_name: profile?.full_name ?? "Unknown",
-          email: profile?.email ?? "No email",
-          status: student.status ?? "unknown",
-          created_at: student.created_at ?? new Date().toISOString(),
-          role,
-        };
-      }).filter((s): s is Student => s !== null);
+          // Use the profile data if available, otherwise provide fallbacks
+          return {
+            id: studentId,
+            full_name: profile && profile.full_name ? profile.full_name : "Unknown",
+            email: studentId, // Use ID as fallback since email is not in profiles table
+            status: student.status ?? "unknown",
+            created_at: student.created_at ?? new Date().toISOString(),
+            role,
+          };
+        })
+        .filter((s): s is Student => s !== null);
 
       setStudents(combinedStudents);
     } catch (error: any) {
@@ -201,12 +212,125 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
       .some((field) => field.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
-  // UI omitted here for brevity; use your own UI code with similar pattern.
-
   return (
     <>
-      {/* Your UI goes here */}
-      {/* Use filteredStudents, loading states, invite modal, status change buttons etc. */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center space-x-2">
+          <Search className="h-5 w-5 text-gray-500" />
+          <input
+            type="text"
+            placeholder="Search students..."
+            className="border rounded-md p-2 w-64"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+        <Button onClick={generateInviteCode} disabled={generatingInvite}>
+          {generatingInvite ? (
+            <>
+              Generating Invite Code...
+            </>
+          ) : (
+            <>
+              <UserPlus className="h-4 w-4 mr-2" />
+              Invite Student
+            </>
+          )}
+        </Button>
+      </div>
+
+      {loading ? (
+        <Card>
+          <CardContent className="p-6">
+            <div className="space-y-4">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="space-y-2">
+                  <Skeleton className="h-4 w-[250px]" />
+                  <Skeleton className="h-4 w-[200px]" />
+                  <Skeleton className="h-4 w-[300px]" />
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Created At</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredStudents.map((student) => (
+                <TableRow key={student.id}>
+                  <TableCell>{student.full_name}</TableCell>
+                  <TableCell>{student.email}</TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={
+                        student.status === "active"
+                          ? "success"
+                          : student.status === "pending"
+                            ? "secondary"
+                            : "destructive"
+                      }
+                    >
+                      {student.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{getRoleDisplayName(student.role)}</TableCell>
+                  <TableCell>
+                    {new Date(student.created_at).toLocaleDateString()}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
+                      {student.status === "pending" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleStatusChange(student.id, "active")}
+                        >
+                          Approve
+                        </Button>
+                      )}
+                      {student.status === "active" && (
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleStatusChange(student.id, "revoked")}
+                        >
+                          Revoke
+                        </Button>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+
+      {showInviteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="bg-white p-6 rounded-md">
+            <h2 className="text-lg font-semibold mb-4">Invite Code</h2>
+            <p className="mb-4">
+              Share this code with the student to allow them to join the school:
+            </p>
+            <div className="mb-4 p-3 bg-gray-100 rounded-md break-all">
+              {inviteCode}
+            </div>
+            <Button onClick={() => setShowInviteModal(false)}>Close</Button>
+          </div>
+        </div>
+      )}
     </>
   );
 };
