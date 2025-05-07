@@ -66,7 +66,7 @@ const AcceptInvitation = () => {
       try {
         const { data: invitationData, error: invitationError } = await supabase
           .rpc("verify_teacher_invitation", {
-            invitation_token: token
+            token: token // Changed from invitation_token to token
           });
         
         if (invitationError || !invitationData) {
@@ -145,7 +145,8 @@ const AcceptInvitation = () => {
       // Accept the invitation
       const { error: acceptError } = await supabase
         .rpc("accept_teacher_invitation", {
-          invitation_token: token as string
+          token: token as string, // Changed from invitation_token to token
+          user_id: authData.user.id
         });
 
       if (acceptError) {

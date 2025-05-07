@@ -48,12 +48,13 @@ const AdminStudents = () => {
       const schoolData = await getCurrentSchoolInfo();
 
       if (schoolData) {
+        // Adapt properties to match our expected structure
         setSchoolInfo({
-          id: schoolData.id,
-          name: schoolData.name,
-          code: schoolData.code,
+          id: schoolData.school_id,
+          name: schoolData.school_name,
+          code: schoolData.school_code,
         });
-        setSchoolId(schoolData.id);
+        setSchoolId(schoolData.school_id);
         setLoading(false);
         return;
       }

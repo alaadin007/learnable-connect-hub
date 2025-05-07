@@ -28,8 +28,7 @@ export const supabase = createClient<Database>(
       flowType: 'pkce', // Use PKCE flow for more security but better compatibility
       debug: process.env.NODE_ENV === 'development', // Enable debug mode in development
       
-      // Set the callback URL for authentication
-      // Note: We're using a callback URL directly rather than a site URL with redirect
+      // Set up storage for authentication
       storage: {
         getItem: (key) => {
           try {

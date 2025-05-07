@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -131,16 +132,20 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
           }
           // If no specific role but profile has user_type, use that
           else if (profile && typeof profile === 'object' && 'user_type' in profile) {
-            role = profile.user_type || role;
+            // Make a null check before accessing properties
+            const userType = profile ? profile.user_type : null;
+            role = userType || role;
           }
             
-          // Add entry with all the information we have
+          // Add entry with all the information we have, with proper null checks
           combinedStudents.push({
             id: studentId,
-            full_name: profile && 'full_name' in profile ? profile.full_name || "Unknown" : "Unknown",
-            email: profile && 'email' in profile ? profile.email || "No email" : "No email",
-            status: student && 'status' in student ? student.status : "unknown",
-            created_at: student && 'created_at' in student ? student.created_at : new Date().toISOString(),
+            full_name: profile && typeof profile === 'object' && 'full_name' in profile ? 
+              String(profile.full_name || "Unknown") : "Unknown",
+            email: profile && typeof profile === 'object' && 'email' in profile ? 
+              String(profile.email || "No email") : "No email",
+            status: student && 'status' in student ? String(student.status) : "unknown",
+            created_at: student && 'created_at' in student ? String(student.created_at) : new Date().toISOString(),
             role: role
           });
         });
