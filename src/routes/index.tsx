@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import { Route, Routes } from 'react-router-dom';
 import Login from '@/pages/Login';
 import Register from '@/pages/Register';
 import SchoolRegistration from '@/pages/SchoolRegistration';
@@ -25,8 +25,6 @@ import PrivacyPolicy from '@/pages/PrivacyPolicy';
 import TeacherInvitation from '@/pages/TeacherInvitation';
 import ForgotPasswordPage from '@/pages/ForgotPassword';
 import ResetPasswordPage from '@/pages/ResetPassword';
-import { AuthProvider } from '@/contexts/AuthContext';
-import App from '@/App';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import { Toaster } from 'sonner';
 import AuthCallback from '@/components/auth/AuthCallback';
@@ -35,7 +33,7 @@ import AdminTeacherManagement from '@/pages/AdminTeacherManagement';
 // Wrap with ProtectedRoute for pages that require authentication
 const AppRoutes = () => {
   return (
-    <Router>
+    <>
       <Toaster position="top-right" closeButton={true} />
       <Routes>
         {/* Public routes */}
@@ -113,7 +111,7 @@ const AppRoutes = () => {
         {/* Not found page */}
         <Route path="*" element={<NotFound />} />
       </Routes>
-    </Router>
+    </>
   );
 };
 
