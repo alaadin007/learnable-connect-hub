@@ -1,3 +1,4 @@
+
 import React, { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -6,14 +7,11 @@ import { MessageSquare, BookOpen, BarChart3, Users, School, FileText, Settings }
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import Footer from "@/components/layout/Footer";
-import { useRBAC } from "@/contexts/RBACContext";
-import RoleBasedContent from "@/components/auth/RoleBasedContent";
 
 const Dashboard = () => {
   const { user, profile, userRole } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const { hasRole } = useRBAC();
 
   // Redirect if not logged in
   useEffect(() => {
@@ -67,10 +65,11 @@ const Dashboard = () => {
   }
 
   const renderUserDashboard = () => {
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* Admin Dashboard */}
-        <RoleBasedContent requiredRole="school_admin">
+    const userType = profile?.user_type;
+
+    if (userType === "school") {
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <DashboardCard
             title="School Admin"
             description="Manage your school settings and configurations"
@@ -89,10 +88,19 @@ const Dashboard = () => {
             icon={<BarChart3 className="h-10 w-10" />}
             onClick={() => navigate("/admin/analytics", { state: { fromNavigation: true, preserveContext: true } })}
           />
-        </RoleBasedContent>
+          <DashboardCard
+            title="Chat with AI"
+            description="Get help from our AI learning assistant"
+            icon={<MessageSquare className="h-10 w-10" />}
+            onClick={() => navigate("/chat", { state: { fromNavigation: true, preserveContext: true } })}
+          />
+        </div>
+      );
+    }
 
-        {/* Teacher Dashboard */}
-        <RoleBasedContent allowedRoles={['teacher', 'teacher_supervisor']}>
+    if (userType === "teacher") {
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <DashboardCard
             title="Student Management"
             description="Manage your students and classes"
@@ -105,36 +113,42 @@ const Dashboard = () => {
             icon={<BarChart3 className="h-10 w-10" />}
             onClick={() => navigate("/teacher/analytics", { state: { fromNavigation: true, preserveContext: true } })}
           />
-        </RoleBasedContent>
+          <DashboardCard
+            title="Chat with AI"
+            description="Get help from our AI learning assistant"
+            icon={<MessageSquare className="h-10 w-10" />}
+            onClick={() => navigate("/chat", { state: { fromNavigation: true, preserveContext: true } })}
+          />
+        </div>
+      );
+    }
 
-        {/* Student Dashboard */}
-        <RoleBasedContent requiredRole="student">
-          <DashboardCard
-            title="Assessments"
-            description="View and complete your assigned assessments"
-            icon={<FileText className="h-10 w-10" />}
-            onClick={() => navigate("/student/assessments", { state: { fromNavigation: true, preserveContext: true } })}
-          />
-          <DashboardCard
-            title="My Progress"
-            description="Track your performance and learning progress"
-            icon={<BarChart3 className="h-10 w-10" />}
-            onClick={() => navigate("/student/progress", { state: { fromNavigation: true, preserveContext: true } })}
-          />
-          <DashboardCard
-            title="Settings"
-            description="Manage your profile and preferences"
-            icon={<Settings className="h-10 w-10" />}
-            onClick={() => navigate("/student/settings", { state: { fromNavigation: true, preserveContext: true } })}
-          />
-        </RoleBasedContent>
-
-        {/* Common Dashboard Items */}
+    // Default to student dashboard
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <DashboardCard
           title="Chat with AI"
-          description="Get help from our AI learning assistant"
+          description="Get help with your studies from our AI learning assistant"
           icon={<MessageSquare className="h-10 w-10" />}
           onClick={() => navigate("/chat", { state: { fromNavigation: true, preserveContext: true } })}
+        />
+        <DashboardCard
+          title="Assessments"
+          description="View and complete your assigned assessments"
+          icon={<FileText className="h-10 w-10" />}
+          onClick={() => navigate("/student/assessments", { state: { fromNavigation: true, preserveContext: true } })}
+        />
+        <DashboardCard
+          title="My Progress"
+          description="Track your performance and learning progress"
+          icon={<BarChart3 className="h-10 w-10" />}
+          onClick={() => navigate("/student/progress", { state: { fromNavigation: true, preserveContext: true } })}
+        />
+        <DashboardCard
+          title="Settings"
+          description="Manage your profile and preferences"
+          icon={<Settings className="h-10 w-10" />}
+          onClick={() => navigate("/student/settings", { state: { fromNavigation: true, preserveContext: true } })}
         />
       </div>
     );

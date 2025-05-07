@@ -1,337 +1,246 @@
+
 import React, { useState, useEffect } from "react";
-import { useAuth } from "@/contexts/AuthContext";
-import { useRBAC } from "@/contexts/RBACContext";
-import { supabase } from "@/integrations/supabase/client";
-import Navbar from "@/components/layout/Navbar";
-import Footer from "@/components/layout/Footer";
-import AdminStudentsComponent from "@/components/admin/AdminStudents";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Settings, UserPlus, Search, MoreHorizontal } from "lucide-react";
-import { toast } from "sonner";
-import { useNavigate } from "react-router-dom";
-import { Card, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { 
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow
-} from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { supabaseHelpers, isDataResponse } from "@/utils/supabaseHelpers";
-import { getRoleDisplayName } from "@/utils/roleUtils";
-import { AppRole } from "@/contexts/RBACContext";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { approveStudentDirect, revokeStudentAccessDirect } from "@/utils/databaseUtils";
+import { RefreshCw, User } from "lucide-react";
 
-interface AdminStudentsProps {
-  schoolId: string;
-  schoolInfo: { name: string; code: string; id?: string } | null;
-}
-
-interface Student {
+type Student = {
   id: string;
-  full_name: string;
-  email: string;
+  school_id: string;
   status: string;
   created_at: string;
-  role: AppRole | string;
-}
-
-interface ProfileData {
-  id: string;
   full_name: string | null;
-  user_type?: string | null;
-}
+  email: string | null;
+};
 
-const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
+const AdminStudents = () => {
   const [students, setStudents] = useState<Student[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [inviteCode, setInviteCode] = useState("");
-  const [showInviteModal, setShowInviteModal] = useState(false);
-  const [generatingInvite, setGeneratingInvite] = useState(false);
-  const navigate = useNavigate();
+  const [searchTerm, setSearchTerm] = useState("");
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  useEffect(() => {
+    fetchStudents();
+  }, [refreshTrigger]);
 
   const fetchStudents = async () => {
     try {
-      setLoading(true);
-      // Fetch all students for this school
-      const { data: studentData, error } = await supabase
+      // Get school ID first
+      const { data: schoolId, error: schoolIdError } = await supabase
+        .rpc("get_user_school_id");
+
+      if (schoolIdError || !schoolId) {
+        toast.error("Could not determine school ID");
+        console.error("Error getting school ID:", schoolIdError);
+        return;
+      }
+      
+      console.log("AdminStudents: School ID retrieved:", schoolId);
+      
+      // Fetch all students from this school
+      const { data: studentsData, error: studentsError } = await supabase
         .from("students")
         .select("id, school_id, status, created_at")
-        .eq("school_id", supabaseHelpers.asSupabaseParam(schoolId));
+        .eq("school_id", schoolId);
 
-      if (error || !Array.isArray(studentData)) {
-        toast.error("Failed to load students");
-        setStudents([]);
-        setLoading(false);
-        return;
-      }
-      if (studentData.length === 0) {
-        setStudents([]);
-        setLoading(false);
+      if (studentsError) {
+        toast.error("Error fetching students");
+        console.error("Error fetching students:", studentsError);
         return;
       }
 
-      // Extract valid IDs
-      const studentIds = studentData
-        .filter(isDataResponse)
-        .map((student) => student.id)
-        .filter((id): id is string => Boolean(id));
-
-      if (studentIds.length === 0) {
+      console.log("AdminStudents: Raw students data:", studentsData);
+      
+      if (!studentsData || studentsData.length === 0) {
         setStudents([]);
-        setLoading(false);
         return;
       }
-
-      // Fetch student profiles safely
-      const { data: profileData, error: profileError } = await supabase
+      
+      // Now fetch the profiles data separately with only the columns that exist
+      const studentIds = studentsData.map(student => student.id);
+      
+      const { data: profilesData, error: profilesError } = await supabase
         .from("profiles")
-        .select("id, full_name, user_type")
+        .select("id, full_name")
         .in("id", studentIds);
-
-      if (profileError) {
-        toast.error("Failed to load student details");
-        console.error("Profile fetch error:", profileError);
-        setStudents([]);
-        setLoading(false);
+      
+      if (profilesError) {
+        toast.error("Error fetching profiles");
+        console.error("Error fetching profiles:", profilesError);
         return;
       }
 
-      // Fetch user roles mapping
-      const { data: rolesData, error: rolesError } = await supabase
-        .from("user_roles")
-        .select("user_id, role")
-        .in("user_id", studentIds);
+      console.log("AdminStudents: Profiles data:", profilesData);
 
-      if (rolesError) {
-        console.error("Error fetching user roles:", rolesError.message);
-      }
-
-      const roleMap = new Map<string, string>();
-      if (rolesData) {
-        rolesData.forEach((roleEntry) => {
-          if (roleEntry && typeof roleEntry === "object" && "user_id" in roleEntry && "role" in roleEntry) {
-            roleMap.set(roleEntry.user_id, roleEntry.role);
-          }
-        });
-      }
-
-      const combinedStudents: Student[] = studentData
-        .map((student) => {
-          if (!student || typeof student !== "object" || !("id" in student)) return null;
-
-          const studentId = student.id;
-          if (!studentId) return null;
-
-          // Find the profile for this student
-          const profile = profileData && Array.isArray(profileData)
-            ? profileData.find((p) => p && p.id === studentId)
-            : null;
-
-          // Get role for this student - prioritize role from user_roles table
-          let role = "student"; // default
-          if (roleMap.has(studentId)) {
-            role = roleMap.get(studentId) ?? role;
-          } else if (profile && profile.user_type) {
-            role = profile.user_type;
-          }
-
-          // Use the profile data if available, otherwise provide fallbacks
-          return {
-            id: studentId,
-            full_name: profile && profile.full_name ? profile.full_name : "Unknown",
-            email: studentId, // Use ID as fallback since email is not in profiles table
-            status: student.status ?? "unknown",
-            created_at: student.created_at ?? new Date().toISOString(),
-            role,
-          };
-        })
-        .filter((s): s is Student => s !== null);
-
-      setStudents(combinedStudents);
-    } catch (error: unknown) {
-      toast.error("An error occurred while loading students");
-      console.error("Error in fetchStudents:", error);
-      setStudents([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (schoolId) fetchStudents();
-  }, [schoolId]);
-
-  const handleStatusChange = async (studentId: string, newStatus: string) => {
-    try {
-      const { error } = await supabase
-        .from("students")
-        .update(supabaseHelpers.prepareSupabaseUpdate({ status: newStatus }))
-        .eq("id", supabaseHelpers.asSupabaseParam(studentId));
-
-      if (error) {
-        toast.error("Failed to update student status");
-        return;
-      }
-
-      toast.success(`Student status updated to ${newStatus}`);
-      fetchStudents();
-    } catch (error: unknown) {
-      toast.error("An error occurred while updating status");
-      console.error("Error updating status:", error);
-    }
-  };
-
-  const generateInviteCode = async () => {
-    try {
-      setGeneratingInvite(true);
-
-      const { data, error } = await supabase.rpc("create_student_invitation", {
-        school_id_param: schoolId,
+      // Combine the data from the two queries
+      const formattedStudents: Student[] = studentsData.map(student => {
+        const profile = profilesData?.find(p => p.id === student.id);
+        return {
+          id: student.id,
+          school_id: student.school_id,
+          status: student.status || "pending",
+          created_at: student.created_at,
+          full_name: profile?.full_name || "No name",
+          email: student.id, // Using ID as email placeholder
+        };
       });
 
-      if (error) {
-        toast.error("Failed to generate invite code");
-        return;
-      }
-      if (data && Array.isArray(data) && data.length > 0 && data[0]?.code) {
-        setInviteCode(data[0].code);
-        setShowInviteModal(true);
-        return;
-      }
-      toast.error("No invite code returned");
-    } catch (error: unknown) {
-      toast.error("An error occurred while generating invite code");
-      console.error("Error generating invite code:", error);
-    } finally {
-      setGeneratingInvite(false);
+      console.log("AdminStudents: Formatted students:", formattedStudents);
+      setStudents(formattedStudents);
+    } catch (error) {
+      console.error("Error fetching students:", error);
+      toast.error("Failed to load students");
     }
   };
 
-  const filteredStudents = students.filter((student) =>
-    [student.full_name, student.email, student.status]
-      .some((field) => field.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  const handleApproveStudent = async (studentId: string) => {
+    try {
+      const success = await approveStudentDirect(studentId);
+      
+      if (success) {
+        toast.success("Student approved successfully");
+        // Update the local state
+        setStudents(students.map(student => 
+          student.id === studentId ? {...student, status: 'active'} : student
+        ));
+      } else {
+        toast.error("Failed to approve student");
+      }
+    } catch (error) {
+      console.error("Error approving student:", error);
+      toast.error("Failed to approve student");
+    }
+  };
+
+  const handleRevokeAccess = async (studentId: string) => {
+    try {
+      const success = await revokeStudentAccessDirect(studentId);
+      
+      if (success) {
+        toast.success("Student access revoked");
+        // Remove the student from the local state
+        setStudents(students.filter(student => student.id !== studentId));
+      } else {
+        toast.error("Failed to revoke student access");
+      }
+    } catch (error) {
+      console.error("Error revoking student access:", error);
+      toast.error("Failed to revoke student access");
+    }
+  };
+
+  const handleRefresh = () => {
+    setRefreshTrigger(prev => prev + 1);
+    toast.success("Refreshing students list...");
+  };
+
+  const filteredStudents = students.filter((student) => {
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      student.full_name?.toLowerCase().includes(searchLower) ||
+      student.email?.toLowerCase().includes(searchLower)
+    );
+  });
 
   return (
-    <>
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center space-x-2">
-          <Search className="h-5 w-5 text-gray-500" />
-          <input
-            type="text"
-            placeholder="Search students..."
-            className="border rounded-md p-2 w-64"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
+    <Card className="w-full">
+      <CardHeader>
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <CardTitle>Student Management</CardTitle>
+          <div className="flex flex-col md:flex-row gap-2">
+            <Input
+              placeholder="Search students..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="max-w-xs"
+            />
+            <Button variant="outline" onClick={handleRefresh} className="flex items-center gap-2">
+              <RefreshCw className="h-4 w-4" />
+              Refresh
+            </Button>
+          </div>
         </div>
-        <Button onClick={generateInviteCode} disabled={generatingInvite}>
-          {generatingInvite ? (
-            <>
-              Generating Invite Code...
-            </>
-          ) : (
-            <>
-              <UserPlus className="h-4 w-4 mr-2" />
-              Invite Student
-            </>
-          )}
-        </Button>
-      </div>
-
-      {loading ? (
-        <Card>
-          <CardContent className="p-6">
-            <div className="space-y-4">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="space-y-2">
-                  <Skeleton className="h-4 w-[250px]" />
-                  <Skeleton className="h-4 w-[200px]" />
-                  <Skeleton className="h-4 w-[300px]" />
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Created At</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredStudents.map((student) => (
-                <TableRow key={student.id}>
-                  <TableCell>{student.full_name}</TableCell>
-                  <TableCell>{student.email}</TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={
-                        student.status === "active"
-                          ? "default"
-                          : student.status === "pending"
-                            ? "secondary"
-                            : "destructive"
-                      }
-                    >
-                      {student.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{getRoleDisplayName(student.role as AppRole)}</TableCell>
-                  <TableCell>
-                    {new Date(student.created_at).toLocaleDateString()}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                      {student.status === "pending" && (
+      </CardHeader>
+      <CardContent>
+        {students.length === 0 ? (
+          <div className="text-center py-12">
+            <User className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
+            <p className="text-muted-foreground">No students found.</p>
+            <p className="text-sm text-muted-foreground mt-2">
+              Students will appear here when they register using your school code.
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Email/ID</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Joined</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredStudents.map((student) => (
+                  <TableRow key={student.id}>
+                    <TableCell className="font-medium">
+                      {student.full_name}
+                    </TableCell>
+                    <TableCell>
+                      <span className="font-mono text-xs">{student.email}</span>
+                    </TableCell>
+                    <TableCell>
+                      {student.status === "active" ? (
+                        <Badge variant="outline" className="text-green-500 border-green-500">
+                          Active
+                        </Badge>
+                      ) : student.status === "pending" ? (
+                        <Badge variant="outline" className="text-yellow-500 border-yellow-500">
+                          Pending
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline">{student.status}</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {new Date(student.created_at).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="space-x-2">
+                        {student.status === "pending" && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleApproveStudent(student.id)}
+                          >
+                            Approve
+                          </Button>
+                        )}
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => handleStatusChange(student.id, "active")}
-                        >
-                          Approve
-                        </Button>
-                      )}
-                      {student.status === "active" && (
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleStatusChange(student.id, "revoked")}
+                          className="text-red-500 hover:bg-red-50"
+                          onClick={() => handleRevokeAccess(student.id)}
                         >
                           Revoke
                         </Button>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
-
-      {showInviteModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-          <div className="bg-white p-6 rounded-md">
-            <h2 className="text-lg font-semibold mb-4">Invite Code</h2>
-            <p className="mb-4">
-              Share this code with the student to allow them to join the school:
-            </p>
-            <div className="mb-4 p-3 bg-gray-100 rounded-md break-all">
-              {inviteCode}
-            </div>
-            <Button onClick={() => setShowInviteModal(false)}>Close</Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
-        </div>
-      )}
-    </>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 

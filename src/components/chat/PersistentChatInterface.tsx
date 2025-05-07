@@ -10,11 +10,9 @@ import { Send, Loader2, MessageCircle, Paperclip } from 'lucide-react';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
 import { Badge } from '@/components/ui/badge';
-import { sessionLogger } from '@/utils/sessionLogger';
+import sessionLogger from '@/utils/sessionLogger';
 import VoiceRecorder from './VoiceRecorder';
 import TextToSpeech from './TextToSpeech';
-import AIModelSelector, { getModelProvider } from "./AIModelSelector";
-import { sendAIRequest } from "@/services/aiService";
 
 interface ChatMessage {
   id: string;
@@ -42,8 +40,6 @@ const PersistentChatInterface: React.FC<PersistentChatInterfaceProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [loadingHistory, setLoadingHistory] = useState(!!conversationId);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  const [model, setModel] = useState<string>("gpt-4o-mini");
 
   // Start session on component mount
   useEffect(() => {
@@ -62,11 +58,7 @@ const PersistentChatInterface: React.FC<PersistentChatInterfaceProps> = ({
 
     return () => {
       if (sessionId) {
-        try {
-          sessionLogger.endSession(sessionId);
-        } catch (error) {
-          console.error("Error ending session:", error);
-        }
+        sessionLogger.endSession(sessionId);
       }
     };
   }, [topic]);
@@ -154,23 +146,23 @@ const PersistentChatInterface: React.FC<PersistentChatInterfaceProps> = ({
         onConversationCreated(saveData.conversationId);
       }
       
-      // Format the prompt with context if needed
-      let contextualizedPrompt = input.trim();
-      if (topic) {
-        contextualizedPrompt = `Topic: ${topic}\n\nQuestion: ${input.trim()}`;
-      }
-
-      // Send request to AI service
-      const aiResponse = await sendAIRequest({
-        prompt: contextualizedPrompt,
-        model: model
+      // Get AI response
+      const { data: aiData, error: aiError } = await supabase.functions.invoke('ask-ai', {
+        body: {
+          question: input.trim(),
+          conversationId: saveData.conversationId || conversationId,
+          sessionId,
+          topic
+        }
       });
+      
+      if (aiError) throw aiError;
       
       // Create AI response message
       const aiMessage = {
         id: uuidv4(),
         role: 'assistant' as const,
-        content: aiResponse,
+        content: aiData.response,
         timestamp: new Date().toISOString()
       };
       
@@ -390,49 +382,42 @@ const PersistentChatInterface: React.FC<PersistentChatInterfaceProps> = ({
         </ScrollArea>
       </CardContent>
       <CardFooter className="border-t pt-4">
-        <div className="w-full space-y-2">
-          <div className="w-full flex items-center space-x-2">
-            <div className="relative flex-grow">
-              <Input
-                type="text"
-                placeholder="Type your message..."
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                disabled={isLoading || loadingHistory}
-                className="pr-10"
-              />
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="absolute right-0 top-0"
-                onClick={handleFileUpload}
-                disabled={isLoading || loadingHistory}
-              >
-                <Paperclip className="h-4 w-4 text-gray-500" />
-              </Button>
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileChange}
-                className="hidden"
-                accept=".pdf,.jpg,.jpeg,.png"
-              />
-            </div>
-            <VoiceRecorder onTranscriptionComplete={handleTranscriptionComplete} />
-            <Button onClick={handleSubmit} disabled={isLoading || !input.trim() || loadingHistory}>
-              {isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Send className="h-4 w-4" />
-              )}
+        <div className="w-full flex items-center space-x-2">
+          <div className="relative flex-grow">
+            <Input
+              type="text"
+              placeholder="Type your message..."
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={isLoading || loadingHistory}
+              className="pr-10"
+            />
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="absolute right-0 top-0"
+              onClick={handleFileUpload}
+              disabled={isLoading || loadingHistory}
+            >
+              <Paperclip className="h-4 w-4 text-gray-500" />
             </Button>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              className="hidden"
+              accept=".pdf,.jpg,.jpeg,.png"
+            />
           </div>
-          <AIModelSelector 
-            selectedModelId={model}
-            onModelChange={setModel}
-            disabled={isLoading || loadingHistory}
-          />
+          <VoiceRecorder onTranscriptionComplete={handleTranscriptionComplete} />
+          <Button onClick={handleSubmit} disabled={isLoading || !input.trim() || loadingHistory}>
+            {isLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
+          </Button>
         </div>
       </CardFooter>
     </Card>

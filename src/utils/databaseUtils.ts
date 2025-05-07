@@ -1,213 +1,383 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { generateInviteCode } from './analytics/commonUtils';
+import { toast } from "sonner";
 
-// Improved function to provide more robust school info retrieval
-export const getCurrentSchoolInfo = async () => {
+// Create session log in database
+export const createSessionLog = async (topic?: string): Promise<string | null> => {
   try {
-    console.log("Getting current school info...");
+    // Use the RPC function directly
+    const { data, error } = await supabase.rpc("create_session_log", {
+      topic: topic || "General Chat"
+    });
 
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      console.log("No authenticated user found");
+    if (error) {
+      console.error("Error creating session log:", error);
       return null;
     }
 
-    console.log("Current user ID:", user.id);
-    
-    // Try getting school info directly from user metadata first
-    if (user.user_metadata?.school_code) {
-      console.log("Found school code in user metadata:", user.user_metadata.school_code);
-      
-      try {
-        const { data: schoolData, error: schoolError } = await supabase
-          .from("schools")
-          .select("id, name, code")
-          .eq("code", user.user_metadata.school_code)
-          .single();
-          
-        if (!schoolError && schoolData) {
-          console.log("Found school from user metadata:", schoolData);
-          return {
-            school_id: schoolData.id,
-            school_name: schoolData.name,
-            school_code: schoolData.code,
-            contact_email: null // Not all school records might have this
-          };
-        } else {
-          console.log("Could not find school with code:", user.user_metadata.school_code, schoolError);
-        }
-      } catch (error) {
-        console.error("Error querying schools by code:", error);
-      }
+    return data || null;
+  } catch (error) {
+    console.error("Error in createSessionLog:", error);
+    return null;
+  }
+};
+
+// End session log in database
+export const endSessionLog = async (sessionId?: string, performanceData?: any): Promise<void> => {
+  try {
+    if (!sessionId) {
+      console.warn("No session ID provided to end");
+      return;
     }
 
-    // Try direct query to get school_id from teachers table
-    try {
-      const { data: teacherData, error: teacherError } = await supabase
-        .from("teachers")
-        .select("school_id")
-        .eq("id", user.id)
+    // Use the RPC function directly
+    const { error } = await supabase.rpc("end_session_log", {
+      log_id: sessionId,
+      performance_data: performanceData
+    });
+
+    if (error) {
+      console.error("Error ending session:", error);
+    }
+  } catch (error) {
+    console.error("Error in endSessionLog:", error);
+  }
+};
+
+// Update session topic in database
+export const updateSessionTopic = async (sessionId: string, topic: string): Promise<void> => {
+  try {
+    if (!sessionId) {
+      console.warn("No session ID provided to update topic");
+      return;
+    }
+
+    // Use the RPC function directly
+    const { error } = await supabase.rpc("update_session_topic", {
+      log_id: sessionId,
+      topic
+    });
+
+    if (error) {
+      console.error("Error updating session topic:", error);
+    }
+  } catch (error) {
+    console.error("Error in updateSessionTopic:", error);
+  }
+};
+
+// Save chat message directly to database
+export const saveChatMessage = async (
+  message: { role: string; content: string },
+  conversationId?: string,
+  sessionId?: string
+): Promise<{ success: boolean; message?: any; conversationId?: string }> => {
+  try {
+    if (!message || !message.role || !message.content) {
+      console.error("Invalid message data");
+      return { success: false };
+    }
+
+    // Get the authenticated user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return { success: false };
+    }
+
+    // Get user's school ID
+    const { data: schoolData, error: schoolError } = await supabase.rpc('get_user_school_id');
+    if (schoolError) {
+      console.error("Error getting school ID:", schoolError);
+      return { success: false };
+    }
+
+    let convoId = conversationId;
+
+    // If no conversation ID is provided, create a new conversation
+    if (!convoId) {
+      const { data: convoData, error: convoError } = await supabase
+        .from('conversations')
+        .insert([{ 
+          user_id: user.id, 
+          school_id: schoolData,
+          title: `New conversation on ${new Date().toLocaleDateString()}`,
+          last_message_at: new Date().toISOString()
+        }])
+        .select('id')
         .single();
-        
-      if (!teacherError && teacherData?.school_id) {
-        console.log("Found school ID from teachers table:", teacherData.school_id);
-        
-        try {
-          const { data: school, error: schoolError } = await supabase
-            .from("schools")
-            .select("id, name, code, contact_email")
-            .eq("id", teacherData.school_id)
-            .single();
 
-          if (!schoolError && school) {
-            console.log("Found school details:", school);
-            return {
-              school_id: school.id,
-              school_name: school.name,
-              school_code: school.code,
-              contact_email: school.contact_email
-            };
-          }
-        } catch (schoolQueryError) {
-          console.error("Error looking up school details:", schoolQueryError);
-        }
-      } else {
-        console.log("No teacher record found, checking students table...");
-        
-        // Try students table
-        try {
-          const { data: student, error: studentError } = await supabase
-            .from("students")
-            .select("id, school_id")
-            .eq("id", user.id)
-            .single();
-
-          if (!studentError && student?.school_id) {
-            console.log("Found school ID from students table:", student.school_id);
-            
-            const { data: school, error: schoolError } = await supabase
-              .from("schools")
-              .select("id, name, code, contact_email")
-              .eq("id", student.school_id)
-              .single();
-
-            if (!schoolError && school) {
-              console.log("Found school via students table:", school);
-              return {
-                school_id: school.id,
-                school_name: school.name,
-                school_code: school.code,
-                contact_email: school.contact_email
-              };
-            }
-          }
-        } catch (studentQueryError) {
-          console.error("Error looking up student:", studentQueryError);
-        }
+      if (convoError) {
+        console.error("Error creating conversation:", convoError);
+        return { success: false };
       }
-    } catch (queryError) {
-      console.error("Error in direct table queries:", queryError);
+      convoId = convoData.id;
+    } else {
+      // Update the last_message_at for the existing conversation
+      await supabase
+        .from('conversations')
+        .update({ last_message_at: new Date().toISOString() })
+        .eq('id', convoId);
     }
-    
-    // Try using the RPC function as a last resort
-    try {
-      const { data: schoolId, error: schoolIdError } = await supabase
-        .rpc("get_user_school_id");
-      
-      if (!schoolIdError && schoolId) {
-        console.log("Found school ID via RPC:", schoolId);
-        
-        const { data: school, error: schoolError } = await supabase
-          .from("schools")
-          .select("id, name, code, contact_email")
-          .eq("id", schoolId)
-          .single();
 
-        if (!schoolError && school) {
-          return {
-            school_id: school.id,
-            school_name: school.name,
-            school_code: school.code,
-            contact_email: school.contact_email
-          };
-        }
-      } else {
-        console.log("RPC returned error or no school ID:", schoolIdError);
-      }
-    } catch (rpcError) {
-      console.log("Error in RPC call:", rpcError);
+    // Save the message to the database
+    const { data: msgData, error: msgError } = await supabase
+      .from('messages')
+      .insert([{
+        conversation_id: convoId,
+        content: message.content,
+        sender: message.role,
+      }])
+      .select('*')
+      .single();
+
+    if (msgError) {
+      console.error("Error saving message:", msgError);
+      return { success: false };
     }
-    
-    console.log("Could not determine school through any method");
-    return null;
 
+    // If session ID is provided, update the session query count
+    if (sessionId) {
+      await supabase.rpc("increment_session_query_count", { log_id: sessionId });
+    }
+
+    return { 
+      success: true, 
+      message: msgData,
+      conversationId: convoId
+    };
   } catch (error) {
-    console.error("Error in getCurrentSchoolInfo:", error);
+    console.error("Error in saveChatMessage:", error);
+    return { success: false };
+  }
+};
+
+// Get chat history directly from database
+export const getChatHistory = async (conversationId: string): Promise<{ 
+  messages: any[]; 
+  conversation: any;
+} | null> => {
+  try {
+    // Fetch conversation to verify ownership
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return null;
+    }
+
+    const { data: conversation, error: convoError } = await supabase
+      .from('conversations')
+      .select('*')
+      .eq('id', conversationId)
+      .eq('user_id', user.id)
+      .single();
+
+    if (convoError || !conversation) {
+      console.error("Error fetching conversation:", convoError);
+      return null;
+    }
+
+    // Fetch messages for the conversation
+    const { data: messages, error: msgsError } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('conversation_id', conversationId)
+      .order('timestamp', { ascending: true });
+
+    if (msgsError) {
+      console.error("Error fetching messages:", msgsError);
+      return null;
+    }
+
+    return { 
+      messages: messages || [],
+      conversation
+    };
+  } catch (error) {
+    console.error("Error in getChatHistory:", error);
     return null;
   }
 };
 
-// Add a dedicated function to get documents for a user
-export const getUserDocuments = async (userId: string) => {
+// Get user conversations directly from database
+export const getUserConversations = async (): Promise<any[] | null> => {
   try {
-    if (!userId) {
-      console.error("getUserDocuments: User ID is required");
-      throw new Error("User ID is required");
+    // Get the authenticated user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return null;
     }
 
-    console.log("Fetching documents for user:", userId);
-
-    const { data, error } = await supabase
-      .from('documents')
+    // Fetch all conversations for the user
+    const { data: conversations, error: convoError } = await supabase
+      .from('conversations')
       .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
-      
-    if (error) {
-      console.error("Error in getUserDocuments Supabase query:", error);
-      throw new Error(error.message);
+      .eq('user_id', user.id)
+      .order('last_message_at', { ascending: false });
+
+    if (convoError) {
+      console.error("Error fetching conversations:", convoError);
+      return null;
     }
-    
-    console.log(`Retrieved ${data?.length || 0} documents for user ${userId}`);
-    return data || [];
+
+    return conversations || [];
   } catch (error) {
-    console.error("Error in getUserDocuments:", error);
-    throw error;
+    console.error("Error in getUserConversations:", error);
+    return null;
   }
 };
 
-// Get document content by document ID
-export const getDocumentContent = async (documentId: string) => {
+// Generate summary for conversation directly
+export const generateConversationSummary = async (conversationId: string): Promise<{
+  summary?: string;
+  tags?: string[];
+  category?: string;
+} | null> => {
   try {
-    if (!documentId) {
-      console.error("getDocumentContent: Document ID is required");
-      throw new Error("Document ID is required");
+    // Verify the user can access this conversation
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return null;
     }
 
-    console.log("Fetching content for document:", documentId);
+    // Check if conversation exists and user has access
+    const { data: conversation, error: convoError } = await supabase
+      .from('conversations')
+      .select('id, user_id, topic, title')
+      .eq('id', conversationId)
+      .eq('user_id', user.id)
+      .single();
+    
+    if (convoError || !conversation) {
+      console.error("Conversation not found or access denied:", convoError);
+      return null;
+    }
 
-    const { data, error } = await supabase
-      .from('document_content')
-      .select('*')
-      .eq('document_id', documentId)
-      .order('section_number', { ascending: true });
+    // Get the conversation messages
+    const { data: messages, error: msgsError } = await supabase
+      .from('messages')
+      .select('content, sender')
+      .eq('conversation_id', conversationId)
+      .order('timestamp', { ascending: true });
+    
+    if (msgsError || !messages || messages.length === 0) {
+      console.error("Failed to fetch messages:", msgsError);
+      return null;
+    }
+
+    // Generate a summary based on the first few user messages
+    const userMessages = messages.filter(msg => msg.sender === 'user').slice(0, 3);
+    let summary = '';
+    
+    if (userMessages.length > 0) {
+      // If we have a topic, include it in the summary
+      if (conversation.topic) {
+        summary = `Topic: ${conversation.topic} - `;
+      }
       
-    if (error) {
-      console.error("Error in getDocumentContent Supabase query:", error);
-      throw new Error(error.message);
+      // Add content from the first few user messages
+      for (let i = 0; i < Math.min(2, userMessages.length); i++) {
+        const content = userMessages[i].content;
+        const shortenedContent = content.length > 100 ? content.substring(0, 100) + '...' : content;
+        summary += (i > 0 ? ' | ' : '') + shortenedContent;
+      }
+    } else {
+      summary = conversation.title || "Untitled conversation";
     }
     
-    console.log(`Retrieved ${data?.length || 0} content sections for document ${documentId}`);
-    return data || [];
+    // Generate simple tags based on content
+    const allText = userMessages.map(msg => msg.content).join(' ');
+    const tags = generateTags(allText, conversation.topic);
+    
+    // Determine a category
+    const category = determineCategory(allText, conversation.topic);
+
+    // Update the conversation with the summary, tags and category
+    const { error: updateError } = await supabase
+      .from('conversations')
+      .update({ 
+        summary, 
+        tags,
+        category: category || null,
+        title: conversation.title || generateTitle(summary)
+      })
+      .eq('id', conversationId);
+    
+    if (updateError) {
+      console.error("Failed to update conversation:", updateError);
+    }
+
+    return { summary, tags, category };
   } catch (error) {
-    console.error("Error in getDocumentContent:", error);
-    throw error;
+    console.error("Error generating summary:", error);
+    return null;
   }
 };
 
-// Approve student directly
+// Helper functions for summary generation
+function generateTags(text: string, topic: string | null): string[] {
+  const tags: Set<string> = new Set();
+  
+  // Add topic-based tags
+  if (topic) {
+    const topicWords = topic.toLowerCase().split(/\s+/);
+    topicWords.forEach(word => {
+      if (word.length > 3) {
+        tags.add(word);
+      }
+    });
+  }
+  
+  // Common academic subjects to look for
+  const subjects = [
+    "math", "algebra", "calculus", "geometry", "physics", "chemistry", "biology",
+    "history", "geography", "literature", "english", "writing", "grammar",
+    "science", "computer", "programming", "language", "spanish", "french",
+    "psychology", "sociology", "economics", "philosophy", "music", "art"
+  ];
+  
+  // Look for subject mentions in the text
+  const lowercaseText = text.toLowerCase();
+  subjects.forEach(subject => {
+    if (lowercaseText.includes(subject)) {
+      tags.add(subject);
+    }
+  });
+  
+  // Convert set to array and limit to top 5 tags
+  return Array.from(tags).slice(0, 5);
+}
+
+function determineCategory(text: string, topic: string | null): string | null {
+  const lowercaseText = text.toLowerCase();
+  const topicLower = topic ? topic.toLowerCase() : '';
+  
+  // Define category mapping with keywords
+  const categories = {
+    "Homework": ["homework", "assignment", "exercise", "problem set", "worksheet"],
+    "Exam Prep": ["exam", "test", "quiz", "study", "review", "midterm", "final"],
+    "Research": ["research", "paper", "essay", "thesis", "analysis", "investigate"],
+    "General Question": ["question", "explain", "how to", "what is", "why does", "help me understand"],
+    "Project": ["project", "build", "create", "design", "develop", "implement"]
+  };
+  
+  // Check for category matches
+  for (const [category, keywords] of Object.entries(categories)) {
+    for (const keyword of keywords) {
+      if (lowercaseText.includes(keyword) || (topicLower && topicLower.includes(keyword))) {
+        return category;
+      }
+    }
+  }
+  
+  return null;
+}
+
+function generateTitle(summary: string): string {
+  // Extract first part of summary (max 50 chars) for title
+  const titleText = summary.length > 50 ? summary.substring(0, 47) + '...' : summary;
+  return titleText;
+}
+
+// Student management functions
 export const approveStudentDirect = async (studentId: string): Promise<boolean> => {
   try {
     // Get the authenticated user
@@ -257,7 +427,6 @@ export const approveStudentDirect = async (studentId: string): Promise<boolean> 
   }
 };
 
-// Revoke student access directly
 export const revokeStudentAccessDirect = async (studentId: string): Promise<boolean> => {
   try {
     // Get the authenticated user
@@ -309,7 +478,6 @@ export const revokeStudentAccessDirect = async (studentId: string): Promise<bool
   }
 };
 
-// Invite student directly
 export const inviteStudentDirect = async (method: "code" | "email", email?: string): Promise<{
   success: boolean; 
   code?: string; 
@@ -393,71 +561,125 @@ export const inviteStudentDirect = async (method: "code" | "email", email?: stri
   }
 };
 
-// Add teacher invite function
+// Helper function to generate a random invite code
+function generateInviteCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // excludes similar looking characters
+  let result = '';
+  for (let i = 0; i < 8; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+// Teacher management functions
 export const inviteTeacherDirect = async (email: string): Promise<{
-  success: boolean; 
+  success: boolean;
+  inviteId?: string;
   message?: string;
 }> => {
   try {
-    // Get the authenticated user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return { success: false, message: "You must be logged in to invite a teacher" };
+    // Verify the user is logged in and is a school supervisor
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return { success: false, message: "Unauthorized" };
     }
 
-    // Get the school ID of the logged in user
-    const { data: schoolId, error: schoolIdError } = await supabase
-      .rpc("get_user_school_id");
+    // Check if user is a school supervisor
+    const { data: isSupervisor, error: supervisorError } = await supabase
+      .rpc("is_supervisor", { user_id: user.id });
 
-    if (schoolIdError || !schoolId) {
-      console.error("Could not determine school ID:", schoolIdError);
-      return { success: false, message: "Could not determine your school" };
+    if (supervisorError || !isSupervisor) {
+      return { success: false, message: "Only school supervisors can invite teachers" };
     }
 
-    // Check if user has permission to invite teachers (must be admin or supervisor)
-    const { data: isAdmin, error: roleError } = await supabase
-      .rpc('is_supervisor', { user_id: user.id });
-
-    if (roleError || !isAdmin) {
-      console.error("Permission check failed:", roleError);
-      return { success: false, message: "You don't have permission to invite teachers" };
+    if (!email) {
+      return { success: false, message: "Email is required" };
     }
 
-    // Generate a unique invitation token
-    const token = generateInviteCode();
-
-    // Create the invitation record
-    const { data: invitation, error: inviteError } = await supabase
-      .from("teacher_invitations")
-      .insert({
-        school_id: schoolId,
-        email: email,
-        invitation_token: token,
-        created_by: user.id
-      })
-      .select()
-      .single();
+    // Use RPC to invite teacher with existing function
+    const { data: inviteResult, error: inviteError } = await supabase
+      .rpc("invite_teacher", {
+        teacher_email: email
+      });
 
     if (inviteError) {
-      console.error("Error creating invitation:", inviteError);
-      
-      // Check if it's a duplicate email error
-      if (inviteError.message?.includes('duplicate')) {
-        return { 
-          success: false, 
-          message: "This email has already been invited" 
-        };
-      }
-      
-      return { success: false, message: "Failed to create invitation" };
+      console.error("Error inviting teacher:", inviteError);
+      return { success: false, message: inviteError.message };
     }
 
     return { 
       success: true, 
-      message: "Teacher invitation created successfully" 
+      inviteId: inviteResult,
+      message: "Teacher invitation sent successfully" 
     };
   } catch (error) {
     console.error("Error in inviteTeacher:", error);
     return { success: false, message: "Internal error" };
+  }
+};
+
+export const createTeacherDirect = async (email: string, full_name?: string): Promise<{
+  success: boolean;
+  message?: string;
+  data?: {
+    email: string;
+    temp_password?: string;
+  };
+}> => {
+  try {
+    // This function uses admin privileges and must be run server-side
+    // Since we're replacing edge functions, this would normally require an edge function
+    // As a compromise, we'll indicate this limitation
+    
+    toast.error("Direct teacher creation requires server-side privileges");
+    return { 
+      success: false, 
+      message: "Teacher creation requires admin privileges and cannot be performed directly from the browser. This would typically require server-side code."
+    };
+  } catch (error) {
+    console.error("Error in createTeacher:", error);
+    return { success: false, message: "Internal error" };
+  }
+};
+
+// Test account utilities
+export const populateTestAccountWithSessionsDirect = async (userId: string, schoolId: string, numSessions = 5): Promise<{
+  success: boolean;
+  message?: string;
+  data?: any;
+}> => {
+  try {
+    // Skip calls for non-test users or if missing required IDs
+    if (!userId || !schoolId) {
+      return { success: false, message: "Missing user ID or school ID" };
+    }
+    
+    // Detect if this is a test account
+    const isTest = userId.startsWith('test-') || schoolId.startsWith('test-');
+    if (!isTest) {
+      // Only create test sessions for test accounts
+      return { success: false, message: "Not a test account" };
+    }
+    
+    console.log(`Creating test sessions for ${userId} in school ${schoolId}`);
+    
+    // Call the database function directly
+    const { error } = await supabase.rpc("populatetestaccountwithsessions", {
+      userid: userId,
+      schoolid: schoolId,
+      num_sessions: numSessions
+    });
+    
+    if (error) {
+      console.error("Error creating test sessions:", error);
+      return { success: false, message: error.message };
+    }
+    
+    console.log("Test sessions created successfully");
+    return { success: true, message: "Test sessions created successfully" };
+  } catch (error) {
+    console.error("Error in populateTestAccountWithSessions:", error);
+    return { success: false, message: error.message };
   }
 };

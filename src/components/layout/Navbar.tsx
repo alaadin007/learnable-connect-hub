@@ -6,7 +6,6 @@ import { Menu, X, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useRBAC } from "@/contexts/RBACContext";
 
 const Navbar = () => {
   const { user, signOut, profile } = useAuth();
@@ -15,7 +14,6 @@ const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const isMobile = useIsMobile();
-  const { hasRole, hasAnyRole, isAdmin } = useRBAC();
 
   // Set loaded status after initial render to prevent flickering
   useEffect(() => {
@@ -25,29 +23,15 @@ const Navbar = () => {
   const toggleMenu = () => setIsOpen((open) => !open);
 
   const handleLogout = useCallback(async () => {
-    try {
-      await signOut();
-      navigate("/");
-    } catch (error) {
-      console.error("Logout error:", error);
-      // If logout fails, try to force a reload to clear the state
-      window.location.href = "/";
-    } finally {
-      setIsOpen(false);
-    }
+    await signOut();
+    navigate("/");
+    setIsOpen(false);
   }, [signOut, navigate]);
 
   const handleBackToTestAccounts = useCallback(async () => {
-    try {
-      await signOut();
-      navigate("/test-accounts");
-    } catch (error) {
-      console.error("Error returning to test accounts:", error);
-      // If it fails, force navigate
-      window.location.href = "/test-accounts";
-    } finally {
-      setIsOpen(false);
-    }
+    await signOut();
+    navigate("/test-accounts");
+    setIsOpen(false);
   }, [signOut, navigate]);
 
   const isTestAccount = user?.email?.includes(".test@learnable.edu") || user?.id?.startsWith("test-");
@@ -56,9 +40,11 @@ const Navbar = () => {
     location.pathname === path || location.pathname.startsWith("/invitation/")
   );
   const isLoggedIn = !!user && !isPublicPage && !isAuthPage;
+
+  const profileUserType = profile?.user_type ?? null;
+
   const isTestAccountsPage = location.pathname === "/test-accounts";
 
-  // Move nav links calculation out of render to improve performance
   const getNavLinks = useCallback(() => {
     if (isTestAccountsPage) return [];
 
@@ -72,105 +58,81 @@ const Navbar = () => {
       ];
     }
 
-    // Use RBAC to determine navigation links
-    const links = [
-      { name: "Dashboard", href: "/dashboard" },
-    ];
-
-    // School admin links - use both isAdmin from RBAC and check for 'school' user type for backwards compatibility
-    if (isAdmin || profile?.user_type === 'school') {
-      links.push(
-        { name: "School Admin", href: "/admin" },
-        { name: "Teachers", href: "/admin/teachers" },
-        { name: "Students", href: "/admin/students" }
-      );
-      
-      // Add Analytics link
-      links.push({ name: "Analytics", href: "/admin/analytics" });
+    switch (profileUserType) {
+      case "school":
+        return [
+          { name: "Dashboard", href: "/dashboard" },
+          { name: "School Admin", href: "/admin" },
+          { name: "Teachers", href: "/admin/teacher-management" },
+          { name: "Analytics", href: "/admin/analytics" },
+          { name: "Chat", href: "/chat" },
+          { name: "Documents", href: "/documents" },
+        ];
+      case "teacher":
+        return [
+          { name: "Dashboard", href: "/dashboard" },
+          { name: "Students", href: "/teacher/students" },
+          { name: "Analytics", href: "/teacher/analytics" },
+          { name: "Chat", href: "/chat" },
+          { name: "Documents", href: "/documents" },
+        ];
+      default:
+        // student or other user types
+        return [
+          { name: "Dashboard", href: "/dashboard" },
+          { name: "Chat", href: "/chat" },
+          { name: "Documents", href: "/documents" },
+        ];
     }
-
-    // Teacher links (both regular and supervisors)
-    if (hasAnyRole(['teacher', 'teacher_supervisor'])) {
-      links.push(
-        { name: "Students", href: "/teacher/students" },
-        { name: "Analytics", href: "/teacher/analytics" }
-      );
-    }
-
-    // Student links
-    if (hasRole('student')) {
-      links.push(
-        { name: "Assessments", href: "/student/assessments" },
-        { name: "Progress", href: "/student/progress" }
-      );
-    }
-
-    // Common links for all authenticated users
-    links.push(
-      { name: "Chat", href: "/chat" },
-      { name: "Documents", href: "/documents" }
-    );
-
-    return links;
-  }, [isLoggedIn, isTestAccountsPage, hasRole, hasAnyRole, isAdmin, profile]);
+  }, [profileUserType, isLoggedIn, isTestAccountsPage]);
 
   const navLinks = getNavLinks();
 
   const isActiveLink = useCallback((href: string): boolean => {
     const currentPath = location.pathname;
 
-    // Handle special cases for different paths
     switch (href) {
       case "/dashboard":
         return currentPath === "/dashboard";
       case "/admin":
+        // Active for /admin exactly but not for known subpaths handled separately
         return currentPath === "/admin";
-      case "/admin/teachers":
-        return currentPath === "/admin/teachers" || currentPath === "/admin/teacher-management";
-      case "/admin/students":
-        return currentPath === "/admin/students";
+      case "/admin/teacher-management":
       case "/admin/analytics":
-        return currentPath === "/admin/analytics";
+      case "/admin/students":
       case "/teacher/students":
-        return currentPath.startsWith("/teacher/students");
       case "/teacher/analytics":
-        return currentPath === "/teacher/analytics";
-      case "/student/assessments":
-        return currentPath === "/student/assessments";
-      case "/student/progress":
-        return currentPath === "/student/progress";
+        return currentPath === href;
       case "/chat":
-        // Check if path starts with /chat
         return currentPath === "/chat" || currentPath.startsWith("/chat/");
       case "/documents":
-        // Check if path starts with /documents
         return currentPath === "/documents" || currentPath.startsWith("/documents/");
       default:
         return currentPath === href;
     }
   }, [location.pathname]);
 
-  // Safe navigation handler to prevent freezes
-  const handleNavigation = useCallback((e: React.MouseEvent, path: string) => {
-    e.preventDefault();
-    
-    // Close mobile menu if open
-    if (isOpen) {
+  const handleNavigation = useCallback((path: string) => {
+    if (location.pathname === path) {
       setIsOpen(false);
+      return;
     }
     
-    // For test accounts, add state to preserve context
-    const navState = isTestAccount ? { 
-      fromNavigation: true, 
-      fromTestAccounts: localStorage.getItem('usingTestAccount') === 'true',
-      accountType: localStorage.getItem('testAccountType')
-    } : {};
-    
-    // Navigate with small delay to ensure menu closing animation completes
-    setTimeout(() => {
-      navigate(path, { state: navState });
-    }, 50);
-  }, [navigate, isOpen, isTestAccount]);
+    // Add state to prevent redirection loops and preserve navigation context
+    navigate(path, { 
+      state: { 
+        fromNavigation: true,
+        preserveContext: true,
+        timestamp: Date.now() // Add timestamp to ensure state is unique
+      } 
+    });
+    setIsOpen(false);
+  }, [location.pathname, navigate]);
+
+  if (isTestAccountsPage) {
+    // optionally hide navbar entirely on test accounts page:
+    return null;
+  }
 
   // Don't render until we've determined loading state to prevent flickering
   if (!isLoaded) {
@@ -186,11 +148,6 @@ const Navbar = () => {
         </div>
       </header>
     );
-  }
-
-  if (isTestAccountsPage) {
-    // optionally hide navbar entirely on test accounts page:
-    return null;
   }
 
   return (
@@ -219,17 +176,16 @@ const Navbar = () => {
           {/* Desktop nav */}
           <nav className="hidden md:flex space-x-8">
             {navLinks.map((link) => (
-              <a
+              <button
                 key={link.name}
-                href={link.href}
-                onClick={(e) => handleNavigation(e, link.href)}
+                onClick={() => handleNavigation(link.href)}
                 className={cn(
                   "text-learnable-gray hover:text-learnable-blue font-medium transition-colors duration-200",
                   isActiveLink(link.href) && "text-learnable-blue font-bold"
                 )}
               >
                 {link.name}
-              </a>
+              </button>
             ))}
           </nav>
 
@@ -268,12 +224,17 @@ const Navbar = () => {
               <>
                 {!isAuthPage && (
                   <>
-                    <a href="/login" onClick={(e) => handleNavigation(e, "/login")}>
-                      <Button variant="outline">Log In</Button>
-                    </a>
-                    <a href="/register" onClick={(e) => handleNavigation(e, "/register")}>
-                      <Button>Get Started</Button>
-                    </a>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => navigate("/login")}
+                    >
+                      Log In
+                    </Button>
+                    <Button 
+                      onClick={() => navigate("/register")}
+                    >
+                      Get Started
+                    </Button>
                   </>
                 )}
               </>
@@ -295,19 +256,18 @@ const Navbar = () => {
         <div className="px-4 space-y-4 divide-y divide-gray-100 h-full overflow-y-auto">
           <div className="space-y-1">
             {navLinks.map((link) => (
-              <a
+              <button
                 key={link.name}
-                href={link.href}
+                onClick={() => handleNavigation(link.href)}
                 className={cn(
                   "block w-full text-left px-3 py-2 text-base font-medium rounded-md",
                   isActiveLink(link.href)
                     ? "bg-learnable-super-light text-learnable-blue"
                     : "text-learnable-dark hover:bg-learnable-super-light"
                 )}
-                onClick={(e) => handleNavigation(e, link.href)}
               >
                 {link.name}
-              </a>
+              </button>
             ))}
           </div>
           <div className="pt-4 space-y-4">
@@ -336,12 +296,25 @@ const Navbar = () => {
               <>
                 {!isAuthPage && (
                   <>
-                    <a href="/login" onClick={(e) => handleNavigation(e, "/login")}>
-                      <Button variant="outline" className="w-full">Log In</Button>
-                    </a>
-                    <a href="/register" onClick={(e) => handleNavigation(e, "/register")}>
-                      <Button className="w-full">Get Started</Button>
-                    </a>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => {
+                        navigate("/login");
+                        setIsOpen(false);
+                      }}
+                      className="w-full"
+                    >
+                      Log In
+                    </Button>
+                    <Button 
+                      onClick={() => {
+                        navigate("/register");
+                        setIsOpen(false);
+                      }}
+                      className="w-full"
+                    >
+                      Get Started
+                    </Button>
                   </>
                 )}
               </>

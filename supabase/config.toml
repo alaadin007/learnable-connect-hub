@@ -1,45 +1,20 @@
 
-# This is the configuration for your Supabase project.
 project_id = "ldlgckwkdsvrfuymidrr"
 
 [api]
-# Enabled APIs
+enabled = true
 port = 54321
-schemas = ["public", "storage", "graphql_public"]
-extra_search_path = ["public", "extensions"]
-max_rows = 1000
+schemas = ["public", "storage"]
 
 [db]
 port = 54322
 
 [studio]
+enabled = true
 port = 54323
 
-# Set the site URL and redirect URLs for auth functionality
-[auth]
-site_url = "https://learnable-connect-hub.lovable.app"
-additional_redirect_urls = [
-  "https://learnable-connect-hub.lovable.app",
-  "https://learnable-connect-hub.lovable.app/auth/callback",
-  "https://learnable-connect-hub.lovable.app/login",
-  "https://learnable-connect-hub.lovable.app/login?email_confirmed=true",
-  "https://learnable-connect-hub.lovable.app/school-registration",
-  "https://learnable-connect-hub.lovable.app/register",
-  "http://localhost:5173",
-  "http://localhost:5173/auth/callback",
-  "http://localhost:5173/login",
-  "http://localhost:5173/login?email_confirmed=true",
-  "http://localhost:5173/school-registration",
-  "http://localhost:5173/register",
-  "http://localhost:3000",
-  "http://localhost:3000/auth/callback",
-  "http://localhost:3000/login",
-  "http://localhost:3000/login?email_confirmed=true",
-  "http://localhost:3000/school-registration", 
-  "http://localhost:3000/register"
-]
+[storage]
+enabled = true
 
-[auth.email]
-enable_signup = true
-double_confirm_changes = true
-enable_confirmations = true
+[realtime]
+enabled = true

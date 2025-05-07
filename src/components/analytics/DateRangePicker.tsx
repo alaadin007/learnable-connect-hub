@@ -1,35 +1,34 @@
-
 import React from "react";
-import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
+import { Calendar as CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { DateRange } from "react-day-picker";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { DateRange } from "./types";
 
-export interface DateRangePickerProps {
-  dateRange?: DateRange;
-  onDateChange: (dateRange: DateRange | undefined) => void;
-  className?: string;
+interface DateRangePickerProps {
+  dateRange: DateRange | undefined;
+  onDateRangeChange: (range: DateRange | undefined) => void;
 }
 
-export function DateRangePicker({
-  dateRange,
-  onDateChange,
-  className,
-}: DateRangePickerProps) {
+export function DateRangePicker({ dateRange, onDateRangeChange }: DateRangePickerProps) {
   return (
-    <div className={cn("grid gap-2", className)}>
+    <div className="grid gap-2">
       <Popover>
         <PopoverTrigger asChild>
           <Button
             id="date"
-            variant={"outline"}
+            variant="outline"
             className={cn(
               "w-full justify-start text-left font-normal",
               !dateRange?.from && "text-muted-foreground"
             )}
+            aria-label="Select date range"
           >
             <CalendarIcon className="mr-2 h-4 w-4" />
             {dateRange?.from ? (
@@ -51,8 +50,12 @@ export function DateRangePicker({
             initialFocus
             mode="range"
             defaultMonth={dateRange?.from}
-            selected={dateRange}
-            onSelect={onDateChange}
+            selected={
+              dateRange
+                ? { from: dateRange.from || undefined, to: dateRange.to }
+                : undefined
+            }
+            onSelect={onDateRangeChange}
             numberOfMonths={2}
             className={cn("p-3 pointer-events-auto")}
           />

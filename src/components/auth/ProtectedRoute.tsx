@@ -1,23 +1,19 @@
-
 import { Navigate, useLocation } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
-import { useRBAC, AppRole } from "@/contexts/RBACContext";
+import { useAuth, UserRole } from "@/contexts/AuthContext";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  requiredUserType?: string;
+  requiredUserType?: UserRole;
   requireSupervisor?: boolean;
   requireSameSchool?: boolean;
   schoolId?: string;
-  roles?: AppRole[];
-  requiredRole?: AppRole;
+  allowedRoles?: Array<UserRole>;
 }
 
-const getRedirectPath = (role: string | undefined | null): string => {
+const getRedirectPath = (role: UserRole | undefined | null): string => {
   switch(role) {
     case 'school': return '/admin';
     case 'teacher': return '/teacher/analytics';
-    case 'student': return '/student/assessments';
     default: return '/dashboard';
   }
 };
@@ -25,56 +21,19 @@ const getRedirectPath = (role: string | undefined | null): string => {
 const ProtectedRoute = ({ 
   children, 
   requiredUserType,
-  roles: allowedRoles, 
-  requiredRole,
+  allowedRoles, 
   requireSupervisor = false,
   requireSameSchool = false,
   schoolId
 }: ProtectedRouteProps) => {
-  const { user, profile, isLoading, userRole, schoolId: userSchoolId } = useAuth();
-  const { hasRole, hasAnyRole, isSupervisor, isLoading: rbacLoading } = useRBAC();
+  const { user, profile, isLoading, userRole, schoolId: userSchoolId, isSupervisor } = useAuth();
   const location = useLocation();
 
   // Fast path for test accounts - check directly from localStorage first
   const usingTestAccount = localStorage.getItem('usingTestAccount') === 'true';
-  const testAccountType = localStorage.getItem('testAccountType') as string | null;
+  const testAccountType = localStorage.getItem('testAccountType') as UserRole | null;
 
-  if (usingTestAccount && testAccountType) {
-    console.log(`ProtectedRoute: Fast test account check for ${testAccountType}`);
-    
-    // For test accounts, only check role requirements, bypass other checks
-    if (requiredUserType && testAccountType !== requiredUserType) {
-      console.log(`ProtectedRoute: Test account role ${testAccountType} doesn't match required role ${requiredUserType}`);
-      return <Navigate to={getRedirectPath(testAccountType)} replace />;
-    }
-
-    if (requiredRole === 'school_admin' && testAccountType !== 'school') {
-      console.log(`ProtectedRoute: Test account type ${testAccountType} not compatible with required role: school_admin`);
-      return <Navigate to={getRedirectPath(testAccountType)} replace />;
-    }
-
-    if (allowedRoles && testAccountType === 'school' && !allowedRoles.includes('school_admin')) {
-      console.log(`ProtectedRoute: Test account type ${testAccountType} not compatible with allowed roles:`, allowedRoles);
-      return <Navigate to={getRedirectPath(testAccountType)} replace />;
-    }
-
-    if (allowedRoles && testAccountType === 'teacher' && 
-        !allowedRoles.includes('teacher') && !allowedRoles.includes('teacher_supervisor')) {
-      console.log(`ProtectedRoute: Test account type ${testAccountType} not compatible with allowed roles:`, allowedRoles);
-      return <Navigate to={getRedirectPath(testAccountType)} replace />;
-    }
-
-    if (allowedRoles && testAccountType === 'student' && !allowedRoles.includes('student')) {
-      console.log(`ProtectedRoute: Test account type ${testAccountType} not compatible with allowed roles:`, allowedRoles);
-      return <Navigate to={getRedirectPath(testAccountType)} replace />;
-    }
-
-    // Skip supervisor and school ID checks for test accounts - allow access
-    return <>{children}</>;
-  }
-
-  // Show loading indicator while authentication state is being determined
-  if (isLoading || rbacLoading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <span className="inline-flex items-center">
@@ -88,62 +47,55 @@ const ProtectedRoute = ({
     );
   }
 
+  // Handle test accounts immediately without further checks
+  if (usingTestAccount && testAccountType) {
+    console.log(`ProtectedRoute: Fast test account check for ${testAccountType}`);
+    
+    // For test accounts, only check role requirements, bypass other checks
+    if (requiredUserType && testAccountType !== requiredUserType) {
+      console.log(`ProtectedRoute: Test account role ${testAccountType} doesn't match required role ${requiredUserType}`);
+      return <Navigate to={getRedirectPath(testAccountType)} replace />;
+    }
+
+    if (allowedRoles && !allowedRoles.includes(testAccountType)) {
+      console.log(`ProtectedRoute: Test account role ${testAccountType} not in allowed roles:`, allowedRoles);
+      return <Navigate to={getRedirectPath(testAccountType)} replace />;
+    }
+
+    // Skip supervisor and school ID checks for test accounts - allow access
+    return <>{children}</>;
+  }
+
   // Regular account path - if not a test account and no user, redirect to login
   if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Map 'school' userRole to 'school_admin' for RBAC compatibility
-  const mappedRole = userRole === 'school' ? 'school_admin' : userRole;
-
   // Handle regular accounts
-  console.log("ProtectedRoute: User role:", userRole, "Mapped role:", mappedRole, "Required role:", requiredRole);
+  console.log("ProtectedRoute: User role:", userRole, "Required role:", requiredUserType);
 
-  // Check for specific required role from RBAC
-  if (requiredRole) {
-    if (requiredRole === 'school_admin' && userRole === 'school') {
-      // Special case for school admin - allow access if userRole is 'school'
-      console.log("ProtectedRoute: School admin access granted based on userRole");
-    }
-    else if (!hasRole(requiredRole)) {
-      console.log(`ProtectedRoute: User doesn't have required role ${requiredRole}`);
-      return <Navigate to={getRedirectPath(mappedRole)} replace />;
-    }
+  // Fix for TypeScript error - explicitly cast userRole to UserRole when comparing
+  const currentUserRole = userRole as UserRole | null;
+
+  if (requiredUserType && currentUserRole && currentUserRole !== requiredUserType) {
+    console.log(`ProtectedRoute: User role ${currentUserRole} doesn't match required role ${requiredUserType}`);
+    return <Navigate to={getRedirectPath(currentUserRole)} replace />;
   }
 
-  // Check for any of the allowed roles from RBAC
-  if (allowedRoles && allowedRoles.length > 0) {
-    // Special case for school admin
-    if (userRole === 'school' && allowedRoles.includes('school_admin')) {
-      console.log("ProtectedRoute: School admin access granted based on allowedRoles");
-    }
-    else if (!hasAnyRole(allowedRoles)) {
-      console.log(`ProtectedRoute: User doesn't have any of the allowed roles:`, allowedRoles);
-      return <Navigate to={getRedirectPath(mappedRole)} replace />;
-    }
+  if (allowedRoles && currentUserRole && !allowedRoles.includes(currentUserRole)) {
+    console.log(`ProtectedRoute: User role ${currentUserRole} not in allowed roles:`, allowedRoles);
+    return <Navigate to={getRedirectPath(currentUserRole)} replace />;
   }
 
-  // Backward compatibility with old user type
-  if (requiredUserType) {
-    if (requiredUserType === 'school_admin' && userRole === 'school') {
-      // Allow access if the required user type is school_admin and the user is a school
-      console.log(`ProtectedRoute: School admin access granted based on userType mapping`);
-    } 
-    else if (userRole && userRole !== requiredUserType) {
-      console.log(`ProtectedRoute: User role ${userRole} doesn't match required role ${requiredUserType}`);
-      return <Navigate to={getRedirectPath(userRole)} replace />;
-    }
-  }
-
-  // For supervisor checks, use the RBAC isSupervisor property
+  // For supervisor checks, we'll use the isSupervisor property
   if (requireSupervisor && !isSupervisor) {
     console.log(`ProtectedRoute: User is not a supervisor`);
-    return <Navigate to={getRedirectPath(mappedRole)} replace />;
+    return <Navigate to={getRedirectPath(currentUserRole)} replace />;
   }
 
   if (requireSameSchool && schoolId && userSchoolId && schoolId !== userSchoolId) {
     console.log(`ProtectedRoute: School ID mismatch - user: ${userSchoolId}, required: ${schoolId}`);
-    return <Navigate to={getRedirectPath(mappedRole)} replace />;
+    return <Navigate to={getRedirectPath(currentUserRole)} replace />;
   }
 
   // If all checks pass, render the protected content

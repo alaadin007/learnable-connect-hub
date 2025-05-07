@@ -1,325 +1,442 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { Clock, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle, CheckCircle } from "lucide-react";
-import { useAuth } from '@/contexts/AuthContext';
-import { Loader2 } from 'lucide-react';
-import { toast } from 'sonner';
-import { Separator } from '@/components/ui/separator';
 
 const LoginForm = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [loginError, setLoginError] = useState<string | null>(null);
-  const [verificationSent, setVerificationSent] = useState(false);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const { signIn, setTestUser, sendEmailVerification, signInWithGoogle } = useAuth();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const { signIn, setTestUser, userRole, signOut } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
-  const queryParams = new URLSearchParams(location.search);
-  const invitationToken = queryParams.get('invitation');
-  const emailConfirmed = queryParams.get('email_confirmed') === 'true';
-  const registered = queryParams.get('registered') === 'true';
-  const returnUrl = location.state?.returnUrl || '/dashboard';
+  const [searchParams] = useSearchParams();
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [activeTestAccount, setActiveTestAccount] = useState<string | null>(null);
   
+  // Show success toast for registration and email verification
   useEffect(() => {
-    if (emailConfirmed) {
-      toast.success('Email confirmed! You can now log in.');
+    if (searchParams.get('registered') === 'true') {
+      toast.success("Registration successful!", {
+        description: "Please check your email to verify your account before logging in."
+      });
     }
-    
-    if (registered) {
-      toast.info('Registration successful! Please verify your email before logging in.');
+    if (searchParams.get('email_confirmed') === 'true') {
+      toast.success("Email verified!", {
+        description: "Your email has been verified. You can now log in."
+      });
     }
-  }, [emailConfirmed, registered]);
+  }, [searchParams]);
 
-  const handleEmailChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setEmail(event.target.value);
-    setLoginError(null);
-    setVerificationSent(false);
-  };
-
-  const handlePasswordChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setPassword(event.target.value);
-    setLoginError(null);
-  };
-
-  const handleResendVerification = async () => {
-    if (!email) {
-      toast.error('Please enter your email address');
-      return;
-    }
-    
-    setIsSubmitting(true);
-    try {
-      await sendEmailVerification(email);
-      setVerificationSent(true);
-    } catch (error: unknown) {
-      if (error instanceof Error) {
-        toast.error(error.message || 'Failed to send verification email');
+  // Check if a test account is already active
+  useEffect(() => {
+    const checkActiveTestAccount = () => {
+      const usingTestAccount = localStorage.getItem('usingTestAccount') === 'true';
+      const testAccountType = localStorage.getItem('testAccountType');
+      
+      if (usingTestAccount && testAccountType) {
+        setActiveTestAccount(testAccountType);
       } else {
-        toast.error('Failed to send verification email');
+        setActiveTestAccount(null);
       }
-    } finally {
-      setIsSubmitting(false);
+    };
+    
+    checkActiveTestAccount();
+    
+    // Add event listener to detect changes to localStorage
+    window.addEventListener('storage', checkActiveTestAccount);
+    
+    return () => {
+      window.removeEventListener('storage', checkActiveTestAccount);
+    };
+  }, []);
+
+  // Redirect if user role already set
+  useEffect(() => {
+    if (userRole) {
+      console.log("LoginForm: User role already set, redirecting to appropriate dashboard:", userRole);
+      const redirectPath = getUserRedirectPath(userRole);
+      navigate(redirectPath);
+    }
+  }, [userRole, navigate]);
+
+  // Helper function to determine redirect path based on user role
+  const getUserRedirectPath = (role: string): string => {
+    switch (role) {
+      case "school":
+        return "/admin";
+      case "teacher":
+        return "/teacher/analytics";
+      case "student":
+        return "/dashboard";
+      default:
+        return "/dashboard";
     }
   };
-
-  const handleGoogleSignIn = async () => {
-    setIsGoogleLoading(true);
+  
+  // Special handling for test accounts - much faster now
+  const handleQuickLogin = async (
+    type: "school" | "teacher" | "student"
+  ) => {
     setLoginError(null);
-    
+    setIsLoading(true);
+
     try {
-      await signInWithGoogle();
-      // The redirect to Google will happen automatically
-      // Return handling is done in AuthCallback component
-    } catch (error: unknown) {
-      console.error("Google login error:", error);
-      if (error instanceof Error) {
-        setLoginError(error.message || 'An error occurred during Google sign in');
-      } else {
-        setLoginError('An error occurred during Google sign in');
+      console.log(`LoginForm: Instant login as ${type}`);
+      
+      // Set test account flags immediately
+      localStorage.setItem('usingTestAccount', 'true');
+      localStorage.setItem('testAccountType', type);
+      
+      // Direct login for test accounts - this bypasses authentication completely
+      const mockUser = await setTestUser(type);
+      if (!mockUser) {
+        throw new Error(`Failed to set up ${type} test account`);
       }
+      
+      // Define redirect paths
+      const redirectPath = getUserRedirectPath(type);
+
+      console.log(`LoginForm: Redirecting quick login user to ${redirectPath}`);
+      toast.success(
+        `Logged in as ${
+          type === "school"
+            ? "School Admin"
+            : type === "teacher"
+            ? "Teacher"
+            : "Student"
+        }`
+      );
+
+      navigate(redirectPath, { 
+        replace: true,
+        state: { 
+          fromTestAccounts: true,
+          accountType: type,
+          preserveContext: true,
+          timestamp: Date.now()
+        }
+      });
+    } catch (error: any) {
+      console.error("Quick login error:", error);
+      setLoginError(`Failed to log in with test account: ${error.message}`);
+      toast.error("Failed to log in with test account");
+      
+      // Clear any partial test account state on error
+      localStorage.removeItem('usingTestAccount');
+      localStorage.removeItem('testAccountType');
+      setActiveTestAccount(null);
     } finally {
-      setIsGoogleLoading(false);
+      setIsLoading(false);
     }
   };
 
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
-    setIsSubmitting(true);
     setLoginError(null);
+
+    if (!email || !password) {
+      toast.error("Please enter both email and password");
+      return;
+    }
     
+    setIsLoading(true);
+    console.log(`LoginForm: Attempting login for ${email}`);
+
     try {
-      // Check if email is a test account pattern
-      const testAccountPattern = /^(school|teacher|student)\.test@learnable\.edu$/;
-      if (testAccountPattern.test(email)) {
-        const detectedRole = email.split('.')[0] as "school" | "teacher" | "student";
-        console.log(`LoginForm: Detected test account for role: ${detectedRole}`);
+      // If there's already a test account active, sign out first
+      if (activeTestAccount) {
+        await signOut();
+        localStorage.removeItem('usingTestAccount');
+        localStorage.removeItem('testAccountType');
+        setActiveTestAccount(null);
+      }
+      
+      // Special handling for test accounts
+      if (email.includes(".test@learnable.edu")) {
+        let type: "school" | "teacher" | "student" = "student";
+        if (email.startsWith("school")) type = "school";
+        else if (email.startsWith("teacher")) type = "teacher";
         
-        // For test accounts, we don't actually authenticate, just set up the test user
-        const success = await setTestUser(detectedRole);
-        if (success) {
-          localStorage.setItem('usingTestAccount', 'true');
-          localStorage.setItem('testAccountType', detectedRole);
-          
-          if (detectedRole === 'school') {
-            navigate('/admin');
-          } else if (detectedRole === 'teacher') {
-            navigate('/teacher/analytics');
-          } else {
-            navigate(returnUrl);
-          }
-          return;
-        }
+        await handleQuickLogin(type);
+        return;
       }
       
       // Handle normal login with credentials
-      const result = await signIn(email, password);
-      if (!result) {
-        setLoginError('An error occurred during login.');
-        return;
-      }
-      
-      const { data, error } = result;
+      const { data, error } = await signIn(email, password);
       
       if (error) {
         console.error("Login error:", error);
+        throw error;
+      }
+
+      if (data?.user) {
+        console.log("Login successful:", data.user.id);
         
-        if (error.message.includes('Email not confirmed')) {
-          setLoginError('Please verify your email before logging in.');
-          toast.error('Email not verified', {
-            description: 'Please check your inbox for the verification link or request a new one.'
-          });
-          return;
-        } else if (error.message.includes('Invalid login credentials')) {
-          setLoginError('Invalid email or password. Please try again.');
-        } else {
-          setLoginError(error.message || 'An error occurred during login.');
+        // Determine user type and redirect accordingly
+        let userType: string | null = null;
+        let userName: string | null = null;
+        
+        // First try to get from user metadata
+        if (data.user.user_metadata) {
+          userType = data.user.user_metadata.user_type;
+          userName = data.user.user_metadata.full_name;
         }
-        return;
+        
+        // If not in metadata, try to get from profile
+        if (!userType) {
+          try {
+            const { data: profile, error: profileError } = await supabase
+              .from("profiles")
+              .select("user_type, full_name")
+              .eq("id", data.user.id)
+              .single();
+
+            if (!profileError && profile) {
+              userType = profile.user_type;
+              userName = profile.full_name || userName;
+            }
+          } catch (profileError) {
+            console.error("Error fetching user profile:", profileError);
+          }
+        }
+        
+        // Default to dashboard if we still can't determine the role
+        const redirectPath = userType ? getUserRedirectPath(userType) : "/dashboard";
+          
+        toast.success("Login successful", {
+          description: `Welcome back, ${userName || email}!`,
+        });
+        
+        navigate(redirectPath, { 
+          replace: true,
+          state: { 
+            fromNavigation: true,
+            preserveContext: true
+          }
+        });
       }
-      
-      if (invitationToken) {
-        // If user was invited, accept the invitation
-        navigate(`/invitation/${invitationToken}`);
+    } catch (error: any) {
+      console.error("Login error:", error);
+      setLoginError(error.message);
+
+      if (error.message?.includes("Email not confirmed")) {
+        toast.error("Email not verified", {
+          description: "Please check your inbox and spam folder for the verification email.",
+          action: {
+            label: "Resend",
+            onClick: () => handleResendVerification(),
+          },
+        });
+      } else if (error.message?.includes("Invalid login credentials")) {
+        toast.error("Login failed", {
+          description: "Invalid email or password. Please try again.",
+        });
       } else {
-        // Determine where to redirect based on user type
-        if (data?.user?.user_metadata?.user_type === 'school') {
-          navigate('/admin');
-        } else if (data?.user?.user_metadata?.user_type === 'teacher') {
-          navigate('/teacher/analytics');
-        } else {
-          navigate(returnUrl);
-        }
-      }
-    } catch (error: unknown) {
-      console.error("Login catch block error:", error);
-      if (error instanceof Error) {
-        setLoginError(error.message || 'An unexpected error occurred');
-        if (
-          error.message &&
-          (error.message.includes('Email not confirmed') ||
-            error.message.includes('not verified') ||
-            error.message.includes('verification'))
-        ) {
-          toast.error('Email not verified', {
-            description: 'Please check your inbox for the verification link or request a new one below.'
-          });
-        }
-      } else {
-        setLoginError('An unexpected error occurred');
+        toast.error(`Login failed: ${error.message}`);
       }
     } finally {
-      setIsSubmitting(false);
+      setIsLoading(false);
     }
   };
-  
+
+  const handleResendVerification = async () => {
+    if (!email) {
+      toast.error("Please enter your email address");
+      return;
+    }
+    
+    setIsLoading(true);
+    try {
+      // Direct call to Supabase to resend verification email
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+      });
+      
+      if (error) {
+        toast.error("Failed to resend verification email: " + error.message);
+      } else {
+        toast.success("Verification email sent", {
+          description: "Please check your inbox and spam folder for the verification link.",
+        });
+      }
+    } catch (error: any) {
+      toast.error("An error occurred: " + error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!email) {
+      toast.error("Please enter your email address");
+      return;
+    }
+    setIsLoading(true);
+
+    try {
+      // Direct call to Supabase to reset password
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/login?email_confirmed=true`,
+      });
+
+      if (error) {
+        toast.error("Failed to send password reset email: " + error.message);
+      } else {
+        toast.success("Password reset email sent", {
+          description: "Please check your inbox and spam folder for the reset link.",
+        });
+      }
+    } catch (error: any) {
+      toast.error("An error occurred: " + error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
-    <div className="flex justify-center items-center min-h-screen bg-learnable-super-light">
-      <Card className="w-full max-w-md">
+    <div className="max-w-md w-full mx-auto p-4">
+      <Card className="w-full">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl text-center">Login</CardTitle>
-          <CardDescription className="text-center">Enter your email and password to log in</CardDescription>
+          <CardTitle className="text-2xl font-bold">Welcome back</CardTitle>
+          <CardDescription>Enter your email and password to log in</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4">
+        <CardContent>
           {loginError && (
-            <Alert variant="destructive">
+            <Alert variant="destructive" className="mb-6">
               <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Error</AlertTitle>
-              <AlertDescription>{loginError}</AlertDescription>
-            </Alert>
-          )}
-          
-          {verificationSent && (
-            <Alert className="bg-green-50 border-green-200">
-              <CheckCircle className="h-4 w-4 text-green-600" />
-              <AlertTitle className="text-green-800">Verification Email Sent</AlertTitle>
-              <AlertDescription className="text-green-700">
-                Please check your inbox (including spam folder) and click the verification link.
+              <AlertTitle>Login Error</AlertTitle>
+              <AlertDescription>
+                {loginError.includes("Email not confirmed")
+                  ? "Your email address has not been verified. Please check your inbox for the verification email."
+                  : loginError}
               </AlertDescription>
             </Alert>
           )}
-          
-          <form onSubmit={handleLogin}>
-            <div className="grid gap-2 mb-4">
+
+          <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-md">
+            <div className="flex">
+              <Clock className="h-5 w-5 text-amber-700 mr-2 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-amber-800 font-medium">Need quick access?</p>
+                <p className="mt-1 text-sm text-amber-700">
+                  Use our pre-configured test accounts for instant login without email verification.
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleQuickLogin("school")}
+                    className={`text-sm text-blue-800 font-semibold hover:text-blue-900 bg-blue-100 px-3 py-1 rounded-full transition-colors duration-200 ${
+                      activeTestAccount === "school" ? "ring-2 ring-blue-500" : ""
+                    }`}
+                    disabled={isLoading}
+                  >
+                    {activeTestAccount === "school" ? "Active Admin" : "Admin Login"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickLogin("teacher")}
+                    className={`text-sm text-green-800 font-semibold hover:text-green-900 bg-green-100 px-3 py-1 rounded-full transition-colors duration-200 ${
+                      activeTestAccount === "teacher" ? "ring-2 ring-green-500" : ""
+                    }`}
+                    disabled={isLoading}
+                  >
+                    {activeTestAccount === "teacher" ? "Active Teacher" : "Teacher Login"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickLogin("student")}
+                    className={`text-sm text-purple-800 font-semibold hover:text-purple-900 bg-purple-100 px-3 py-1 rounded-full transition-colors duration-200 ${
+                      activeTestAccount === "student" ? "ring-2 ring-purple-500" : ""
+                    }`}
+                    disabled={isLoading}
+                  >
+                    {activeTestAccount === "student" ? "Active Student" : "Student Login"}
+                  </button>
+                  <Link
+                    to="/test-accounts"
+                    className="text-sm text-amber-800 font-semibold hover:text-amber-900 bg-amber-200 px-3 py-1 rounded-full transition-colors duration-200"
+                  >
+                    View All →
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
-                placeholder="Enter your email"
                 type="email"
+                placeholder="you@school.edu"
                 value={email}
-                onChange={handleEmailChange}
-                disabled={isSubmitting}
+                onChange={(e) => setEmail(e.target.value)}
                 required
+                autoComplete="email"
+                disabled={isLoading}
               />
             </div>
-            <div className="grid gap-2 mb-2">
-              <Label htmlFor="password">Password</Label>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Password</Label>
+                <button
+                  type="button"
+                  onClick={handleResetPassword}
+                  className="text-sm text-learnable-blue hover:underline"
+                  disabled={isLoading}
+                >
+                  Forgot password?
+                </button>
+              </div>
               <Input
                 id="password"
-                placeholder="Enter your password"
                 type="password"
                 value={password}
-                onChange={handlePasswordChange}
-                disabled={isSubmitting}
+                onChange={(e) => setPassword(e.target.value)}
                 required
+                autoComplete="current-password"
+                disabled={isLoading}
               />
             </div>
-            
-            <div className="flex justify-end mb-4">
-              <Link to="/forgot-password" className="text-sm text-primary hover:underline">
-                Forgot password?
-              </Link>
-            </div>
-            
-            <Button className="w-full gradient-bg" type="submit" disabled={isSubmitting}>
-              {isSubmitting ? (
+            <Button
+              type="submit"
+              className="w-full gradient-bg transition-all duration-300 relative overflow-hidden"
+              disabled={isLoading}
+              aria-busy={isLoading}
+            >
+              {isLoading ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Logging in...
+                  <span className="inline-flex items-center">
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Logging in...
+                  </span>
                 </>
               ) : (
-                'Log In'
+                "Log in"
               )}
             </Button>
-            
-            {loginError && loginError.includes('verify') && (
-              <Button 
-                type="button" 
-                variant="outline" 
-                className="w-full mt-4"
-                onClick={handleResendVerification}
-                disabled={isSubmitting || !email}
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Sending verification...
-                  </>
-                ) : (
-                  'Resend Verification Email'
-                )}
-              </Button>
-            )}
           </form>
-          
-          <div className="relative my-3">
-            <div className="absolute inset-0 flex items-center">
-              <Separator className="w-full" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-white px-2 text-muted-foreground">Or continue with</span>
-            </div>
-          </div>
-          
-          <Button 
-            type="button"
-            variant="outline" 
-            className="w-full" 
-            onClick={handleGoogleSignIn}
-            disabled={isGoogleLoading}
-          >
-            {isGoogleLoading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Connecting to Google...
-              </>
-            ) : (
-              <>
-                <svg className="h-4 w-4 mr-2" viewBox="0 0 24 24">
-                  <path
-                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                    fill="#4285F4"
-                  />
-                  <path
-                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                    fill="#34A853"
-                  />
-                  <path
-                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                    fill="#FBBC05"
-                  />
-                  <path
-                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                    fill="#EA4335"
-                  />
-                </svg>
-                Sign in with Google
-              </>
-            )}
-          </Button>
-          
-          <div className="text-center mt-4">
-            <p className="text-sm text-gray-500">
-              Don't have an account? <Link to="/register" className="text-blue-600 hover:underline">Register here</Link>
-            </p>
-          </div>
         </CardContent>
+        <CardFooter>
+          <p className="text-sm text-gray-600 text-center w-full">
+            Don't have an account?{" "}
+            <Link to="/register" className="text-learnable-blue hover:underline">
+              Register
+            </Link>
+          </p>
+        </CardFooter>
       </Card>
     </div>
   );

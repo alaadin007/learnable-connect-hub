@@ -6,14 +6,12 @@ import { MessageCircle, Send, Timer } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { sessionLogger } from "@/utils/sessionLogger";
+import sessionLogger from "@/utils/sessionLogger";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import VoiceRecorder from "./VoiceRecorder";
 import TextToSpeech from "./TextToSpeech";
-import AIModelSelector, { getModelProvider } from "./AIModelSelector";
-import { sendAIRequest } from "@/services/aiService";
 
 interface Message {
   role: "user" | "assistant" | "system";
@@ -36,12 +34,10 @@ const AIChatInterface: React.FC<AIChatInterfaceProps> = ({
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [model, setModel] = useState<string>("gpt-4o-mini");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  
-  // Update model state to include provider information
-  const [model, setModel] = useState<string>("gpt-4o-mini");
 
   // Start a new session when the component mounts
   useEffect(() => {
@@ -51,7 +47,7 @@ const AIChatInterface: React.FC<AIChatInterfaceProps> = ({
       try {
         const newSessionId = await sessionLogger.startSession(topic);
         if (isMounted && newSessionId) {
-          setSessionId(newSessionId as string);
+          setSessionId(newSessionId);
           if (initialPrompt) {
             setMessages([
               { role: "system", content: initialPrompt, timestamp: new Date() }
@@ -68,24 +64,20 @@ const AIChatInterface: React.FC<AIChatInterfaceProps> = ({
     return () => {
       isMounted = false;
       if (sessionId) {
-        try {
-          sessionLogger.endSession(sessionId);
-        } catch (error) {
-          console.error("Error ending session:", error);
-        }
+        sessionLogger.endSession(sessionId).catch(console.error);
       }
     };
+  // Here sessionId is a dependency but it is set asynchronously, so 
+  // the cleanup may not see the updated sessionId; to fix:
+  // either omit it here (and send endSession in separate effect) or
+  // move endSession to separate useEffect tracking sessionId.
   }, [topic, initialPrompt]);
 
   // To fix the cleanup for session end - better separate effect:
   useEffect(() => {
     return () => {
       if (sessionId) {
-        try {
-          sessionLogger.endSession(sessionId);
-        } catch (error) {
-          console.error("Error ending session in cleanup:", error);
-        }
+        sessionLogger.endSession(sessionId).catch(console.error);
       }
     };
   }, [sessionId]);
@@ -115,37 +107,32 @@ const AIChatInterface: React.FC<AIChatInterfaceProps> = ({
 
     try {
       if (topic && sessionId) {
-        try {
-          await sessionLogger.updateTopic(sessionId, topic);
-        } catch (error) {
-          console.error("Error updating topic:", error);
+        await sessionLogger.updateSessionTopic(sessionId, topic);
+      }
+
+      const { data, error } = await supabase.functions.invoke("ask-ai", {
+        body: {
+          question: userMessage,
+          topic,
+          documentId,
+          sessionId
         }
-      }
-
-      // Format the prompt with context if needed
-      let contextualizedPrompt = userMessage;
-      if (topic) {
-        contextualizedPrompt = `Topic: ${topic}\n\nQuestion: ${userMessage}`;
-      }
-
-      // Send request to AI service
-      const response = await sendAIRequest({
-        prompt: contextualizedPrompt,
-        model: model
       });
+
+      if (error) throw new Error(error.message);
 
       setMessages(prev => [...prev, {
         role: "assistant",
-        content: response,
+        content: data.response,
         timestamp: new Date()
       }]);
 
+      if (data.model) {
+        setModel(data.model);
+      }
+
       if (sessionId) {
-        try {
-          await sessionLogger.incrementQuery(sessionId);
-        } catch (error) {
-          console.error("Error incrementing query count:", error);
-        }
+        await sessionLogger.incrementQueryCount(sessionId);
       }
     } catch (error) {
       console.error("Error getting AI response:", error);
@@ -296,18 +283,12 @@ const AIChatInterface: React.FC<AIChatInterfaceProps> = ({
               <Send className="h-4 w-4" />
             </Button>
           </div>
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center text-xs text-muted-foreground">
             <div className="flex items-center">
               <Timer className="h-3 w-3 mr-1" />
-              <span className="text-xs text-muted-foreground">
-                {sessionId ? "Session active" : "Starting session..."}
-              </span>
+              {sessionId ? "Session active" : "Starting session..."}
             </div>
-            <AIModelSelector 
-              selectedModelId={model}
-              onModelChange={setModel}
-              disabled={isLoading}
-            />
+            <div>Model: {model}</div>
           </div>
         </form>
       </CardFooter>

@@ -1,8 +1,7 @@
 
-import * as React from "react";
+import React from "react";
 import { format } from "date-fns";
 import { Calendar as CalendarIcon } from "lucide-react";
-import { DateRange } from "react-day-picker";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -11,19 +10,18 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { DateRange } from "react-day-picker";
 
-interface DatePickerWithRangeProps {
-  date: { from: Date; to: Date } | DateRange | undefined;
+export interface DatePickerWithRangeProps {
+  date: DateRange | undefined;
   onDateChange: (date: DateRange | undefined) => void;
   className?: string;
-  align?: "start" | "center" | "end";
 }
 
 export function DatePickerWithRange({
   date,
   onDateChange,
   className,
-  align = "start",
 }: DatePickerWithRangeProps) {
   return (
     <div className={cn("grid gap-2", className)}>
@@ -33,8 +31,8 @@ export function DatePickerWithRange({
             id="date"
             variant={"outline"}
             className={cn(
-              "w-[300px] justify-start text-left font-normal",
-              !date && "text-muted-foreground"
+              "w-full justify-start text-left font-normal",
+              !date?.from && "text-muted-foreground"
             )}
           >
             <CalendarIcon className="mr-2 h-4 w-4" />
@@ -48,16 +46,16 @@ export function DatePickerWithRange({
                 format(date.from, "LLL dd, y")
               )
             ) : (
-              <span>Pick a date</span>
+              <span>Pick a date range</span>
             )}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align={align}>
+        <PopoverContent className="w-auto p-0" align="start">
           <Calendar
             initialFocus
             mode="range"
             defaultMonth={date?.from}
-            selected={date as DateRange}
+            selected={date}
             onSelect={onDateChange}
             numberOfMonths={2}
             className={cn("p-3 pointer-events-auto")}

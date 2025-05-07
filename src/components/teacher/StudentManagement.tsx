@@ -1,180 +1,294 @@
 
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import { toast } from "sonner";
-import { supabase, asSupabaseParam } from "@/integrations/supabase/client";
-import { Loader2 } from "lucide-react";
-import { 
-  isValidObject, 
-  safelyHandleResponse, 
-  toStringStateAction 
-} from '@/utils/supabaseHelpers';
-import { useAuth } from "@/contexts/AuthContext";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
+import { approveStudentDirect, inviteStudentDirect, revokeStudentAccessDirect } from '@/utils/databaseUtils';
 
-interface StudentInvite {
+type Student = {
   id: string;
-  code: string;
-  expires_at: string;
-  created_at: string;
-}
+  full_name: string | null;
+  email: string;
+  status: string;
+};
 
-const StudentManagement = ({ schoolId, isLoading: parentLoading, schoolInfo }: { 
-  schoolId: string | null;
-  isLoading?: boolean;
-  schoolInfo?: { name: string; code: string } | null;
-}) => {
-  const [invites, setInvites] = useState<StudentInvite[]>([]);
+const StudentManagement = () => {
+  const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
+  const [inviteCode, setInviteCode] = useState<string | null>(null);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteMethod, setInviteMethod] = useState<'code' | 'email'>('code');
   const { user } = useAuth();
 
   useEffect(() => {
-    if (schoolId) {
-      fetchInvites();
-    }
-  }, [schoolId]);
+    fetchStudents();
+  }, []);
 
-  const fetchInvites = async () => {
+  const fetchStudents = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('student_invites')
-        .select('*')
-        .eq('school_id', asSupabaseParam(schoolId))
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        toast.error('Failed to load invitation codes');
+      // Get the school ID for the current teacher
+      const { data: schoolId, error: schoolIdError } = await supabase.rpc('get_user_school_id');
+      
+      if (schoolIdError) {
+        toast.error("Could not get school information");
+        console.error("Error fetching school ID:", schoolIdError);
+        setLoading(false);
+        return;
+      }
+      
+      // Get all students from the same school
+      const { data: studentsData, error: studentsError } = await supabase
+        .from('students')
+        .select(`
+          id,
+          status,
+          profiles:id (
+            full_name,
+            email
+          )
+        `)
+        .eq('school_id', schoolId);
+      
+      if (studentsError) {
+        toast.error("Could not load students");
+        console.error("Error fetching students:", studentsError);
+        setLoading(false);
         return;
       }
 
-      // Transform data to ensure type safety
-      const safeInvites: StudentInvite[] = Array.isArray(data) 
-        ? data
-            .filter(item => isValidObject(item, ['id', 'code', 'expires_at', 'created_at']))
-            .map(item => ({
-              id: String(item.id),
-              code: String(item.code || ''),
-              expires_at: String(item.expires_at || ''),
-              created_at: String(item.created_at || '')
-            }))
-        : [];
+      // Format the student data
+      const formattedStudents: Student[] = studentsData.map((student: any) => ({
+        id: student.id,
+        full_name: student.profiles?.full_name || "No name",
+        email: student.profiles?.email || "No email",
+        status: student.status || "pending"
+      }));
 
-      setInvites(safeInvites);
+      setStudents(formattedStudents);
     } catch (error) {
-      console.error('Error fetching invites:', error);
-      toast.error('Failed to load invitation codes');
+      console.error("Error in fetchStudents:", error);
+      toast.error("An error occurred while loading students");
     } finally {
       setLoading(false);
     }
   };
 
-  const createInvite = async () => {
+  const handleInviteStudent = async () => {
     try {
-      setCreating(true);
-      
-      // Use the RPC function to generate a new invitation code
-      const { data, error } = await supabase
-        .rpc('create_student_invitation', { 
-          school_id_param: schoolId 
-        });
-
-      if (error) {
-        console.error("Error creating invitation:", error);
-        toast.error('Failed to create invitation code');
+      if (inviteMethod === 'email' && !inviteEmail) {
+        toast.error("Please enter an email address");
         return;
       }
 
-      // Refresh the list of invites
-      fetchInvites();
-      toast.success('New invitation code created!');
-      
+      const result = await inviteStudentDirect(
+        inviteMethod, 
+        inviteMethod === 'email' ? inviteEmail : undefined
+      );
+
+      if (!result.success) {
+        toast.error(result.message || "Failed to create invite");
+        return;
+      }
+
+      if (inviteMethod === 'code') {
+        setInviteCode(result.code || null);
+        toast.success("Student invite code generated successfully");
+      } else {
+        toast.success(`Invite sent to ${inviteEmail}`);
+        setInviteEmail('');
+      }
     } catch (error) {
-      console.error('Error creating invite:', error);
-      toast.error('Failed to create invitation code');
-    } finally {
-      setCreating(false);
+      console.error("Error inviting student:", error);
+      toast.error("Failed to create student invitation");
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString();
+  const handleApproveStudent = async (studentId: string) => {
+    try {
+      const success = await approveStudentDirect(studentId);
+      
+      if (success) {
+        toast.success("Student approved successfully");
+        // Update the local state
+        setStudents(students.map(student => 
+          student.id === studentId ? {...student, status: 'active'} : student
+        ));
+      } else {
+        toast.error("Failed to approve student");
+      }
+    } catch (error) {
+      console.error("Error approving student:", error);
+      toast.error("An error occurred while approving student");
+    }
+  };
+
+  const handleRevokeAccess = async (studentId: string) => {
+    try {
+      const success = await revokeStudentAccessDirect(studentId);
+      
+      if (success) {
+        toast.success("Student access revoked");
+        // Remove the student from the local state
+        setStudents(students.filter(student => student.id !== studentId));
+      } else {
+        toast.error("Failed to revoke student access");
+      }
+    } catch (error) {
+      console.error("Error revoking student access:", error);
+      toast.error("An error occurred while revoking student access");
+    }
   };
 
   return (
-    <Card className="w-full max-w-lg">
-      <CardHeader>
-        <CardTitle>Student Invitations</CardTitle>
-        <CardDescription>
-          Create invitation codes for students to join your school
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          <Button
-            onClick={createInvite}
-            disabled={creating || loading || !schoolId}
-            className="w-full"
-          >
-            {creating ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 
-                Creating Invitation...
-              </>
-            ) : (
-              'Create New Invitation Code'
-            )}
-          </Button>
-
-          <Separator className="my-4" />
-
-          {loading || parentLoading ? (
-            <div className="py-4 text-center">
-              <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">Loading invitations...</p>
-            </div>
-          ) : invites.length > 0 ? (
+    <div className="container mx-auto px-4 py-8">
+      <h1 className="text-2xl font-bold mb-6">Student Management</h1>
+      
+      <div className="grid md:grid-cols-2 gap-6">
+        {/* Invite Students */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Invite Students</CardTitle>
+            <CardDescription>Generate an invitation code or send email invites.</CardDescription>
+          </CardHeader>
+          <CardContent>
             <div className="space-y-4">
-              <h3 className="text-sm font-medium">Active Invitation Codes</h3>
-              <div className="overflow-hidden border rounded-md">
-                <table className="w-full">
-                  <thead className="bg-muted/50">
-                    <tr className="text-xs">
-                      <th className="px-4 py-2 text-left">Code</th>
-                      <th className="px-4 py-2 text-left">Created</th>
-                      <th className="px-4 py-2 text-left">Expires</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {invites.map(invite => (
-                      <tr key={invite.id} className="text-sm hover:bg-muted/50">
-                        <td className="px-4 py-3 font-medium">{invite.code}</td>
-                        <td className="px-4 py-3 text-muted-foreground">
-                          {formatDate(invite.created_at)}
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground">
-                          {formatDate(invite.expires_at)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="flex space-x-2">
+                <Button 
+                  variant={inviteMethod === 'code' ? 'default' : 'outline'}
+                  onClick={() => setInviteMethod('code')}
+                >
+                  Generate Code
+                </Button>
+                <Button 
+                  variant={inviteMethod === 'email' ? 'default' : 'outline'}
+                  onClick={() => setInviteMethod('email')}
+                >
+                  Send Email
+                </Button>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Share these codes with students to let them register and join your school.
-              </p>
+              
+              {inviteMethod === 'email' && (
+                <div>
+                  <label htmlFor="email" className="block mb-1 text-sm">Student Email</label>
+                  <div className="flex space-x-2">
+                    <Input 
+                      type="email" 
+                      id="email" 
+                      placeholder="student@example.com"
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+              
+              {inviteCode && (
+                <div className="p-3 bg-muted rounded-md">
+                  <label className="block mb-1 text-sm font-medium">Invitation Code:</label>
+                  <div className="flex items-center justify-between">
+                    <span className="text-lg font-mono font-bold">{inviteCode}</span>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => {
+                        navigator.clipboard.writeText(inviteCode);
+                        toast.success("Code copied to clipboard");
+                      }}
+                    >
+                      Copy
+                    </Button>
+                  </div>
+                  <p className="text-xs mt-2 text-muted-foreground">
+                    This code will expire in 7 days. Share it with your student to use during signup.
+                  </p>
+                </div>
+              )}
             </div>
-          ) : (
-            <p className="text-center py-4 text-muted-foreground">
-              No invitation codes found. Create one to get started!
-            </p>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+          </CardContent>
+          <CardFooter>
+            <Button 
+              onClick={handleInviteStudent}
+              disabled={inviteMethod === 'email' && !inviteEmail}
+            >
+              {inviteMethod === 'code' ? 'Generate Invitation Code' : 'Send Invitation'}
+            </Button>
+          </CardFooter>
+        </Card>
+
+        {/* Student List */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Student List</CardTitle>
+            <CardDescription>Manage your students and their access.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="flex justify-center p-4">
+                <div className="animate-spin h-6 w-6 border-2 border-primary rounded-full border-t-transparent"></div>
+              </div>
+            ) : students.length === 0 ? (
+              <div className="text-center p-4">
+                <p className="text-muted-foreground">No students found</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {students.map((student) => (
+                  <div key={student.id} className="flex items-center justify-between p-3 border rounded-md">
+                    <div>
+                      <div className="font-medium flex items-center">
+                        {student.full_name}
+                        {student.status === 'pending' && (
+                          <Badge variant="outline" className="ml-2 text-yellow-500 border-yellow-500">Pending</Badge>
+                        )}
+                        {student.status === 'active' && (
+                          <Badge variant="outline" className="ml-2 text-green-500 border-green-500">Active</Badge>
+                        )}
+                        {student.status === 'suspended' && (
+                          <Badge variant="outline" className="ml-2 text-red-500 border-red-500">Suspended</Badge>
+                        )}
+                        {!student.status && (
+                          <Badge variant="outline" className="ml-2">Unknown</Badge>
+                        )}
+                      </div>
+                      <div className="text-sm text-muted-foreground">{student.email}</div>
+                    </div>
+                    <div className="space-x-2">
+                      {student.status === 'pending' && (
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleApproveStudent(student.id)}
+                        >
+                          Approve
+                        </Button>
+                      )}
+                      <Button 
+                        variant="outline"
+                        size="sm"
+                        className="text-red-500 hover:bg-red-50"
+                        onClick={() => handleRevokeAccess(student.id)}
+                      >
+                        Revoke Access
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+          <CardFooter>
+            <Button variant="outline" onClick={fetchStudents}>
+              Refresh List
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+    </div>
   );
 };
 

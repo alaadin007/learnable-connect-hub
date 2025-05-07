@@ -9,29 +9,23 @@ import ChatHistory from "@/components/chat/ChatHistory";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Loader2 } from "lucide-react";
+import { Search } from "lucide-react";
 import { toast } from "sonner";
 
 const ChatWithAI = () => {
-  const { user, profile, isLoading: authLoading } = useAuth();
+  const { user, profile } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [topic, setTopic] = useState(searchParams.get("topic") || "");
   const [activeTopic, setActiveTopic] = useState(searchParams.get("topic") || "");
   const [conversationId, setConversationId] = useState<string | null>(searchParams.get("conversationId") || null);
   const navigate = useNavigate();
-  const [isPageLoading, setIsPageLoading] = useState(true);
 
   useEffect(() => {
-    // Check if auth is still loading
-    if (!authLoading) {
-      // Redirect if user is not logged in
-      if (!user) {
-        navigate("/login", { state: { from: "/chat" } });
-      } else {
-        setIsPageLoading(false);
-      }
+    // Redirect if user is not logged in
+    if (!user) {
+      navigate("/login", { state: { from: "/chat" } });
     }
-  }, [user, navigate, authLoading]);
+  }, [user, navigate]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,17 +71,9 @@ const ChatWithAI = () => {
     setSearchParams(params);
   };
 
-  // If auth is still loading or user is not logged in, show a loading state
-  if (isPageLoading) {
-    return (
-      <div className="min-h-screen flex flex-col">
-        <Navbar />
-        <div className="flex-grow flex justify-center items-center">
-          <Loader2 className="h-8 w-8 animate-spin text-learnable-purple" />
-        </div>
-        <Footer />
-      </div>
-    );
+  // If user is not logged in, show a loading message
+  if (!user) {
+    return <div className="flex justify-center items-center h-screen">Loading...</div>;
   }
 
   return (

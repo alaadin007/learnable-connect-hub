@@ -1,10 +1,18 @@
-import React from "react";
-import { SessionData } from "./types";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Input } from "@/components/ui/input";
 
-// Include isLoading prop in the interface
+import React from "react";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { SessionData } from "./types";
+import { Skeleton } from "@/components/ui/skeleton";
+
 interface SessionsTableProps {
   sessions: SessionData[];
   title?: string;
@@ -12,13 +20,17 @@ interface SessionsTableProps {
   isLoading?: boolean;
 }
 
-const SessionsTable = ({ sessions, title, description, isLoading = false }: SessionsTableProps) => {
+const SessionsTable = ({ 
+  sessions, 
+  title = "Recent Sessions", 
+  description = "Latest student learning sessions",
+  isLoading = false
+}: SessionsTableProps) => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{title || "Sessions"}</CardTitle>
-        {description && <CardDescription>{description}</CardDescription>}
-        <Input placeholder="Search sessions..." className="max-w-sm" />
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -27,35 +39,52 @@ const SessionsTable = ({ sessions, title, description, isLoading = false }: Sess
             <Skeleton className="h-8 w-full" />
             <Skeleton className="h-8 w-full" />
           </div>
-        ) : sessions.length === 0 ? (
-          <div className="flex justify-center items-center py-10 text-muted-foreground">
-            No sessions available
-          </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-2 px-4">Student</th>
-                  <th className="text-left py-2 px-4">Date</th>
-                  <th className="text-left py-2 px-4">Topic</th>
-                  <th className="text-right py-2 px-4">Duration</th>
-                  <th className="text-right py-2 px-4">Queries</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sessions.map((session) => (
-                  <tr key={session.id} className="border-b">
-                    <td className="py-2 px-4">{session.student_name}</td>
-                    <td className="py-2 px-4">{session.session_date}</td>
-                    <td className="py-2 px-4">{session.topic}</td>
-                    <td className="py-2 px-4 text-right">{session.duration_minutes}</td>
-                    <td className="py-2 px-4 text-right">{session.queries}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Table>
+            <TableCaption>A list of recent learning sessions</TableCaption>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Student</TableHead>
+                <TableHead>Topic</TableHead>
+                <TableHead>Queries</TableHead>
+                <TableHead>Duration</TableHead>
+                <TableHead>Date</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {sessions.length > 0 ? (
+                sessions.map((session) => (
+                  <TableRow key={session.id}>
+                    <TableCell className="font-medium">
+                      {session.student_name || session.userName || session.student || "Unknown"}
+                    </TableCell>
+                    <TableCell>
+                      {session.topics?.[0] || session.topicOrContent || session.topic || "General"}
+                    </TableCell>
+                    <TableCell>
+                      {session.questions_asked || session.numQueries || session.queries || 0}
+                    </TableCell>
+                    <TableCell>
+                      {typeof session.duration_minutes === 'number' ? 
+                        `${session.duration_minutes} min` : 
+                        (typeof session.duration === 'string' ? 
+                          session.duration : 
+                          `${session.duration || 0} min`)}
+                    </TableCell>
+                    <TableCell>
+                      {session.session_date || session.startTime || "N/A"}
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center h-24">
+                    No sessions recorded yet
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
         )}
       </CardContent>
     </Card>

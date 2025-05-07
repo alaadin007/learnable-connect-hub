@@ -1,9 +1,11 @@
+
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { DatePickerWithRange } from "@/components/ui/date-range-picker";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -27,16 +29,12 @@ import {
 } from "@/components/analytics/types";
 import SessionsTable from "@/components/analytics/SessionsTable";
 import { AnalyticsSummaryCards } from "@/components/analytics/AnalyticsSummaryCards";
-import { DatePickerWithRange } from "@/components/ui/date-range-picker";
-import { AnalyticsExport } from "@/components/analytics/AnalyticsExport";
-import { isValidUUID } from "@/integrations/supabase/client";
 
 const TeacherAnalytics = () => {
   const { user, profile, userRole } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [initialLoad, setInitialLoad] = useState(true);
-  // Fix: Make the to property non-optional
-  const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>({
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: new Date(new Date().setDate(new Date().getDate() - 30)),
     to: new Date(),
   });
@@ -155,16 +153,9 @@ const TeacherAnalytics = () => {
     
     setDataError(false);
     try {
-      // Ensure schoolId is a valid UUID
-      if (!schoolId || !isValidUUID(schoolId)) {
-        console.warn("Invalid school ID, using mock data instead");
-        generateMockData();
-        return;
-      }
-      
       const filters: AnalyticsFilters = {
         dateRange,
-        teacherId: isValidUUID(teacherId) ? teacherId : undefined,
+        teacherId,
       };
 
       // Fetch all analytics data in parallel with individual try/catch blocks
@@ -240,19 +231,10 @@ const TeacherAnalytics = () => {
     setRetryCount(prev => prev + 1);
   }, [isTestAccount, generateMockData]);
 
-  // Fix type issue with handleExport function to properly handle DateRange
   const handleExport = useCallback(() => {
     try {
-      if (!dateRange || !dateRange.from) {
-        toast.error("Please select a date range first");
-        return;
-      }
-      
-      const dateRangeStr = dateRange.to 
-        ? `${format(dateRange.from, "MMM d, yyyy")} - ${format(dateRange.to, "MMM d, yyyy")}`
-        : format(dateRange.from, "MMM d, yyyy");
-        
-      exportAnalyticsToCSV(summary, sessions, topics, studyTime, dateRangeStr);
+      const dateRangeText = getDateRangeText(dateRange);
+      exportAnalyticsToCSV(summary, sessions, topics, studyTime, dateRangeText);
       toast.success("Analytics data exported successfully");
     } catch (error) {
       console.error("Error exporting data:", error);
@@ -261,13 +243,8 @@ const TeacherAnalytics = () => {
   }, [summary, sessions, topics, studyTime, dateRange]);
   
   const handleDateRangeChange = useCallback((newDateRange: DateRange | undefined) => {
-    // Ensure that the dateRange always has a 'to' value
-    if (newDateRange && newDateRange.from) {
-      setDateRange({
-        from: newDateRange.from,
-        to: newDateRange.to || newDateRange.from,
-      });
-    }
+    setDateRange(newDateRange);
+    // Will trigger loadAnalyticsData via useEffect
   }, []);
 
   const handleTabChange = useCallback((value: string) => {
@@ -338,13 +315,10 @@ const TeacherAnalytics = () => {
                   <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
                   Refresh
                 </Button>
-                <AnalyticsExport 
-                  summary={summary}
-                  sessions={sessions}
-                  topics={topics}
-                  studyTime={studyTime}
-                  dateRangeText={getDateRangeText(dateRange)} 
-                />
+                <Button variant="outline" onClick={handleExport}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Export
+                </Button>
               </div>
             </div>
           </div>

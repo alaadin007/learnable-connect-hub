@@ -1,3 +1,4 @@
+
 import React from "react";
 import {
   PieChart,
@@ -5,8 +6,7 @@ import {
   Cell,
   Tooltip,
   Legend,
-  ResponsiveContainer,
-  PieLabelRenderProps
+  ResponsiveContainer
 } from "recharts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { TopicData } from "./types";
@@ -39,19 +39,15 @@ const TopicsChart = ({
   }, [data]);
 
   // Custom label renderer for the pie chart
-  const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, index }: PieLabelRenderProps) => {
-    const cxNum = typeof cx === 'number' ? cx : parseFloat(cx || '0');
-    const cyNum = typeof cy === 'number' ? cy : parseFloat(cy || '0');
-    const innerRadiusNum = typeof innerRadius === 'number' ? innerRadius : parseFloat(innerRadius || '0');
-    const outerRadiusNum = typeof outerRadius === 'number' ? outerRadius : parseFloat(outerRadius || '0');
-    const radius = innerRadiusNum + (outerRadiusNum - innerRadiusNum) * 0.5;
-    const x = cxNum + radius * Math.cos(-midAngle * RADIAN);
-    const y = cyNum + radius * Math.sin(-midAngle * RADIAN);
+  const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, index }: any) => {
+    const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+    const x = cx + radius * Math.cos(-midAngle * RADIAN);
+    const y = cy + radius * Math.sin(-midAngle * RADIAN);
     
     if (percent < 0.05) return null; // Don't show labels for very small segments
     
     return (
-      <text x={x} y={y} fill="white" textAnchor={x > cxNum ? 'start' : 'end'} dominantBaseline="central">
+      <text x={x} y={y} fill="white" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central">
         {`${(percent * 100).toFixed(0)}%`}
       </text>
     );
