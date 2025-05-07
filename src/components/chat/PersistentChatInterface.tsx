@@ -62,7 +62,11 @@ const PersistentChatInterface: React.FC<PersistentChatInterfaceProps> = ({
 
     return () => {
       if (sessionId) {
-        sessionLogger.endSession(sessionId);
+        try {
+          sessionLogger.endSession(sessionId);
+        } catch (error) {
+          console.error("Error ending session:", error);
+        }
       }
     };
   }, [topic]);

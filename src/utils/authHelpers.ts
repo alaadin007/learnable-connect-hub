@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { AppRole } from "@/contexts/RBACContext";
@@ -122,6 +121,7 @@ export const createUserProfile = async (
   }
 };
 
+// Properly type the role parameter as AppRole
 export const assignUserRole = async (userId: string, role: AppRole) => {
   try {
     console.log("Assigning role:", role, "to user:", userId);

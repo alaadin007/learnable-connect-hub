@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -69,20 +68,24 @@ const AIChatInterface: React.FC<AIChatInterfaceProps> = ({
     return () => {
       isMounted = false;
       if (sessionId) {
-        sessionLogger.endSession(sessionId).catch(console.error);
+        try {
+          sessionLogger.endSession(sessionId);
+        } catch (error) {
+          console.error("Error ending session:", error);
+        }
       }
     };
-  // Here sessionId is a dependency but it is set asynchronously, so 
-  // the cleanup may not see the updated sessionId; to fix:
-  // either omit it here (and send endSession in separate effect) or
-  // move endSession to separate useEffect tracking sessionId.
   }, [topic, initialPrompt]);
 
   // To fix the cleanup for session end - better separate effect:
   useEffect(() => {
     return () => {
       if (sessionId) {
-        sessionLogger.endSession(sessionId).catch(console.error);
+        try {
+          sessionLogger.endSession(sessionId);
+        } catch (error) {
+          console.error("Error ending session in cleanup:", error);
+        }
       }
     };
   }, [sessionId]);
@@ -112,7 +115,11 @@ const AIChatInterface: React.FC<AIChatInterfaceProps> = ({
 
     try {
       if (topic && sessionId) {
-        await sessionLogger.updateTopic(sessionId, topic);
+        try {
+          await sessionLogger.updateTopic(sessionId, topic);
+        } catch (error) {
+          console.error("Error updating topic:", error);
+        }
       }
 
       // Format the prompt with context if needed
@@ -134,7 +141,11 @@ const AIChatInterface: React.FC<AIChatInterfaceProps> = ({
       }]);
 
       if (sessionId) {
-        await sessionLogger.incrementQuery(sessionId);
+        try {
+          await sessionLogger.incrementQuery(sessionId);
+        } catch (error) {
+          console.error("Error incrementing query count:", error);
+        }
       }
     } catch (error) {
       console.error("Error getting AI response:", error);
