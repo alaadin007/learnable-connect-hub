@@ -9,7 +9,7 @@ interface ProtectedRouteProps {
   requireSupervisor?: boolean;
   requireSameSchool?: boolean;
   schoolId?: string;
-  allowedRoles?: Array<AppRole>;
+  roles?: AppRole[];
   requiredRole?: AppRole;
 }
 
@@ -25,7 +25,7 @@ const getRedirectPath = (role: string | undefined | null): string => {
 const ProtectedRoute = ({ 
   children, 
   requiredUserType,
-  allowedRoles, 
+  roles: allowedRoles, 
   requiredRole,
   requireSupervisor = false,
   requireSameSchool = false,

@@ -26,11 +26,11 @@ import TeacherInvitation from '@/pages/TeacherInvitation';
 import ForgotPasswordPage from '@/pages/ForgotPassword';
 import ResetPasswordPage from '@/pages/ResetPassword';
 import { AuthProvider } from '@/contexts/AuthContext';
-import { App } from '@/App';
+import App from '@/App';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import { Toaster } from 'sonner';
 import AuthCallback from '@/components/auth/AuthCallback';
-import { AdminTeacherManagement } from '@/pages/AdminTeacherManagement';
+import AdminTeacherManagement from '@/pages/AdminTeacherManagement';
 
 // Wrap with ProtectedRoute for pages that require authentication
 const AppRoutes = () => {
