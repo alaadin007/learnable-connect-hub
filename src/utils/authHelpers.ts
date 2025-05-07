@@ -86,14 +86,26 @@ export const createUserProfile = async (
 ): Promise<void> => {
   try {
     // Make sure userType is a valid value accepted by the profiles table
-    // Valid types likely include: 'school_admin', 'teacher', 'student'
     const validUserType = validateUserType(userType);
+    
+    // Query school code using school ID
+    const { data: schoolData, error: schoolError } = await supabase
+      .from('schools')
+      .select('code')
+      .eq('id', schoolId)
+      .single();
+    
+    if (schoolError || !schoolData) {
+      console.error('Error retrieving school code:', schoolError);
+      throw new Error('Failed to retrieve school code');
+    }
     
     const { error } = await supabase.from('profiles').insert({
       id: userId,
       user_type: validUserType,
       full_name: fullName || email.split('@')[0],
-      school_code: schoolId, // This might need to be updated if school_code is not the ID
+      school_code: schoolData.code, // Use the actual school code from the schools table
+      school_name: null, // This will be filled in from the schools table if needed
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
@@ -114,7 +126,7 @@ export const createUserProfile = async (
  * @returns Valid user type string
  */
 const validateUserType = (userType: string): string => {
-  // Normalize the user type to match expected values in the database
+  // Based on the database constraint, only these types are valid
   const validTypes = ['school_admin', 'teacher', 'student'];
   
   // If it's already one of our valid types, return it
@@ -151,7 +163,11 @@ export const handleRegistrationError = (error: any): void => {
     toast.error('Password error', { description: errorMessage });
   } else if (errorMessage.includes('check constraint')) {
     toast.error('Registration failed', { 
-      description: 'There was an issue with the data provided. Please check your inputs and try again.' 
+      description: 'There was an issue with the user type provided. Please contact support.' 
+    });
+  } else if (errorMessage.includes('school')) {
+    toast.error('School registration error', { 
+      description: 'There was an issue with the school information provided.' 
     });
   } else {
     toast.error('Registration failed', { description: errorMessage });

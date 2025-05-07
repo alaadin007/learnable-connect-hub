@@ -97,6 +97,20 @@ const SchoolRegistrationForm: React.FC = () => {
       const newSchoolCode = generateSchoolCode();
       console.log("Generated school code:", newSchoolCode);
 
+      // First create the entry in school_codes table
+      const { error: codeError } = await supabase
+        .from("school_codes")
+        .insert({
+          code: newSchoolCode,
+          school_name: data.schoolName,
+          active: true
+        });
+
+      if (codeError) {
+        console.error('Error creating school code:', codeError);
+        throw new Error(`Failed to create school code: ${codeError.message}`);
+      }
+
       // Register user with Supabase auth first
       const { data: authData, error: userError } = await supabase.auth.signUp({
         email: data.adminEmail,
@@ -107,7 +121,6 @@ const SchoolRegistrationForm: React.FC = () => {
             user_type: "school_admin",
             school_code: newSchoolCode,
             school_name: data.schoolName,
-            email: data.adminEmail,
           },
           emailRedirectTo: `${window.location.origin}/login?email_confirmed=true`,
         },
@@ -122,12 +135,12 @@ const SchoolRegistrationForm: React.FC = () => {
       // Create school record
       const { data: schoolData, error: schoolError } = await supabase
         .from("schools")
-        .insert([{
+        .insert({
           code: newSchoolCode,
           name: data.schoolName,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-        }])
+        })
         .select("id")
         .single();
 
@@ -146,12 +159,12 @@ const SchoolRegistrationForm: React.FC = () => {
       await createUserProfile(
         authData.user.id,
         data.adminEmail,
-        "school_admin", // Make sure this matches the valid user types in the database
+        "school_admin", // This is a valid user_type defined in the database
         schoolData.id,
         data.adminFullName
       );
 
-      // Assign school admin role - explicitly cast to AppRole type to ensure type safety
+      // Assign school admin role
       await assignUserRole(authData.user.id, "school_admin" as AppRole);
 
       toast.dismiss(loadingToast);
@@ -261,6 +274,7 @@ const SchoolRegistrationForm: React.FC = () => {
         
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            
             <FormField
               control={form.control}
               name="schoolName"
