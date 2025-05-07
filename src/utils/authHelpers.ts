@@ -1,6 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { AppRole } from "@/contexts/RBACContext";
 
 export const checkEmailExists = async (email: string): Promise<boolean> => {
   try {
@@ -121,7 +122,7 @@ export const createUserProfile = async (
   }
 };
 
-export const assignUserRole = async (userId: string, role: string) => {
+export const assignUserRole = async (userId: string, role: AppRole) => {
   try {
     console.log("Assigning role:", role, "to user:", userId);
     
@@ -177,4 +178,4 @@ export const handleRegistrationError = (error: any) => {
       description: "An unexpected error occurred. Please try again or contact support.",
     });
   }
-}; 
+};

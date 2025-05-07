@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -9,7 +10,7 @@ import { Send, Loader2, MessageCircle, Paperclip } from 'lucide-react';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
 import { Badge } from '@/components/ui/badge';
-import sessionLogger from '@/utils/sessionLogger';
+import { sessionLogger } from '@/utils/sessionLogger';
 import VoiceRecorder from './VoiceRecorder';
 import TextToSpeech from './TextToSpeech';
 import AIModelSelector, { getModelProvider } from "./AIModelSelector";

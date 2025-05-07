@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Loader2, Mail, AlertCircle, Info } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { AppRole } from "@/contexts/RBACContext";
 
 import {
   Form,
@@ -151,8 +152,8 @@ const SchoolRegistrationForm: React.FC = () => {
         data.adminFullName
       );
 
-      // Assign school admin role
-      await assignUserRole(authData.user.id, "school_admin");
+      // Assign school admin role - explicitly cast to AppRole type to ensure type safety
+      await assignUserRole(authData.user.id, "school_admin" as AppRole);
 
       toast.dismiss(loadingToast);
       setRegisteredEmail(data.adminEmail);

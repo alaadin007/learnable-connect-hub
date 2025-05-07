@@ -7,7 +7,7 @@ import { MessageCircle, Send, Timer } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import sessionLogger from "@/utils/sessionLogger";
+import { sessionLogger } from "@/utils/sessionLogger";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
