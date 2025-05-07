@@ -5,7 +5,7 @@ import Footer from "@/components/landing/Footer";
 import SchoolRegistrationForm from "@/components/auth/SchoolRegistrationForm";
 import { Toaster } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { HelpCircle } from "lucide-react";
+import { HelpCircle, AlertTriangle } from "lucide-react";
 
 const SchoolRegistration = () => {
   return (
@@ -18,6 +18,14 @@ const SchoolRegistration = () => {
             <AlertTitle className="text-blue-800">Auth Configuration</AlertTitle>
             <AlertDescription className="text-blue-700">
               For authentication to work in production, make sure to set the Site URL and Redirect URLs in Supabase Auth settings to your deployed site URL.
+            </AlertDescription>
+          </Alert>
+
+          <Alert className="bg-yellow-50 border-l-4 border-yellow-500 mb-6 max-w-2xl mx-auto">
+            <AlertTriangle className="h-5 w-5 text-yellow-500" />
+            <AlertTitle className="text-yellow-800">Important Notice</AlertTitle>
+            <AlertDescription className="text-yellow-700">
+              If you get "requested path is invalid" errors during registration, please make sure your Supabase project has the correct Site URL and Redirect URLs configured in Authentication Settings.
             </AlertDescription>
           </Alert>
           

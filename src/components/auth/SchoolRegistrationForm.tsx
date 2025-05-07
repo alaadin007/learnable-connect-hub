@@ -132,6 +132,12 @@ const SchoolRegistrationForm: React.FC = () => {
 
       const newSchoolCode = generateSchoolCode();
 
+      // Get current site URL for proper redirects
+      const siteUrl = window.location.origin;
+      const redirectTo = `${siteUrl}/login?email_confirmed=true`;
+      
+      console.log("Using redirect URL:", redirectTo);
+
       // Register user with Supabase auth
       const { data: userData, error: userError } = await supabase.auth.signUp({
         email: data.adminEmail,
@@ -144,7 +150,7 @@ const SchoolRegistrationForm: React.FC = () => {
             school_name: data.schoolName,
             email: data.adminEmail,
           },
-          emailRedirectTo: window.location.origin + "/login?email_confirmed=true",
+          emailRedirectTo: redirectTo,
         },
       });
 
@@ -154,6 +160,7 @@ const SchoolRegistrationForm: React.FC = () => {
           "Failed to create school account: " + (userError?.message || "Unknown error")
         );
         toast.error("Failed to create school account");
+        console.error("Registration error:", userError || "No user data returned");
         setIsLoading(false);
         return;
       }
@@ -175,6 +182,7 @@ const SchoolRegistrationForm: React.FC = () => {
     } catch (err: any) {
       toast.error(`Registration error: ${err.message || err}`);
       setRegistrationError(err.message || "Unknown error during registration");
+      console.error("Registration error:", err);
     } finally {
       setIsLoading(false);
     }
@@ -185,8 +193,12 @@ const SchoolRegistrationForm: React.FC = () => {
 
     setIsLoading(true);
     try {
+      // Get current site URL for proper redirects
+      const siteUrl = window.location.origin;
+      const redirectTo = `${siteUrl}/login?email_confirmed=true`;
+
       const { error } = await supabase.auth.resetPasswordForEmail(registeredEmail, {
-        redirectTo: window.location.origin + "/login?email_confirmed=true",
+        redirectTo: redirectTo,
       });
       if (error) toast.error("Failed to send verification email: " + error.message);
       else toast.success("Verification email sent. Check inbox and spam folder.");
