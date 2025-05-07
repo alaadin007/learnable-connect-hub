@@ -35,6 +35,15 @@ type InvitationDetails = {
   school_name?: string;
 }
 
+// Define the expected type for the invitation data from the RPC function
+type VerifiedInvitation = {
+  invitation_id: string;
+  email: string;
+  school_id: string;
+  school_name?: string;
+  status: string;
+}
+
 const AcceptInvitation = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -65,7 +74,7 @@ const AcceptInvitation = () => {
       try {
         const { data: invitationData, error: invitationError } = await supabase
           .rpc("verify_teacher_invitation", {
-            token: token // Changed from invitation_token to token
+            token: token
           });
         
         if (invitationError || !invitationData) {
@@ -75,17 +84,12 @@ const AcceptInvitation = () => {
           return;
         }
 
-        // Define a type for the invitation data
-        type VerifiedInvitation = {
-          invitation_id: string;
-          email: string;
-          school_id: string;
-          school_name?: string;
-          status: string;
-        };
-        const typedInvitationData = invitationData as VerifiedInvitation;
+        // Fix the type conversion issue by properly accessing the first item in the array
+        // and adding a type assertion to match the expected VerifiedInvitation type
+        const typedInvitationData = Array.isArray(invitationData) && invitationData.length > 0 
+          ? invitationData[0] as unknown as VerifiedInvitation 
+          : { invitation_id: '', email: '', school_id: '', status: 'invalid' };
         
-        // For now we need to assume some properties until the RPC returns are properly typed
         if (typedInvitationData.status === 'expired') {
           setInvitationStatus("expired");
           setIsLoading(false);
@@ -127,6 +131,7 @@ const AcceptInvitation = () => {
     verifyInvitation();
   }, [token, navigate, form]);
 
+  
   const onSubmit = async (data: FormData) => {
     if (!invitationDetails) return;
     
@@ -152,7 +157,7 @@ const AcceptInvitation = () => {
       // Accept the invitation
       const { error: acceptError } = await supabase
         .rpc("accept_teacher_invitation", {
-          token: token as string, // Changed from invitation_token to token
+          token: token as string,
           user_id: authData.user.id
         });
 
