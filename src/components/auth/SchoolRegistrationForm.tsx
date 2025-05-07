@@ -74,16 +74,6 @@ const SchoolRegistrationForm: React.FC = () => {
     },
   });
 
-  // Generate random uppercase alphanumeric school code (exclude confusing chars)
-  const generateSchoolCode = (): string => {
-    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-    let result = "";
-    for (let i = 0; i < 8; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return result;
-  };
-
   const onSubmit = async (data: SchoolRegistrationFormValues) => {
     setIsLoading(true);
     const loadingToast = toast.loading("Registering your school...");
@@ -116,7 +106,22 @@ const SchoolRegistrationForm: React.FC = () => {
         throw new Error(`Failed to create school code: ${codeError.message}`);
       }
 
-      // Register user with Supabase auth first
+      // Create school record
+      const { data: schoolData, error: schoolError } = await createSchool(
+        newSchoolCode, 
+        data.schoolName
+      );
+
+      if (schoolError) {
+        console.error("School creation error:", schoolError);
+        throw new Error(`Failed to create school: ${schoolError.message}`);
+      }
+
+      if (!schoolData) throw new Error("Failed to create school record");
+
+      console.log("School created successfully:", schoolData.id);
+
+      // Register user with Supabase auth
       const { data: authData, error: userError } = await registerUser(
         data.adminEmail, 
         data.adminPassword,
@@ -129,27 +134,13 @@ const SchoolRegistrationForm: React.FC = () => {
       );
 
       if (userError || !authData.user) {
+        // If user creation fails, clean up the school
+        await supabase.from("schools").delete().eq("id", schoolData.id);
+        await supabase.from("school_codes").delete().eq("code", newSchoolCode);
         throw new Error(userError?.message || "Failed to create user account");
       }
 
       console.log("User registered successfully:", authData.user.id);
-
-      // Create school record
-      const { data: schoolData, error: schoolError } = await createSchool(
-        newSchoolCode, 
-        data.schoolName
-      );
-
-      if (schoolError) {
-        console.error("School creation error:", schoolError);
-        // If school creation fails, we should clean up the user
-        await supabase.auth.admin.deleteUser(authData.user.id);
-        throw new Error(`Failed to create school: ${schoolError.message}`);
-      }
-
-      if (!schoolData) throw new Error("Failed to create school record");
-
-      console.log("School created successfully:", schoolData.id);
 
       // Create user profile with the proper user_type value
       await createUserProfile(

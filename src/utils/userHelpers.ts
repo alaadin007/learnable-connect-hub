@@ -69,6 +69,34 @@ export const createUserProfile = async (
       console.error('Profile creation error details:', error);
       throw error;
     }
+    
+    // Add user to the appropriate role-specific table
+    if (validUserType === 'school_admin' || validUserType === 'teacher') {
+      const { error: teacherError } = await supabase.from('teachers').insert({
+        id: userId,
+        school_id: schoolId,
+        is_supervisor: validUserType === 'school_admin',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+      
+      if (teacherError) {
+        console.error('Error creating teacher record:', teacherError);
+        throw teacherError;
+      }
+    } else if (validUserType === 'student') {
+      const { error: studentError } = await supabase.from('students').insert({
+        id: userId,
+        school_id: schoolId,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+      
+      if (studentError) {
+        console.error('Error creating student record:', studentError);
+        throw studentError;
+      }
+    }
   } catch (error) {
     console.error('Error creating user profile:', error);
     throw error;
@@ -92,6 +120,7 @@ export const validateUserType = (userType: string): string => {
   // Map simplified types to valid database values
   switch(userType.toLowerCase()) {
     case 'admin':
+    case 'school':
       return 'school_admin';
     case 'teacher':
       return 'teacher';
