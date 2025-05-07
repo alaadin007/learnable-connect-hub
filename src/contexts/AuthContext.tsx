@@ -1,6 +1,6 @@
 // Only updating function implementations that use Supabase helpers
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Session, User } from '@supabase/supabase-js';
+import { Session, User, Provider } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { 
@@ -45,6 +45,7 @@ interface AuthContextProps {
   isLoading: boolean;
   error: string | null;
   sendEmailVerification: (email: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextProps | undefined>(undefined);
@@ -230,6 +231,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Sign in with Google OAuth
+  const signInWithGoogle = async () => {
+    try {
+      setError(null);
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        }
+      });
+      
+      if (error) throw error;
+    } catch (error: any) {
+      console.error('Google sign in error:', error);
+      setError(error.message);
+      toast.error('Google sign in failed', {
+        description: error.message || 'An error occurred during Google sign in'
+      });
+      throw error;
+    }
+  };
+
   // Send email verification
   const sendEmailVerification = async (email: string) => {
     try {
@@ -361,6 +384,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isLoading,
     error,
     sendEmailVerification,
+    signInWithGoogle,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

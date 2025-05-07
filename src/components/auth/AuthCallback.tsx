@@ -12,6 +12,7 @@ const AuthCallback = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [authProvider, setAuthProvider] = useState<string | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -24,11 +25,16 @@ const AuthCallback = () => {
         
         // Check for auth code in query params (PKCE flow)
         const code = queryParams.get('code');
+        const provider = queryParams.get('provider');
         
         if (code) {
           // We have an auth code, let's process it
           console.log('Processing authentication with code');
           setLoading(true);
+          
+          if (provider) {
+            setAuthProvider(provider);
+          }
           
           // The session will be automatically set by the Supabase client
           // because we have detectSessionInUrl set to true
@@ -46,8 +52,15 @@ const AuthCallback = () => {
             
             // Redirect to dashboard after a brief delay
             setTimeout(() => {
-              navigate('/dashboard');
-            }, 2000);
+              // Determine where to redirect based on user type
+              if (data.session?.user?.user_metadata?.user_type === 'school') {
+                navigate('/admin');
+              } else if (data.session?.user?.user_metadata?.user_type === 'teacher') {
+                navigate('/teacher/analytics');
+              } else {
+                navigate('/dashboard');
+              }
+            }, 1000);
           } else {
             setError('No session found after authentication. Please try logging in again.');
           }
@@ -68,6 +81,21 @@ const AuthCallback = () => {
 
     handleCallback();
   }, [location, navigate]);
+
+  const getProviderTitle = () => {
+    if (!authProvider) return 'your account';
+    
+    switch(authProvider.toLowerCase()) {
+      case 'google':
+        return 'Google';
+      case 'microsoft':
+        return 'Microsoft';
+      case 'github':
+        return 'GitHub';
+      default:
+        return 'your account';
+    }
+  };
 
   if (loading) {
     return (
@@ -105,9 +133,11 @@ const AuthCallback = () => {
       <div className="flex min-h-screen items-center justify-center p-4">
         <div className="max-w-md w-full text-center">
           <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold mb-2">Email Verified!</h1>
+          <h1 className="text-2xl font-bold mb-2">
+            {authProvider ? `${getProviderTitle()} Login Successful!` : 'Authentication Successful!'}
+          </h1>
           <p className="text-gray-600 mb-6">
-            Your email has been successfully verified. You will be redirected to your dashboard shortly.
+            You have been successfully authenticated. You will be redirected to your dashboard shortly.
           </p>
           <Button onClick={() => navigate('/dashboard')} className="gradient-bg">
             Continue to Dashboard
