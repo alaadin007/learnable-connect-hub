@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRBAC } from "@/contexts/RBACContext";
@@ -14,6 +15,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { getCurrentSchoolInfo } from "@/utils/databaseUtils";
 import { supabaseHelpers } from "@/utils/supabaseHelpers";
+
+interface SchoolInfo {
+  school_id?: string;
+  school_name?: string;
+  school_code?: string;
+  contact_email?: string;
+  id?: string;
+  name?: string;
+  code?: string;
+}
 
 const AdminStudents = () => {
   const { user, profile } = useAuth();
@@ -44,17 +55,24 @@ const AdminStudents = () => {
       }
 
       setError(null);
-      const schoolData = await getCurrentSchoolInfo();
+      const schoolData = await getCurrentSchoolInfo() as SchoolInfo;
 
       if (schoolData) {
-        setSchoolInfo({
-          id: schoolData.id,
-          name: schoolData.name,
-          code: schoolData.code,
-        });
-        setSchoolId(schoolData.id);
-        setLoading(false);
-        return;
+        // Handle both possible response formats
+        const id = schoolData.id || schoolData.school_id;
+        const name = schoolData.name || schoolData.school_name;
+        const code = schoolData.code || schoolData.school_code;
+        
+        if (id && name && code) {
+          setSchoolInfo({
+            id: id,
+            name: name,
+            code: code,
+          });
+          setSchoolId(id);
+          setLoading(false);
+          return;
+        }
       }
 
       const organization = profile?.organization;

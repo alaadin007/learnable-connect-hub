@@ -33,6 +33,13 @@ interface Student {
   role: AppRole | string;
 }
 
+interface ProfileData {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  user_type?: string;
+}
+
 const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
@@ -122,9 +129,10 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
           const studentId = student.id;
           if (!studentId) return;
           
-          // Find matching profile with null safety
+          // Find matching profile with proper null safety
           const profile = profileData.find(p => {
-            return p && typeof p === 'object' && 'id' in p && p?.id === studentId;
+            // Make sure p is not null before accessing its properties
+            return p && typeof p === 'object' && 'id' in p && p.id === studentId;
           });
           
           let role = "student"; // Default role
@@ -135,7 +143,8 @@ const AdminStudents = ({ schoolId, schoolInfo }: AdminStudentsProps) => {
           }
           // If no specific role but profile has user_type, use that
           else if (profile && typeof profile === 'object' && 'user_type' in profile) {
-            const userType = profile ? (profile as any).user_type as string | null : null;
+            // Safely access user_type with proper type assertion
+            const userType = profile && profile.user_type ? String(profile.user_type) : null;
             role = userType || role;
           }
             
