@@ -33,10 +33,36 @@ class SessionLoggerImpl implements SessionLogger {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      // Get the school_id for the current user
+      let schoolId = null;
+      
+      // Try to get school_id from teachers table
+      const { data: teacherData } = await supabase
+        .from("teachers")
+        .select("school_id")
+        .eq("id", user.id)
+        .single();
+        
+      if (teacherData?.school_id) {
+        schoolId = teacherData.school_id;
+      } else {
+        // Try to get school_id from students table
+        const { data: studentData } = await supabase
+          .from("students")
+          .select("school_id")
+          .eq("id", user.id)
+          .single();
+          
+        if (studentData?.school_id) {
+          schoolId = studentData.school_id;
+        }
+      }
+
       // Instead of using session_events table which doesn't exist,
       // log to the session_logs table with minimal data
       await supabase.from("session_logs").insert({
         user_id: user.id,
+        school_id: schoolId, // Now providing the required school_id
         topic_or_content_used: event.type,
         performance_metric: event.data ? JSON.stringify(event.data) : null
       });
