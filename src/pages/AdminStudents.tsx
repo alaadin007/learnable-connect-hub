@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRBAC } from "@/contexts/RBACContext";
@@ -48,36 +47,30 @@ const AdminStudents = () => {
       const schoolData = await getCurrentSchoolInfo();
 
       if (schoolData) {
-        // Adapt properties to match our expected structure
         setSchoolInfo({
-          id: schoolData.school_id,
-          name: schoolData.school_name,
-          code: schoolData.school_code,
+          id: schoolData.id,
+          name: schoolData.name,
+          code: schoolData.code,
         });
-        setSchoolId(schoolData.school_id);
+        setSchoolId(schoolData.id);
         setLoading(false);
         return;
       }
 
-      if (
-        profile?.organization?.id &&
-        profile?.organization?.name &&
-        profile?.organization?.code
-      ) {
+      const organization = profile?.organization;
+      if (organization?.id && organization?.name && organization?.code) {
         setSchoolInfo({
-          id: profile.organization.id,
-          name: profile.organization.name,
-          code: profile.organization.code,
+          id: organization.id,
+          name: organization.name,
+          code: organization.code,
         });
-        setSchoolId(profile.organization.id);
+        setSchoolId(organization.id);
         setLoading(false);
         return;
       }
 
       const { data: authData, error: authError } = await supabase.auth.getUser();
-      if (authError || !authData?.user) {
-        throw new Error("Authentication error");
-      }
+      if (authError || !authData?.user) throw new Error("Authentication error");
 
       const userMeta = authData.user.user_metadata;
 
@@ -88,9 +81,7 @@ const AdminStudents = () => {
           .eq("code", supabaseHelpers.asSupabaseParam(userMeta.school_code))
           .single();
 
-        if (schoolCodeError || !schoolDetails) {
-          console.error("Error finding school by code:", schoolCodeError);
-        } else {
+        if (!schoolCodeError && schoolDetails) {
           setSchoolInfo({
             id: schoolDetails.id,
             name: schoolDetails.name,
@@ -99,14 +90,18 @@ const AdminStudents = () => {
           setSchoolId(schoolDetails.id);
           setLoading(false);
           return;
+        } else {
+          console.log("Error finding school by code:", schoolCodeError);
         }
       }
 
       // Handle test accounts for school admin
-      const usingTestAccount = localStorage.getItem('usingTestAccount') === 'true';
-      if (usingTestAccount && (user.id.startsWith('test-') || (user.email && user.email.includes('school.test@')))) {
-        // Use placeholder data for test accounts
-        const testSchoolId = 'test-school-id';
+      const usingTestAccount = localStorage.getItem("usingTestAccount") === "true";
+      if (
+        usingTestAccount &&
+        (user.id.startsWith("test-") || (user.email && user.email.includes("school.test@")))
+      ) {
+        const testSchoolId = "test-school-id";
         setSchoolInfo({
           id: testSchoolId,
           name: "Test School",
@@ -137,10 +132,8 @@ const AdminStudents = () => {
       return;
     }
 
-    // For test accounts, let them access this page regardless of actual role
-    const usingTestAccount = localStorage.getItem('usingTestAccount') === 'true';
-    if (usingTestAccount && localStorage.getItem('testAccountType') === 'school') {
-      // Allow access for test school accounts
+    const usingTestAccount = localStorage.getItem("usingTestAccount") === "true";
+    if (usingTestAccount && localStorage.getItem("testAccountType") === "school") {
       return;
     }
 
