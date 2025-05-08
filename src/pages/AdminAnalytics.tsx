@@ -13,24 +13,6 @@ import { TeacherPerformanceTable } from "@/components/analytics/TeacherPerforman
 import { TeacherSelector } from "@/components/analytics/TeacherSelector";
 import { AnalyticsSummary } from "@/components/analytics/types";
 
-// Define the props interfaces that are missing
-interface AnalyticsFiltersProps {
-  dateRange: DateRange;
-  onDateRangeChange: (range: DateRange) => void;
-  selectedTeacherId?: string;
-}
-
-interface SchoolPerformancePanelProps {
-  schoolId: string;
-  dateRange: DateRange;
-}
-
-interface TeacherPerformanceTableProps {
-  schoolId: string;
-  teacherId?: string;
-  dateRange: DateRange;
-}
-
 const AdminAnalytics = () => {
   const { schoolId } = useAuth();
   

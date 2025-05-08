@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Volume2, VolumeX } from 'lucide-react';
 
@@ -6,7 +7,7 @@ export interface TextToSpeechProps {
   message: string;
 }
 
-export const TextToSpeech = ({ message }: TextToSpeechProps) => {
+export const TextToSpeech: React.FC<TextToSpeechProps> = ({ message }) => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [speech, setSpeech] = useState<SpeechSynthesis | null>(null);
 
@@ -47,3 +48,5 @@ export const TextToSpeech = ({ message }: TextToSpeechProps) => {
     </Button>
   );
 };
+
+export default TextToSpeech;

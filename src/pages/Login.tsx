@@ -10,7 +10,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
 const Login = () => {
-  const { dbError } = useAuth();
+  // Since dbError doesn't exist in AuthContext, create a local state for it
+  const [dbError, setDbError] = useState<boolean>(false);
   
   return (
     <div className="min-h-screen flex flex-col">

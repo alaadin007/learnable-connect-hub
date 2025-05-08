@@ -1,3 +1,4 @@
+
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Mic, Square } from 'lucide-react';
@@ -6,9 +7,17 @@ export interface VoiceRecorderProps {
   onTranscript: (transcript: string) => void;
   isRecording: boolean;
   setIsRecording: React.Dispatch<React.SetStateAction<boolean>>;
+  placeholder?: string;
+  onSendMessage?: (message: string) => void;
 }
 
-export const VoiceRecorder = ({ onTranscript, isRecording, setIsRecording }: VoiceRecorderProps) => {
+export const VoiceRecorder = ({ 
+  onTranscript, 
+  isRecording, 
+  setIsRecording,
+  placeholder = "Voice recording...",
+  onSendMessage
+}: VoiceRecorderProps) => {
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const audioChunks = useRef<Blob[]>([]);
 
@@ -43,6 +52,9 @@ export const VoiceRecorder = ({ onTranscript, isRecording, setIsRecording }: Voi
             const data = await response.json();
             if (data && data.transcript) {
               onTranscript(data.transcript);
+              if (onSendMessage) {
+                onSendMessage(data.transcript);
+              }
             } else {
               console.error('No transcript received');
             }
@@ -62,7 +74,7 @@ export const VoiceRecorder = ({ onTranscript, isRecording, setIsRecording }: Voi
         mediaRecorder.current.stop();
       }
     };
-  }, [onTranscript]);
+  }, [onTranscript, onSendMessage]);
 
   const startRecording = () => {
     if (mediaRecorder.current && mediaRecorder.current.state === 'inactive') {
@@ -84,7 +96,7 @@ export const VoiceRecorder = ({ onTranscript, isRecording, setIsRecording }: Voi
       <Button
         variant="outline"
         onClick={isRecording ? stopRecording : startRecording}
-        className="w-full"
+        className="w-full mt-2"
         disabled={!mediaRecorder.current}
       >
         {isRecording ? (
@@ -95,10 +107,12 @@ export const VoiceRecorder = ({ onTranscript, isRecording, setIsRecording }: Voi
         ) : (
           <>
             <Mic className="mr-2 h-4 w-4" />
-            Start Recording
+            {placeholder}
           </>
         )}
       </Button>
     </div>
   );
 };
+
+export default VoiceRecorder;

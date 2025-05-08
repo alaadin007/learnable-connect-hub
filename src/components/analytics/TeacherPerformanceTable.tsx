@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { DateRange } from 'react-day-picker';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,11 +15,11 @@ import {
 
 export interface TeacherPerformanceTableProps {
   schoolId: string;
-  teacherId: string;
+  teacherId?: string;
   dateRange: DateRange;
 }
 
-const TeacherPerformanceTable: React.FC<TeacherPerformanceTableProps> = ({
+export const TeacherPerformanceTable: React.FC<TeacherPerformanceTableProps> = ({
   schoolId,
   teacherId,
   dateRange

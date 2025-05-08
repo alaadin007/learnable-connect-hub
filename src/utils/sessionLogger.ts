@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 
 export interface PerformanceData {
@@ -27,6 +28,9 @@ export const startSession = async (topic?: string): Promise<string | null> => {
   }
 };
 
+// Alias for AIChatInterface compatibility
+export const createSessionLog = startSession;
+
 export const incrementQueryCount = async (sessionId: string): Promise<boolean> => {
   try {
     const { error } = await supabase.rpc("increment_session_query_count", {
@@ -44,6 +48,9 @@ export const incrementQueryCount = async (sessionId: string): Promise<boolean> =
     return false;
   }
 };
+
+// Alias for AIChatInterface compatibility
+export const incrementSessionQueryCount = incrementQueryCount;
 
 export const updateSessionTopic = async (sessionId: string, topic: string): Promise<boolean> => {
   try {

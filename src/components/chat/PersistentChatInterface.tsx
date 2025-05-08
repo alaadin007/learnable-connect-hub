@@ -3,10 +3,10 @@ import React, { useState, useEffect } from 'react';
 import { useSupabaseClient } from '@supabase/auth-helpers-react';
 import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from '@/contexts/AuthContext';
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { Message } from "@/components/chat/types"
-import VoiceRecorder from "@/components/chat/VoiceRecorder"
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Message } from "@/components/chat/types";
+import { VoiceRecorder } from "@/components/chat/VoiceRecorder";
 
 interface Props {
   conversationId?: string;
@@ -150,9 +150,9 @@ const PersistentChatInterface: React.FC<Props> = ({ conversationId, existingMess
           </Button>
         </div>
         <VoiceRecorder 
-          onSendMessage={(userMessage: string) => handleSendMessage(userMessage)}
-          isLoading={isLoading}
-          placeholder="Record a message..."
+          onTranscript={(transcript: string) => handleSendMessage(transcript)}
+          isRecording={isLoading}
+          setIsRecording={setIsLoading}
         />
       </div>
     </div>
