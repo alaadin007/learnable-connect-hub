@@ -47,9 +47,12 @@ export async function safeQueryArray<T>(
 /**
  * Get user's school ID safely with error handling
  */
-export async function getUserSchoolId(): Promise<string | null> {
+export async function getUserSchoolId(userId?: string): Promise<string | null> {
   try {
-    const { data, error } = await supabase.rpc('get_user_school_id_safely');
+    const { data, error } = await supabase.rpc(
+      'get_user_school_id_safely', 
+      userId ? { uid: userId } : {}
+    );
     
     if (error) {
       console.error("Error getting user school ID:", error);
@@ -68,7 +71,7 @@ export async function getUserSchoolId(): Promise<string | null> {
  */
 export async function getUserProfileSafely(userId?: string) {
   try {
-    let { data, error } = userId 
+    const { data, error } = userId 
       ? await supabase.rpc('get_profile_safely', { uid: userId })
       : await supabase.rpc('get_profile_safely');
     

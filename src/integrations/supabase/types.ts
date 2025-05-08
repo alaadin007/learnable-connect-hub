@@ -895,65 +895,6 @@ export type Database = {
           },
         ]
       }
-      teacher_invites: {
-        Row: {
-          created_at: string | null
-          email: string
-          expires_at: string
-          id: string
-          school_id: string
-          status: string
-          token: string
-        }
-        Insert: {
-          created_at?: string | null
-          email: string
-          expires_at?: string
-          id?: string
-          school_id: string
-          status?: string
-          token: string
-        }
-        Update: {
-          created_at?: string | null
-          email?: string
-          expires_at?: string
-          id?: string
-          school_id?: string
-          status?: string
-          token?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "teacher_invites_school_id_fkey"
-            columns: ["school_id"]
-            isOneToOne: false
-            referencedRelation: "school_analytics_summary"
-            referencedColumns: ["school_id"]
-          },
-          {
-            foreignKeyName: "teacher_invites_school_id_fkey"
-            columns: ["school_id"]
-            isOneToOne: false
-            referencedRelation: "school_improvement_metrics"
-            referencedColumns: ["school_id"]
-          },
-          {
-            foreignKeyName: "teacher_invites_school_id_fkey"
-            columns: ["school_id"]
-            isOneToOne: false
-            referencedRelation: "school_performance_metrics"
-            referencedColumns: ["school_id"]
-          },
-          {
-            foreignKeyName: "teacher_invites_school_id_fkey"
-            columns: ["school_id"]
-            isOneToOne: false
-            referencedRelation: "schools"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       teachers: {
         Row: {
           created_at: string
@@ -1402,6 +1343,10 @@ export type Database = {
           contact_email: string
         }[]
       }
+      get_profile_safely: {
+        Args: { uid?: string }
+        Returns: Json
+      }
       get_profile_with_organization: {
         Args: { user_id_param?: string }
         Returns: Json
@@ -1520,6 +1465,10 @@ export type Database = {
       }
       get_user_school_id: {
         Args: Record<PropertyKey, never> | { user_id?: string }
+        Returns: string
+      }
+      get_user_school_id_safely: {
+        Args: { uid?: string }
         Returns: string
       }
       has_any_role: {

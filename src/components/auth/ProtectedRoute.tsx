@@ -13,7 +13,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children,
   requiredUserType
 }) => {
-  const { user, userRole, session, isLoading } = useAuth();
+  const { user, userRole, schoolId, session, isLoading } = useAuth();
   const location = useLocation();
 
   // Show loading state while authentication is being checked

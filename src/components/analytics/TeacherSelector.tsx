@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
+import { safeQueryArray } from "@/utils/supabaseHelpers";
 
 interface TeacherSelectorProps {
   schoolId: string;
@@ -38,12 +39,13 @@ export function TeacherSelector({
 
       setIsLoading(true);
       try {
-        const { data: teachersData, error } = await supabase
-          .from("teachers")
-          .select("id")
-          .eq("school_id", schoolId);
-
-        if (error) throw error;
+        // Use our helper function for safer data fetching
+        const teachersData = await safeQueryArray(
+          supabase
+            .from("teachers")
+            .select("id")
+            .eq("school_id", schoolId)
+        );
 
         if (!teachersData || teachersData.length === 0) {
           setTeachers([]);
@@ -52,14 +54,14 @@ export function TeacherSelector({
         }
 
         const teacherIds = teachersData.map((t) => t.id);
-        const { data: profilesData, error: profilesError } = await supabase
-          .from("profiles")
-          .select("id, full_name")
-          .in("id", teacherIds);
+        const profilesData = await safeQueryArray(
+          supabase
+            .from("profiles")
+            .select("id, full_name")
+            .in("id", teacherIds)
+        );
 
-        if (profilesError) throw profilesError;
-
-        const formattedTeachers: Teacher[] = (profilesData ?? []).map(
+        const formattedTeachers: Teacher[] = profilesData.map(
           (profile) => ({
             id: profile.id,
             name: profile.full_name || "Unknown Teacher",

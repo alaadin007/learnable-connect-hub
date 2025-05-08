@@ -11,6 +11,7 @@ type AuthContextType = {
   profile: any | null;
   isLoading: boolean;
   userRole: string | null;
+  schoolId: string | null;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 };
@@ -23,6 +24,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [schoolId, setSchoolId] = useState<string | null>(null);
 
   // Function to fetch user profile with error handling
   const fetchProfile = async (userId: string) => {
@@ -33,6 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log("Profile data fetched:", profileData);
         setProfile(profileData);
         setUserRole(profileData.user_type || null);
+        setSchoolId(profileData.school_id || null);
         return profileData;
       } else {
         console.error("Error fetching profile:", profileData?.error);
@@ -43,10 +46,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             id: userId,
             user_type: 'student',
             full_name: user.user_metadata?.full_name || 'Test User',
-            email: user.email
+            email: user.email,
+            school_id: null
           };
           setProfile(testProfile);
           setUserRole('student');
+          setSchoolId(null);
           return testProfile;
         }
         return null;
@@ -101,6 +106,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } else if (event === 'SIGNED_OUT') {
           setProfile(null);
           setUserRole(null);
+          setSchoolId(null);
         }
         
         setIsLoading(false);
@@ -121,6 +127,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(null);
       setProfile(null);
       setUserRole(null);
+      setSchoolId(null);
     } catch (error) {
       console.error("Error signing out:", error);
       toast.error("Failed to sign out. Please try again.");
@@ -133,6 +140,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     profile,
     isLoading,
     userRole,
+    schoolId,
     signOut,
     refreshProfile,
   };

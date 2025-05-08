@@ -9,7 +9,7 @@ import { Loader2 } from 'lucide-react';
 import { StudentPerformanceMetric } from './types';
 
 export function StudentPerformancePanel() {
-  const { user, userRole, profile } = useAuth();
+  const { user, userRole, profile, schoolId } = useAuth();
   const [selectedTab, setSelectedTab] = useState<string>("table");
   const [loading, setLoading] = useState<boolean>(true);
   const [students, setStudents] = useState<StudentPerformanceMetric[]>([]);
@@ -20,15 +20,37 @@ export function StudentPerformancePanel() {
       setLoading(true);
       
       try {
+        if (!schoolId) {
+          setError("No school ID found. Please check your permissions.");
+          setLoading(false);
+          return;
+        }
+        
         // Use the correct table name - student_performance_metrics
         const { data, error } = await supabase
           .from("student_performance_metrics")
-          .select("*");
+          .select("*")
+          .eq("school_id", schoolId);
 
         if (error) throw error;
 
         if (data) {
-          setStudents(data as StudentPerformanceMetric[]);
+          // Transform the data to match our StudentPerformanceMetric type
+          const formattedData: StudentPerformanceMetric[] = data.map(item => ({
+            student_id: item.student_id || '',
+            student_name: item.student_name || 'Unknown Student',
+            avg_score: Number(item.avg_score) || 0,
+            assessments_taken: Number(item.assessments_taken) || 0,
+            completion_rate: Number(item.completion_rate) || 0,
+            avg_time_spent_seconds: Number(item.avg_time_spent_seconds) || 0,
+            top_strengths: item.top_strengths || '',
+            top_weaknesses: item.top_weaknesses || '',
+            last_active: null
+          }));
+          
+          setStudents(formattedData);
+        } else {
+          setStudents([]);
         }
       } catch (err: any) {
         console.error("Error fetching student performance:", err);
@@ -39,7 +61,7 @@ export function StudentPerformancePanel() {
     }
 
     fetchStudentPerformance();
-  }, []);
+  }, [schoolId]);
 
   return (
     <Card className="col-span-3">
