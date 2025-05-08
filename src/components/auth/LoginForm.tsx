@@ -17,7 +17,7 @@ const LoginForm = () => {
   const [activeTestAccount, setActiveTestAccount] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
-  const { signIn, setTestUser, userRole, session, signOut, refreshSession } = useAuth();
+  const { signIn, setTestUser, userRole, session, signOut } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const location = useLocation();
@@ -58,22 +58,6 @@ const LoginForm = () => {
       window.removeEventListener('storage', checkActiveTestAccount);
     };
   }, []);
-
-  // Redirect if user role already set - with debounce to prevent redirect loops
-  useEffect(() => {
-    if (userRole && session && !isRedirecting) {
-      console.log("LoginForm: User role already set, redirecting to appropriate dashboard:", userRole);
-      setIsRedirecting(true);
-      
-      // Get intended destination from location state or use default
-      const from = location.state?.from?.pathname || getUserRedirectPath(userRole);
-      
-      // Small timeout to prevent potential redirect loops
-      setTimeout(() => {
-        navigate(from, { replace: true });
-      }, 100);
-    }
-  }, [userRole, session, navigate, location.state]);
 
   // Helper function to determine redirect path based on user role
   const getUserRedirectPath = (role: string): string => {
@@ -195,14 +179,15 @@ const LoginForm = () => {
       if (result?.data?.user) {
         console.log("Login successful:", result.data.user.id);
         
-        // Force a session refresh to ensure we have the latest user data
-        await refreshSession();
-        
         toast.success("Login successful", {
           description: "Welcome back!",
         });
         
-        // Let the useEffect handle the redirection based on userRole
+        // Get intended destination from location state or use default
+        const from = location.state?.from?.pathname || getUserRedirectPath(result.data.user.user_metadata?.user_type || "student");
+        
+        // Navigate to the appropriate dashboard
+        navigate(from, { replace: true });
       }
     } catch (error: any) {
       console.error("Login error:", error);

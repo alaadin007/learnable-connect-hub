@@ -1,3 +1,4 @@
+
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase, isTestAccount } from '@/integrations/supabase/client';
 import { User, Session, AuthChangeEvent } from '@supabase/supabase-js';
@@ -62,19 +63,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     loadSession();
 
     // Subscribe to auth state changes
-    const { data } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session) => {
+    const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log(`AuthContext: Auth state change event: ${event}`);
       
       if (event === 'SIGNED_IN') {
         setUser(session?.user || null);
         setSession(session || null);
-        await fetchUserProfile(session?.user?.id);
+        if (session?.user) {
+          await fetchUserProfile(session.user.id);
+        }
       } else if (event === 'SIGNED_OUT') {
         clearSession();
       } else if (event === 'USER_UPDATED') {
         setUser(session?.user || null);
         setSession(session || null);
-        await fetchUserProfile(session?.user?.id);
+        if (session?.user) {
+          await fetchUserProfile(session.user.id);
+        }
       }
     });
 
@@ -107,7 +112,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       // Set supervisor status if applicable
       if (profileData?.user_type === 'teacher_supervisor' || 
-          (profileData?.user_type === 'teacher' && profileData?.is_supervisor === true)) {
+          (profileData?.user_type === 'teacher' && profileData.is_supervisor)) {
         setIsSupervisor(true);
       } else {
         setIsSupervisor(false);
@@ -145,6 +150,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       if (result.error) {
         console.error("Sign in error:", result.error);
+      } else if (result.data?.user) {
+        // Directly fetch profile data after successful login
+        await fetchUserProfile(result.data.user.id);
       }
       
       return result;
