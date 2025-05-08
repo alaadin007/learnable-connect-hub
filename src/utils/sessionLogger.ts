@@ -45,15 +45,18 @@ const logSessionEnd = async (sessionId?: string, performanceData?: any): Promise
       return;
     }
 
-    // Call the endpoint to end the session without waiting for response
-    // Use Promise.then() pattern instead of .catch() to handle errors
-    supabase.functions.invoke("end-session", {
-      body: { logId: sessionId, performanceData }
-    }).then(response => {
-      // Optional: Process the response if needed
-    }).catch(error => {
+    try {
+      // Call the endpoint to end the session
+      const { error } = await supabase.functions.invoke("end-session", {
+        body: { logId: sessionId, performanceData }
+      });
+      
+      if (error) {
+        console.error("Error ending session:", error);
+      }
+    } catch (error) {
       console.error("Error ending session:", error);
-    });
+    }
 
     // Clear the active session from localStorage if it matches
     const activeSessionId = localStorage.getItem("activeSessionId");
@@ -69,15 +72,18 @@ const logSessionEnd = async (sessionId?: string, performanceData?: any): Promise
 const updateSessionTopic = async (sessionId: string, topic: string): Promise<void> => {
   if (!sessionId) return;
 
-  // Call the endpoint to update the session topic without blocking
-  // Use Promise.then() pattern instead of .catch() to handle errors
-  supabase.functions.invoke("update-session", {
-    body: { logId: sessionId, topic }
-  }).then(response => {
-    // Optional: Process the response if needed
-  }).catch(error => {
+  try {
+    // Call the endpoint to update the session topic
+    const { error } = await supabase.functions.invoke("update-session", {
+      body: { logId: sessionId, topic }
+    });
+    
+    if (error) {
+      console.error("Error updating session topic:", error);
+    }
+  } catch (error) {
     console.error("Error updating session topic:", error);
-  });
+  }
 };
 
 // Increment query count for a session
@@ -115,11 +121,15 @@ const sessionLogger = {
     // For login page, don't block the UI with session logging
     if (window.location.pathname === '/login') {
       // Start session logging in the background without awaiting
-      logSessionStart(topic, userId).then(sessionId => {
-        if (sessionId) {
-          localStorage.setItem("activeSessionId", sessionId);
-        }
-      });
+      try {
+        logSessionStart(topic, userId).then(sessionId => {
+          if (sessionId) {
+            localStorage.setItem("activeSessionId", sessionId);
+          }
+        });
+      } catch (error) {
+        console.error("Login page session start error:", error);
+      }
       return null;
     }
     
@@ -144,7 +154,7 @@ const sessionLogger = {
     
     const sessionId = localStorage.getItem("activeSessionId");
     if (sessionId) {
-      logSessionEnd(sessionId, performanceData);
+      await logSessionEnd(sessionId, performanceData);
     }
   },
   
