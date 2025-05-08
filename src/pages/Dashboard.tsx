@@ -7,21 +7,23 @@ import { MessageSquare, FileText, BarChart3, Settings } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
 import Footer from "@/components/layout/Footer";
+import { toast } from "sonner";
 
 const Dashboard = () => {
   const { user, profile, userRole } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Debug logs to help understand what's happening
+  // Enhanced debug logs to help understand what's happening
   useEffect(() => {
     console.log("Dashboard: User data:", { 
       userId: user?.id,
       email: user?.email,
       role: userRole,
-      profileData: profile
+      profileData: profile,
+      locationState: location.state
     });
-  }, [user, profile, userRole]);
+  }, [user, profile, userRole, location.state]);
 
   // Redirect based on user role
   useEffect(() => {
@@ -39,8 +41,25 @@ const Dashboard = () => {
 
     console.log("Dashboard: User role detected:", userRole);
 
+    // Handle test account (might have different role mapping)
+    const isTestAccount = user.email?.includes(".test@learnable.edu") || 
+                          user.id?.startsWith("test-");
+                          
+    if (isTestAccount) {
+      console.log("Dashboard: Test account detected, checking role from user metadata");
+      const metadataRole = user.user_metadata?.user_type;
+      if (metadataRole === "school" || metadataRole === "school_admin") {
+        console.log("Dashboard: Test school admin detected from metadata, redirecting");
+        navigate("/admin", { 
+          state: { fromTestAccounts: true, preserveContext: true },
+          replace: true 
+        });
+        return;
+      }
+    }
+
     // Handle school admin redirection with higher priority
-    if (userRole === "school") {
+    if (userRole === "school" || userRole === "school_admin") {
       console.log("Dashboard: School admin detected, redirecting to admin dashboard");
       // Use replace: true to prevent back navigation to this intermediate page
       navigate("/admin", { 
@@ -62,6 +81,16 @@ const Dashboard = () => {
 
     console.log("Dashboard: User remaining on student dashboard");
   }, [user, navigate, location.state, userRole]);
+
+  // If there are issues with profile loading, show a more helpful message
+  useEffect(() => {
+    if (user && !profile && !location.state?.fromTestAccounts) {
+      console.log("Dashboard: User exists but no profile data");
+      toast.error("Unable to load your profile. Please try refreshing the page.", {
+        duration: 5000,
+      });
+    }
+  }, [user, profile, location.state]);
 
   // Show loading state if user or profile data is not ready
   if (!user && !location.state?.fromTestAccounts) {
