@@ -36,11 +36,26 @@ export const supabase = createClient<Database>(
     },
     // Add this to avoid potential recursion issues
     queries: {
-      retryCount: 2,
-      retryDelay: 1000,
+      retryCount: 1, // Reduced from 2 to 1
+      retryDelay: 500, // Reduced from 1000 to 500
     }
   }
 );
+
+// Helper function to handle Supabase query errors that may occur due to recursion issues
+export const safeQuery = async <T>(queryFn: () => Promise<{ data: T | null, error: any }>, fallback: T | null = null): Promise<{ data: T | null, error: any }> => {
+  try {
+    const result = await queryFn();
+    return result;
+  } catch (err: any) {
+    // Check for recursion errors
+    if (err?.message?.includes('infinite recursion')) {
+      console.warn('Caught infinite recursion error in Supabase query, using fallback');
+      return { data: fallback, error: { message: 'Infinite recursion detected, using fallback', details: err } };
+    }
+    return { data: null, error: err };
+  }
+};
 
 // Helper function to detect test accounts
 export const isTestAccount = (email: string): boolean => {

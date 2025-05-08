@@ -37,11 +37,14 @@ const Login = () => {
         from !== '/login' && 
         from !== '/register' && 
         !from.includes('invitation');
-        
-      navigate(shouldUseFromPath ? from : redirectPath, { 
-        replace: true,
-        state: { preserveContext: true }
-      });
+      
+      // Add a small delay to allow state to fully update
+      setTimeout(() => {
+        navigate(shouldUseFromPath ? from : redirectPath, { 
+          replace: true,
+          state: { preserveContext: true }
+        });
+      }, 100);
     }
   }, [isAuthenticated, userType, navigate, from, isTestAccount]);
 

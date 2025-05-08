@@ -14,7 +14,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 const loginSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address' }),
-  password: z.string().min(6, { message: 'Password must be at least 6 characters' }),
+  password: z.string().min(1, { message: 'Password is required' }),
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
@@ -47,7 +47,22 @@ const LoginForm: React.FC = () => {
         return;
       }
 
-      // Attempt login through Auth context which will handle session management
+      // For test accounts, we handle them differently
+      if (values.email.includes('@testschool.edu') || values.email.includes('.test@learnable.edu')) {
+        // Use these test credentials directly
+        const success = await login(values.email, 'anypassword');
+        
+        if (success) {
+          toast.success('Successfully signed in with test account');
+          return; // The redirect will happen in the Login component
+        } else {
+          toast.error('Test account login failed');
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // Normal login process
       const success = await login(values.email, values.password);
       
       if (success) {
@@ -60,9 +75,7 @@ const LoginForm: React.FC = () => {
         
         toast.success('Successfully signed in');
         
-        // Redirect to the appropriate page
-        console.log('Redirecting to:', from);
-        navigate(from, { replace: true });
+        // Let the Login component handle the redirect
       } else {
         console.error('Login function returned false');
         toast.error('Login failed. Please check your credentials and try again.');
@@ -73,6 +86,14 @@ const LoginForm: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Handle test account login shortcuts
+  const loginWithTestAccount = (type: 'student' | 'teacher' | 'school') => {
+    const email = `${type}@testschool.edu`;
+    form.setValue('email', email);
+    form.setValue('password', 'anypassword');
+    form.handleSubmit(onSubmit)();
   };
 
   return (
@@ -122,6 +143,39 @@ const LoginForm: React.FC = () => {
                 </>
               )}
             </Button>
+          </div>
+
+          <div className="text-center text-sm">
+            <p className="text-gray-500 mb-2">Quick access with test accounts:</p>
+            <div className="flex justify-center space-x-2">
+              <Button 
+                type="button"
+                size="sm" 
+                variant="outline" 
+                onClick={() => loginWithTestAccount('student')}
+                className="text-xs"
+              >
+                Student
+              </Button>
+              <Button 
+                type="button"
+                size="sm" 
+                variant="outline" 
+                onClick={() => loginWithTestAccount('teacher')}
+                className="text-xs"
+              >
+                Teacher
+              </Button>
+              <Button 
+                type="button"
+                size="sm" 
+                variant="outline" 
+                onClick={() => loginWithTestAccount('school')}
+                className="text-xs"
+              >
+                School
+              </Button>
+            </div>
           </div>
         </form>
       </Form>
