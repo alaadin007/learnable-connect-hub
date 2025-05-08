@@ -9,6 +9,30 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      api_keys: {
+        Row: {
+          api_key: string
+          created_at: string | null
+          id: string
+          service_name: string
+          updated_at: string | null
+        }
+        Insert: {
+          api_key: string
+          created_at?: string | null
+          id?: string
+          service_name: string
+          updated_at?: string | null
+        }
+        Update: {
+          api_key?: string
+          created_at?: string | null
+          id?: string
+          service_name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       assessment_submissions: {
         Row: {
           assessment_id: string
@@ -920,6 +944,30 @@ export type Database = {
         }
         Relationships: []
       }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       most_studied_topics: {
@@ -1187,6 +1235,17 @@ export type Database = {
         Args: { token: string; user_id?: string }
         Returns: boolean
       }
+      assign_role: {
+        Args: {
+          user_id_param: string
+          role_param: Database["public"]["Enums"]["app_role"]
+        }
+        Returns: boolean
+      }
+      check_if_email_exists: {
+        Args: { input_email: string }
+        Returns: boolean
+      }
       create_session_log: {
         Args: { topic?: string }
         Returns: string
@@ -1215,6 +1274,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      get_api_key: {
+        Args: { service: string }
+        Returns: string
+      }
       get_current_school_info: {
         Args: Record<PropertyKey, never>
         Returns: {
@@ -1222,6 +1285,15 @@ export type Database = {
           school_name: string
           school_code: string
           contact_email: string
+        }[]
+      }
+      get_school_by_code: {
+        Args: { input_code: string }
+        Returns: {
+          id: string
+          name: string
+          school_code: string
+          active: boolean
         }[]
       }
       get_school_improvement_metrics: {
@@ -1294,9 +1366,21 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      get_user_roles: {
+        Args: Record<PropertyKey, never>
+        Returns: Database["public"]["Enums"]["app_role"][]
+      }
       get_user_school_id: {
         Args: Record<PropertyKey, never> | { user_id?: string }
         Returns: string
+      }
+      has_any_role: {
+        Args: { _roles: Database["public"]["Enums"]["app_role"][] }
+        Returns: boolean
+      }
+      has_role: {
+        Args: { _role: Database["public"]["Enums"]["app_role"] }
+        Returns: boolean
       }
       increment_session_query_count: {
         Args: { log_id: string }
@@ -1318,6 +1402,25 @@ export type Database = {
         Args: { userid: string; schoolid: string; num_sessions?: number }
         Returns: undefined
       }
+      proxy_gemini_request: {
+        Args: { prompt: string; model?: string }
+        Returns: Json
+      }
+      proxy_openai_request: {
+        Args: { prompt: string; model?: string }
+        Returns: Json
+      }
+      remove_role: {
+        Args: {
+          user_id_param: string
+          role_param: Database["public"]["Enums"]["app_role"]
+        }
+        Returns: boolean
+      }
+      set_api_key: {
+        Args: { service: string; key_value: string }
+        Returns: boolean
+      }
       update_session_topic: {
         Args: { log_id: string; topic: string }
         Returns: undefined
@@ -1337,7 +1440,12 @@ export type Database = {
       }
     }
     Enums: {
-      [_ in never]: never
+      app_role:
+        | "school_admin"
+        | "teacher_supervisor"
+        | "teacher"
+        | "student"
+        | "system_admin"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1452,6 +1560,14 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: [
+        "school_admin",
+        "teacher_supervisor",
+        "teacher",
+        "student",
+        "system_admin",
+      ],
+    },
   },
 } as const

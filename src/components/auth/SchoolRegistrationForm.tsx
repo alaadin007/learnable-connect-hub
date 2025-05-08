@@ -88,7 +88,7 @@ const SchoolRegistrationForm: React.FC = () => {
       const { data, error } = await supabase
         .from('profiles')
         .select('user_type')
-        .ilike('id', `%${email}%`) // This is a workaround since we can't directly query by email
+        .eq('email', email)
         .limit(1);
       
       if (error) {
@@ -101,8 +101,10 @@ const SchoolRegistrationForm: React.FC = () => {
         const role = data[0].user_type;
         switch (role) {
           case 'school':
+          case 'school_admin':
             return 'School Administrator';
           case 'teacher':
+          case 'teacher_supervisor':
             return 'Teacher';
           case 'student':
             return 'Student';
@@ -120,40 +122,22 @@ const SchoolRegistrationForm: React.FC = () => {
 
   const checkIfEmailExists = async (email: string): Promise<boolean> => {
     try {
-      // Instead of using admin.listUsers with filter property which causes TypeScript errors,
-      // Try a sign-in attempt to check if the email exists
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: email,
-        password: "dummy-password-for-check-only",
-      });
-
-      // If there's no error or the error is not about invalid credentials, email might exist
-      const emailExists = !signInError || (signInError && !signInError.message.includes("Invalid login credentials"));
+      // Check if the email exists directly using supabase auth
+      const { data, error } = await supabase.rpc('check_if_email_exists', { input_email: email });
       
-      // If we think the email exists, double-check by querying the profiles table
-      if (emailExists) {
-        // Try to get the user's role
-        const userRole = await checkEmailExistingRole(email);
-        if (userRole) {
-          setExistingUserRole(userRole);
-        }
-        
-        // Additional check to see if the email is in use by getting profiles
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select('id')
-          .limit(1);
-        
-        // If we can't check profiles, assume the email exists for safety
-        if (profileError) {
-          console.error("Error checking profiles:", profileError);
-          return true;
-        }
-        
-        return !!profileData && profileData.length > 0;
-      }
+      if (error) {
+        console.error("Error checking email existence:", error);
+        // Fallback to trying a sign-in attempt to check if the email exists
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: email,
+          password: "dummy-password-for-check-only",
+        });
 
-      return emailExists;
+        // If there's no error or the error is not about invalid credentials, email might exist
+        return !signInError || (signInError && !signInError.message.includes("Invalid login credentials"));
+      }
+      
+      return !!data;
     } catch (error) {
       console.error("Error checking email existence:", error);
       // In case of error, safer to assume it might exist
@@ -177,8 +161,14 @@ const SchoolRegistrationForm: React.FC = () => {
         toast.dismiss(loadingToast);
         setExistingEmailError(data.adminEmail);
         
-        const roleMessage = existingUserRole 
-          ? `This email is already registered as a ${existingUserRole}`
+        // Try to get the role for this existing email
+        const userRole = await checkEmailExistingRole(data.adminEmail);
+        if (userRole) {
+          setExistingUserRole(userRole);
+        }
+        
+        const roleMessage = userRole 
+          ? `This email is already registered as a ${userRole}`
           : "This email is already registered";
           
         toast.error(
@@ -234,6 +224,7 @@ const SchoolRegistrationForm: React.FC = () => {
         } else {
           toast.error(`Registration failed: ${error.message || "Unknown error"}`);
         }
+        setIsLoading(false);
         return;
       }
 
@@ -265,6 +256,7 @@ const SchoolRegistrationForm: React.FC = () => {
         } else {
           toast.error(`Registration failed: ${responseData.error}`);
         }
+        setIsLoading(false);
         return;
       }
 

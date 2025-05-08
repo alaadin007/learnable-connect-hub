@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -98,41 +97,15 @@ serve(async (req) => {
     
     // Check if email already exists FIRST before creating any resources
     try {
-      // First check using auth.admin.listUsers
-      const { data: existingUsers, error: emailCheckError } = await supabaseAdmin.auth.admin.listUsers({
-        filter: {
-          email: adminEmail
-        }
-      });
-
-      // If there was an error checking for existing users, try a different approach
+      // Check if email exists using our custom RPC function
+      const { data: emailExists, error: emailCheckError } = await supabaseAdmin.rpc(
+        'check_if_email_exists', 
+        { input_email: adminEmail }
+      );
+      
       if (emailCheckError) {
-        console.error("Error checking for existing users with listUsers:", emailCheckError);
-        
-        // Try checking if we can sign in with this email
-        const { data: signInData, error: signInError } = await supabaseAdmin.auth.signInWithPassword({
-          email: adminEmail,
-          password: "dummy-password-for-check"
-        });
-        
-        // If there's no error or the error is not about invalid credentials, email might exist
-        if (!signInError || (signInError && !signInError.message.includes("Invalid login credentials"))) {
-          console.log("Email appears to exist based on signIn check:", adminEmail);
-          return new Response(
-            JSON.stringify({ 
-              error: "Email already registered", 
-              message: "This email address is already registered. Please use a different email address. Each user can only have one role in the system."
-            }),
-            { 
-              status: 409, 
-              headers: { ...corsHeaders, "Content-Type": "application/json" }
-            }
-          );
-        }
-      }
-
-      // If there are users with this email, return an error
-      if (existingUsers && existingUsers.users.length > 0) {
+        console.error("Error checking for existing users:", emailCheckError);
+      } else if (emailExists === true) {
         console.log("Email already exists:", adminEmail);
         return new Response(
           JSON.stringify({ 
@@ -236,7 +209,7 @@ serve(async (req) => {
       email_confirm: false, // Require email confirmation
       user_metadata: {
         full_name: adminFullName,
-        user_type: "school", // Designate as school admin
+        user_type: 'school_admin', // Use the exact user_type that matches the database constraint
         school_code: schoolCode,
         school_name: schoolName
       },
@@ -316,7 +289,7 @@ serve(async (req) => {
       .from("profiles")
       .insert({
         id: adminUserId,
-        user_type: "school",
+        user_type: 'school_admin', // Use consistent user_type value
         full_name: adminFullName,
         school_code: schoolCode,
         school_name: schoolName
