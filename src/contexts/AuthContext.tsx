@@ -123,7 +123,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setSchoolId(profileData?.school_id || null);
       setUserRole(profileData?.user_type || null);
       
-      // Set supervisor status if applicable
+      // Set supervisor status from the profile data
       if (profileData?.user_type === 'teacher_supervisor' || 
           (profileData?.user_type === 'teacher' && profileData.is_supervisor === true)) {
         setIsSupervisor(true);
@@ -268,12 +268,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         school_id: 'test-school-id',
         school_code: 'TEST123',
         email: mockSession.user.email,
-        is_active: true
+        is_active: true,
+        is_supervisor: accountType === 'teacher_supervisor'
       };
-      setProfile(testProfile);
       
-      // Set the role
+      setProfile(testProfile);
       setUserRole(accountType);
+      
+      // Set supervisor status for test users
+      if (accountType === 'teacher_supervisor' || accountType === 'school') {
+        setIsSupervisor(true);
+      } else {
+        setIsSupervisor(false);
+      }
       
       console.log('Test user set successfully:', {
         user: mockSession.user,

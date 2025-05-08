@@ -389,6 +389,7 @@ export type Database = {
           full_name: string | null
           id: string
           is_active: boolean | null
+          is_supervisor: boolean | null
           organization: Json | null
           school_code: string | null
           school_id: string | null
@@ -402,6 +403,7 @@ export type Database = {
           full_name?: string | null
           id: string
           is_active?: boolean | null
+          is_supervisor?: boolean | null
           organization?: Json | null
           school_code?: string | null
           school_id?: string | null
@@ -415,6 +417,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           is_active?: boolean | null
+          is_supervisor?: boolean | null
           organization?: Json | null
           school_code?: string | null
           school_id?: string | null
