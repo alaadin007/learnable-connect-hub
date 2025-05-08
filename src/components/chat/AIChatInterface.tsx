@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,15 +35,14 @@ const AIChatInterface = () => {
     stop,
   } = useCompletion({
     api: "/api/completion",
-    // Adjust max tokens based on settings or default
-    maxTokens: settings?.maxTokens || 400,
-    // Set temperature based on settings or default
+    // Use correct property names for ai/react
+    max_tokens: settings?.maxTokens || 400,
     temperature: settings?.temperature || 0.5,
     // Track session and usage
     onFinish: () => {
       if (activeSessionId) {
         sessionLogger.incrementQueryCount(activeSessionId);
-        setQueryCount(increment);
+        setQueryCount(prevCount => prevCount + 1);
       }
       if (isPro === false) {
         decrementCredits();
@@ -82,7 +82,7 @@ const AIChatInterface = () => {
     }
   }, [topic, activeSessionId]);
 
-  const handleTopicSubmit = (event: React.FormEvent) => {
+  const handleTopicSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!input.trim()) {
       toast({
@@ -117,7 +117,7 @@ const AIChatInterface = () => {
     });
   };
 
-  const handleChatSubmit = async (event: React.FormEvent) => {
+  const handleChatSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (isPro === false && credits <= 0) {
       handleCreditsError();
