@@ -1,5 +1,5 @@
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useToast } from '@/components/ui/use-toast'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -49,28 +49,45 @@ export function TeacherManagement() {
 
       if (!profile?.school_id) throw new Error('No school associated')
 
-      const { data: teachers, error } = await supabase
+      // First get all teachers for this school
+      const { data: teacherIds, error: teacherError } = await supabase
         .from('teachers')
-        .select(`
-          id,
-          profiles:profiles (
-            email,
-            full_name
-          ),
-          created_at,
-          is_supervisor
-        `)
+        .select('id, is_supervisor')
         .eq('school_id', profile.school_id)
 
-      if (error) throw error
+      if (teacherError) throw teacherError
 
-      setTeachers(teachers.map(t => ({
-        id: t.id,
-        email: t.profiles.email,
-        full_name: t.profiles.full_name,
-        created_at: t.created_at,
-        is_supervisor: t.is_supervisor
-      })))
+      if (!teacherIds || teacherIds.length === 0) {
+        setTeachers([])
+        setLoading(false)
+        return
+      }
+
+      // Then get profile information for each teacher
+      const teacherProfiles = await Promise.all(
+        teacherIds.map(async (teacher) => {
+          const { data: profileData, error: profileError } = await supabase
+            .from('profiles')
+            .select('email, full_name')
+            .eq('id', teacher.id)
+            .single()
+          
+          if (profileError) {
+            console.error('Error fetching teacher profile:', profileError)
+            return null
+          }
+          
+          return {
+            id: teacher.id,
+            email: profileData?.email || 'N/A',
+            full_name: profileData?.full_name || 'Unknown Teacher',
+            created_at: new Date().toISOString(), // Placeholder since we don't have this data
+            is_supervisor: teacher.is_supervisor
+          }
+        })
+      )
+
+      setTeachers(teacherProfiles.filter(Boolean) as Teacher[])
     } catch (error) {
       toast({
         title: 'Error',
@@ -81,6 +98,10 @@ export function TeacherManagement() {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    fetchTeachers()
+  }, [])
 
   const handleInviteTeacher = async () => {
     if (!inviteEmail) return

@@ -1,3 +1,4 @@
+
 import React from "react";
 import { DateRangePicker } from "./DateRangePicker";
 import { StudentSelector } from "./StudentSelector";
@@ -31,14 +32,14 @@ export const AnalyticsFilters: React.FC<AnalyticsFiltersProps> = ({
   const handleStudentChange = (studentId: string | undefined) => {
     onFiltersChange({
       ...filters,
-      studentId,
+      selectedStudentId: studentId,
     });
   };
 
   const handleTeacherChange = (teacherId: string | undefined) => {
     onFiltersChange({
       ...filters,
-      teacherId,
+      selectedTeacherId: teacherId,
     });
   };
 
@@ -63,7 +64,7 @@ export const AnalyticsFilters: React.FC<AnalyticsFiltersProps> = ({
               <div>
                 <StudentSelector
                   students={students}
-                  selectedStudentId={filters.studentId}
+                  selectedStudentId={filters.selectedStudentId}
                   onStudentChange={handleStudentChange}
                 />
               </div>
@@ -73,7 +74,7 @@ export const AnalyticsFilters: React.FC<AnalyticsFiltersProps> = ({
               <div>
                 <TeacherSelector
                   schoolId={typeof filters.schoolId === "string" ? filters.schoolId : ""}
-                  selectedTeacherId={filters.teacherId}
+                  selectedTeacherId={filters.selectedTeacherId}
                   onTeacherChange={handleTeacherChange}
                 />
               </div>

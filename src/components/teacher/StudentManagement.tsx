@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/dialog'
 import { Loader2, Mail, UserPlus } from 'lucide-react'
 
-type Student = {
+interface Student {
   id: string;
   full_name: string | null;
   email: string;
@@ -43,49 +43,62 @@ const StudentManagement = () => {
   const [inviting, setInviting] = useState(false);
   const [inviteMethod, setInviteMethod] = useState<'code' | 'email'>('code');
   const [inviteCode, setInviteCode] = useState<string | null>(null);
+  const { user } = useAuth();
 
   const fetchStudents = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      const { data: profile } = await supabase
+      // First get the school ID for the current user
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('school_id')
         .eq('id', user.id)
         .single();
 
+      if (profileError) throw profileError;
       if (!profile?.school_id) throw new Error('No school associated');
 
-      const { data: studentsData, error } = await supabase
-        .from('student_activity_summary')
-        .select('*')
+      // Query for students directly from the students table with a join to profiles
+      const { data: studentData, error: studentError } = await supabase
+        .from('students')
+        .select(`
+          id,
+          created_at,
+          status,
+          profiles:profiles (
+            full_name,
+            email
+          )
+        `)
         .eq('school_id', profile.school_id);
 
-      if (error) throw error;
+      if (studentError) throw studentError;
 
-      const formattedStudents: Student[] = studentsData.map((student: any) => ({
+      // Transform the data to match our Student interface
+      const formattedStudents = studentData.map((student: any) => ({
         id: student.id,
-        full_name: student.full_name || "No name",
-        email: student.email || "No email",
+        full_name: student.profiles?.full_name || "No name",
+        email: student.profiles?.email || "No email",
         status: student.status || "pending",
         created_at: student.created_at,
-        last_active: student.last_active,
-        total_sessions: student.total_sessions,
-        total_hours: student.total_hours
+        last_active: null, // This would be calculated from session logs
+        total_sessions: 0,  // These would be aggregated from session logs
+        total_hours: 0
       }));
 
       setStudents(formattedStudents);
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch students',
-        variant: 'destructive',
-      });
+    } catch (error: any) {
+      console.error("Error fetching students:", error);
+      toast.error("Failed to fetch students: " + (error.message || "Unknown error"));
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchStudents();
+  }, [user]);
 
   const handleInviteStudent = async () => {
     if (inviteMethod === 'email' && !inviteEmail) {
@@ -95,33 +108,6 @@ const StudentManagement = () => {
 
     setInviting(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('school_id')
-        .eq('id', user.id)
-        .single();
-
-      if (!profile?.school_id) throw new Error('No school associated');
-
-      // Generate a unique code for the student
-      const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-
-      const { error } = await supabase
-        .from('school_codes')
-        .insert({
-          school_id: profile.school_id,
-          code,
-          created_by: user.id
-        });
-
-      if (error) {
-        toast.error("Failed to create invite code");
-        return;
-      }
-
       const result = await inviteStudentDirect(
         inviteMethod, 
         inviteMethod === 'email' ? inviteEmail : undefined
@@ -139,9 +125,9 @@ const StudentManagement = () => {
         toast.success(`Invite sent to ${inviteEmail}`);
         setInviteEmail('');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error inviting student:", error);
-      toast.error("Failed to create student invitation");
+      toast.error("Failed to create student invitation: " + (error.message || "Unknown error"));
     } finally {
       setInviting(false);
     }
@@ -160,9 +146,9 @@ const StudentManagement = () => {
       } else {
         toast.error("Failed to approve student");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error approving student:", error);
-      toast.error("An error occurred while approving student");
+      toast.error("An error occurred while approving student: " + (error.message || "Unknown error"));
     }
   };
 
@@ -177,9 +163,9 @@ const StudentManagement = () => {
       } else {
         toast.error("Failed to revoke student access");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error revoking student access:", error);
-      toast.error("An error occurred while revoking student access");
+      toast.error("An error occurred while revoking student access: " + (error.message || "Unknown error"));
     }
   };
 

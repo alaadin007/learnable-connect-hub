@@ -32,6 +32,10 @@ export interface SessionData {
   topics?: string[];
   questions_asked?: number;
   questions_answered?: number;
+  duration_minutes?: number;
+  session_date?: string;
+  student?: string;
+  topic?: string;
 }
 
 export interface TopicData {
@@ -40,6 +44,8 @@ export interface TopicData {
   topic_or_content_used?: string;
   count_of_sessions?: number;
   topic_rank?: number;
+  name?: string;
+  value?: number;
 }
 
 export interface StudyTimeData {
@@ -49,7 +55,13 @@ export interface StudyTimeData {
   study_hours?: number;
   user_id?: string;
   student_name?: string;
+  studentName?: string;
   year?: number;
+  name?: string;
+  total_minutes?: number;
+  student_id?: string;
+  session_week?: number;
+  session_year?: number;
 }
 
 export interface AnalyticsData {
@@ -68,4 +80,25 @@ export interface AnalyticsFilters {
   dateRange: DateRange;
   selectedTeacherId?: string | null;
   selectedStudentId?: string | null;
+  teacherId?: string | null;
+  studentId?: string | null;
+  schoolId?: string;
+}
+
+export interface Student {
+  id: string;
+  name: string;
+  email?: string;
+  status?: string;
+  full_name?: string;
+}
+
+export interface StudentPerformanceData {
+  id: string;
+  name: string;
+  avg_score?: number;
+  average_score?: number;
+  assessments_taken?: number;
+  completion_rate?: number;
+  last_active?: string;
 }
