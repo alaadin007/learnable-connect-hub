@@ -21,8 +21,10 @@ export async function checkEmailExistingRole(email: string): Promise<string | nu
         // Use the listUsers API correctly without filters
         const { data: userData, error: userError } = await supabase.auth.admin.listUsers();
         
-        // Filter users manually
-        const matchingUser = userData?.users?.find(user => user.email === email);
+        // Filter users manually - make sure to check for undefined users field
+        const matchingUser = userData?.users?.find(user => {
+          return user && typeof user === 'object' && 'email' in user && user.email === email;
+        });
         
         if (!userError && matchingUser) {
           // Check user metadata first
