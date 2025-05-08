@@ -12,7 +12,6 @@ export interface Settings {
 
 // User settings from database - define the exact structure to match DB
 interface UserSettings {
-  user_id: string;
   max_tokens: number;
   temperature: number;
   model: string;
@@ -64,8 +63,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         if (session?.user) {
           // Check if the user_settings table exists using a safer approach
           try {
-            // Use a custom function call that avoids direct table access
-            // This is a safer approach that won't cause infinite recursion
+            // Use the new function that returns properly typed data
             const { data, error } = await supabase.rpc('get_user_settings', {
               user_id_param: session.user.id
             });
@@ -108,7 +106,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         try {
-          // Use RPC function instead of direct table access
+          // Use the new RPC function for updating settings
           await supabase.rpc('update_user_settings', {
             user_id_param: session.user.id,
             max_tokens_param: updatedSettings.maxTokens,

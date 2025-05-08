@@ -1326,6 +1326,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      generate_new_school_code: {
+        Args: { school_id_param: string }
+        Returns: string
+      }
       generate_school_code: {
         Args: Record<PropertyKey, never>
         Returns: string
@@ -1358,6 +1362,15 @@ export type Database = {
           name: string
           school_code: string
           active: boolean
+        }[]
+      }
+      get_school_by_id: {
+        Args: { school_id_param: string }
+        Returns: {
+          id: string
+          name: string
+          code: string
+          contact_email: string
         }[]
       }
       get_school_improvement_metrics: {
@@ -1504,6 +1517,15 @@ export type Database = {
         Args: { uid?: string }
         Returns: string
       }
+      get_user_settings: {
+        Args: { user_id_param: string }
+        Returns: {
+          max_tokens: number
+          temperature: number
+          model: string
+          show_sources: boolean
+        }[]
+      }
       has_any_role: {
         Args: { _roles: Database["public"]["Enums"]["app_role"][] }
         Returns: boolean
@@ -1587,6 +1609,16 @@ export type Database = {
       update_session_topic: {
         Args: { log_id: string; topic: string }
         Returns: undefined
+      }
+      update_user_settings: {
+        Args: {
+          user_id_param: string
+          max_tokens_param: number
+          temperature_param: number
+          model_param: string
+          show_sources_param: boolean
+        }
+        Returns: boolean
       }
       verify_school_code: {
         Args: { code: string }

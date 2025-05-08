@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,9 +10,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, RefreshCcw, Copy, CheckCircle, AlertCircle } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
 
 // Let's create an interface to extend school data with our new fields
 interface SchoolData {
@@ -36,6 +47,9 @@ const SchoolSettings = () => {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isGeneratingCode, setIsGeneratingCode] = useState(false);
+  const [showCodeDialog, setShowCodeDialog] = useState(false);
+  const [codeCopied, setCodeCopied] = useState(false);
 
   useEffect(() => {
     // Load initial school data
@@ -44,35 +58,39 @@ const SchoolSettings = () => {
       
       setIsLoading(true);
       try {
-        // Get school information
+        // Get school information using our new function
         const { data, error } = await supabase
-          .from("schools")
-          .select("*")
-          .eq("id", profile.organization.id)
-          .single();
+          .rpc('get_school_by_id', {
+            school_id_param: profile.organization.id
+          });
 
         if (error) throw error;
         
-        if (data) {
-          setSchoolName(data.name || "");
-          setSchoolCode(data.code || "");
-          // For these fields, we'll use default values since they don't exist in the DB yet
-          setContactEmail(user?.email || ""); // Using user.email instead of profile.email
-          setDescription(data.description || "");
-          setNotificationsEnabled(data.notifications_enabled !== false); // Default to true if undefined
+        if (data && data.length > 0) {
+          const schoolData = data[0];
+          setSchoolName(schoolData.name || "");
+          setSchoolCode(schoolData.code || "");
+          setContactEmail(schoolData.contact_email || user?.email || "");
+          // For fields not returned by the function, use existing values
+          setDescription(description || "");
+          setNotificationsEnabled(notificationsEnabled !== false); // Default to true if undefined
         }
       } catch (error) {
         console.error("Error fetching school data:", error);
+        toast.error("Could not load school information");
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchSchoolData();
-  }, [profile, user]); // Added user to the dependency array
+  }, [profile, user]);
 
   const handleSaveSettings = async () => {
-    if (!profile?.organization?.id) return;
+    if (!profile?.organization?.id) {
+      toast.error("No school ID found. Please refresh the page or contact support.");
+      return;
+    }
     
     setIsSaving(true);
     try {
@@ -100,29 +118,45 @@ const SchoolSettings = () => {
   };
 
   const generateNewSchoolCode = async () => {
-    if (!profile?.organization?.id) return;
+    if (!profile?.organization?.id) {
+      toast.error("No school ID found. Please refresh the page or contact support.");
+      return;
+    }
     
+    setIsGeneratingCode(true);
     try {
-      // In a real implementation, this would call a function to generate a new code
-      const newCode = Math.random().toString(36).substring(2, 10).toUpperCase();
-      
-      // Update the code in the schools table
-      const { error } = await supabase
-        .from("schools")
-        .update({
-          code: newCode,
-          updated_at: new Date().toISOString()
-        })
-        .eq("id", profile.organization.id);
+      // Call our new RPC function to generate a new code
+      const { data, error } = await supabase
+        .rpc('generate_new_school_code', {
+          school_id_param: profile.organization.id
+        });
 
       if (error) throw error;
       
-      setSchoolCode(newCode);
-      toast.success("New school code generated successfully!");
+      if (data) {
+        setSchoolCode(data);
+        setShowCodeDialog(true);
+        toast.success("New school code generated successfully!");
+      }
     } catch (error: any) {
       console.error("Error generating new school code:", error);
       toast.error(error.message || "Failed to generate new school code");
+    } finally {
+      setIsGeneratingCode(false);
     }
+  };
+
+  const copyCodeToClipboard = () => {
+    navigator.clipboard.writeText(schoolCode).then(
+      () => {
+        setCodeCopied(true);
+        setTimeout(() => setCodeCopied(false), 2000);
+      },
+      (err) => {
+        console.error("Failed to copy code:", err);
+        toast.error("Failed to copy code to clipboard");
+      }
+    );
   };
 
   return (
@@ -152,7 +186,9 @@ const SchoolSettings = () => {
             </CardHeader>
             <CardContent>
               {isLoading ? (
-                <p>Loading school information...</p>
+                <div className="flex justify-center py-6">
+                  <div className="animate-spin h-8 w-8 border-4 border-blue-600 rounded-full border-t-transparent"></div>
+                </div>
               ) : (
                 <div className="space-y-6">
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -193,14 +229,77 @@ const SchoolSettings = () => {
                     <Label>School Code</Label>
                     <div className="flex items-center space-x-2">
                       <code className="bg-background p-3 rounded border flex-1 text-center font-mono">
-                        {schoolCode}
+                        {schoolCode || "No code generated yet"}
                       </code>
-                      <Button 
-                        variant="outline" 
-                        onClick={generateNewSchoolCode}
-                      >
-                        Generate New Code
-                      </Button>
+                      <Dialog open={showCodeDialog} onOpenChange={setShowCodeDialog}>
+                        <DialogTrigger asChild>
+                          <Button 
+                            variant="outline" 
+                            onClick={generateNewSchoolCode}
+                            disabled={isGeneratingCode}
+                            className="flex items-center gap-2"
+                          >
+                            {isGeneratingCode ? (
+                              <>
+                                <RefreshCcw className="h-4 w-4 animate-spin" />
+                                Generating...
+                              </>
+                            ) : (
+                              <>
+                                <RefreshCcw className="h-4 w-4" />
+                                Generate New Code
+                              </>
+                            )}
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>New School Code Generated</DialogTitle>
+                            <DialogDescription>
+                              Your new school code is ready. Make sure to share it with your teachers and students.
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="bg-muted p-4 rounded-md my-4">
+                            <div className="flex items-center justify-between">
+                              <code className="font-mono text-xl">{schoolCode}</code>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="flex items-center gap-2"
+                                onClick={copyCodeToClipboard}
+                              >
+                                {codeCopied ? (
+                                  <>
+                                    <CheckCircle className="h-4 w-4 text-green-500" />
+                                    Copied!
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy className="h-4 w-4" />
+                                    Copy
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+                          <div className="bg-amber-50 border border-amber-200 rounded-md p-4 text-amber-800">
+                            <div className="flex items-start gap-2">
+                              <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5" />
+                              <div>
+                                <h4 className="font-semibold mb-1">Important</h4>
+                                <p className="text-sm">
+                                  This action invalidates your previous school code. Anyone using the old code will no longer be able to join your school.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                          <DialogFooter>
+                            <DialogClose asChild>
+                              <Button className="w-full sm:w-auto">Close</Button>
+                            </DialogClose>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
                     </div>
                     <p className="text-sm text-muted-foreground">
                       This code is used by teachers and students to join your school.

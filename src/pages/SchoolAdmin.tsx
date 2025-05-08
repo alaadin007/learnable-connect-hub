@@ -4,15 +4,17 @@ import { useNavigate, useLocation } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, BarChart, Settings, UserPlus, School } from "lucide-react";
+import { Users, BarChart, Settings, UserPlus, School, Copy } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import Footer from "@/components/layout/Footer";
+import { toast } from "sonner";
 
 const SchoolAdmin = () => {
   const { user, profile, userRole, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [isLoading, setIsLoading] = useState(true);
+  const [codeCopied, setCodeCopied] = useState(false);
   
   useEffect(() => {
     console.log("SchoolAdmin: Component mounting with user data:", {
@@ -82,6 +84,23 @@ const SchoolAdmin = () => {
     
     checkAccess();
   }, [user, userRole, navigate, refreshProfile, location.state]);
+
+  const copySchoolCode = () => {
+    if (!profile?.organization?.code) {
+      toast.error("No school code available");
+      return;
+    }
+    
+    navigator.clipboard.writeText(profile.organization.code)
+      .then(() => {
+        setCodeCopied(true);
+        toast.success("School code copied to clipboard");
+        setTimeout(() => setCodeCopied(false), 2000);
+      })
+      .catch(() => {
+        toast.error("Failed to copy code to clipboard");
+      });
+  };
   
   if (isLoading) {
     return (
@@ -214,9 +233,31 @@ const SchoolAdmin = () => {
                 <div>
                   <p className="mb-4">
                     <strong>School: </strong>{profile?.organization?.name || profile?.school_name || "Your School"}<br />
-                    <strong>Code: </strong>{profile?.organization?.code || profile?.school_code || "N/A"}<br />
                     <strong>Admin: </strong>{profile?.full_name || user?.email}
                   </p>
+                  
+                  {profile?.organization?.code && (
+                    <div className="mt-2 flex items-center">
+                      <div className="mr-2">
+                        <strong>School Code: </strong>
+                        <code className="bg-gray-100 px-2 py-1 rounded text-indigo-600 font-mono">
+                          {profile.organization.code}
+                        </code>
+                      </div>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="p-1 h-auto"
+                        onClick={copySchoolCode}
+                      >
+                        {codeCopied ? (
+                          <span className="text-green-500 flex items-center text-xs">Copied</span>
+                        ) : (
+                          <Copy className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
             </CardContent>
