@@ -7,8 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { supabase } from "@/integrations/supabase/client";
-import { safeQueryArray } from "@/utils/supabaseHelpers";
+import { getTeachersWithProfiles } from "@/utils/supabaseHelpers";
 
 interface TeacherSelectorProps {
   schoolId: string;
@@ -36,33 +35,19 @@ export function TeacherSelector({
       }
       
       try {
-        // Use our helper function for safer data fetching
-        const teachersData = await safeQueryArray(
-          supabase
-            .from("teachers")
-            .select("id")
-            .eq("school_id", schoolId)
-        );
-
+        // Use our improved helper function
+        const teachersData = await getTeachersWithProfiles(schoolId);
+        
         if (!teachersData || teachersData.length === 0) {
           setTeachers([]);
           return;
         }
 
-        const teacherIds = teachersData.map((t) => t.id);
-        const profilesData = await safeQueryArray(
-          supabase
-            .from("profiles")
-            .select("id, full_name")
-            .in("id", teacherIds)
-        );
-
-        const formattedTeachers: Teacher[] = profilesData.map(
-          (profile) => ({
-            id: profile.id,
-            name: profile.full_name || "Unknown Teacher",
-          })
-        );
+        // Transform to required format
+        const formattedTeachers: Teacher[] = teachersData.map(teacher => ({
+          id: teacher.id,
+          name: teacher.full_name
+        }));
 
         setTeachers(formattedTeachers);
       } catch (error) {

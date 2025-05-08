@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,11 +9,19 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertTriangle, CheckCircle2, Mail, UserPlus, X } from "lucide-react";
 import { inviteTeacherDirect } from "@/utils/databaseUtils";
 import { toast } from "sonner";
+import { getTeachersWithProfiles } from "@/utils/supabaseHelpers";
+
+interface Teacher {
+  id: string;
+  full_name: string;
+  isSupevisor?: boolean;
+  createdAt?: string;
+  email?: string;
+}
 
 const TeacherManagement = () => {
-  const [teachers, setTeachers] = useState<any[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [inviteEmail, setInviteEmail] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const { schoolId } = useAuth();
@@ -26,116 +33,73 @@ const TeacherManagement = () => {
   }, [schoolId]);
 
   const fetchTeachers = async () => {
-    setIsLoading(true);
     setError(null);
     
     try {
-      // First, get teacher IDs from the teachers table for this school
-      const { data: teacherData, error: teacherError } = await supabase
-        .from("teachers")
-        .select("id, is_supervisor, created_at")
-        .eq("school_id", schoolId);
-
-      if (teacherError) {
-        throw teacherError;
+      if (!schoolId) {
+        throw new Error("School ID not available");
       }
-
-      if (!teacherData || teacherData.length === 0) {
-        setTeachers([]);
-        return;
-      }
-
-      // Get teacher profiles
-      const teacherIds = teacherData.map(teacher => teacher.id);
-      const { data: profilesData, error: profilesError } = await supabase
-        .from("profiles")
-        .select("id, full_name")
-        .in("id", teacherIds);
-
-      if (profilesError) {
-        throw profilesError;
-      }
-
-      // Combine teachers with their profiles
-      const combinedData = teacherData.map(teacher => {
-        const profile = profilesData?.find(p => p.id === teacher.id);
-        return {
-          ...teacher,
-          full_name: profile?.full_name || "Unknown Name"
-        };
-      });
-
-      setTeachers(combinedData);
+      
+      // Use our improved helper function
+      const teacherData = await getTeachersWithProfiles(schoolId);
+      setTeachers(teacherData);
     } catch (error: any) {
       console.error("Error fetching teachers:", error);
       setError(error.message);
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const handleInviteTeacher = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
     setError(null);
     setSuccess(null);
     
     if (!inviteEmail) {
       setError("Email address is required");
-      setIsLoading(false);
       return;
     }
     
-    // Check if email already exists
-    const { data: emailCheck, error: emailError } = await supabase.rpc('check_if_email_exists', {
-      input_email: inviteEmail
-    });
-    
-    if (emailError) {
-      console.error("Error checking if email exists:", emailError);
-      setError("Error checking email: " + emailError.message);
-      setIsLoading(false);
+    if (!schoolId) {
+      setError("School ID not available");
       return;
     }
     
-    if (emailCheck === true) {
-      // Check user role
-      const { data: roleData, error: roleError } = await supabase.rpc('get_user_role_by_email', {
+    try {
+      // Check if email already exists using direct database query
+      const { data: emailExists } = await supabase.rpc('check_if_email_exists', {
         input_email: inviteEmail
       });
       
-      if (roleError) {
-        console.error("Error checking user role:", roleError);
-        setError("Error checking user role: " + roleError.message);
-        setIsLoading(false);
-        return;
+      if (emailExists === true) {
+        const { data: userRole } = await supabase.rpc('get_user_role_by_email', {
+          input_email: inviteEmail
+        });
+        
+        if (userRole) {
+          setError(`This email is already registered as a ${userRole}`);
+          return;
+        }
       }
-      
-      if (roleData) {
-        setError(`This email is already registered as a ${roleData}`);
-        setIsLoading(false);
-        return;
-      }
-    }
 
-    try {
-      // Use the databaseUtils function to invite the teacher
-      const result = await inviteTeacherDirect(inviteEmail);
+      // Use direct database function instead of edge function
+      const { data } = await supabase.rpc('invite_teacher_direct', {
+        teacher_email: inviteEmail,
+        school_id: schoolId
+      });
       
-      if (!result.success) {
-        throw new Error(result.message);
+      if (!data) {
+        throw new Error("Failed to invite teacher");
       }
       
       setSuccess(`Invitation sent to ${inviteEmail}`);
       toast.success("Teacher invited successfully!");
       setInviteEmail("");
+      fetchTeachers(); // Refresh the list
       
     } catch (error: any) {
       console.error("Error inviting teacher:", error);
       setError(error.message || "An error occurred while inviting the teacher");
       toast.error("Failed to invite teacher");
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -181,9 +145,9 @@ const TeacherManagement = () => {
                 className="w-full"
               />
             </div>
-            <Button type="submit" className="flex items-center gap-2" disabled={isLoading}>
+            <Button type="submit" className="flex items-center gap-2">
               <Mail className="h-4 w-4" />
-              {isLoading ? "Sending..." : "Send Invite"}
+              Send Invite
             </Button>
           </form>
         </CardContent>
@@ -197,7 +161,7 @@ const TeacherManagement = () => {
         <CardContent>
           <Table className="border rounded-md">
             <TableCaption>
-              {isLoading ? "Loading teachers..." : teachers.length === 0 ? "No teachers found" : "List of all teachers"}
+              {teachers.length === 0 ? "No teachers found" : "List of all teachers"}
             </TableCaption>
             <TableHeader>
               <TableRow>
@@ -211,8 +175,8 @@ const TeacherManagement = () => {
               {teachers.map((teacher) => (
                 <TableRow key={teacher.id}>
                   <TableCell className="font-medium">{teacher.full_name}</TableCell>
-                  <TableCell>{teacher.is_supervisor ? "Supervisor" : "Teacher"}</TableCell>
-                  <TableCell>{new Date(teacher.created_at).toLocaleDateString()}</TableCell>
+                  <TableCell>{teacher.isSupevisor ? "Supervisor" : "Teacher"}</TableCell>
+                  <TableCell>{teacher.createdAt ? new Date(teacher.createdAt).toLocaleDateString() : 'Unknown'}</TableCell>
                   <TableCell className="text-right">
                     <Button
                       variant="outline"
@@ -229,7 +193,7 @@ const TeacherManagement = () => {
                   </TableCell>
                 </TableRow>
               ))}
-              {teachers.length === 0 && !isLoading && (
+              {teachers.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
                     No teachers found. Invite teachers to get started.

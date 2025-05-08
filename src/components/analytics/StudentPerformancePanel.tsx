@@ -1,7 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StudentPerformanceTable } from "./StudentPerformanceTable";
@@ -9,7 +8,7 @@ import { StudentPerformanceMetric } from './types';
 import { getStudentPerformanceMetrics } from '@/utils/supabaseHelpers';
 
 export function StudentPerformancePanel() {
-  const { user, userRole, profile, schoolId } = useAuth();
+  const { schoolId } = useAuth();
   const [selectedTab, setSelectedTab] = useState<string>("table");
   const [students, setStudents] = useState<StudentPerformanceMetric[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -23,22 +22,9 @@ export function StudentPerformancePanel() {
           return;
         }
         
+        // Use our improved helper function for consistent type handling
         const performanceData = await getStudentPerformanceMetrics(schoolId);
-        
-        // Transform the data to match our StudentPerformanceMetric type
-        const formattedData: StudentPerformanceMetric[] = performanceData.map(item => ({
-          student_id: item.student_id || '',
-          student_name: item.student_name || 'Unknown Student',
-          avg_score: Number(item.avg_score) || 0,
-          assessments_taken: Number(item.assessments_taken) || 0,
-          completion_rate: Number(item.completion_rate) || 0,
-          avg_time_spent_seconds: Number(item.avg_time_spent_seconds) || 0,
-          top_strengths: item.top_strengths || '',
-          top_weaknesses: item.top_weaknesses || '',
-          last_active: null
-        }));
-        
-        setStudents(formattedData);
+        setStudents(performanceData);
       } catch (err: any) {
         console.error("Error fetching student performance:", err);
         setError(err.message || "Failed to load student performance data");

@@ -1406,6 +1406,19 @@ export type Database = {
           user_email: string
         }[]
       }
+      get_student_metrics_for_school: {
+        Args: { school_id_param: string }
+        Returns: {
+          student_id: string
+          student_name: string
+          avg_score: number
+          assessments_taken: number
+          completion_rate: number
+          avg_time_spent_seconds: number
+          top_strengths: string
+          top_weaknesses: string
+        }[]
+      }
       get_student_performance_metrics: {
         Args: {
           p_school_id: string
@@ -1422,6 +1435,16 @@ export type Database = {
           completion_rate: number
           top_strengths: string
           top_weaknesses: string
+        }[]
+      }
+      get_students_for_school: {
+        Args: { school_id_param: string }
+        Returns: {
+          id: string
+          full_name: string
+          email: string
+          status: string
+          created_at: string
         }[]
       }
       get_students_with_profiles: {
@@ -1449,6 +1472,16 @@ export type Database = {
           avg_submissions_per_assessment: number
           avg_student_score: number
           completion_rate: number
+        }[]
+      }
+      get_teachers_for_school: {
+        Args: { school_id_param: string }
+        Returns: {
+          id: string
+          full_name: string
+          email: string
+          is_supervisor: boolean
+          created_at: string
         }[]
       }
       get_user_role: {

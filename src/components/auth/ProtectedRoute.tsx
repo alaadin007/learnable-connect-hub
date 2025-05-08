@@ -13,12 +13,12 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children,
   requiredUserType
 }) => {
-  const { user, userRole, schoolId, session } = useAuth();
+  const { user, userRole, session } = useAuth();
   const location = useLocation();
 
   // If no user is authenticated, redirect to login
   if (!user || !session) {
-    // Toast only when not already on login page to avoid notification spam
+    // Only show toast when not already on login page
     if (!location.pathname.includes('login')) {
       toast.error("You must be logged in to access this page");
     }

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +8,8 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { approveStudentDirect, revokeStudentAccessDirect } from "@/utils/databaseUtils";
 import { RefreshCw, User } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { getStudentsWithProfiles } from "@/utils/supabaseHelpers";
 
 type Student = {
   id: string;
@@ -23,75 +24,28 @@ const AdminStudents = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const { schoolId } = useAuth();
 
   useEffect(() => {
-    fetchStudents();
-  }, [refreshTrigger]);
+    if (schoolId) {
+      fetchStudents();
+    }
+  }, [refreshTrigger, schoolId]);
 
   const fetchStudents = async () => {
     try {
-      // Get school ID first
-      const { data: schoolId, error: schoolIdError } = await supabase
-        .rpc("get_user_school_id");
-
-      if (schoolIdError || !schoolId) {
+      if (!schoolId) {
         toast.error("Could not determine school ID");
-        console.error("Error getting school ID:", schoolIdError);
         return;
       }
       
       console.log("AdminStudents: School ID retrieved:", schoolId);
       
-      // Fetch all students from this school
-      const { data: studentsData, error: studentsError } = await supabase
-        .from("students")
-        .select("id, school_id, status, created_at")
-        .eq("school_id", schoolId);
-
-      if (studentsError) {
-        toast.error("Error fetching students");
-        console.error("Error fetching students:", studentsError);
-        return;
-      }
-
-      console.log("AdminStudents: Raw students data:", studentsData);
+      // Use our improved helper function to get students
+      const studentsData = await getStudentsWithProfiles(schoolId);
       
-      if (!studentsData || studentsData.length === 0) {
-        setStudents([]);
-        return;
-      }
-      
-      // Now fetch the profiles data separately with only the columns that exist
-      const studentIds = studentsData.map(student => student.id);
-      
-      const { data: profilesData, error: profilesError } = await supabase
-        .from("profiles")
-        .select("id, full_name")
-        .in("id", studentIds);
-      
-      if (profilesError) {
-        toast.error("Error fetching profiles");
-        console.error("Error fetching profiles:", profilesError);
-        return;
-      }
-
-      console.log("AdminStudents: Profiles data:", profilesData);
-
-      // Combine the data from the two queries
-      const formattedStudents: Student[] = studentsData.map(student => {
-        const profile = profilesData?.find(p => p.id === student.id);
-        return {
-          id: student.id,
-          school_id: student.school_id,
-          status: student.status || "pending",
-          created_at: student.created_at,
-          full_name: profile?.full_name || "No name",
-          email: student.id, // Using ID as email placeholder
-        };
-      });
-
-      console.log("AdminStudents: Formatted students:", formattedStudents);
-      setStudents(formattedStudents);
+      console.log("AdminStudents: Formatted students:", studentsData);
+      setStudents(studentsData);
     } catch (error) {
       console.error("Error fetching students:", error);
       toast.error("Failed to load students");
@@ -123,7 +77,7 @@ const AdminStudents = () => {
       
       if (success) {
         toast.success("Student access revoked");
-        // Remove the student from the local state
+        // Update the local state
         setStudents(students.filter(student => student.id !== studentId));
       } else {
         toast.error("Failed to revoke student access");
