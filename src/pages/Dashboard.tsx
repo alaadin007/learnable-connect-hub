@@ -13,6 +13,16 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Debug logs to help understand what's happening
+  useEffect(() => {
+    console.log("Dashboard: User data:", { 
+      userId: user?.id,
+      email: user?.email,
+      role: userRole,
+      profileData: profile
+    });
+  }, [user, profile, userRole]);
+
   // Redirect based on user role
   useEffect(() => {
     if (!user) {
@@ -27,9 +37,12 @@ const Dashboard = () => {
       return;
     }
 
-    // Redirect school admins to their dashboard
+    console.log("Dashboard: User role detected:", userRole);
+
+    // Handle school admin redirection with higher priority
     if (userRole === "school") {
       console.log("Dashboard: School admin detected, redirecting to admin dashboard");
+      // Use replace: true to prevent back navigation to this intermediate page
       navigate("/admin", { 
         state: { fromNavigation: true, preserveContext: true },
         replace: true 
@@ -37,7 +50,7 @@ const Dashboard = () => {
       return;
     }
 
-    // Redirect teachers to their dashboard
+    // Handle teacher redirection
     if (userRole === "teacher") {
       console.log("Dashboard: Teacher detected, redirecting to teacher analytics");
       navigate("/teacher/analytics", { 
@@ -46,6 +59,8 @@ const Dashboard = () => {
       });
       return;
     }
+
+    console.log("Dashboard: User remaining on student dashboard");
   }, [user, navigate, location.state, userRole]);
 
   // Show loading state if user or profile data is not ready
