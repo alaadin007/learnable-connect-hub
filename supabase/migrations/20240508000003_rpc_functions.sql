@@ -50,3 +50,49 @@ BEGIN
   RETURN INITCAP(user_role);
 END;
 $$;
+
+-- Function to check auth status efficiently
+CREATE OR REPLACE FUNCTION check_auth_status()
+RETURNS TABLE(
+  is_authenticated BOOLEAN,
+  user_id UUID,
+  email TEXT,
+  role TEXT
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  current_user_id UUID;
+  user_email TEXT;
+  user_role TEXT;
+BEGIN
+  -- Get current authenticated user ID
+  current_user_id := auth.uid();
+  
+  -- Return false if no user authenticated
+  IF current_user_id IS NULL THEN
+    is_authenticated := FALSE;
+    RETURN NEXT;
+    RETURN;
+  END IF;
+  
+  -- Get user email
+  SELECT email INTO user_email 
+  FROM auth.users 
+  WHERE id = current_user_id;
+  
+  -- Get user role
+  SELECT user_type INTO user_role
+  FROM public.profiles
+  WHERE id = current_user_id;
+  
+  -- Return user info
+  is_authenticated := TRUE;
+  user_id := current_user_id;
+  email := user_email;
+  role := user_role;
+  RETURN NEXT;
+  RETURN;
+END;
+$$;

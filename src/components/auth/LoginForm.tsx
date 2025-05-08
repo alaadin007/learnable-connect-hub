@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -83,7 +82,7 @@ const LoginForm = () => {
     }
   };
 
-  // Special handling for test accounts - much faster now
+  // Special handling for test accounts - improved for reliability
   const handleQuickLogin = async (
     type: "school" | "teacher" | "student"
   ) => {
@@ -93,16 +92,18 @@ const LoginForm = () => {
     try {
       console.log(`LoginForm: Instant login as ${type}`);
       
-      // Sign out first if there's an active session to prevent conflicts
-      if (activeTestAccount) {
-        await signOut();
-      }
+      // Sign out first if there's any active session to prevent conflicts
+      await signOut();
       
-      // Set test account flags immediately
+      // Clean any existing test account state first
+      localStorage.removeItem('usingTestAccount');
+      localStorage.removeItem('testAccountType');
+      
+      // Set test account flags
       localStorage.setItem('usingTestAccount', 'true');
       localStorage.setItem('testAccountType', type);
       
-      // Direct login for test accounts - this bypasses authentication completely
+      // Direct login for test accounts
       const mockUser = await setTestUser(type);
       if (!mockUser) {
         throw new Error(`Failed to set up ${type} test account`);
@@ -186,11 +187,11 @@ const LoginForm = () => {
 
       if (data?.user) {
         console.log("Login successful:", data.user.id);
-        // Determine user type and redirect accordingly
+        // Get user type from metadata or profile
         let userType: string | null = null;
         let userName: string | null = null;
         let fetchedProfile: any = null;
-        // First try to get from user metadata
+        
         if (data.user.user_metadata) {
           userType = data.user.user_metadata.user_type;
           // Normalize the user role
@@ -199,6 +200,7 @@ const LoginForm = () => {
           }
           userName = data.user.user_metadata.full_name;
         }
+        
         // If not in metadata, try to get from profile
         if (!userType) {
           try {
@@ -207,7 +209,9 @@ const LoginForm = () => {
               .select("user_type, full_name, organization:school_id(*)")
               .eq("id", data.user.id)
               .single();
+              
             fetchedProfile = profile;
+            
             if (!profileError && profile) {
               userType = profile.user_type;
               // Normalize the user role if needed
@@ -232,6 +236,7 @@ const LoginForm = () => {
             .select("role")
             .eq("user_id", data.user.id)
             .single();
+            
           if (!roleError && userRole) {
             console.log("Found user role in user_roles table:", userRole.role);
             userType = userRole.role;
@@ -250,6 +255,7 @@ const LoginForm = () => {
           setIsLoading(false);
           return;
         }
+        
         if (userType === "school" && (!fetchedProfile || !fetchedProfile.organization || !fetchedProfile.organization.id)) {
           setLoginError("Your school admin account is missing an associated school. Please contact support.");
           setIsLoading(false);
@@ -262,6 +268,7 @@ const LoginForm = () => {
         toast.success("Login successful", {
           description: `Welcome back, ${userName || email}!`,
         });
+        
         navigate(redirectPath, {
           replace: true,
           state: {
