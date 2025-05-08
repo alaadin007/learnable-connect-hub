@@ -96,9 +96,12 @@ const logSessionStart = async (topic?: string, userId?: string): Promise<string 
       return null;
     }
 
-    // Safely access id with proper type checking
-    return logData && typeof logData === 'object' && 'id' in logData ? 
-      logData.id as string : null;
+    // Fix TypeScript errors by properly type checking the returned object
+    if (logData && typeof logData === 'object' && 'id' in logData) {
+      return logData.id as string;
+    }
+    
+    return null;
   } catch (error) {
     console.error("Error starting session:", error);
     return null;

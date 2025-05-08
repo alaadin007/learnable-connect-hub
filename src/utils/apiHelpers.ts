@@ -32,7 +32,8 @@ export async function invokeEdgeFunction<T = any>(functionName: string, payload?
     console.log(`Sending request to edge function: ${functionName}`, { 
       hasHeaders: Object.keys(headers).length,
       hasPayload: !!payload,
-      origin: window.location.origin
+      origin: window.location.origin,
+      connectionStatus: navigator.onLine ? "Online" : "Offline"
     });
     
     // Invoke the function with explicit authorization header if available
@@ -66,6 +67,7 @@ export async function invokeEdgeFunction<T = any>(functionName: string, payload?
 export async function isAuthenticated(): Promise<boolean> {
   try {
     const { data: { session } } = await supabase.auth.getSession();
+    console.log("Authentication check:", !!session ? "User is authenticated" : "No active session");
     return !!session;
   } catch (error) {
     console.error("Error checking authentication:", error);
@@ -101,6 +103,15 @@ export async function checkSessionStatus(): Promise<{
 }> {
   try {
     const { data: { session } } = await supabase.auth.getSession();
+    
+    if (session) {
+      console.log("Session details:", {
+        userId: session.user.id,
+        expiresAt: session.expires_at,
+        provider: session.user.app_metadata.provider,
+        email: session.user.email
+      });
+    }
     
     return {
       hasSession: !!session,

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Clock, Loader2, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import sessionLogger from "@/utils/sessionLogger";
+import { checkSessionStatus } from "@/utils/apiHelpers";
 
 const LoginForm = () => {
   const [email, setEmail] = useState("");
@@ -37,6 +39,8 @@ const LoginForm = () => {
   // Redirect if user role already set
   useEffect(() => {
     if (userRole) {
+      console.log("User already logged in with role:", userRole);
+      
       const redirectPath = userRole === "school"
         ? "/admin"
         : userRole === "teacher"
@@ -58,8 +62,14 @@ const LoginForm = () => {
     setIsLoading(true);
 
     try {
+      // Check network connection
+      if (!navigator.onLine) {
+        throw new Error("You appear to be offline. Please check your internet connection.");
+      }
+      
       // Handle test accounts - direct login without authentication
       if (email.includes(".test@learnable.edu")) {
+        console.log(`Using test account login flow for ${email}`);
         let type: "school" | "teacher" | "student" = "student";
         if (email.startsWith("school")) type = "school";
         else if (email.startsWith("teacher")) type = "teacher";
@@ -122,6 +132,16 @@ const LoginForm = () => {
       }
 
       console.log("Login successful, user data:", data.user);
+      
+      // Verify session was created correctly
+      const sessionStatus = await checkSessionStatus();
+      console.log("Session status after login:", sessionStatus);
+      
+      if (!sessionStatus.hasSession) {
+        console.warn("Login succeeded but no active session detected");
+        // Force refresh the session
+        await supabase.auth.refreshSession();
+      }
 
       // Get the user type from profiles table with minimal fields
       const { data: profile, error: profileError } = await supabase
