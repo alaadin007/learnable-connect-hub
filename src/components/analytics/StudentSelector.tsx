@@ -1,54 +1,35 @@
-import React, { useCallback } from "react";
+import React from "react";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Student } from "./types";
+import { User } from "lucide-react";
 
 interface StudentSelectorProps {
-  students?: Student[];
-  selectedStudent?: Student | null;
-  selectedStudentId?: string;
-  onStudentSelect?: (student: Student | null) => void;
-  onStudentChange?: (studentId: string | undefined) => void;
+  students: { value: string; label: string }[];
+  selectedStudent: string | null;
+  onSelectStudent: (studentId: string | null) => void;
+  isLoading?: boolean;
 }
 
-export function StudentSelector({ 
-  students = [], 
-  selectedStudentId,
-  onStudentSelect,
-  onStudentChange
-}: StudentSelectorProps) {
-  const handleSelect = useCallback(
-    (value: string) => {
-      if (value === "all") {
-        onStudentSelect?.(null);
-        onStudentChange?.(undefined);
-        return;
-      }
-
-      const student = students.find(s => s.id === value);
-      if (student) {
-        onStudentSelect?.(student);
-      }
-      onStudentChange?.(value);
-    },
-    [students, onStudentSelect, onStudentChange]
-  );
-
+// Make sure the component is exported as default
+const StudentSelector: React.FC<StudentSelectorProps> = ({ students, selectedStudent, onSelectStudent, isLoading }) => {
   return (
-    <Select 
-      value={selectedStudentId ?? "all"} 
-      onValueChange={handleSelect}
-    >
-      <SelectTrigger className="w-full">
-        <SelectValue placeholder="All Students" />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="all">All Students</SelectItem>
-        {students.map(student => (
-          <SelectItem key={student.id} value={student.id}>
-            {student.name}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <div>
+      <Label htmlFor="student">Select Student</Label>
+      <Select onValueChange={onSelectStudent} defaultValue={selectedStudent || ""}>
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder="Select a student" />
+        </SelectTrigger>
+        <SelectContent>
+          {students.map((student) => (
+            <SelectItem key={student.value} value={student.value}>
+              <User className="mr-2 h-4 w-4" />
+              {student.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
   );
-}
+};
+
+export default StudentSelector;
