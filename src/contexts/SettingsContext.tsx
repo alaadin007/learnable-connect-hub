@@ -69,7 +69,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
             });
             
             if (data && !error) {
-              // The data from RPC is now a single row, not an array
+              // The data is now a single object with the settings
               const dbSettings = {
                 maxTokens: data.max_tokens,
                 temperature: data.temperature,
