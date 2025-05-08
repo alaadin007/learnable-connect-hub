@@ -1,3 +1,4 @@
+
 import React, {
   createContext,
   useState,
@@ -117,40 +118,50 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
 
   const fetchProfile = async (userId: string) => {
     try {
+      // First, try to fetch just the basic profile data without the organization join
+      // This avoids the 400 error when the organization relation doesn't exist
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
-        .select(
-          `
-          id,
-          user_type,
-          full_name,
-          organization (
-            id,
-            name,
-            code
-          )
-        `
-        )
+        .select("id, user_type, full_name, school_id, school_code")
         .eq("id", userId)
         .single();
 
-      if (profileError) throw profileError;
+      if (profileError) {
+        console.error("Error fetching basic profile:", profileError);
+        throw profileError;
+      }
+      
+      console.log("AuthContext: Basic profile data:", profileData);
 
+      // Initialize the profile with basic data
       let safeProfileData: UserProfile = {
-        ...profileData,
+        id: profileData.id,
+        user_type: profileData.user_type,
+        full_name: profileData.full_name,
         organization: null,
       };
 
-      const org = profileData.organization;
+      // If school_id exists, try to fetch the school data separately
+      if (profileData.school_id) {
+        const { data: schoolData, error: schoolError } = await supabase
+          .from("schools")
+          .select("id, name, code")
+          .eq("id", profileData.school_id)
+          .single();
 
-      if (isNonNullObject(org) && !("error" in org)) {
-        safeProfileData.organization = org;
+        if (!schoolError && schoolData) {
+          safeProfileData.organization = {
+            id: schoolData.id,
+            name: schoolData.name,
+            code: schoolData.code
+          };
+        }
       }
 
       setProfile(safeProfileData);
       setUserRole(profileData.user_type || null);
       setIsSuperviser(profileData.user_type === "superviser");
-      setSchoolId(safeProfileData.organization?.id || null);
+      setSchoolId(profileData.school_id || safeProfileData.organization?.id || null);
 
       if (user && isTestAccount(user.email || '')) {
         console.log("AuthContext: Test account detected, ensuring organization data is complete");
