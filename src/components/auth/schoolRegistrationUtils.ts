@@ -3,9 +3,12 @@ import { supabase } from '@/integrations/supabase/client';
 
 /**
  * Check if an email is associated with a particular user role
+ * @param email The email to check
+ * @returns The user role if found, null otherwise
  */
 export async function checkEmailExistingRole(email: string): Promise<string | null> {
   try {
+    // Explicitly define the return type to prevent deep type instantiation
     const { data, error } = await supabase
       .from('profiles')
       .select('user_type')
@@ -26,6 +29,8 @@ export async function checkEmailExistingRole(email: string): Promise<string | nu
 
 /**
  * Check if an email already exists in the system
+ * @param email The email to check
+ * @returns Boolean indicating if the email exists
  */
 export async function checkIfEmailExists(email: string): Promise<boolean> {
   try {
