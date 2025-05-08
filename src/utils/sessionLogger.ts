@@ -47,14 +47,14 @@ const logSessionEnd = async (sessionId?: string, performanceData?: any): Promise
 
     try {
       // Silently try to end session without causing UI errors
-      await supabase.functions.invoke("end-session", {
+      const { error } = await supabase.functions.invoke("end-session", {
         body: { logId: sessionId, performanceData }
-      }).then(() => {
-        // Success - no need to do anything
-      }).catch(error => {
+      });
+      
+      if (error) {
         // Just log the error silently without disrupting the UI
         console.error("Silent error ending session:", error);
-      });
+      }
     } catch (error) {
       // Fallback error handling - also silent
       console.error("Error ending session:", error);
@@ -76,14 +76,14 @@ const updateSessionTopic = async (sessionId: string, topic: string): Promise<voi
 
   try {
     // Silently try to update session without causing UI errors
-    await supabase.functions.invoke("update-session", {
+    const { error } = await supabase.functions.invoke("update-session", {
       body: { logId: sessionId, topic }
-    }).then(() => {
-      // Success - no need to do anything
-    }).catch(error => {
+    });
+    
+    if (error) {
       // Just log the error silently without disrupting the UI
       console.error("Silent error updating session topic:", error);
-    });
+    }
   } catch (error) {
     // Fallback error handling - also silent
     console.error("Error updating session topic:", error);
@@ -96,8 +96,7 @@ const incrementQueryCount = async (sessionId: string): Promise<void> => {
 
   // Silently try to increment count without causing UI errors
   try {
-    // The issue is here - supabase.rpc() returns a PostgrestFilterBuilder, not a Promise
-    // So we need to use the .then().catch() pattern on the actual promise
+    // PostgrestFilterBuilder doesn't have .catch(), use destructuring to get error
     const { error } = await supabase.rpc("increment_session_query_count", {
       log_id: sessionId
     });
