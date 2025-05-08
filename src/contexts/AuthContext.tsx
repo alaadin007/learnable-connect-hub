@@ -129,10 +129,10 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
     try {
       console.log("AuthContext: Fetching profile for user ID:", userId);
       
-      // Use a simpler query to avoid complex joins that might cause errors
+      // Use a direct query to fetch profile data
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
-        .select("*") // Select all columns directly
+        .select("*")
         .eq("id", userId)
         .single();
 

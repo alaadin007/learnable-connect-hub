@@ -1,7 +1,6 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { invokeEdgeFunction } from "./apiHelpers";
 
 // Log session start in Supabase
 const logSessionStart = async (topic?: string, userId?: string): Promise<string | null> => {
@@ -13,25 +12,87 @@ const logSessionStart = async (topic?: string, userId?: string): Promise<string 
       return null;
     }
     
-    // Create a payload with the topic and user ID if provided
-    const payload: Record<string, any> = { topic: topic || "General Chat" };
-    if (userId) {
-      payload.userId = userId;
-    }
+    // Get the current session without waiting for refresh
+    const { data: { session } } = await supabase.auth.getSession();
     
-    // Invoke the edge function without blocking the UI
-    try {
-      const result = await invokeEdgeFunction<{ logId: string; success: boolean }>("create-session-log", payload);
-      
-      if (result?.success && result?.logId) {
-        return result.logId;
-      }
-    } catch (error) {
-      console.error("Error creating session:", error);
-      // Don't show toast errors during login to prevent UI disruption
+    if (!session && !userId) {
+      // No authenticated session and no test user ID provided
+      console.log("No authenticated session for session logging");
       return null;
     }
-    return null;
+    
+    const userIdToUse = userId || session?.user.id;
+    
+    if (!userIdToUse) {
+      console.log("No user ID available for session logging");
+      return null;
+    }
+    
+    // Get the user's school ID
+    const { data: profileData } = await supabase
+      .from("profiles")
+      .select("school_id, organization")
+      .eq("id", userIdToUse)
+      .single();
+      
+    let schoolIdToUse = profileData?.school_id;
+    
+    if (!schoolIdToUse && profileData?.organization?.id) {
+      schoolIdToUse = profileData.organization.id;
+    }
+    
+    // If still no school found, check students table
+    if (!schoolIdToUse) {
+      const { data: studentData } = await supabase
+        .from("students")
+        .select("school_id")
+        .eq("id", userIdToUse)
+        .single();
+        
+      if (studentData?.school_id) {
+        schoolIdToUse = studentData.school_id;
+      } else {
+        // If not a student, check teachers table
+        const { data: teacherData } = await supabase
+          .from("teachers")
+          .select("school_id")
+          .eq("id", userIdToUse)
+          .single();
+          
+        if (teacherData?.school_id) {
+          schoolIdToUse = teacherData.school_id;
+        }
+      }
+    }
+    
+    // For test users, create a mock school ID if none found
+    if (!schoolIdToUse && (userIdToUse.startsWith('test-'))) {
+      schoolIdToUse = 'test-school-0';
+    }
+    
+    if (!schoolIdToUse) {
+      console.error("No school ID found for user");
+      return null;
+    }
+    
+    // Insert the session log directly
+    const { data: logData, error: insertError } = await supabase
+      .from("session_logs")
+      .insert({
+        user_id: userIdToUse,
+        school_id: schoolIdToUse,
+        topic_or_content_used: topic || "General Chat",
+        session_start: new Date().toISOString()
+      })
+      .select("id")
+      .single();
+      
+    if (insertError) {
+      console.error("Error creating session log:", insertError);
+      return null;
+    }
+
+    return logData.id;
   } catch (error) {
     console.error("Error starting session:", error);
     return null;
@@ -45,18 +106,16 @@ const logSessionEnd = async (sessionId?: string, performanceData?: any): Promise
       return;
     }
 
-    try {
-      // Silently try to end session without causing UI errors
-      const { error } = await supabase.functions.invoke("end-session", {
-        body: { logId: sessionId, performanceData }
-      });
-      
-      if (error) {
-        // Just log the error silently without disrupting the UI
-        console.error("Silent error ending session:", error);
-      }
-    } catch (error) {
-      // Fallback error handling - also silent
+    // Update the session_end timestamp directly
+    const { error } = await supabase
+      .from("session_logs")
+      .update({
+        session_end: new Date().toISOString(),
+        performance_metric: performanceData || null
+      })
+      .eq("id", sessionId);
+    
+    if (error) {
       console.error("Error ending session:", error);
     }
 
@@ -75,17 +134,16 @@ const updateSessionTopic = async (sessionId: string, topic: string): Promise<voi
   if (!sessionId) return;
 
   try {
-    // Silently try to update session without causing UI errors
-    const { error } = await supabase.functions.invoke("update-session", {
-      body: { logId: sessionId, topic }
-    });
+    // Update the topic directly
+    const { error } = await supabase
+      .from("session_logs")
+      .update({ topic_or_content_used: topic })
+      .eq("id", sessionId);
     
     if (error) {
-      // Just log the error silently without disrupting the UI
-      console.error("Silent error updating session topic:", error);
+      console.error("Error updating session topic:", error);
     }
   } catch (error) {
-    // Fallback error handling - also silent
     console.error("Error updating session topic:", error);
   }
 };
@@ -96,9 +154,9 @@ const incrementQueryCount = async (sessionId: string): Promise<void> => {
 
   // Silently try to increment count without causing UI errors
   try {
-    // Use the update-session edge function instead of direct RPC call
-    const { error } = await supabase.functions.invoke("update-session", {
-      body: { logId: sessionId, action: "increment_query" }
+    // Use the RPC function directly
+    const { error } = await supabase.rpc("increment_session_query_count", {
+      log_id: sessionId
     });
     
     if (error) {

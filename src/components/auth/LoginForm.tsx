@@ -93,58 +93,56 @@ const LoginForm = () => {
         return;
       }
 
-      // Regular user login flow - simplified for better performance
-      await signIn(email, password);
-      
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
+      // Regular user login flow - using direct Supabase auth
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
 
-        if (user) {
-          // Get the user type from profiles table with minimal fields
-          const { data: profile, error: profileError } = await supabase
-            .from("profiles")
-            .select("user_type")
-            .eq("id", user.id)
-            .single();
+      if (error) {
+        throw error;
+      }
 
-          if (profileError) {
-            // Continue with login even if profile fetch fails
-            console.error("Error fetching user profile:", profileError);
-            navigate("/dashboard");
-            toast.success("Login successful");
-            return;
-          }
+      if (data.user) {
+        // Get the user type from profiles table with minimal fields
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("user_type")
+          .eq("id", data.user.id)
+          .single();
 
-          const redirectPath =
-            profile?.user_type === "school"
-              ? "/admin"
-              : profile?.user_type === "teacher"
-              ? "/teacher/analytics"
-              : "/dashboard";
-
-          toast.success("Login successful", {
-            description: `Welcome back, ${
-              user.user_metadata?.full_name || email
-            }!`,
-          });
-
-          // Start session logging in background without affecting login flow
-          try {
-            sessionLogger.startSession("User login", user.id);
-          } catch (sessionError) {
-            console.error("Session logging error:", sessionError);
-            // Ignore session errors, don't affect login experience
-          }
-
-          navigate(redirectPath);
-        } else {
-          // fallback
-          toast.success("Login successful");
+        if (profileError) {
+          // Continue with login even if profile fetch fails
+          console.error("Error fetching user profile:", profileError);
           navigate("/dashboard");
+          toast.success("Login successful");
+          return;
         }
-      } catch (profileError) {
-        // Continue with login even if profile fetch fails
-        console.error("Error fetching user profile:", profileError);
+
+        const redirectPath =
+          profile?.user_type === "school"
+            ? "/admin"
+            : profile?.user_type === "teacher"
+            ? "/teacher/analytics"
+            : "/dashboard";
+
+        toast.success("Login successful", {
+          description: `Welcome back, ${
+            data.user.user_metadata?.full_name || email
+          }!`,
+        });
+
+        // Start session logging in background without affecting login flow
+        try {
+          sessionLogger.startSession("User login", data.user.id);
+        } catch (sessionError) {
+          console.error("Session logging error:", sessionError);
+          // Ignore session errors, don't affect login experience
+        }
+
+        navigate(redirectPath);
+      } else {
+        // fallback
         toast.success("Login successful");
         navigate("/dashboard");
       }

@@ -30,14 +30,12 @@ export async function invokeEdgeFunction<T = any>(functionName: string, payload?
     });
     
     if (error) {
-      // Log the error but don't throw - prevents UI disruption
       console.error(`Error invoking ${functionName}:`, error);
-      return { success: false } as unknown as T;
+      throw error;
     }
     
     return data as T;
   } catch (error) {
-    // Log the error but don't throw - prevents UI disruption
     console.error(`Failed to invoke ${functionName}:`, error);
     return { success: false } as unknown as T;
   }
