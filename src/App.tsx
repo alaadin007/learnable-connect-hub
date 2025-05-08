@@ -18,6 +18,7 @@ import ChatWithAI from "@/pages/ChatWithAI";
 import Documents from "@/pages/Documents";
 import TeacherInvitation from "@/pages/TeacherInvitation";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { SettingsProvider } from "@/contexts/SettingsContext";
 import NotFound from "@/pages/NotFound";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import Pricing from "@/pages/Pricing";
@@ -33,112 +34,114 @@ import SchoolSettings from "@/pages/SchoolSettings";
 function App() {
   return (
     <AuthProvider>
-      <Routes>
-        {/* Public routes */}
-        <Route path="/" element={<Index />} />
-        <Route path="/home" element={<Home />} />
-        <Route path="/about" element={<About />} />
-        <Route path="/features" element={<Features />} />
-        <Route path="/contact" element={<Contact />} />
-        <Route path="/pricing" element={<Pricing />} />
-        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/school-registration" element={<SchoolRegistration />} />
-        <Route path="/invitation/:token" element={<TeacherInvitation />} />
-        <Route path="/test-accounts" element={<TestAccounts />} />
+      <SettingsProvider>
+        <Routes>
+          {/* Public routes */}
+          <Route path="/" element={<Index />} />
+          <Route path="/home" element={<Home />} />
+          <Route path="/about" element={<About />} />
+          <Route path="/features" element={<Features />} />
+          <Route path="/contact" element={<Contact />} />
+          <Route path="/pricing" element={<Pricing />} />
+          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/school-registration" element={<SchoolRegistration />} />
+          <Route path="/invitation/:token" element={<TeacherInvitation />} />
+          <Route path="/test-accounts" element={<TestAccounts />} />
 
-        {/* Protected routes - all user types */}
-        <Route path="/dashboard" element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/chat" element={
-          <ProtectedRoute>
-            <ChatWithAI />
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/documents" element={
-          <ProtectedRoute>
-            <Documents />
-          </ProtectedRoute>
-        } />
+          {/* Protected routes - all user types */}
+          <Route path="/dashboard" element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/chat" element={
+            <ProtectedRoute>
+              <ChatWithAI />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/documents" element={
+            <ProtectedRoute>
+              <Documents />
+            </ProtectedRoute>
+          } />
 
-        {/* School admin routes */}
-        <Route path="/admin" element={
-          <ProtectedRoute requiredUserType="school">
-            <SchoolAdmin />
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/admin/teacher-management" element={
-          <ProtectedRoute requiredUserType="school">
-            <AdminTeacherManagement />
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/admin/teachers" element={
-          <ProtectedRoute requiredUserType="school">
-            <AdminTeachers />
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/admin/analytics" element={
-          <ProtectedRoute requiredUserType="school">
-            <AdminAnalytics />
-          </ProtectedRoute>
-        } />
+          {/* School admin routes */}
+          <Route path="/admin" element={
+            <ProtectedRoute requiredUserType="school">
+              <SchoolAdmin />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/admin/teacher-management" element={
+            <ProtectedRoute requiredUserType="school">
+              <AdminTeacherManagement />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/admin/teachers" element={
+            <ProtectedRoute requiredUserType="school">
+              <AdminTeachers />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/admin/analytics" element={
+            <ProtectedRoute requiredUserType="school">
+              <AdminAnalytics />
+            </ProtectedRoute>
+          } />
 
-        <Route path="/admin/students" element={
-          <ProtectedRoute requiredUserType="school">
-            <AdminStudents />
-          </ProtectedRoute>
-        } />
+          <Route path="/admin/students" element={
+            <ProtectedRoute requiredUserType="school">
+              <AdminStudents />
+            </ProtectedRoute>
+          } />
 
-        <Route path="/admin/settings" element={
-          <ProtectedRoute requiredUserType="school">
-            <SchoolSettings />
-          </ProtectedRoute>
-        } />
+          <Route path="/admin/settings" element={
+            <ProtectedRoute requiredUserType="school">
+              <SchoolSettings />
+            </ProtectedRoute>
+          } />
 
-        {/* Teacher routes */}
-        <Route path="/teacher/students" element={
-          <ProtectedRoute requiredUserType="teacher">
-            <TeacherStudents />
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/teacher/analytics" element={
-          <ProtectedRoute requiredUserType="teacher">
-            <TeacherAnalytics />
-          </ProtectedRoute>
-        } />
-        
-        {/* Student routes */}
-        <Route path="/student/assessments" element={
-          <ProtectedRoute requiredUserType="student">
-            <StudentAssessments />
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/student/progress" element={
-          <ProtectedRoute requiredUserType="student">
-            <StudentProgress />
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/student/settings" element={
-          <ProtectedRoute requiredUserType="student">
-            <StudentSettings />
-          </ProtectedRoute>
-        } />
+          {/* Teacher routes */}
+          <Route path="/teacher/students" element={
+            <ProtectedRoute requiredUserType="teacher">
+              <TeacherStudents />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/teacher/analytics" element={
+            <ProtectedRoute requiredUserType="teacher">
+              <TeacherAnalytics />
+            </ProtectedRoute>
+          } />
+          
+          {/* Student routes */}
+          <Route path="/student/assessments" element={
+            <ProtectedRoute requiredUserType="student">
+              <StudentAssessments />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/student/progress" element={
+            <ProtectedRoute requiredUserType="student">
+              <StudentProgress />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/student/settings" element={
+            <ProtectedRoute requiredUserType="student">
+              <StudentSettings />
+            </ProtectedRoute>
+          } />
 
-        {/* 404 route */}
-        <Route path="*" element={<NotFound />} />
-      </Routes>
+          {/* 404 route */}
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </SettingsProvider>
     </AuthProvider>
   );
 }

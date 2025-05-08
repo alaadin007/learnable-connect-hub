@@ -58,10 +58,15 @@ const Navbar = () => {
       ];
     }
 
+    // Determine correct dashboard path based on user role
+    const dashboardPath = profileUserType === "school" ? "/admin" : 
+                         profileUserType === "teacher" ? "/teacher/analytics" :
+                         "/dashboard";
+
     switch (profileUserType) {
       case "school":
         return [
-          { name: "Dashboard", href: "/dashboard" },
+          { name: "Dashboard", href: "/admin" }, // School admin goes to /admin for dashboard
           { name: "School Admin", href: "/admin" },
           { name: "Teachers", href: "/admin/teacher-management" },
           { name: "Analytics", href: "/admin/analytics" },
@@ -70,7 +75,7 @@ const Navbar = () => {
         ];
       case "teacher":
         return [
-          { name: "Dashboard", href: "/dashboard" },
+          { name: "Dashboard", href: "/teacher/analytics" }, // Teachers go to analytics as their dashboard
           { name: "Students", href: "/teacher/students" },
           { name: "Analytics", href: "/teacher/analytics" },
           { name: "Chat", href: "/chat" },
@@ -79,7 +84,7 @@ const Navbar = () => {
       default:
         // student or other user types
         return [
-          { name: "Dashboard", href: "/dashboard" },
+          { name: "Dashboard", href: "/dashboard" }, // Students go to /dashboard
           { name: "Chat", href: "/chat" },
           { name: "Documents", href: "/documents" },
         ];
@@ -327,3 +332,4 @@ const Navbar = () => {
 };
 
 export default Navbar;
+

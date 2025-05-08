@@ -10,7 +10,7 @@ export interface Settings {
   showSources?: boolean;
 }
 
-// User settings from database
+// User settings from database - define the exact structure to match DB
 interface UserSettings {
   user_id: string;
   max_tokens: number;
@@ -62,17 +62,14 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         // Then try to get from database if user is authenticated
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
-          // We're not checking if user_settings table exists yet,
-          // so we'll handle it with try/catch and fallback to localStorage settings
+          // Check if the user_settings table exists using a safer approach
           try {
-            // Check if the settings feature is currently available
-            const { data, error } = await supabase
-              .from('user_settings')
-              .select('*')
-              .eq('user_id', session.user.id)
-              .limit(1)
-              .maybeSingle();
-              
+            // Use a custom function call that avoids direct table access
+            // This is a safer approach that won't cause infinite recursion
+            const { data, error } = await supabase.rpc('get_user_settings', {
+              user_id_param: session.user.id
+            });
+            
             if (data && !error) {
               const dbSettings = {
                 maxTokens: data.max_tokens,
@@ -84,7 +81,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
               localStorage.setItem('user-settings', JSON.stringify(dbSettings));
             }
           } catch (dbError) {
-            console.warn('User settings table might not exist yet:', dbError);
+            console.warn('User settings error:', dbError);
             // Just continue with localStorage settings
           }
         }
@@ -111,15 +108,14 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         try {
-          await supabase
-            .from('user_settings')
-            .upsert({
-              user_id: session.user.id,
-              max_tokens: updatedSettings.maxTokens,
-              temperature: updatedSettings.temperature,
-              model: updatedSettings.model,
-              show_sources: updatedSettings.showSources,
-            }, { onConflict: 'user_id' });
+          // Use RPC function instead of direct table access
+          await supabase.rpc('update_user_settings', {
+            user_id_param: session.user.id,
+            max_tokens_param: updatedSettings.maxTokens,
+            temperature_param: updatedSettings.temperature,
+            model_param: updatedSettings.model,
+            show_sources_param: updatedSettings.showSources
+          });
         } catch (dbError) {
           console.warn('Failed to save settings to database:', dbError);
           // Continue normally - localStorage is our source of truth
