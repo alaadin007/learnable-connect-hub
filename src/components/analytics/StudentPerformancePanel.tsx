@@ -1,3 +1,4 @@
+
 // This file has multiple type errors - we need to fix the table name and property references
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,19 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StudentPerformanceTable } from "./StudentPerformanceTable";
 import { Loader2 } from 'lucide-react';
-
-// Define the correct type for student metrics
-interface StudentPerformanceMetric {
-  student_id: string;
-  student_name: string;
-  avg_score: number;
-  assessments_taken: number;
-  completion_rate: number;
-  avg_time_spent_seconds?: number;
-  top_strengths?: string;
-  top_weaknesses?: string;
-  last_active?: string;
-}
+import { StudentPerformanceMetric } from './types';
 
 export function StudentPerformancePanel() {
   const { user, userRole, profile } = useAuth();

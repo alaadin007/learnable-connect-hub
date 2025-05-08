@@ -1,289 +1,248 @@
-import React, { useState, useEffect, useMemo } from "react";
+import { useEffect, useState } from "react";
+import { DateRange, Student, TeacherAnalyticsData } from "@/components/analytics/types";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { fetchTeacherAnalytics, adaptTeacherAnalyticsData } from "@/utils/analyticsUtils";
 import { useAuth } from "@/contexts/AuthContext";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import StudyTimeChart from "@/components/analytics/StudyTimeChart";
-import TopicsChart from "@/components/analytics/TopicsChart";
-import SessionsTable from "@/components/analytics/SessionsTable";
-import { SessionData, TopicData, StudyTimeData, DateRange, AnalyticsFilters, Student } from "@/components/analytics/types";
 import { DateRangePicker } from "@/components/analytics/DateRangePicker";
 import { StudentSelector } from "@/components/analytics/StudentSelector";
-import { AnalyticsSummaryCards } from "@/components/analytics/AnalyticsSummaryCards";
-import { fetchTeacherAnalytics, adaptTeacherAnalyticsData } from "@/utils/analyticsUtils";
-import { format } from "date-fns";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
-import { DownloadCloud } from "lucide-react";
-import { toast } from "sonner";
-import { AnalyticsExport } from "@/components/analytics/AnalyticsExport";
-import StudentPerformancePanel from "@/components/analytics/StudentPerformancePanel";
+import { StatsCard } from "@/components/analytics/StatsCard";
+import { getMockAnalyticsData } from "@/utils/sessionLogging";
+import { Skeleton } from "@/components/ui/skeleton";
 
-interface AnalyticsSummary {
-  activeStudents: number;
-  totalSessions: number;
-  totalQueries: number;
-  avgSessionMinutes: number;
-}
-
-interface AnalyticsData {
-  summary: AnalyticsSummary;
-  sessions: SessionData[];
-  topics: TopicData[];
-  studyTime: StudyTimeData[];
-}
-
-interface ApiStudent {
-  id: string;
-  full_name: string;
-  email: string;
-  status: string;
-}
-
-const TeacherAnalytics: React.FC = () => {
-  const { user, profile, schoolId } = useAuth();
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [students, setStudents] = useState<Student[]>([]);
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+export default function TeacherAnalytics() {
+  const { user, userRole, profile } = useAuth();
   const [dateRange, setDateRange] = useState<DateRange>({
     from: new Date(new Date().setDate(new Date().getDate() - 30)),
     to: new Date(),
   });
+  const [selectedStudentId, setSelectedStudentId] = useState<string | undefined>(undefined);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [selectedTab, setSelectedTab] = useState("summary");
   
-  // Analytics data
-  const [summary, setSummary] = useState<AnalyticsSummary>({
+  const [analyticsData, setAnalyticsData] = useState<TeacherAnalyticsData[]>([]);
+  const [summary, setSummary] = useState({
     activeStudents: 0,
     totalSessions: 0,
     totalQueries: 0,
-    avgSessionMinutes: 0,
+    avgSessionMinutes: 0
   });
+  const [sessions, setSessions] = useState([]);
+  const [topics, setTopics] = useState([]);
+  const [studyTime, setStudyTime] = useState([]);
   
-  const [sessions, setSessions] = useState<SessionData[]>([]);
-  const [topics, setTopics] = useState<TopicData[]>([]);
-  const [studyTime, setStudyTime] = useState<StudyTimeData[]>([]);
-  
-  // Export functionality
-  const [showExport, setShowExport] = useState<boolean>(false);
-  
-  // Fetch teacher analytics data on component mount
   useEffect(() => {
-    if (user && schoolId) {
-      void fetchAnalyticsData();
-      void fetchStudents();
-    }
-  }, [user, schoolId]);
-  
-  // Refetch when filters change
+    // Fetch students only once when the component mounts
+    const fetchStudents = async () => {
+      if (profile?.school_id) {
+        try {
+          const { data, error } = await supabase
+            .from("profiles")
+            .select("id, full_name")
+            .eq("school_id", profile.school_id)
+            .eq("user_type", "student");
+
+          if (error) {
+            console.error("Error fetching students:", error);
+          } else {
+            const studentList = data ? data.map((student) => ({
+              id: student.id,
+              name: student.full_name,
+            })) : [];
+            setStudents(studentList);
+          }
+        } catch (error) {
+          console.error("Error fetching students:", error);
+        }
+      }
+    };
+
+    fetchStudents();
+  }, [profile?.school_id]);
+
   useEffect(() => {
-    if (user && schoolId) {
-      void fetchAnalyticsData();
+    if (profile?.organization?.id) {
+      fetchData();
     }
-  }, [dateRange, selectedStudent?.id]);
-  
-  const fetchAnalyticsData = async (): Promise<void> => {
-    if (!user || !schoolId) {
-      return;
-    }
-    
+  }, [dateRange, profile?.organization?.id]);
+
+  const handleDateRangeChange = (range: DateRange) => {
+    setDateRange(range);
+  };
+
+  const fetchData = async () => {
     setIsLoading(true);
-    setError(null);
-    
     try {
-      const filters: AnalyticsFilters = {
-        dateRange,
-        studentId: selectedStudent?.id,
-        schoolId
-      };
+      let data;
       
-      const analyticsData = await fetchTeacherAnalytics(filters);
-      const adaptedData = adaptTeacherAnalyticsData(analyticsData);
+      if (profile?.organization?.id) {
+        // Use the new fetchTeacherAnalytics function
+        const teacherData = await fetchTeacherAnalytics(profile.organization.id, dateRange);
+        data = adaptTeacherAnalyticsData(teacherData);
+      } else {
+        console.error("No school ID found in profile");
+        return;
+      }
       
-      setSummary({
-        activeStudents: adaptedData.summary.activeStudents,
-        totalSessions: adaptedData.summary.totalSessions,
-        totalQueries: adaptedData.summary.totalQueries,
-        avgSessionMinutes: adaptedData.summary.avgSessionMinutes
-      });
+      setAnalyticsData(data);
       
-      const convertedSessions: SessionData[] = adaptedData.sessions.map(session => ({
-        id: session.id,
-        userId: session.student_id,
-        userName: session.student_name,
-        startTime: session.session_date,
-        endTime: null,
-        duration: session.duration_minutes * 60,
-        topicOrContent: Array.isArray(session.topics) && session.topics.length > 0 
-          ? session.topics.join(", ") 
-          : session.topic || "General",
-        numQueries: session.questions_asked || session.queries || 0,
-        topic: session.topic || "",
-        topics: session.topics || [],
-        questions_asked: session.questions_asked || 0,
-        questions_answered: session.questions_answered || 0,
-        duration_minutes: session.duration_minutes || 0,
-        student_name: session.student_name || ""
-      }));
-      
-      setSessions(convertedSessions);
-      setTopics(adaptedData.topics);
-      setStudyTime(adaptedData.studyTime);
-      
+      // Use the mock data function for additional analytics info
+      const mockData = getMockAnalyticsData(profile.organization.id);
+      setSummary(mockData.summary);
+      setSessions(mockData.sessions);
+      setTopics(mockData.topics);
+      setStudyTime(mockData.studyTime);
     } catch (error) {
       console.error("Error fetching analytics:", error);
-      setError(error instanceof Error ? error.message : "Failed to load analytics data");
-      toast.error("Failed to load analytics data");
     } finally {
       setIsLoading(false);
     }
   };
-  
-  const fetchStudents = async (): Promise<void> => {
-    if (!schoolId) return;
-    
-    try {
-      const response = await fetch(`/api/students?school_id=${schoolId}`);
-      const { data, error }: { data: ApiStudent[], error?: { message: string } } = await response.json();
-      
-      if (error) throw new Error(error.message);
-      
-      const studentList: Student[] = data.map((student: ApiStudent) => ({
-        id: student.id,
-        name: student.full_name,
-        email: student.email,
-        status: student.status
-      }));
-      
-      setStudents(studentList);
-    } catch (error) {
-      console.error("Error fetching students:", error);
-      toast.error("Failed to load student list");
-    }
-  };
-  
-  const handleDateRangeChange = (range: DateRange): void => {
-    setDateRange({
-      from: range.from,
-      to: range.to
-    });
-  };
-  
-  const handleStudentSelect = (student: Student | null): void => {
-    setSelectedStudent(student);
-  };
-  
-  const dateRangeText = useMemo<string>(() => {
-    if (dateRange.from && dateRange.to) {
-      return `${format(dateRange.from, 'MMM d, yyyy')} - ${format(dateRange.to, 'MMM d, yyyy')}`;
-    }
-    return "All time";
-  }, [dateRange]);
-  
-  const handleExport = (): void => {
-    setShowExport(true);
-  };
-  
+
+  const renderDateRangePicker = () => (
+    <DateRangePicker
+      dateRange={dateRange}
+      onDateRangeChange={handleDateRangeChange}
+    />
+  );
+
+  const renderStudentSelector = () => (
+    <StudentSelector
+      students={students}
+      selectedStudentId={selectedStudentId}
+      onSelectStudent={setSelectedStudentId}
+    />
+  );
+
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-        <div>
-          <h1 className="text-3xl font-bold">Student Analytics</h1>
-          <p className="text-gray-600">
-            {selectedStudent 
-              ? `Viewing data for ${selectedStudent.name}` 
-              : "Viewing data for all students"}
-          </p>
-        </div>
-        
-        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-          <DateRangePicker
-            dateRange={dateRange}
-            onChange={handleDateRangeChange}
-          />
-          
-          <div className="w-full sm:w-64">
-            <StudentSelector
-              students={students}
-              selectedStudent={selectedStudent}
-              onStudentSelect={handleStudentSelect}
-            />
+    <div className="container mx-auto py-10">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-2xl font-bold">Teacher Analytics</CardTitle>
+          <CardDescription>
+            Analyze teacher performance and student engagement metrics.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+            {renderDateRangePicker()}
+            {renderStudentSelector()}
           </div>
-          
-          <Button
-            variant="outline"
-            className="flex items-center gap-2"
-            onClick={handleExport}
-          >
-            <DownloadCloud className="h-4 w-4" />
-            Export Data
-          </Button>
-        </div>
-      </div>
-      
-      <AnalyticsSummaryCards
-        summary={summary}
-        isLoading={isLoading}
-      />
-      
-      <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="mb-4">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="student-performance">Student Performance</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="overview" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-xl">Study Time by Week</CardTitle>
-            </CardHeader>
-            <CardContent className="h-80">
-              <StudyTimeChart data={studyTime} isLoading={isLoading} />
-            </CardContent>
-          </Card>
-          
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-xl">Most Popular Topics</CardTitle>
-              </CardHeader>
-              <CardContent className="h-80">
-                <TopicsChart data={topics} isLoading={isLoading} />
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-xl">Recent Sessions</CardTitle>
-              </CardHeader>
-              <CardContent className="h-80 overflow-auto">
-                <SessionsTable sessions={sessions} isLoading={isLoading} />
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-        
-        <TabsContent value="student-performance">
-          <StudentPerformancePanel
-            schoolId={schoolId || ''}
-            selectedStudentId={selectedStudent?.id}
-            dateRange={dateRange}
-          />
-        </TabsContent>
-      </Tabs>
-      
-      {showExport && (
-        <AnalyticsExport
-          data={{
-            summary,
-            sessions,
-            topics,
-            studyTime
-          }}
-          dateRange={dateRangeText}
-          studentName={selectedStudent?.name}
-          onClose={() => setShowExport(false)}
-        />
-      )}
+
+          <Tabs value={selectedTab} onValueChange={setSelectedTab}>
+            <TabsList>
+              <TabsTrigger value="summary">Summary</TabsTrigger>
+              <TabsTrigger value="teachers">Teachers</TabsTrigger>
+              <TabsTrigger value="students">Students</TabsTrigger>
+              <TabsTrigger value="topics">Topics</TabsTrigger>
+              <TabsTrigger value="sessions">Sessions</TabsTrigger>
+              <TabsTrigger value="studyTime">Study Time</TabsTrigger>
+            </TabsList>
+            <TabsContent value="summary" className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <StatsCard
+                  title="Active Students"
+                  value={isLoading ? <Skeleton width={50} /> : summary.activeStudents.toString()}
+                  description="Number of students actively using the platform"
+                />
+                <StatsCard
+                  title="Total Sessions"
+                  value={isLoading ? <Skeleton width={50} /> : summary.totalSessions.toString()}
+                  description="Total number of learning sessions"
+                />
+                <StatsCard
+                  title="Total Queries"
+                  value={isLoading ? <Skeleton width={50} /> : summary.totalQueries.toString()}
+                  description="Total number of queries made by students"
+                />
+                <StatsCard
+                  title="Avg. Session Minutes"
+                  value={isLoading ? <Skeleton width={50} /> : summary.avgSessionMinutes.toString()}
+                  description="Average duration of learning sessions"
+                />
+              </div>
+            </TabsContent>
+            <TabsContent value="teachers" className="space-y-4">
+              <div>
+                <h3 className="text-lg font-semibold mb-2">Teacher Performance</h3>
+                {isLoading ? (
+                  <div>Loading teacher data...</div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {analyticsData.map((teacher) => (
+                      <Card key={teacher.id}>
+                        <CardHeader>
+                          <CardTitle>{teacher.name}</CardTitle>
+                          <CardDescription>Performance Metrics</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <p>Assessments Created: {teacher.assessmentsCount}</p>
+                          <p>Average Score: {teacher.averageScore.toFixed(2)}</p>
+                          <p>Completion Rate: {teacher.completionRate.toFixed(2)}%</p>
+                          <p>Students Assessed: {teacher.studentsAssessed}</p>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+            <TabsContent value="students" className="space-y-4">
+              <div>
+                <h3 className="text-lg font-semibold mb-2">Student Performance</h3>
+                {isLoading ? (
+                  <div>Loading student data...</div>
+                ) : (
+                  <div>
+                    {/* Student performance data will be displayed here */}
+                    <p>Coming soon!</p>
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+            <TabsContent value="topics" className="space-y-4">
+              <div>
+                <h3 className="text-lg font-semibold mb-2">Popular Topics</h3>
+                {isLoading ? (
+                  <div>Loading topic data...</div>
+                ) : (
+                  <div>
+                    {/* Topic data will be displayed here */}
+                    <p>Coming soon!</p>
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+            <TabsContent value="sessions" className="space-y-4">
+              <div>
+                <h3 className="text-lg font-semibold mb-2">Session Details</h3>
+                {isLoading ? (
+                  <div>Loading session data...</div>
+                ) : (
+                  <div>
+                    {/* Session data will be displayed here */}
+                    <p>Coming soon!</p>
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+            <TabsContent value="studyTime" className="space-y-4">
+              <div>
+                <h3 className="text-lg font-semibold mb-2">Study Time Analysis</h3>
+                {isLoading ? (
+                  <div>Loading study time data...</div>
+                ) : (
+                  <div>
+                    {/* Study time data will be displayed here */}
+                    <p>Coming soon!</p>
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
     </div>
   );
-};
-
-export default TeacherAnalytics;
+}

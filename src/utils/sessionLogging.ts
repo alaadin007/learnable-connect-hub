@@ -1,6 +1,6 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { AnalyticsSummary, SessionData, TopicData, StudyTimeData } from "@/components/analytics/types";
 
 // Log session start in Supabase
 const logSessionStart = async (topic?: string, userId?: string): Promise<string | null> => {

@@ -1,140 +1,124 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { AIChatInterface } from '@/components/chat/AIChatInterface';
+import { ConversationList } from '@/components/chat/ConversationList';
+import { useAuth } from '@/contexts/AuthContext';
+import { Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
-import React, { useState, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import Navbar from "@/components/layout/Navbar";
-import Footer from "@/components/landing/Footer";
-import { useAuth } from "@/contexts/AuthContext";
-import PersistentChatInterface from "@/components/chat/PersistentChatInterface";
-import ChatHistory from "@/components/chat/ChatHistory";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Search } from "lucide-react";
-import { toast } from "sonner";
-
-const ChatWithAI = () => {
+const ChatWithAI: React.FC = () => {
   const { user, profile } = useAuth();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [topic, setTopic] = useState(searchParams.get("topic") || "");
-  const [activeTopic, setActiveTopic] = useState(searchParams.get("topic") || "");
-  const [conversationId, setConversationId] = useState<string | null>(searchParams.get("conversationId") || null);
-  const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [conversations, setConversations] = useState([]);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [currentTopic, setCurrentTopic] = useState<string | null>(null);
+  const [newTopic, setNewTopic] = useState('');
+
+  const fetchConversations = useCallback(async () => {
+    if (!user) return;
+
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('conversations')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('last_message_at', { ascending: false });
+
+      if (error) {
+        console.error("Error fetching conversations:", error);
+        toast.error("Failed to load conversations.");
+      } else {
+        setConversations(data || []);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [user, supabase]);
 
   useEffect(() => {
-    // Redirect if user is not logged in
-    if (!user) {
-      navigate("/login", { state: { from: "/chat" } });
-    }
-  }, [user, navigate]);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Update active topic and reset conversation ID to start a new one
-    setActiveTopic(topic);
-    setConversationId(null);
-    
-    // Update URL with search params
-    const params = new URLSearchParams();
-    if (topic) params.set("topic", topic);
-    setSearchParams(params);
-    
-    toast.success("Topic updated! Starting a new conversation.");
-  };
-
-  const handleSelectConversation = (id: string) => {
-    setConversationId(id);
-    
-    // Update URL with conversation ID
-    const params = new URLSearchParams();
-    params.set("conversationId", id);
-    setSearchParams(params);
-  };
-
-  const handleNewConversation = () => {
-    // Reset conversation and optionally clear topic
-    setConversationId(null);
-    
-    // Update URL to remove conversation ID
-    const params = new URLSearchParams();
-    if (activeTopic) params.set("topic", activeTopic);
-    setSearchParams(params);
-  };
+    fetchConversations();
+  }, [fetchConversations]);
 
   const handleConversationCreated = (id: string) => {
-    setConversationId(id);
-    
-    // Update URL with new conversation ID
-    const params = new URLSearchParams();
-    if (activeTopic) params.set("topic", activeTopic);
-    params.set("conversationId", id);
-    setSearchParams(params);
+    setActiveConversationId(id);
+    fetchConversations(); // Refresh conversations after creating a new one
   };
 
-  // If user is not logged in, show a loading message
-  if (!user) {
-    return <div className="flex justify-center items-center h-screen">Loading...</div>;
-  }
+  const handleTopicSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTopic.trim()) return;
+
+    setCurrentTopic(newTopic.trim());
+    setNewTopic('');
+  };
+
+  const renderChatInterface = () => {
+    if (loading) {
+      return <div className="flex justify-center items-center h-[60vh]">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>;
+    }
+    
+    if (activeConversationId) {
+      return (
+        <AIChatInterface 
+          conversationId={activeConversationId} 
+          topic={currentTopic}
+          onConversationCreated={handleConversationCreated}
+        />
+      );
+    }
+    
+    return (
+      <AIChatInterface 
+        topic={currentTopic}
+        onConversationCreated={handleConversationCreated}
+      />
+    );
+  };
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <Navbar />
-      <main className="flex-grow bg-learnable-super-light py-8">
-        <div className="container mx-auto px-4">
-          <div className="mb-6">
-            <h1 className="text-3xl font-bold gradient-text mb-2">Chat with AI</h1>
-            <p className="text-learnable-gray">
-              Get help with your studies by asking questions to our AI assistant. Attach documents to provide more context.
-            </p>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="md:col-span-1 space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Study Settings</CardTitle>
-                  <CardDescription>Set a topic to focus your learning</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="space-y-2">
-                      <label htmlFor="topic" className="text-sm font-medium">
-                        Current Topic
-                      </label>
-                      <Input
-                        id="topic"
-                        placeholder="E.g., Algebra, World History, Chemistry..."
-                        value={topic}
-                        onChange={(e) => setTopic(e.target.value)}
-                      />
-                    </div>
-                    <Button type="submit" className="w-full">
-                      <Search className="mr-2 h-4 w-4" />
-                      Start Studying
-                    </Button>
-                  </form>
-                </CardContent>
-              </Card>
-              
-              {/* Chat History Component */}
-              <ChatHistory 
-                onSelectConversation={handleSelectConversation}
-                onNewConversation={handleNewConversation}
-                activeConversationId={conversationId}
+    <div className="container mx-auto p-4 flex flex-col md:flex-row h-screen">
+      {/* Conversation List */}
+      <div className="md:w-1/4 pr-4 border-r border-border">
+        <h2 className="text-lg font-semibold mb-4">Your Conversations</h2>
+        <ConversationList
+          conversations={conversations}
+          activeConversationId={activeConversationId}
+          onSelectConversation={(id) => setActiveConversationId(id)}
+          fetchConversations={fetchConversations}
+        />
+      </div>
+
+      {/* Chat Interface */}
+      <div className="md:w-3/4 pl-4 flex flex-col">
+        {currentTopic ? (
+          <>
+            <h2 className="text-lg font-semibold mb-4">Topic: {currentTopic}</h2>
+            {renderChatInterface()}
+          </>
+        ) : (
+          <div className="flex-grow flex flex-col justify-center items-center">
+            <h2 className="text-2xl font-semibold mb-4">Start a New Conversation</h2>
+            <form onSubmit={handleTopicSubmit} className="flex flex-col items-center space-y-4">
+              <Label htmlFor="topic-input">Enter a Topic:</Label>
+              <Input
+                id="topic-input"
+                type="text"
+                placeholder="e.g., Quantum Physics, History of Rome"
+                value={newTopic}
+                onChange={(e) => setNewTopic(e.target.value)}
+                className="w-full max-w-md"
               />
-            </div>
-            
-            <div className="md:col-span-2">
-              <PersistentChatInterface
-                conversationId={conversationId}
-                onConversationCreated={handleConversationCreated}
-                topic={activeTopic}
-              />
-            </div>
+              <Button type="submit" disabled={!newTopic.trim()}>Start Chat</Button>
+            </form>
           </div>
-        </div>
-      </main>
-      <Footer />
+        )}
+      </div>
     </div>
   );
 };

@@ -55,7 +55,12 @@ export async function inviteTeacherDirect(email: string) {
     if (profileError) throw profileError;
     
     // Determine which school ID to use (direct or from organization)
-    const schoolId = profile?.school_id || profile?.organization?.id;
+    let schoolId: string | null = profile?.school_id;
+    
+    // If organization is available and has an id, use that
+    if (!schoolId && profile?.organization && typeof profile.organization === 'object') {
+      schoolId = (profile.organization as any).id;
+    }
     
     if (!schoolId) {
       return { success: false, message: 'No school associated with your account' };
@@ -100,7 +105,12 @@ export async function inviteStudentDirect(
 
     if (profileError) throw profileError;
     
-    const schoolId = profile?.school_id || profile?.organization?.id;
+    let schoolId: string | null = profile?.school_id;
+    
+    // If organization is available and has an id, use that
+    if (!schoolId && profile?.organization && typeof profile.organization === 'object') {
+      schoolId = (profile.organization as any).id;
+    }
     
     if (!schoolId) {
       return { success: false, message: 'No school associated with your account' };

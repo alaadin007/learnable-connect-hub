@@ -1409,6 +1409,20 @@ export type Database = {
           student_participation_rate: number
         }[]
       }
+      get_session_logs_with_user_details: {
+        Args: { school_id_param?: string }
+        Returns: {
+          id: string
+          user_id: string
+          school_id: string
+          topic_or_content_used: string
+          session_start: string
+          session_end: string
+          num_queries: number
+          user_name: string
+          user_email: string
+        }[]
+      }
       get_student_performance_metrics: {
         Args: {
           p_school_id: string

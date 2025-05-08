@@ -31,3 +31,64 @@ export interface StudentAnalyticsFilterProps {
   selectedStudentId: string;
   dateRange: DateRange;
 }
+
+// Add missing types that were referenced in error messages
+export interface AnalyticsSummary {
+  activeStudents: number;
+  totalSessions: number;
+  totalQueries: number;
+  avgSessionMinutes: number;
+}
+
+export interface SessionData {
+  id: string;
+  userId: string;
+  userName: string;
+  startTime: string;
+  endTime?: string;
+  duration: number;
+  topicOrContent: string;
+  numQueries: number;
+}
+
+export interface TopicData {
+  topic: string;
+  name: string;
+  count: number;
+  value: number;
+}
+
+export interface StudyTimeData {
+  studentName: string;
+  name: string;
+  hours: number;
+  week: number;
+  year: number;
+}
+
+export interface Student {
+  id: string;
+  name: string;
+}
+
+export interface AnalyticsFilters {
+  dateRange: DateRange;
+  selectedTeacherId?: string;
+  selectedStudentId?: string;
+}
+
+export interface StudentPerformanceTableProps {
+  students: StudentPerformanceMetric[];
+}
+
+export interface StudentPerformanceMetric {
+  student_id: string;
+  student_name: string;
+  avg_score: number;
+  assessments_taken: number;
+  completion_rate: number;
+  avg_time_spent_seconds?: number;
+  top_strengths?: string;
+  top_weaknesses?: string;
+  last_active?: string;
+}
