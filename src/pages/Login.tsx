@@ -9,16 +9,18 @@ import LoginForm from '@/components/auth/LoginForm';
 import LoginDebug from '@/components/auth/LoginDebug';
 
 const Login = () => {
-  const { isAuthenticated, userType, isTestAccount } = useAuth();
+  const { isAuthenticated, user, userType } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const from = location.state?.from || '/';
   const [showDebug, setShowDebug] = useState(false);
 
   useEffect(() => {
-    console.log('Login page loaded', { isAuthenticated, userType, from, isTestAccount });
+    console.log('Login page loaded', { isAuthenticated, user, userType, from });
     
-    if (isAuthenticated && userType) {
+    if (isAuthenticated && user && userType) {
+      console.log('User is authenticated, redirecting', { userType });
+      
       let redirectPath = '/dashboard';
       
       // Redirect based on user type
@@ -37,16 +39,14 @@ const Login = () => {
         from !== '/login' && 
         from !== '/register' && 
         !from.includes('invitation');
+        
+      const finalPath = shouldUseFromPath ? from : redirectPath;
+      console.log('Redirecting to', finalPath);
       
-      // Add a small delay to allow state to fully update
-      setTimeout(() => {
-        navigate(shouldUseFromPath ? from : redirectPath, { 
-          replace: true,
-          state: { preserveContext: true }
-        });
-      }, 100);
+      // Direct redirect without delay since we've simplified the auth logic
+      navigate(finalPath, { replace: true });
     }
-  }, [isAuthenticated, userType, navigate, from, isTestAccount]);
+  }, [isAuthenticated, user, userType, navigate, from]);
 
   return (
     <div className="min-h-screen flex flex-col">

@@ -34,32 +34,37 @@ export const supabase = createClient<Database>(
         eventsPerSecond: 10
       }
     },
-    // Add this to avoid potential recursion issues
     queries: {
-      retryCount: 1, // Reduced from 2 to 1
-      retryDelay: 500, // Reduced from 1000 to 500
+      retryCount: 0, // Disable retries to prevent recursion issues
+      retryDelay: 500,
     }
   }
 );
 
-// Helper function to handle Supabase query errors that may occur due to recursion issues
+// Helper function to handle Supabase queries safely
 export const safeQuery = async <T>(queryFn: () => Promise<{ data: T | null, error: any }>, fallback: T | null = null): Promise<{ data: T | null, error: any }> => {
   try {
     const result = await queryFn();
     return result;
   } catch (err: any) {
-    // Check for recursion errors
-    if (err?.message?.includes('infinite recursion')) {
-      console.warn('Caught infinite recursion error in Supabase query, using fallback');
-      return { data: fallback, error: { message: 'Infinite recursion detected, using fallback', details: err } };
-    }
-    return { data: null, error: err };
+    console.warn('Error in Supabase query, using fallback', err);
+    return { data: fallback, error: { message: 'Error in query', details: err } };
   }
 };
 
+// Safe type assertion for database IDs - handles UUID type issues
+export const asDbId = (value: string): string => {
+  return value;
+};
+
+// Type guard to check if an object has required fields
+export function hasRequiredFields<T>(obj: any, fields: (keyof T)[]): obj is T {
+  if (!obj || typeof obj !== 'object') return false;
+  return fields.every(field => field in obj);
+}
+
 // Helper function to detect test accounts
 export const isTestAccount = (email: string): boolean => {
-  // Used to identify development test accounts which get special handling
   if (!email) return false;
   return email.endsWith('@testschool.edu') || email.endsWith('.test@learnable.edu');
 };
@@ -75,29 +80,48 @@ export type TeacherInvitationResult = {
   email: string;
 }
 
-// RPC function wrappers to avoid recursion issues
+// Safe helper for getUserSchoolId that won't cause recursion
 export const getUserSchoolId = async (): Promise<string | null> => {
   try {
-    const { data, error } = await supabase.rpc("get_user_school_id");
+    const { data: user } = await supabase.auth.getUser();
+    if (!user?.user) return null;
+    
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('school_id')
+      .eq('id', user.user.id)
+      .single();
+      
     if (error) {
       console.error("Error getting school ID:", error);
       return null;
     }
-    return data;
+    
+    return data?.school_id || null;
   } catch (err) {
     console.error("Error in getUserSchoolId:", err);
     return null;
   }
 };
 
+// Safe helper for getUserRole that won't cause recursion
 export const getUserRole = async (): Promise<string | null> => {
   try {
-    const { data, error } = await supabase.rpc("get_user_role");
+    const { data: user } = await supabase.auth.getUser();
+    if (!user?.user) return null;
+    
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('user_type')
+      .eq('id', user.user.id)
+      .single();
+      
     if (error) {
       console.error("Error getting user role:", error);
       return null;
     }
-    return data;
+    
+    return data?.user_type || null;
   } catch (err) {
     console.error("Error in getUserRole:", err);
     return null;

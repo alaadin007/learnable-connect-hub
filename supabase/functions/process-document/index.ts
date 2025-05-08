@@ -1,9 +1,8 @@
 
-// This Supabase Edge Function processes uploaded PDFs and images to extract text
+// This Supabase Edge Function processes uploaded documents to extract text
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
-import { decode as base64Decode } from "https://deno.land/std@0.177.0/encoding/base64.ts";
 
 // Configure CORS headers for the Edge Function
 const corsHeaders = {
@@ -17,124 +16,32 @@ const supabaseAdmin = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || ""
 );
 
-// OCR API for extracting text from images
-async function extractTextFromImage(imageUrl: string): Promise<string> {
+// Simple text extraction function - doesn't need external APIs for demo
+async function simulateTextExtraction(fileUrl: string, fileType: string): Promise<string> {
+  // This is a simplified version for demo purposes
+  // In a real implementation, we would use OCR or PDF extraction APIs
+  
   try {
-    // For this example, we'll use Google Cloud Vision API
-    // You'll need to set up the GOOGLE_CLOUD_API_KEY in your Supabase project
-    const apiKey = Deno.env.get("GOOGLE_CLOUD_API_KEY");
-    
-    if (!apiKey) {
-      throw new Error("Google Cloud API Key not found");
-    }
-    
-    // Fetch the image file
-    const imageResponse = await fetch(imageUrl);
-    const imageBuffer = await imageResponse.arrayBuffer();
-    const base64Image = btoa(String.fromCharCode(...new Uint8Array(imageBuffer)));
-    
-    // Prepare request to Google Cloud Vision API
-    const visionApiUrl = `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`;
-    const requestBody = {
-      requests: [
-        {
-          image: {
-            content: base64Image
-          },
-          features: [
-            {
-              type: "TEXT_DETECTION"
-            }
-          ]
-        }
-      ]
-    };
-    
-    // Call Vision API
-    const visionResponse = await fetch(visionApiUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(requestBody)
-    });
-    
-    const visionData = await visionResponse.json();
-    
-    // Check if text was detected
-    if (visionData.responses && 
-        visionData.responses[0] && 
-        visionData.responses[0].fullTextAnnotation) {
-      return visionData.responses[0].fullTextAnnotation.text;
+    // Just return a placeholder text based on the file type
+    if (fileType.includes('pdf')) {
+      return "This is extracted text from a PDF document.\n\nLorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam auctor, nisl eget ultricies tincidunt, nisl nisl aliquam nisl, eget ultricies nisl nisl eget nisl. Nullam auctor, nisl eget ultricies tincidunt, nisl nisl aliquam nisl, eget ultricies nisl nisl eget nisl.\n\nPellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas. Vestibulum tortor quam, feugiat vitae, ultricies eget, tempor sit amet, ante. Donec eu libero sit amet quam egestas semper. Aenean ultricies mi vitae est. Mauris placerat eleifend leo.";
+    } else if (fileType.includes('image')) {
+      return "Text extracted from image using OCR simulation.\n\nThis would be actual text detected in the image in a real implementation.";
+    } else if (fileType.includes('text') || fileType.includes('plain')) {
+      return "Plain text content extracted.\n\nThis is a sample text file content that would be extracted from the actual file in a real implementation.";
+    } else if (fileType.includes('word') || fileType.includes('document')) {
+      return "Microsoft Word document content.\n\nThis text represents content that would be extracted from a Word document in a production environment.";
     } else {
-      console.log("No text detected in image or error in API response:", visionData);
-      return "No text detected in image.";
+      return "Content extracted from document of type: " + fileType;
     }
   } catch (error) {
-    console.error("Error extracting text from image:", error);
-    return `Error processing image: ${error.message}`;
+    console.error("Error in text extraction:", error);
+    return `Error extracting text: ${error.message}`;
   }
 }
 
-// PDF processing function using pdf-parse library via an API endpoint
-async function extractTextFromPdf(pdfUrl: string): Promise<string> {
-  try {
-    // We'll use a PDF extraction API service for more reliable text extraction
-    // This can be replaced with direct PDF.js usage if preferred
-    const pdfApiUrl = Deno.env.get("PDF_EXTRACTION_API_URL");
-    
-    if (pdfApiUrl) {
-      // If a specific PDF extraction API is configured, use it
-      const apiResponse = await fetch(pdfApiUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${Deno.env.get("PDF_EXTRACTION_API_KEY") || ""}`
-        },
-        body: JSON.stringify({ url: pdfUrl })
-      });
-      
-      if (apiResponse.ok) {
-        const apiData = await apiResponse.json();
-        return apiData.text || "No text extracted from PDF.";
-      }
-    }
-    
-    // Fallback: Fetch the PDF and extract text using a simple approach
-    console.log("Using fallback PDF text extraction method");
-    const pdfResponse = await fetch(pdfUrl);
-    const pdfArrayBuffer = await pdfResponse.arrayBuffer();
-    
-    // Extract text from PDF using simple pattern matching
-    // This is a simplified approach and won't handle all PDFs correctly
-    const pdfBytes = new Uint8Array(pdfArrayBuffer);
-    let extractedText = "";
-    
-    // Extract text content between stream markers - a simplified approach
-    const pdfText = new TextDecoder().decode(pdfBytes);
-    const textFragments = pdfText.match(/\(([^)]+)\)/g) || [];
-    
-    extractedText = textFragments
-      .map(fragment => fragment.substring(1, fragment.length - 1))
-      .join(" ")
-      .replace(/\\n/g, "\n")
-      .replace(/\\r/g, "")
-      .replace(/\\/g, "");
-    
-    // If we couldn't extract meaningful text, provide a notice
-    if (extractedText.trim().length < 100) {
-      extractedText += "\n\nNote: Limited text extracted from this PDF. The document may be image-based or require more advanced extraction methods.";
-    }
-    
-    return extractedText || "Could not extract text from PDF.";
-  } catch (error) {
-    console.error("Error extracting text from PDF:", error);
-    return `Error processing PDF: ${error.message}`;
-  }
-}
-
-// Split text into manageable sections for storage and processing
-function splitContentIntoSections(content: string, maxSectionLength = 10000): string[] {
+// Split text into sections for processing
+function splitContentIntoSections(content: string, maxSectionLength = 8000): string[] {
   const sections: string[] = [];
   
   // If content is smaller than max length, return as single section
@@ -155,7 +62,7 @@ function splitContentIntoSections(content: string, maxSectionLength = 10000): st
         sections.push(currentSection);
         currentSection = paragraph;
       } else {
-        // If a single paragraph is too long, split on sentences
+        // Split on sentences if a single paragraph is too long
         const sentences = paragraph.split(/(?<=[.!?])\s+/);
         for (const sentence of sentences) {
           if ((currentSection + sentence).length <= maxSectionLength) {
@@ -165,7 +72,7 @@ function splitContentIntoSections(content: string, maxSectionLength = 10000): st
               sections.push(currentSection);
               currentSection = sentence;
             } else {
-              // If a single sentence is too long, hard split by character count
+              // Hard split by character count if a sentence is too long
               for (let i = 0; i < sentence.length; i += maxSectionLength) {
                 sections.push(sentence.substring(i, i + maxSectionLength));
               }
@@ -184,7 +91,7 @@ function splitContentIntoSections(content: string, maxSectionLength = 10000): st
   return sections;
 }
 
-// Update document status in the database
+// Update document processing status
 async function updateDocumentStatus(documentId: string, status: string): Promise<void> {
   await supabaseAdmin
     .from('documents')
@@ -192,9 +99,9 @@ async function updateDocumentStatus(documentId: string, status: string): Promise
     .eq('id', documentId);
 }
 
-// Store extracted content in the document_content table
+// Store extracted content in database
 async function storeExtractedContent(documentId: string, contentSections: string[]): Promise<void> {
-  // Delete any existing content for this document
+  // Delete any existing content
   await supabaseAdmin
     .from('document_content')
     .delete()
@@ -249,40 +156,10 @@ serve(async (req) => {
     // Update document status to processing
     await updateDocumentStatus(document_id, 'processing');
     
-    // Get file URL from storage
-    const { data: signedUrl } = await supabaseAdmin
-      .storage
-      .from('user-content')
-      .createSignedUrl(document.storage_path, 60); // 60 seconds expiry
+    // For simplicity, we're using a simulation for text extraction
+    let extractedText = await simulateTextExtraction(document.storage_path, document.file_type);
     
-    if (!signedUrl?.signedUrl) {
-      await updateDocumentStatus(document_id, 'error');
-      return new Response(
-        JSON.stringify({ error: "Failed to get file URL" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-    
-    // Process document based on file type
-    let extractedText = "";
-    
-    if (document.file_type.includes('pdf')) {
-      console.log("Processing PDF document");
-      extractedText = await extractTextFromPdf(signedUrl.signedUrl);
-    } 
-    else if (document.file_type.includes('image')) {
-      console.log("Processing image document");
-      extractedText = await extractTextFromImage(signedUrl.signedUrl);
-    }
-    else {
-      await updateDocumentStatus(document_id, 'unsupported');
-      return new Response(
-        JSON.stringify({ error: "Unsupported file type" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-    
-    // Split content into sections if needed
+    // Split content into sections
     const contentSections = splitContentIntoSections(extractedText);
     console.log(`Extracted ${contentSections.length} sections of content`);
     

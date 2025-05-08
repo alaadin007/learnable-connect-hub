@@ -53,7 +53,7 @@ const Hero = () => {
               variant="outline" 
               className="bg-white border-gray-300 hover:bg-gray-50 text-gray-700 font-semibold px-8 py-6 text-lg"
             >
-              <Link to="/login">Log In</Link>
+              <Link to="/login" state={{ from: '/' }}>Log In</Link>
             </Button>
           </div>
         </div>

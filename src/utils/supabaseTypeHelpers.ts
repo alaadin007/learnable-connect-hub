@@ -8,71 +8,35 @@ import { Json } from '@/integrations/supabase/types';
 
 /**
  * Type guard to check if a value is a Supabase error
- * @param value Any value to check
- * @returns Boolean indicating if the value is an error object
  */
-export function isSupabaseError(value: any): boolean {
+export function isSupabaseError(value: any): value is PostgrestError {
   return value && 
     typeof value === 'object' && 
-    'error' in value && 
-    value.error === true;
+    'code' in value &&
+    'message' in value &&
+    'details' in value;
 }
 
 /**
- * Type guard to check if an object is a valid database record
- * @param value Any value to check
- * @returns Boolean indicating if the value is a valid record
+ * Type guard to check if an object has required fields
  */
-export function isValidRecord<T extends Record<string, any>>(value: any, requiredFields: (keyof T)[]): value is T {
+export function hasRequiredFields<T extends Record<string, any>>(value: any, requiredFields: (keyof T)[]): value is T {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-  if ('error' in value && value.error === true) return false;
+  if (isSupabaseError(value)) return false;
   
   // Check that all required fields exist
   return requiredFields.every(field => field in value);
 }
 
 /**
- * Safely handle a Supabase query result by checking for errors
- * @param queryResult Result from a Supabase query
- * @param requiredFields Fields that must exist for a valid result
- * @returns Properly typed result or null if invalid
+ * Safe cast for database IDs to handle string/uuid issues
  */
-export function safeQueryResult<T extends Record<string, any>>(
-  queryResult: any, 
-  requiredFields: (keyof T)[]
-): T | null {
-  if (!queryResult || isSupabaseError(queryResult)) return null;
-  if (isValidRecord<T>(queryResult, requiredFields)) return queryResult;
-  return null;
-}
-
-/**
- * Map database query results to application types
- * @param data Data from a Supabase query
- * @param mapper Function to map each item
- * @returns Array of mapped items
- */
-export function mapQueryResultToAppType<T, R>(
-  data: T[] | null | undefined,
-  mapper: (item: T) => R
-): R[] {
-  if (!data || !Array.isArray(data)) return [];
-  return data.map(mapper);
-}
-
-/**
- * Safe type assertion for database IDs
- * @param value Value to assert as a database ID
- * @returns The value casted to the appropriate type
- */
-export function asDbId(value: string): any {
+export function asDbId(value: string): string {
   return value;
 }
 
 /**
  * Cast a value to a column type safely
- * @param value Value to cast
- * @returns The value casted to the appropriate type
  */
 export function asColumnValue<T>(value: any): T {
   return value as T;
@@ -112,7 +76,6 @@ export interface TeacherInvitation {
   created_by: string;
 }
 
-// Type definition for teacher invites
 export interface TeacherInvite {
   id: string;
   email: string;

@@ -8,16 +8,13 @@ import App from './App.tsx';
 import './index.css';
 import { Toaster } from 'sonner';
 
-// Create a client with proper error handling and retry settings
+// Create a client with proper error handling and minimal retry settings to avoid recursion
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false,
-      retry: (failureCount, error) => {
-        if (failureCount > 3) return false;
-        return true;
-      },
-      staleTime: 30000, // 30 seconds
+      retry: false, // Disable retries to prevent recursion
+      staleTime: 10000, // 10 seconds
     },
   },
 });

@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Trash2, Download, FileText, ChevronDown, ChevronUp, Eye, Loader } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, asDbId } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
-import { asDbId, FileItem, DocumentContent } from '@/utils/supabaseTypeHelpers';
+import { FileItem, DocumentContent, hasRequiredFields } from '@/utils/supabaseTypeHelpers';
 
 interface FileListProps {
   refreshTrigger?: boolean;
@@ -32,7 +32,9 @@ const FileList: React.FC<FileListProps> = ({ refreshTrigger }) => {
       
       if (profile?.user_type === 'teacher' || profile?.user_type === 'student') {
         // Teachers and students see only their own documents
-        query = query.eq('user_id', profile.id);
+        if (profile?.id) {
+          query = query.eq('user_id', profile.id);
+        }
       } else if (profile?.user_type === 'school' && schoolId) {
         // School admins see all documents from their school
         query = query.eq('school_id', schoolId);
@@ -52,7 +54,12 @@ const FileList: React.FC<FileListProps> = ({ refreshTrigger }) => {
       }
 
       // Convert data to FileItem array, ensuring all required properties exist
-      const parsedFiles: FileItem[] = data.map(item => ({
+      const parsedFiles: FileItem[] = data.filter(item => 
+        hasRequiredFields<FileItem>(item, [
+          'id', 'filename', 'file_type', 'file_size', 'storage_path', 
+          'processing_status', 'user_id', 'created_at'
+        ])
+      ).map(item => ({
         id: item.id,
         filename: item.filename,
         file_type: item.file_type,
@@ -117,15 +124,21 @@ const FileList: React.FC<FileListProps> = ({ refreshTrigger }) => {
         return;
       }
 
-      const parsedContents: DocumentContent[] = data.map(item => ({
-        id: item.id,
-        document_id: item.document_id,
-        content: item.content || '',
-        section_number: item.section_number,
-        processing_status: item.processing_status,
-        created_at: item.created_at,
-        updated_at: item.updated_at
-      }));
+      // Filter and map to ensure all required fields exist
+      const parsedContents: DocumentContent[] = data
+        .filter(item => hasRequiredFields<DocumentContent>(item, [
+          'id', 'document_id', 'section_number', 'processing_status', 
+          'created_at', 'updated_at'
+        ]))
+        .map(item => ({
+          id: item.id,
+          document_id: item.document_id,
+          content: item.content || '',
+          section_number: item.section_number,
+          processing_status: item.processing_status,
+          created_at: item.created_at,
+          updated_at: item.updated_at
+        }));
       
       setFileContents(prev => ({ ...prev, [fileId]: parsedContents }));
     } catch (err) {
@@ -220,7 +233,7 @@ const FileList: React.FC<FileListProps> = ({ refreshTrigger }) => {
         return;
       }
       
-      if (data.processing_status === 'completed') {
+      if (data && data.processing_status === 'completed') {
         setProcessingFiles(prev => {
           const newSet = new Set(prev);
           newSet.delete(fileId);
@@ -237,7 +250,7 @@ const FileList: React.FC<FileListProps> = ({ refreshTrigger }) => {
         );
         
         toast.success(`Document "${files.find(f => f.id === fileId)?.filename}" is ready to view`);
-      } else if (data.processing_status === 'failed') {
+      } else if (data && data.processing_status === 'failed') {
         setProcessingFiles(prev => {
           const newSet = new Set(prev);
           newSet.delete(fileId);
@@ -268,7 +281,7 @@ const FileList: React.FC<FileListProps> = ({ refreshTrigger }) => {
       // Update the document status to "processing"
       const { error } = await supabase
         .from('documents')
-        .update({ processing_status: 'processing' })
+        .update({ processing_status: 'processing' } as any)
         .eq('id', asDbId(fileId));
         
       if (error) {
