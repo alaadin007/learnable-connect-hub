@@ -92,7 +92,7 @@ const logSessionStart = async (topic?: string, userId?: string): Promise<string 
       return null;
     }
 
-    return logData.id;
+    return logData?.id || null;
   } catch (error) {
     console.error("Error starting session:", error);
     return null;
@@ -154,7 +154,7 @@ const incrementQueryCount = async (sessionId: string): Promise<void> => {
 
   // Silently try to increment count without causing UI errors
   try {
-    // Use the RPC function directly
+    // Use the RPC function directly with proper typing
     const { error } = await supabase.rpc("increment_session_query_count", {
       log_id: sessionId
     });
