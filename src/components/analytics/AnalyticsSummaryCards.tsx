@@ -22,28 +22,28 @@ export function AnalyticsSummaryCards({ summary, isLoading }: AnalyticsSummaryCa
         title="Active Students"
         value={summary.activeStudents}
         description="Students engaged with the platform"
-        icon={<Users size={24} />}
+        icon={Users}
       />
       
       <StatsCard
         title="Total Sessions"
         value={summary.totalSessions}
         description="Learning sessions conducted"
-        icon={<BarChart size={24} />}
+        icon={BarChart}
       />
       
       <StatsCard
         title="Total Queries"
         value={summary.totalQueries}
         description="Questions asked by students"
-        icon={<MessageSquare size={24} />}
+        icon={MessageSquare}
       />
       
       <StatsCard
         title="Avg Session Length"
         value={`${summary.avgSessionMinutes.toFixed(1)} min`}
         description="Average duration per session"
-        icon={<Clock size={24} />}
+        icon={Clock}
       />
     </div>
   );
