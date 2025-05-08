@@ -1,5 +1,5 @@
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,8 @@ const Dashboard = () => {
   const { user, profile, userRole } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
 
   // Enhanced debug logs to help understand what's happening
   useEffect(() => {
@@ -23,70 +25,92 @@ const Dashboard = () => {
       profileData: profile,
       locationState: location.state
     });
-  }, [user, profile, userRole, location.state]);
+    
+    // Set a maximum loading time to prevent infinite loading state
+    const loadingTimeout = setTimeout(() => {
+      if (isLoading) {
+        console.log("Dashboard: Loading timeout reached, continuing anyway");
+        setIsLoading(false);
+      }
+    }, 3000); // 3 seconds max loading time
+    
+    return () => clearTimeout(loadingTimeout);
+  }, [user, profile, userRole, location.state, isLoading]);
 
-  // Redirect based on user role
+  // Handle redirections with improved error handling
   useEffect(() => {
-    if (!user) {
-      // Allow test accounts/navigation with preserved context to bypass this check
-      if (location.state?.fromTestAccounts || location.state?.preserveContext) {
-        console.log("Dashboard: Bypassing login check due to navigation context");
+    try {
+      setIsLoading(true);
+      
+      if (!user) {
+        // Allow test accounts/navigation with preserved context to bypass this check
+        if (location.state?.fromTestAccounts || location.state?.preserveContext) {
+          console.log("Dashboard: Bypassing login check due to navigation context");
+          setIsLoading(false);
+          return;
+        }
+        
+        console.log("Dashboard: No user found, redirecting to login");
+        navigate("/login");
         return;
       }
-      
-      console.log("Dashboard: No user found, redirecting to login");
-      navigate("/login");
-      return;
-    }
 
-    console.log("Dashboard: User role detected:", userRole);
+      console.log("Dashboard: User role detected:", userRole);
 
-    // Handle redirection logic with fallbacks
-    if (userRole === "school" || userRole === "school_admin") {
-      console.log("Dashboard: School admin detected, redirecting to admin dashboard");
-      // Use replace: true to prevent back navigation to this intermediate page
-      navigate("/admin", { 
-        state: { fromNavigation: true, preserveContext: true },
-        replace: true 
-      });
-      return;
-    }
-
-    if (userRole === "teacher") {
-      console.log("Dashboard: Teacher detected, redirecting to teacher analytics");
-      navigate("/teacher/analytics", { 
-        state: { fromNavigation: true, preserveContext: true },
-        replace: true 
-      });
-      return;
-    }
-
-    // Handle test account (might have different role mapping) as a fallback
-    const isTestAccount = user.email?.includes(".test@learnable.edu") || 
-                         user.id?.startsWith("test-");
-                          
-    if (isTestAccount) {
-      console.log("Dashboard: Test account detected, checking role from user metadata");
-      const metadataRole = user.user_metadata?.user_type;
-      
-      if (metadataRole === "school" || metadataRole === "school_admin") {
-        console.log("Dashboard: Test school admin detected from metadata, redirecting");
+      // Handle redirection logic with fallbacks
+      if (userRole === "school" || userRole === "school_admin") {
+        console.log("Dashboard: School admin detected, redirecting to admin dashboard");
         navigate("/admin", { 
-          state: { fromTestAccounts: true, preserveContext: true },
-          replace: true 
-        });
-        return;
-      } else if (metadataRole === "teacher") {
-        console.log("Dashboard: Test teacher detected from metadata, redirecting");
-        navigate("/teacher/analytics", { 
-          state: { fromTestAccounts: true, preserveContext: true },
+          state: { fromNavigation: true, preserveContext: true },
           replace: true 
         });
         return;
       }
-    }
 
-    console.log("Dashboard: User remaining on student dashboard");
+      if (userRole === "teacher") {
+        console.log("Dashboard: Teacher detected, redirecting to teacher analytics");
+        navigate("/teacher/analytics", { 
+          state: { fromNavigation: true, preserveContext: true },
+          replace: true 
+        });
+        return;
+      }
+
+      // Handle test account (might have different role mapping) as a fallback
+      const isTestAccount = user.email?.includes(".test@learnable.edu") || 
+                          user.id?.startsWith("test-");
+                            
+      if (isTestAccount) {
+        console.log("Dashboard: Test account detected, checking role from user metadata");
+        const metadataRole = user.user_metadata?.user_type;
+        
+        if (metadataRole === "school" || metadataRole === "school_admin") {
+          console.log("Dashboard: Test school admin detected from metadata, redirecting");
+          navigate("/admin", { 
+            state: { fromTestAccounts: true, preserveContext: true },
+            replace: true 
+          });
+          return;
+        } else if (metadataRole === "teacher") {
+          console.log("Dashboard: Test teacher detected from metadata, redirecting");
+          navigate("/teacher/analytics", { 
+            state: { fromTestAccounts: true, preserveContext: true },
+            replace: true 
+          });
+          return;
+        }
+      }
+
+      console.log("Dashboard: User remaining on student dashboard");
+      setIsLoading(false);
+    } catch (error) {
+      console.error("Dashboard: Error during redirection:", error);
+      setHasError(true);
+      setIsLoading(false);
+      toast.error("Something went wrong. Please try refreshing the page.", {
+        duration: 5000,
+      });
+    }
   }, [user, navigate, location.state, userRole]);
 
   // If there are issues with profile loading, show a more helpful message
@@ -99,13 +123,38 @@ const Dashboard = () => {
     }
   }, [user, profile, location.state]);
 
+  // Show error state if something went wrong
+  if (hasError) {
+    return (
+      <>
+        <Navbar />
+        <main className="container mx-auto px-4 py-8 min-h-screen flex flex-col items-center justify-center">
+          <div className="text-center">
+            <h2 className="text-xl font-semibold mb-4">Something went wrong</h2>
+            <p className="mb-6">We had trouble loading your dashboard. Please try again.</p>
+            <Button 
+              onClick={() => window.location.reload()}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              Refresh Page
+            </Button>
+          </div>
+        </main>
+        <Footer />
+      </>
+    );
+  }
+
   // Show loading state if user or profile data is not ready
-  if (!user && !location.state?.fromTestAccounts) {
+  if (isLoading) {
     return (
       <>
         <Navbar />
         <main className="container mx-auto px-4 py-8 min-h-screen flex items-center justify-center">
-          <p className="text-xl">Loading your dashboard...</p>
+          <div className="text-center">
+            <p className="text-xl mb-4">Loading your dashboard...</p>
+            <div className="w-16 h-1 bg-blue-600 animate-pulse mx-auto"></div>
+          </div>
         </main>
       </>
     );

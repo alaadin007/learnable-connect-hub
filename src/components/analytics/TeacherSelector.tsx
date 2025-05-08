@@ -29,6 +29,7 @@ export function TeacherSelector({
 }: TeacherSelectorProps) {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadAttempts, setLoadAttempts] = useState(0);
 
   useEffect(() => {
     const fetchTeachers = async () => {
@@ -39,6 +40,21 @@ export function TeacherSelector({
 
       setIsLoading(true);
       try {
+        console.log(`TeacherSelector: Fetching teachers for school ${schoolId}`);
+        
+        // First check if we have an active session
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.error("TeacherSelector: Session error:", sessionError);
+          throw new Error("Authentication error");
+        }
+        
+        if (!session) {
+          console.warn("TeacherSelector: No active session when fetching teachers");
+          // For test accounts, we might want to continue anyway
+        }
+        
         // First, get teacher IDs with a simple query
         const { data: teachersData, error } = await supabase
           .from("teachers")
@@ -47,10 +63,7 @@ export function TeacherSelector({
 
         if (error) {
           console.error("Error fetching teacher IDs:", error);
-          toast.error("Failed to load teachers. Please try again.");
-          setTeachers([]);
-          setIsLoading(false);
-          return;
+          throw new Error(`Failed to load teachers: ${error.message}`);
         }
 
         if (!teachersData || teachersData.length === 0) {
@@ -68,10 +81,7 @@ export function TeacherSelector({
 
         if (profilesError) {
           console.error("Error fetching teacher profiles:", profilesError);
-          toast.error("Failed to load teacher information. Please try again.");
-          setTeachers([]);
-          setIsLoading(false);
-          return;
+          throw new Error(`Failed to load teacher information: ${profilesError.message}`);
         }
 
         const formattedTeachers: Teacher[] = (profilesData ?? []).map(
@@ -81,18 +91,27 @@ export function TeacherSelector({
           })
         );
 
+        console.log(`TeacherSelector: Found ${formattedTeachers.length} teachers`);
         setTeachers(formattedTeachers);
       } catch (error) {
         console.error("Error in TeacherSelector:", error);
-        toast.error("An unexpected error occurred. Please try again.");
-        setTeachers([]);
+        
+        // Implement retry logic for transient errors
+        if (loadAttempts < 2) {
+          console.log(`TeacherSelector: Retrying... Attempt ${loadAttempts + 1}`);
+          setLoadAttempts(prev => prev + 1);
+          setTimeout(() => fetchTeachers(), 1000); // Retry after 1 second
+        } else {
+          toast.error("Failed to load teachers. Please refresh the page.");
+          setTeachers([]);
+        }
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchTeachers();
-  }, [schoolId]);
+  }, [schoolId, loadAttempts]);
 
   const labelId = "teacher-selector-label";
 
