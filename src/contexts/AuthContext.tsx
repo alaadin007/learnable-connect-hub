@@ -310,11 +310,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Function to set a test user - used for demo purposes only
   const setTestUser = (type: UserType) => {
+    // Store test account flag in localStorage for persistence
+    localStorage.setItem('usingTestAccount', 'true');
+    
     const testUserEmail = `test.${type}@learnable.edu`;
     const testProfile: Profile = {
-      id: 'test-user-id',
+      id: `test-${type}-id`,
       user_type: type,
-      full_name: `Test ${type}`,
+      full_name: `Test ${type.charAt(0).toUpperCase() + type.slice(1)}`,
       email: testUserEmail,
       school_id: 'test-school-id',
       school_code: 'TESTCODE',
@@ -327,13 +330,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
 
     setUser({
-      id: 'test-user-id',
+      id: `test-${type}-id`,
       email: testUserEmail,
       app_metadata: {
         provider: 'test',
       },
       user_metadata: {
-        full_name: `Test ${type}`,
+        full_name: `Test ${type.charAt(0).toUpperCase() + type.slice(1)}`,
         user_type: type,
         school_code: 'TESTCODE',
       },
@@ -342,6 +345,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUserType(type);
     setSchoolId('test-school-id');
     setIsTestAccount(true);
+    setLoading(false);
   };
 
   // Calculate userRole based on userType for compatibility

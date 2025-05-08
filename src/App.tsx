@@ -96,6 +96,11 @@ const App = () => (
     } />
 
     {/* Teacher routes */}
+    <Route path="/teacher/dashboard" element={
+      <ProtectedRoute requiredUserType="teacher">
+        <Dashboard />
+      </ProtectedRoute>
+    } />
     <Route path="/teacher/students" element={
       <ProtectedRoute requiredUserType="teacher">
         <TeacherStudents />
@@ -108,6 +113,11 @@ const App = () => (
     } />
 
     {/* Student routes */}
+    <Route path="/student/dashboard" element={
+      <ProtectedRoute requiredUserType="student">
+        <Dashboard />
+      </ProtectedRoute>
+    } />
     <Route path="/student/assessments" element={
       <ProtectedRoute requiredUserType="student">
         <StudentAssessments />

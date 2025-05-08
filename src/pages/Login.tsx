@@ -19,7 +19,7 @@ const Login = () => {
     console.log('Login page loaded', { isAuthenticated, userType, from });
     
     if (isAuthenticated && userType) {
-      let redirectPath = '/';
+      let redirectPath = '/dashboard';
       
       // Redirect based on user type
       if (userType === 'student') {
@@ -38,7 +38,10 @@ const Login = () => {
         from !== '/register' && 
         !from.includes('invitation');
         
-      navigate(shouldUseFromPath ? from : redirectPath, { replace: true });
+      navigate(shouldUseFromPath ? from : redirectPath, { 
+        replace: true,
+        state: { preserveContext: true }
+      });
     }
   }, [isAuthenticated, userType, navigate, from]);
 

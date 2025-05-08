@@ -20,21 +20,21 @@ const TestAccounts = () => {
       icon: <GraduationCap className="h-10 w-10 text-blue-500" />,
       description: "Experience the platform from a student's perspective.",
       type: "student",
-      destination: "/student/dashboard",
+      destination: "/dashboard",
     },
     {
       title: "Teacher",
       icon: <User className="h-10 w-10 text-green-500" />,
       description: "Explore the platform from a teacher's perspective.",
       type: "teacher",
-      destination: "/teacher/dashboard",
+      destination: "/dashboard",
     },
     {
       title: "School Admin",
       icon: <School className="h-10 w-10 text-purple-500" />,
       description: "Manage your school settings and users.",
       type: "school",
-      destination: "/school/dashboard",
+      destination: "/dashboard",
     },
   ];
 
