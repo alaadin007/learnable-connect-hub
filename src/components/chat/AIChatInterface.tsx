@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,6 +14,7 @@ import VoiceRecorder from "./VoiceRecorder";
 import TextToSpeech from "./TextToSpeech";
 
 interface Message {
+  id: string; // Added for better key management
   role: "user" | "assistant" | "system";
   content: string;
   timestamp: Date;
@@ -34,46 +35,48 @@ const AIChatInterface: React.FC<AIChatInterfaceProps> = ({
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [model, setModel] = useState<string>("gpt-4o-mini");
+  const [model, setModel] = useState<string>("gpt-4-mini");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const isMounted = useRef(true);
 
-  // Start a new session when the component mounts
+  // Cleanup on unmount
   useEffect(() => {
-    let isMounted = true; // to avoid setting state if unmounted
-
-    const startNewSession = async () => {
-      try {
-        const newSessionId = await sessionLogger.startSession(topic);
-        if (isMounted && newSessionId) {
-          setSessionId(newSessionId);
-          if (initialPrompt) {
-            setMessages([
-              { role: "system", content: initialPrompt, timestamp: new Date() }
-            ]);
-          }
-        }
-      } catch (error) {
-        console.error("Error starting session:", error);
-      }
-    };
-
-    startNewSession();
-
     return () => {
-      isMounted = false;
-      if (sessionId) {
-        sessionLogger.endSession(sessionId).catch(console.error);
-      }
+      isMounted.current = false;
     };
-  // Here sessionId is a dependency but it is set asynchronously, so 
-  // the cleanup may not see the updated sessionId; to fix:
-  // either omit it here (and send endSession in separate effect) or
-  // move endSession to separate useEffect tracking sessionId.
+  }, []);
+
+  // Start new session
+  const startNewSession = useCallback(async () => {
+    try {
+      const newSessionId = await sessionLogger.startSession(topic);
+      if (isMounted.current && newSessionId) {
+        setSessionId(newSessionId);
+        if (initialPrompt) {
+          setMessages([
+            { 
+              id: crypto.randomUUID(),
+              role: "system", 
+              content: initialPrompt, 
+              timestamp: new Date() 
+            }
+          ]);
+        }
+      }
+    } catch (error) {
+      console.error("Error starting session:", error);
+      toast.error("Failed to start session");
+    }
   }, [topic, initialPrompt]);
 
-  // To fix the cleanup for session end - better separate effect:
+  // Initialize session
+  useEffect(() => {
+    startNewSession();
+  }, [startNewSession]);
+
+  // End session cleanup
   useEffect(() => {
     return () => {
       if (sessionId) {
@@ -82,27 +85,36 @@ const AIChatInterface: React.FC<AIChatInterfaceProps> = ({
     };
   }, [sessionId]);
 
-  // Scroll to bottom when messages change
-  useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [messages]);
+  // Auto-scroll
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, []);
 
-  const handleSubmit = async (e?: React.FormEvent) => {
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, scrollToBottom]);
+
+  // Handle message submission
+  const handleSubmit = useCallback(async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
 
     if (!input.trim() && !initialPrompt) return;
+    if (!user) {
+      toast.error("You must be logged in to send messages");
+      return;
+    }
 
     const userMessage = input.trim() || initialPrompt;
     setInput("");
 
-    setMessages(prev => [...prev, {
+    const newMessage: Message = {
+      id: crypto.randomUUID(),
       role: "user",
       content: userMessage,
       timestamp: new Date()
-    }]);
+    };
 
+    setMessages(prev => [...prev, newMessage]);
     setIsLoading(true);
 
     try {
@@ -115,20 +127,24 @@ const AIChatInterface: React.FC<AIChatInterfaceProps> = ({
           question: userMessage,
           topic,
           documentId,
-          sessionId
+          sessionId,
+          userId: user.id
         }
       });
 
       if (error) throw new Error(error.message);
 
-      setMessages(prev => [...prev, {
-        role: "assistant",
-        content: data.response,
-        timestamp: new Date()
-      }]);
+      if (isMounted.current) {
+        setMessages(prev => [...prev, {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: data.response,
+          timestamp: new Date()
+        }]);
 
-      if (data.model) {
-        setModel(data.model);
+        if (data.model) {
+          setModel(data.model);
+        }
       }
 
       if (sessionId) {
@@ -136,40 +152,48 @@ const AIChatInterface: React.FC<AIChatInterfaceProps> = ({
       }
     } catch (error) {
       console.error("Error getting AI response:", error);
-      toast.error("Failed to get a response from the AI.");
-
-      setMessages(prev => [...prev, {
-        role: "system",
-        content: "Sorry, I couldn't process your request. Please try again later.",
-        timestamp: new Date()
-      }]);
+      if (isMounted.current) {
+        toast.error("Failed to get a response from the AI.");
+        setMessages(prev => [...prev, {
+          id: crypto.randomUUID(),
+          role: "system",
+          content: "Sorry, I couldn't process your request. Please try again later.",
+          timestamp: new Date()
+        }]);
+      }
     } finally {
-      setIsLoading(false);
+      if (isMounted.current) {
+        setIsLoading(false);
+      }
     }
-  };
+  }, [input, initialPrompt, topic, sessionId, documentId, user]);
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  // Handle keyboard events
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
     }
-  };
+  }, [handleSubmit]);
 
-  const adjustTextareaHeight = () => {
+  // Adjust textarea height
+  const adjustTextareaHeight = useCallback(() => {
     const textarea = textareaRef.current;
     if (textarea) {
       textarea.style.height = 'auto';
       textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
     }
-  };
+  }, []);
 
-  const handleTranscriptionComplete = (text: string) => {
+  // Handle voice transcription
+  const handleTranscriptionComplete = useCallback((text: string) => {
     setInput(text);
-  };
+  }, []);
 
-  const formatTime = (date: Date) => {
+  // Format timestamp
+  const formatTime = useCallback((date: Date) => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
+  }, []);
 
   return (
     <Card className="flex flex-col h-full">
@@ -198,9 +222,9 @@ const AIChatInterface: React.FC<AIChatInterfaceProps> = ({
               </div>
             )}
 
-            {messages.map((message, index) => (
+            {messages.map((message) => (
               <div
-                key={index}
+                key={message.id}
                 className={`flex flex-col ${
                   message.role === "user"
                     ? "items-end"
