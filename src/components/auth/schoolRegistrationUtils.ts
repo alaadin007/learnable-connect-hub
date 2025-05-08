@@ -1,13 +1,24 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 export const checkEmailExistingRole = async (email: string): Promise<string | null> => {
   try {
-    // Try to get the user's role from the profiles table
+    // 1. Get user by email from auth.users
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', email)
+      .limit(1);
+
+    if (userError || !userData || userData.length === 0) {
+      // handle error or user not found
+      return null;
+    }
+
+    // 2. Get profile by user id
     const { data, error } = await supabase
       .from('profiles')
       .select('user_type')
-      .eq('email', email)
+      .eq('id', userData[0].id)
       .limit(1);
     
     if (error) {
