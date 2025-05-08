@@ -1,13 +1,12 @@
-
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Loader2, Mail, AlertTriangle, AlertCircle } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import SchoolRegistrationFormFields from "./SchoolRegistrationFormFields";
-import SchoolRegistrationSuccess from "./SchoolRegistrationSuccess";
 import { SchoolRegistrationFormValues } from "./schoolRegistrationSchema";
 import { checkIfEmailExists, checkEmailExistingRole } from "./schoolRegistrationUtils";
+import SchoolRegistrationFormFields from "./SchoolRegistrationFormFields";
+import SchoolRegistrationSuccess from "./SchoolRegistrationSuccess";
+import { supabase } from "@/integrations/supabase/client";
+import { Loader2, Mail, AlertTriangle, AlertCircle } from "lucide-react";
 
 const SchoolRegistrationForm: React.FC = () => {
   const navigate = useNavigate();
