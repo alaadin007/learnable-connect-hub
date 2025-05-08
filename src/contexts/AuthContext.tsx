@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { supabase } from '@/integrations/supabase/client';
 import { Session, User } from '@supabase/supabase-js';
 import { toast } from 'sonner';
+import { getUserProfile } from '@/utils/databaseUtils';
 
 type UserRole = 'student' | 'teacher' | 'school' | null;
 
@@ -30,6 +31,7 @@ interface AuthContextProps {
   refreshSession: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   isSupervisor: boolean;
+  dbError: boolean;
 }
 
 const AuthContext = createContext<AuthContextProps | undefined>(undefined);
@@ -54,6 +56,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSupervisor, setIsSupervisor] = useState<boolean>(false);
+  const [dbError, setDbError] = useState<boolean>(false);
 
   // Initialize auth state from Supabase session
   useEffect(() => {
@@ -88,6 +91,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                   } : null
                 });
                 setIsSupervisor(testAccountType === 'school');
+                setDbError(false);
               } else {
                 // Use setTimeout to avoid potential deadlock with Supabase auth
                 setTimeout(() => {
@@ -100,6 +104,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               setSchoolId(null);
               setProfile(null);
               setIsSupervisor(false);
+              setDbError(false);
             }
           }
         );
@@ -132,12 +137,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               } : null
             });
             setIsSupervisor(testAccountType === 'school');
+            setDbError(false);
           } else {
             await fetchUserProfile(currentSession.user.id);
           }
         }
       } catch (error) {
         console.error("Error initializing auth:", error);
+        setDbError(true);
       } finally {
         setIsLoading(false);
       }
@@ -155,27 +162,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       console.log("Fetching profile for user:", userId);
       
-      // Fetch profile from the profiles table
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select(`
-          id, 
-          full_name, 
-          user_type,
-          school_id
-        `)
-        .eq('id', userId)
-        .single();
-
-      if (profileError) {
-        console.error("Error fetching profile:", profileError);
-        toast.error("Could not fetch your profile data");
-        return;
-      }
+      // Use the new databaseUtils function to get profile
+      const profileData = await getUserProfile(userId);
 
       if (!profileData) {
         console.error("No profile found for user:", userId);
         toast.error("Your profile data was not found");
+        setDbError(true);
         return;
       }
 
@@ -219,6 +212,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           
           if (schoolError) {
             console.error("Error fetching school data:", schoolError);
+            setDbError(true);
           }
         }
         
@@ -234,8 +228,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           
         if (!teacherError && teacherData) {
           setIsSupervisor(teacherData.is_supervisor || false);
+          setDbError(false);
         } else if (teacherError) {
           console.error("Error checking if teacher is supervisor:", teacherError);
+          setDbError(true);
         }
         
         setProfile({
@@ -254,6 +250,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error) {
       console.error("Error in fetchUserProfile:", error);
       toast.error("Failed to load profile data");
+      setDbError(true);
     }
   };
 
@@ -284,6 +281,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         toast.warning("Your email is not verified. Please check your inbox.");
       }
 
+      setDbError(false);
       return data;
     } catch (error: any) {
       console.error("Sign in error:", error);
@@ -334,6 +332,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setSchoolId(null);
       setProfile(null);
       setIsSupervisor(false);
+      setDbError(false);
       
     } catch (error) {
       console.error("Error signing out:", error);
@@ -390,6 +389,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         // Set supervisor status for school accounts
         setIsSupervisor(userType === 'school');
+        setDbError(false);
         
         return mockUser;
       }
@@ -399,9 +399,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       localStorage.setItem('testAccountType', userType);
 
       console.log("Test user created successfully:", data.user);
+      setDbError(false);
       return data.user;
     } catch (error) {
       console.error("Error setting test user:", error);
+      setDbError(true);
       return null;
     }
   };
@@ -444,6 +446,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           
           // Set supervisor status for test school accounts
           setIsSupervisor(testAccountType === 'school');
+          setDbError(false);
         } else {
           // Get user profile data
           await fetchUserProfile(data.session.user.id);
@@ -452,6 +455,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error) {
       console.error("Error refreshing session:", error);
       toast.error("Failed to refresh session");
+      setDbError(true);
     }
   };
 
@@ -468,7 +472,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setTestUser,
     refreshSession,
     refreshProfile,
-    isSupervisor
+    isSupervisor,
+    dbError
   };
 
   return (

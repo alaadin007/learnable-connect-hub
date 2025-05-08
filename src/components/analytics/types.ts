@@ -102,3 +102,40 @@ export interface StudentPerformanceData {
   completion_rate?: number;
   last_active?: string;
 }
+
+export interface SchoolPerformanceSummary {
+  school_id: string;
+  school_name: string;
+  total_assessments: number; 
+  students_with_submissions: number;
+  total_students: number;
+  avg_submissions_per_assessment: number;
+  avg_score: number;
+  completion_rate: number;
+  student_participation_rate: number;
+}
+
+export interface SchoolPerformanceData {
+  id?: string;
+  school_id?: string;
+  school_name?: string;
+  total_assessments?: number;
+  students_with_submissions?: number; 
+  total_students?: number;
+  avg_submissions_per_assessment?: number;
+  avg_score?: number;
+  completion_rate?: number;
+  student_participation_rate?: number;
+}
+
+export interface TeacherPerformanceData {
+  teacher_id?: string;
+  teacher_name?: string;
+  assessments_created?: number;
+  students_assessed?: number;
+  avg_submissions_per_assessment?: number;
+  avg_student_score?: number;
+  completion_rate?: number;
+  id?: string;
+  name?: string;
+}

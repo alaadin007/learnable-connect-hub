@@ -46,7 +46,7 @@ export function StudentSelector({
         <SelectItem value="all">All Students</SelectItem>
         {students.map(student => (
           <SelectItem key={student.id} value={student.id}>
-            {student.name}
+            {student.name || student.full_name}
           </SelectItem>
         ))}
       </SelectContent>

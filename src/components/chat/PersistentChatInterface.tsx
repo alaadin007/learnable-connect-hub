@@ -1,338 +1,240 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, Loader2, MessageCircle, Paperclip } from 'lucide-react';
-import { toast } from 'sonner';
-import { v4 as uuidv4 } from 'uuid';
-import { Badge } from '@/components/ui/badge';
-import sessionLogger from '@/utils/sessionLogger';
-import VoiceRecorder from './VoiceRecorder';
-import TextToSpeech from './TextToSpeech';
-import { saveChatMessage, getChatHistory } from '@/utils/databaseUtils';
 
-interface ChatMessage {
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import ChatInterface from "./ChatInterface";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { saveChatMessage, getChatHistory } from "@/utils/databaseUtils";
+import { toast } from "sonner";
+import { v4 as uuidv4 } from "uuid";
+
+interface Message {
   id: string;
-  role: 'user' | 'assistant' | 'system';
+  role: "user" | "assistant" | "system";
   content: string;
-  timestamp: string;
+  timestamp?: string;
 }
 
-interface PersistentChatInterfaceProps {
-  conversationId?: string | null;
-  onConversationCreated?: (id: string) => void;
-  topic?: string;
+interface Conversation {
+  id: string;
+  title: string;
+  messages: Message[];
 }
 
-const PersistentChatInterface: React.FC<PersistentChatInterfaceProps> = ({
-  conversationId,
-  onConversationCreated,
-  topic,
-}) => {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState('');
+const PersistentChatInterface = () => {
+  const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const { user } = useAuth();
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [loadingHistory, setLoadingHistory] = useState(!!conversationId);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const messageEndRef = useRef<HTMLDivElement>(null);
 
-  // Start session on component mount
   useEffect(() => {
-    const startNewSession = async () => {
-      try {
-        const newSessionId = await sessionLogger.startSession(topic);
-        if (newSessionId) {
-          setSessionId(newSessionId);
-        }
-      } catch (error) {
-        console.error("Error starting session:", error);
-      }
-    };
-
-    startNewSession();
-
-    return () => {
-      if (sessionId) {
-        sessionLogger.endSession(sessionId);
-      }
-    };
-  }, [topic]);
-
-  // Load conversation history when conversationId changes
-  useEffect(() => {
-    if (conversationId) {
-      loadChatHistory(conversationId);
-    } else {
-      setMessages([]);
+    if (user && !activeConversationId) {
+      createNewConversation();
     }
-  }, [conversationId]);
+  }, [user]);
 
-  // Scroll to bottom when messages change
+  useEffect(() => {
+    if (activeConversationId) {
+      loadChatHistory();
+    }
+  }, [activeConversationId]);
+
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  const loadChatHistory = async (convoId: string) => {
-    setLoadingHistory(true);
+  const loadChatHistory = useCallback(async () => {
+    if (!activeConversationId) return;
+
     try {
-      const data = await getChatHistory(convoId);
-      if (data?.messages) {
-        const chatMessages = data.messages.map((msg: any) => ({
-          id: msg.id,
-          role: msg.sender === 'user' ? 'user' : 'assistant',
-          content: msg.content,
-          timestamp: msg.timestamp
-        }));
-        setMessages(chatMessages);
+      setIsLoading(true);
+      
+      const chatHistory = await getChatHistory(activeConversationId);
+      if (!chatHistory || chatHistory.length === 0) {
+        setMessages([]);
+        return;
       }
+      
+      const formattedMessages = chatHistory.map((msg: any) => ({
+        id: msg.id,
+        role: msg.sender === "user" ? "user" : "assistant",
+        content: msg.content,
+        timestamp: msg.timestamp
+      }));
+      
+      setMessages(formattedMessages);
     } catch (error) {
       console.error("Error loading chat history:", error);
       toast.error("Failed to load chat history");
     } finally {
-      setLoadingHistory(false);
+      setIsLoading(false);
+    }
+  }, [activeConversationId]);
+
+  const createNewConversation = async () => {
+    try {
+      if (!user) {
+        toast.error("You must be logged in to create a conversation");
+        return;
+      }
+
+      // Get the user's school ID
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData?.user) {
+        toast.error("User data not available");
+        return;
+      }
+      
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('school_id')
+        .eq('id', userData.user.id)
+        .single();
+        
+      if (!profileData?.school_id) {
+        toast.error("School data not available");
+        return;
+      }
+
+      // Create a new conversation
+      const { data: newConversation, error } = await supabase
+        .from("conversations")
+        .insert({
+          user_id: userData.user.id,
+          school_id: profileData.school_id,
+          title: "New Conversation",
+          topic: "general",
+          starred: false,
+          tags: []
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Error creating conversation:", error);
+        toast.error("Failed to create new conversation");
+        return;
+      }
+
+      setActiveConversationId(newConversation.id);
+      setMessages([]);
+    } catch (error) {
+      console.error("Error creating new conversation:", error);
+      toast.error("Failed to create new conversation");
     }
   };
 
-  const handleSubmit = async () => {
-    if (!input.trim() || isLoading) return;
-    setIsLoading(true);
-    const messageId = uuidv4();
-    const userMessage = {
-      id: messageId,
-      role: 'user' as const,
-      content: input.trim(),
+  const handleSendMessage = async (userMessage: string) => {
+    if (!activeConversationId) {
+      toast.error("No active conversation");
+      return;
+    }
+
+    // Display user message immediately
+    const userMessageObj: Message = {
+      id: uuidv4(),
+      role: "user",
+      content: userMessage,
       timestamp: new Date().toISOString()
     };
-    setMessages(prev => [...prev, userMessage]);
-    setInput('');
-    try {
-      const saveResult = await saveChatMessage(userMessage, conversationId, sessionId);
-      if (saveResult.success) {
-        if (saveResult.conversationId && !conversationId && onConversationCreated) {
-          onConversationCreated(saveResult.conversationId);
-        }
-        // TODO: Integrate AI response here (call your backend or OpenAI API directly)
-      }
-    } catch (error: any) {
-      console.error("Error in chat:", error);
-      toast.error("There was an error processing your message");
-      setMessages(prev => [
-        ...prev,
-        {
-          id: uuidv4(),
-          role: 'system',
-          content: "Sorry, there was an error processing your request. Please try again.",
-          timestamp: new Date().toISOString()
-        }
-      ]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit();
-    }
-  };
+    setMessages((prevMessages) => [...prevMessages, userMessageObj]);
 
-  const handleFileUpload = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (!files || files.length === 0 || isLoading) return;
-    const file = files[0];
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("File too large. Please upload a file smaller than 10MB");
+    // Save user message to database
+    const savedMessage = await saveChatMessage(
+      activeConversationId,
+      userMessage,
+      "user",
+      false
+    );
+    
+    if (!savedMessage) {
+      toast.error("Failed to save message");
       return;
     }
-    const fileExt = file.name.split('.').pop()?.toLowerCase();
-    if (!['pdf', 'jpg', 'jpeg', 'png'].includes(fileExt || '')) {
-      toast.error("Unsupported file type. Please upload a PDF, JPG or PNG file");
-      return;
-    }
+
+    // In a real app, you would send the message to an API and get a response
+    // For demo purposes, we'll simulate a response
     setIsLoading(true);
-    try {
-      const filePath = `${user?.id}/${Date.now()}_${file.name}`;
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('user-content')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: false,
-        });
-      if (uploadError) throw uploadError;
-      const { data: urlData } = await supabase.storage
-        .from('user-content')
-        .getPublicUrl(filePath);
-      const publicUrl = urlData.publicUrl;
-      const fileMessage = {
-        id: uuidv4(),
-        role: 'user' as const,
-        content: `📎 [${file.name}](${publicUrl})`,
-        timestamp: new Date().toISOString()
-      };
-      setMessages(prev => [...prev, fileMessage]);
-      const saveResult = await saveChatMessage(fileMessage, conversationId, sessionId);
-      if (saveResult.success) {
-        if (saveResult.conversationId && !conversationId && onConversationCreated) {
-          onConversationCreated(saveResult.conversationId);
-        }
+    setTimeout(async () => {
+      const aiResponseText = `Thanks for your message: "${userMessage}". This is a placeholder response.`;
+      
+      // Save AI response to database
+      const savedAiMessage = await saveChatMessage(
+        activeConversationId,
+        aiResponseText,
+        "assistant",
+        false
+      );
+      
+      if (!savedAiMessage) {
+        toast.error("Failed to save AI response");
+        setIsLoading(false);
+        return;
       }
-      toast.success(`File ${file.name} uploaded successfully`);
-    } catch (error) {
-      console.error("Error uploading file:", error);
-      toast.error("Failed to upload file");
-    } finally {
+
+      // Display AI response
+      const aiMessageObj: Message = {
+        id: savedAiMessage.id,
+        role: "assistant",
+        content: aiResponseText,
+        timestamp: savedAiMessage.timestamp
+      };
+
+      setMessages((prevMessages) => [...prevMessages, aiMessageObj]);
       setIsLoading(false);
-      if (event.target) event.target.value = '';
-    }
+    }, 1000);
   };
 
-  // Format timestamp for display
-  const formatTime = (timestamp: string) => {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
-
-  const handleTranscriptionComplete = (text: string) => {
-    setInput(text);
-  };
-  
+  // Inner component to be rendered
   return (
-    <Card className="h-full flex flex-col">
-      <CardHeader className="pb-0">
-        <CardTitle className="text-xl flex items-center gap-2">
-          <MessageCircle className="h-5 w-5" />
-          AI Learning Assistant
-          {topic && (
-            <Badge variant="outline" className="ml-2">
-              Topic: {topic}
-            </Badge>
-          )}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="flex-grow overflow-hidden pt-4">
-        <ScrollArea className="h-[calc(100vh-320px)] pr-4">
-          {loadingHistory ? (
-            <div className="flex items-center justify-center h-40">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <span className="ml-2">Loading chat history...</span>
+    <div className="h-full flex flex-col">
+      <div className="flex-grow overflow-y-auto p-4">
+        {messages.length === 0 && !isLoading ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center">
+              <h3 className="text-xl font-semibold mb-2">Start a conversation</h3>
+              <p className="text-gray-600">
+                Ask a question or start typing to begin
+              </p>
             </div>
-          ) : messages.length === 0 ? (
-            <div className="text-center text-muted-foreground p-8">
-              <MessageCircle className="h-12 w-12 mx-auto mb-2 opacity-20" />
-              <p>Start a conversation with the AI assistant</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`flex flex-col ${
-                    message.role === "user"
-                      ? "items-end"
-                      : message.role === "system"
-                      ? "items-center"
-                      : "items-start"
-                  }`}
-                >
-                  <div className="flex items-start gap-2">
-                    <div
-                      className={`max-w-[85%] rounded-lg p-3 ${
-                        message.role === "user"
-                          ? "bg-primary text-primary-foreground"
-                          : message.role === "system"
-                          ? "bg-muted text-muted-foreground text-center"
-                          : "bg-secondary text-secondary-foreground"
-                      }`}
-                    >
-                      <div className="whitespace-pre-wrap">{message.content}</div>
-                      <div 
-                        className={`text-xs mt-1 ${
-                          message.role === "user" 
-                            ? "text-primary-foreground/70" 
-                            : message.role === "system"
-                            ? "text-muted-foreground"
-                            : "text-secondary-foreground/70"
-                        } flex justify-end`}
-                      >
-                        {formatTime(message.timestamp)}
-                      </div>
-                    </div>
-                    
-                    {message.role === "assistant" && (
-                      <TextToSpeech text={message.content} />
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          {isLoading && (
-            <div className="flex items-start mt-4">
-              <div className="max-w-[85%] rounded-lg p-4 bg-secondary">
-                <div className="flex items-center">
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  <span>AI is thinking...</span>
-                </div>
-              </div>
-            </div>
-          )}
-          <div ref={messagesEndRef} />
-        </ScrollArea>
-      </CardContent>
-      <CardFooter className="border-t pt-4">
-        <div className="w-full flex items-center space-x-2">
-          <div className="relative flex-grow">
-            <Input
-              type="text"
-              placeholder="Type your message..."
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              disabled={isLoading || loadingHistory}
-              className="pr-10"
-            />
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="absolute right-0 top-0"
-              onClick={handleFileUpload}
-              disabled={isLoading || loadingHistory}
-            >
-              <Paperclip className="h-4 w-4 text-gray-500" />
-            </Button>
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileChange}
-              className="hidden"
-              accept=".pdf,.jpg,.jpeg,.png"
-            />
           </div>
-          <VoiceRecorder onTranscriptionComplete={handleTranscriptionComplete} />
-          <Button onClick={handleSubmit} disabled={isLoading || !input.trim() || loadingHistory}>
-            {isLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="h-4 w-4" />
-            )}
-          </Button>
-        </div>
-      </CardFooter>
-    </Card>
+        ) : (
+          <div className="space-y-4">
+            {messages.map((message) => (
+              <div
+                key={message.id}
+                className={`p-4 rounded-lg ${
+                  message.role === "user"
+                    ? "bg-blue-100 ml-auto max-w-3xl"
+                    : "bg-gray-100 mr-auto max-w-3xl"
+                }`}
+              >
+                <p>{message.content}</p>
+                {message.timestamp && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    {new Date(message.timestamp).toLocaleString()}
+                  </p>
+                )}
+              </div>
+            ))}
+            <div ref={messageEndRef} />
+          </div>
+        )}
+      </div>
+
+      <div className="border-t p-4">
+        <ChatInterface
+          onSendMessage={handleSendMessage}
+          isLoading={isLoading}
+          placeholder="Type your message..."
+        />
+      </div>
+    </div>
   );
 };
 

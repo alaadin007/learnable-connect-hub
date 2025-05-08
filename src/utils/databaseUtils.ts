@@ -13,16 +13,54 @@ export const inviteStudentDirect = async (
       return { success: false, message: "Email is required for email invites" };
     }
 
-    // For email invites, create a pending user in auth.users
+    // For email invites - note that supabase doesn't have inviteUserByEmail anymore
+    // Using sign-up with role data instead
     if (method === 'email' && email) {
-      const { data, error } = await supabase.auth.inviteUserByEmail(email);
-
-      if (error) {
-        console.error("Error inviting user:", error);
-        return { success: false, message: error.message };
+      // Get the current user's school
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData || !userData.user) {
+        return { success: false, message: "Not authenticated" };
+      }
+      
+      // Get the profile of the current user
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('school_id')
+        .eq('id', userData.user.id)
+        .single();
+        
+      if (!profileData?.school_id) {
+        return { success: false, message: "No school associated with your account" };
+      }
+      
+      // Generate a temporary password
+      const tempPassword = Math.random().toString(36).substring(2, 10) + 
+                          Math.random().toString(36).substring(2, 10) + 
+                          "!A1";
+      
+      // Create an invitation token
+      const token = Math.random().toString(36).substring(2, 15);
+      
+      // Insert into student_invites
+      const { error: inviteError } = await supabase
+        .from('student_invites')
+        .insert({
+          school_id: profileData.school_id,
+          email: email,
+          code: token,
+          status: 'pending'
+        });
+        
+      if (inviteError) {
+        console.error("Error creating invite:", inviteError);
+        return { success: false, message: inviteError.message };
       }
 
-      return { success: true, message: `Invite sent to ${email}`, data };
+      return { 
+        success: true, 
+        message: `Invite prepared for ${email}`, 
+        data: { email, token } 
+      };
     }
 
     // For code invites, generate a unique code
@@ -64,18 +102,7 @@ export const inviteTeacherDirect = async (email: string) => {
       return { success: false, message: "No school associated with your account" };
     }
 
-    // Call the RPC function to invite teacher
-    const { data, error } = await supabase.rpc(
-      'invite_teacher', 
-      { teacher_email: email, inviter_id: user.id }
-    );
-
-    if (error) {
-      console.error("Error inviting teacher:", error);
-      return { success: false, message: error.message };
-    }
-
-    // Insert the invitation record manually
+    // Generate token and insert invitation record
     const token = Math.random().toString(36).substring(2, 15) + 
                  Math.random().toString(36).substring(2, 15);
     
@@ -93,7 +120,7 @@ export const inviteTeacherDirect = async (email: string) => {
       return { success: false, message: insertError.message };
     }
 
-    return { success: true, message: `Invitation sent to ${email}`, data };
+    return { success: true, message: `Invitation sent to ${email}`, token };
   } catch (error: any) {
     console.error("Error in inviteTeacherDirect:", error);
     return { success: false, message: error.message || "An unexpected error occurred" };
@@ -105,20 +132,21 @@ export const inviteTeacherDirect = async (email: string) => {
  */
 export const approveStudentDirect = async (studentId: string) => {
   try {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
-      .update({ status: 'active' })
-      .eq('id', studentId);
+      .update({ is_active: true })
+      .eq('id', studentId)
+      .select();
 
     if (error) {
       console.error("Error approving student:", error);
-      return false;
+      return { success: false, message: error.message };
     }
 
-    return true;
-  } catch (error) {
+    return { success: true, data };
+  } catch (error: any) {
     console.error("Error in approveStudentDirect:", error);
-    return false;
+    return { success: false, message: error.message };
   }
 };
 
@@ -127,20 +155,21 @@ export const approveStudentDirect = async (studentId: string) => {
  */
 export const revokeStudentAccessDirect = async (studentId: string) => {
   try {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
-      .delete()
-      .eq('id', studentId);
+      .update({ is_active: false })
+      .eq('id', studentId)
+      .select();
 
     if (error) {
       console.error("Error revoking student access:", error);
-      return false;
+      return { success: false, message: error.message };
     }
 
-    return true;
-  } catch (error) {
+    return { success: true, data };
+  } catch (error: any) {
     console.error("Error in revokeStudentAccessDirect:", error);
-    return false;
+    return { success: false, message: error.message };
   }
 };
 
@@ -149,17 +178,45 @@ export const revokeStudentAccessDirect = async (studentId: string) => {
  */
 export const createSessionLog = async (topic: string) => {
   try {
-    const { data, error } = await supabase.rpc('create_session_log', { topic });
+    // First get the current user
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData?.user?.id) {
+      return { success: false, message: "User not authenticated" };
+    }
+    
+    // Get user's school ID
+    const { data: profileData, error: profileError } = await supabase
+      .from('profiles')
+      .select('school_id')
+      .eq('id', userData.user.id)
+      .single();
+      
+    if (profileError || !profileData?.school_id) {
+      console.error("Error getting user profile:", profileError);
+      return { success: false, message: "Could not determine school ID" };
+    }
+    
+    // Insert session log directly
+    const { data, error } = await supabase
+      .from('session_logs')
+      .insert({
+        user_id: userData.user.id,
+        school_id: profileData.school_id,
+        topic_or_content_used: topic,
+        session_start: new Date().toISOString()
+      })
+      .select()
+      .single();
 
     if (error) {
       console.error("Error creating session log:", error);
-      return null;
+      return { success: false, message: error.message };
     }
 
-    return data;
-  } catch (error) {
+    return { success: true, data };
+  } catch (error: any) {
     console.error("Error in createSessionLog:", error);
-    return null;
+    return { success: false, message: error.message };
   }
 };
 
@@ -168,23 +225,24 @@ export const createSessionLog = async (topic: string) => {
  */
 export const endSessionLog = async (sessionId: string, performanceData?: any) => {
   try {
-    const { error } = await supabase.rpc(
-      'end_session_log',
-      { 
-        log_id: sessionId,
-        performance_data: performanceData ? JSON.stringify(performanceData) : null
-      }
-    );
+    const { data, error } = await supabase
+      .from('session_logs')
+      .update({ 
+        session_end: new Date().toISOString(),
+        performance_metric: performanceData ? JSON.stringify(performanceData) : null
+      })
+      .eq('id', sessionId)
+      .select();
 
     if (error) {
       console.error("Error ending session log:", error);
-      return false;
+      return { success: false, message: error.message };
     }
 
-    return true;
-  } catch (error) {
+    return { success: true, data };
+  } catch (error: any) {
     console.error("Error in endSessionLog:", error);
-    return false;
+    return { success: false, message: error.message };
   }
 };
 
@@ -193,20 +251,21 @@ export const endSessionLog = async (sessionId: string, performanceData?: any) =>
  */
 export const updateSessionTopic = async (sessionId: string, topic: string) => {
   try {
-    const { error } = await supabase.rpc(
-      'update_session_topic',
-      { log_id: sessionId, topic }
-    );
+    const { data, error } = await supabase
+      .from('session_logs')
+      .update({ topic_or_content_used: topic })
+      .eq('id', sessionId)
+      .select();
 
     if (error) {
       console.error("Error updating session topic:", error);
-      return false;
+      return { success: false, message: error.message };
     }
 
-    return true;
-  } catch (error) {
+    return { success: true, data };
+  } catch (error: any) {
     console.error("Error in updateSessionTopic:", error);
-    return false;
+    return { success: false, message: error.message };
   }
 };
 
@@ -214,19 +273,19 @@ export const updateSessionTopic = async (sessionId: string, topic: string) => {
  * Save a chat message to the database
  */
 export const saveChatMessage = async (
-  conversationId: string,
+  conversation_id: string,
   content: string,
   sender: string,
-  isImportant: boolean = false
+  is_important: boolean = false
 ) => {
   try {
     const { data, error } = await supabase
       .from('messages')
       .insert({
-        conversation_id: conversationId,
+        conversation_id,
         content,
         sender,
-        is_important: isImportant
+        is_important
       })
       .select()
       .single();
@@ -246,12 +305,12 @@ export const saveChatMessage = async (
 /**
  * Get the chat history for a conversation
  */
-export const getChatHistory = async (conversationId: string) => {
+export const getChatHistory = async (conversation_id: string) => {
   try {
     const { data, error } = await supabase
       .from('messages')
       .select('*')
-      .eq('conversation_id', conversationId)
+      .eq('conversation_id', conversation_id)
       .order('timestamp', { ascending: true });
 
     if (error) {
@@ -259,9 +318,73 @@ export const getChatHistory = async (conversationId: string) => {
       return [];
     }
 
-    return data;
+    return data || [];
   } catch (err) {
     console.error('Error in getChatHistory:', err);
     return [];
+  }
+};
+
+/**
+ * Get a user's profile data
+ */
+export const getUserProfile = async (userId: string) => {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, full_name, user_type, school_id, school_name')
+      .eq('id', userId)
+      .single();
+      
+    if (error) {
+      console.error('Error fetching profile:', error);
+      return null;
+    }
+    
+    return data;
+  } catch (err) {
+    console.error('Error in getUserProfile:', err);
+    return null;
+  }
+};
+
+/**
+ * Get profile and school data for a teacher
+ */
+export const getTeacherWithProfile = async (teacherId: string) => {
+  try {
+    // First get teacher record
+    const { data: teacherData, error: teacherError } = await supabase
+      .from('teachers')
+      .select('id, school_id, is_supervisor')
+      .eq('id', teacherId)
+      .single();
+      
+    if (teacherError) {
+      console.error('Error fetching teacher data:', teacherError);
+      return null;
+    }
+    
+    // Then get profile data
+    const { data: profileData, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, full_name, user_type')
+      .eq('id', teacherId)
+      .single();
+      
+    if (profileError) {
+      console.error('Error fetching profile data:', profileError);
+      return null;
+    }
+    
+    // Return combined data
+    return {
+      ...teacherData,
+      full_name: profileData.full_name,
+      user_type: profileData.user_type
+    };
+  } catch (err) {
+    console.error('Error in getTeacherWithProfile:', err);
+    return null;
   }
 };

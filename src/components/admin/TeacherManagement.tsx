@@ -1,261 +1,247 @@
 
-import { useState, useEffect } from 'react'
-import { useToast } from '@/components/ui/use-toast'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
-import { supabase } from '@/integrations/supabase/client'
-import { Loader2, Mail, UserPlus } from 'lucide-react'
+import React, { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertTriangle, CheckCircle2, Mail, UserPlus, X } from "lucide-react";
+import { inviteTeacherDirect } from "@/utils/databaseUtils";
+import { toast } from "sonner";
 
-interface Teacher {
-  id: string
-  email: string
-  full_name: string
-  created_at: string
-  is_supervisor: boolean
-}
-
-export function TeacherManagement() {
-  const [teachers, setTeachers] = useState<Teacher[]>([])
-  const [loading, setLoading] = useState(true)
-  const [inviteEmail, setInviteEmail] = useState('')
-  const [inviting, setInviting] = useState(false)
-  const { toast } = useToast()
-
-  const fetchTeachers = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not authenticated')
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('school_id')
-        .eq('id', user.id)
-        .single()
-
-      if (!profile?.school_id) throw new Error('No school associated')
-
-      // First get all teachers for this school
-      const { data: teacherIds, error: teacherError } = await supabase
-        .from('teachers')
-        .select('id, is_supervisor')
-        .eq('school_id', profile.school_id)
-
-      if (teacherError) throw teacherError
-
-      if (!teacherIds || teacherIds.length === 0) {
-        setTeachers([])
-        setLoading(false)
-        return
-      }
-
-      // Then get profile information for each teacher
-      const teacherProfiles = await Promise.all(
-        teacherIds.map(async (teacher) => {
-          const { data: profileData, error: profileError } = await supabase
-            .from('profiles')
-            .select('email, full_name')
-            .eq('id', teacher.id)
-            .single()
-          
-          if (profileError) {
-            console.error('Error fetching teacher profile:', profileError)
-            return null
-          }
-          
-          return {
-            id: teacher.id,
-            email: profileData?.email || 'N/A',
-            full_name: profileData?.full_name || 'Unknown Teacher',
-            created_at: new Date().toISOString(), // Placeholder since we don't have this data
-            is_supervisor: teacher.is_supervisor
-          }
-        })
-      )
-
-      setTeachers(teacherProfiles.filter(Boolean) as Teacher[])
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch teachers',
-        variant: 'destructive',
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
+const TeacherManagement = () => {
+  const [teachers, setTeachers] = useState<any[]>([]);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const { schoolId } = useAuth();
 
   useEffect(() => {
-    fetchTeachers()
-  }, [])
+    if (schoolId) {
+      fetchTeachers();
+    }
+  }, [schoolId]);
 
-  const handleInviteTeacher = async () => {
-    if (!inviteEmail) return
-
-    setInviting(true)
+  const fetchTeachers = async () => {
+    setIsLoading(true);
+    setError(null);
+    
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not authenticated')
+      // First, get teacher IDs from the teachers table for this school
+      const { data: teacherData, error: teacherError } = await supabase
+        .from("teachers")
+        .select("id, is_supervisor, created_at")
+        .eq("school_id", schoolId);
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('school_id')
-        .eq('id', user.id)
-        .single()
+      if (teacherError) {
+        throw teacherError;
+      }
 
-      if (!profile?.school_id) throw new Error('No school associated')
+      if (!teacherData || teacherData.length === 0) {
+        setTeachers([]);
+        return;
+      }
 
-      const { error } = await supabase
-        .from('teacher_invitations')
-        .insert({
-          school_id: profile.school_id,
-          email: inviteEmail,
-          invitation_token: crypto.randomUUID(),
-          created_by: user.id
-        })
+      // Get teacher profiles
+      const teacherIds = teacherData.map(teacher => teacher.id);
+      const { data: profilesData, error: profilesError } = await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", teacherIds);
 
-      if (error) throw error
+      if (profilesError) {
+        throw profilesError;
+      }
 
-      toast({
-        title: 'Success',
-        description: 'Teacher invitation sent successfully',
-      })
+      // Combine teachers with their profiles
+      const combinedData = teacherData.map(teacher => {
+        const profile = profilesData?.find(p => p.id === teacher.id);
+        return {
+          ...teacher,
+          full_name: profile?.full_name || "Unknown Name"
+        };
+      });
 
-      setInviteEmail('')
-      fetchTeachers()
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to send invitation',
-        variant: 'destructive',
-      })
+      setTeachers(combinedData);
+    } catch (error: any) {
+      console.error("Error fetching teachers:", error);
+      setError(error.message);
     } finally {
-      setInviting(false)
+      setIsLoading(false);
     }
-  }
+  };
 
-  const handleToggleSupervisor = async (teacherId: string, currentStatus: boolean) => {
+  const handleInviteTeacher = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError(null);
+    setSuccess(null);
+    
+    if (!inviteEmail) {
+      setError("Email address is required");
+      setIsLoading(false);
+      return;
+    }
+    
+    // Check if email already exists
+    const { data: emailCheck, error: emailError } = await supabase.rpc('check_if_email_exists', {
+      input_email: inviteEmail
+    });
+    
+    if (emailError) {
+      console.error("Error checking if email exists:", emailError);
+      setError("Error checking email: " + emailError.message);
+      setIsLoading(false);
+      return;
+    }
+    
+    if (emailCheck === true) {
+      // Check user role
+      const { data: roleData, error: roleError } = await supabase.rpc('get_user_role_by_email', {
+        input_email: inviteEmail
+      });
+      
+      if (roleError) {
+        console.error("Error checking user role:", roleError);
+        setError("Error checking user role: " + roleError.message);
+        setIsLoading(false);
+        return;
+      }
+      
+      if (roleData) {
+        setError(`This email is already registered as a ${roleData}`);
+        setIsLoading(false);
+        return;
+      }
+    }
+
     try {
-      const { error } = await supabase
-        .from('teachers')
-        .update({ is_supervisor: !currentStatus })
-        .eq('id', teacherId)
-
-      if (error) throw error
-
-      toast({
-        title: 'Success',
-        description: `Teacher ${currentStatus ? 'removed from' : 'promoted to'} supervisor role`,
-      })
-
-      fetchTeachers()
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to update teacher role',
-        variant: 'destructive',
-      })
+      // Use the databaseUtils function to invite the teacher
+      const result = await inviteTeacherDirect(inviteEmail);
+      
+      if (!result.success) {
+        throw new Error(result.message);
+      }
+      
+      setSuccess(`Invitation sent to ${inviteEmail}`);
+      toast.success("Teacher invited successfully!");
+      setInviteEmail("");
+      
+    } catch (error: any) {
+      console.error("Error inviting teacher:", error);
+      setError(error.message || "An error occurred while inviting the teacher");
+      toast.error("Failed to invite teacher");
+    } finally {
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Teacher Management</h2>
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button>
-              <UserPlus className="w-4 h-4 mr-2" />
-              Invite Teacher
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Invite a Teacher</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <UserPlus className="h-5 w-5" />
+            Invite Teacher
+          </CardTitle>
+          <CardDescription>Send an invitation to a teacher to join your school</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          
+          {success && (
+            <Alert className="mb-4 bg-green-50 border-green-200">
+              <CheckCircle2 className="h-4 w-4 text-green-600" />
+              <AlertTitle className="text-green-800">Success</AlertTitle>
+              <AlertDescription className="text-green-700">{success}</AlertDescription>
+            </Alert>
+          )}
+          
+          <form onSubmit={handleInviteTeacher} className="flex items-end gap-4">
+            <div className="flex-1">
+              <label htmlFor="emailInput" className="block text-sm font-medium text-gray-700 mb-1">
+                Teacher Email
+              </label>
               <Input
+                id="emailInput"
                 type="email"
-                placeholder="Teacher's email"
                 value={inviteEmail}
                 onChange={(e) => setInviteEmail(e.target.value)}
-              />
-              <Button
-                onClick={handleInviteTeacher}
-                disabled={inviting || !inviteEmail}
+                placeholder="teacher@school.edu"
+                required
                 className="w-full"
-              >
-                {inviting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Sending Invitation...
-                  </>
-                ) : (
-                  <>
-                    <Mail className="w-4 h-4 mr-2" />
-                    Send Invitation
-                  </>
-                )}
-              </Button>
+              />
             </div>
-          </DialogContent>
-        </Dialog>
-      </div>
+            <Button type="submit" className="flex items-center gap-2" disabled={isLoading}>
+              <Mail className="h-4 w-4" />
+              {isLoading ? "Sending..." : "Send Invite"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
 
-      {loading ? (
-        <div className="flex justify-center">
-          <Loader2 className="w-6 h-6 animate-spin" />
-        </div>
-      ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Joined</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {teachers.map((teacher) => (
-              <TableRow key={teacher.id}>
-                <TableCell>{teacher.full_name}</TableCell>
-                <TableCell>{teacher.email}</TableCell>
-                <TableCell>
-                  {new Date(teacher.created_at).toLocaleDateString()}
-                </TableCell>
-                <TableCell>
-                  {teacher.is_supervisor ? 'Supervisor' : 'Teacher'}
-                </TableCell>
-                <TableCell>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleToggleSupervisor(teacher.id, teacher.is_supervisor)}
-                  >
-                    {teacher.is_supervisor ? 'Remove Supervisor' : 'Make Supervisor'}
-                  </Button>
-                </TableCell>
+      <Card>
+        <CardHeader>
+          <CardTitle>Teachers</CardTitle>
+          <CardDescription>Manage your school's teachers</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table className="border rounded-md">
+            <TableCaption>
+              {isLoading ? "Loading teachers..." : teachers.length === 0 ? "No teachers found" : "List of all teachers"}
+            </TableCaption>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Joined</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
+            </TableHeader>
+            <TableBody>
+              {teachers.map((teacher) => (
+                <TableRow key={teacher.id}>
+                  <TableCell className="font-medium">{teacher.full_name}</TableCell>
+                  <TableCell>{teacher.is_supervisor ? "Supervisor" : "Teacher"}</TableCell>
+                  <TableCell>{new Date(teacher.created_at).toLocaleDateString()}</TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="ml-2"
+                      onClick={() => {
+                        // Feature to be implemented
+                        toast.info("Remove teacher feature coming soon");
+                      }}
+                    >
+                      <X className="h-4 w-4 mr-1" />
+                      Remove
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {teachers.length === 0 && !isLoading && (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                    No teachers found. Invite teachers to get started.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
-  )
-}
+  );
+};
+
+export default TeacherManagement;

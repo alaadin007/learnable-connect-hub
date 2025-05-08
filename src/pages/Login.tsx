@@ -4,7 +4,8 @@ import Navbar from "@/components/layout/Navbar";
 import LoginForm from "@/components/auth/LoginForm";
 import Footer from "@/components/landing/Footer";
 import { Link } from "react-router-dom";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, AlertTriangle } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const Login = () => {
   return (
@@ -12,7 +13,7 @@ const Login = () => {
       <Navbar />
       <main className="flex-grow bg-learnable-super-light flex flex-col items-center justify-center py-10">
         <div className="max-w-md w-full mx-auto mb-6">
-          <div className="bg-amber-100 border-l-4 border-amber-500 p-4 rounded-md shadow">
+          <Alert variant="warning" className="bg-amber-100 border-l-4 border-amber-500">
             <div className="flex items-start">
               <div className="flex-shrink-0">
                 <AlertCircle className="h-5 w-5 text-amber-500" />
@@ -34,8 +35,19 @@ const Login = () => {
                 </div>
               </div>
             </div>
-          </div>
+          </Alert>
         </div>
+
+        <div className="max-w-md w-full mx-auto mb-4">
+          <Alert variant="destructive" className="bg-red-100 border-l-4 border-red-500">
+            <AlertTriangle className="h-5 w-5 text-red-600" />
+            <AlertTitle className="text-red-800">Database Connection Issue</AlertTitle>
+            <AlertDescription className="text-red-700">
+              There might be an issue connecting to the database. If you experience login problems, please try the test accounts instead.
+            </AlertDescription>
+          </Alert>
+        </div>
+        
         <LoginForm />
       </main>
       <Footer />
