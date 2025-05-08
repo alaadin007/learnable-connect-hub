@@ -46,8 +46,11 @@ const logSessionEnd = async (sessionId?: string, performanceData?: any): Promise
     }
 
     // Call the endpoint to end the session without waiting for response
+    // Use .then().catch() pattern instead of just .catch()
     supabase.functions.invoke("end-session", {
       body: { logId: sessionId, performanceData }
+    }).then(response => {
+      // Optional: Process the response if needed
     }).catch(error => {
       console.error("Error ending session:", error);
     });
@@ -67,8 +70,11 @@ const updateSessionTopic = async (sessionId: string, topic: string): Promise<voi
   if (!sessionId) return;
 
   // Call the endpoint to update the session topic without blocking
+  // Use .then().catch() pattern instead of just .catch()
   supabase.functions.invoke("update-session", {
     body: { logId: sessionId, topic }
+  }).then(response => {
+    // Optional: Process the response if needed
   }).catch(error => {
     console.error("Error updating session topic:", error);
   });
@@ -79,8 +85,11 @@ const incrementQueryCount = async (sessionId: string): Promise<void> => {
   if (!sessionId) return;
 
   // Call the RPC function to increment the query count without blocking
+  // Use .then().catch() pattern instead of just .catch()
   supabase.rpc("increment_session_query_count", {
     log_id: sessionId
+  }).then(response => {
+    // Optional: Process the response if needed
   }).catch(error => {
     console.error("Error incrementing query count:", error);
   });
