@@ -8,8 +8,19 @@ import App from './App.tsx';
 import './index.css';
 import { Toaster } from 'sonner';
 
-// Create a client
-const queryClient = new QueryClient();
+// Create a client with proper error handling and retry settings
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: (failureCount, error) => {
+        if (failureCount > 3) return false;
+        return true;
+      },
+      staleTime: 30000, // 30 seconds
+    },
+  },
+});
 
 const rootElement = document.getElementById("root");
 if (!rootElement) throw new Error('Root element not found');
@@ -20,7 +31,7 @@ createRoot(rootElement).render(
       <BrowserRouter>
         <AuthProvider>
           <App />
-          <Toaster position="top-right" />
+          <Toaster position="top-right" richColors />
         </AuthProvider>
       </BrowserRouter>
     </QueryClientProvider>

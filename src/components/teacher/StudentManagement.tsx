@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +8,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { approveStudentDirect, inviteStudentDirect, revokeStudentAccessDirect } from '@/utils/databaseUtils';
-import { useToast } from '@/components/ui/use-toast';
 import {
   Table,
   TableBody,
@@ -23,7 +23,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { useSupabaseClient } from '@supabase/auth-helpers-react'
 import { Loader2, Mail, UserPlus } from 'lucide-react'
 
 type Student = {
@@ -42,8 +41,8 @@ const StudentManagement = () => {
   const [loading, setLoading] = useState(true);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviting, setInviting] = useState(false);
-  const { toast } = useToast();
-  const supabase = useSupabaseClient();
+  const [inviteMethod, setInviteMethod] = useState<'code' | 'email'>('code');
+  const [inviteCode, setInviteCode] = useState<string | null>(null);
 
   const fetchStudents = async () => {
     try {
@@ -89,7 +88,10 @@ const StudentManagement = () => {
   };
 
   const handleInviteStudent = async () => {
-    if (!inviteEmail) return;
+    if (inviteMethod === 'email' && !inviteEmail) {
+      toast.error("Please enter an email address");
+      return;
+    }
 
     setInviting(true);
     try {
@@ -115,8 +117,8 @@ const StudentManagement = () => {
           created_by: user.id
         });
 
-      if (inviteMethod === 'email' && !inviteEmail) {
-        toast.error("Please enter an email address");
+      if (error) {
+        toast.error("Failed to create invite code");
         return;
       }
 
@@ -140,6 +142,8 @@ const StudentManagement = () => {
     } catch (error) {
       console.error("Error inviting student:", error);
       toast.error("Failed to create student invitation");
+    } finally {
+      setInviting(false);
     }
   };
 

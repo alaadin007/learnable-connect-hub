@@ -1,3 +1,4 @@
+
 import { useState } from 'react'
 import { useToast } from '@/components/ui/use-toast'
 import { Button } from '@/components/ui/button'
@@ -17,7 +18,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { useSupabaseClient } from '@supabase/auth-helpers-react'
+import { supabase } from '@/integrations/supabase/client'
 import { Loader2, Mail, UserPlus } from 'lucide-react'
 
 interface Teacher {
@@ -34,7 +35,6 @@ export function TeacherManagement() {
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviting, setInviting] = useState(false)
   const { toast } = useToast()
-  const supabase = useSupabaseClient()
 
   const fetchTeachers = async () => {
     try {
@@ -237,4 +237,4 @@ export function TeacherManagement() {
       )}
     </div>
   )
-} 
+}
