@@ -8,6 +8,9 @@ export interface Settings {
   temperature?: number;
   model?: string;
   showSources?: boolean;
+  aiProvider?: 'openai' | 'gemini';
+  openAiKey?: string;
+  geminiKey?: string;
 }
 
 // User settings from database - define the exact structure to match DB
@@ -16,6 +19,9 @@ interface UserSettings {
   temperature: number;
   model: string;
   show_sources: boolean;
+  ai_provider: 'openai' | 'gemini';
+  openai_key: string;
+  gemini_key: string;
 }
 
 // Define context type
@@ -32,6 +38,9 @@ const SettingsContext = createContext<SettingsContextType>({
     temperature: 0.5,
     model: 'gpt-3.5-turbo',
     showSources: true,
+    aiProvider: 'openai',
+    openAiKey: '',
+    geminiKey: '',
   },
   updateSettings: () => {},
   isLoading: false,
@@ -44,6 +53,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     temperature: 0.5,
     model: 'gpt-3.5-turbo',
     showSources: true,
+    aiProvider: 'openai',
+    openAiKey: '',
+    geminiKey: '',
   });
   const [isLoading, setIsLoading] = useState(false);
 
@@ -69,15 +81,23 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
             });
             
             if (data && !error) {
-              // The data is a single object, not an array
-              const dbSettings = {
-                maxTokens: data.max_tokens,
-                temperature: data.temperature,
-                model: data.model,
-                showSources: data.show_sources,
-              };
-              setSettings(dbSettings);
-              localStorage.setItem('user-settings', JSON.stringify(dbSettings));
+              // Handle both array and single object responses
+              const settingsData = Array.isArray(data) ? data[0] : data;
+              
+              // Make sure data exists before trying to access properties
+              if (settingsData) {
+                const dbSettings = {
+                  maxTokens: settingsData.max_tokens,
+                  temperature: settingsData.temperature,
+                  model: settingsData.model,
+                  showSources: settingsData.show_sources,
+                  aiProvider: settingsData.ai_provider || 'openai',
+                  openAiKey: settingsData.openai_key || '',
+                  geminiKey: settingsData.gemini_key || '',
+                };
+                setSettings(dbSettings);
+                localStorage.setItem('user-settings', JSON.stringify(dbSettings));
+              }
             }
           } catch (dbError) {
             console.warn('User settings error:', dbError);
@@ -113,7 +133,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
             max_tokens_param: updatedSettings.maxTokens,
             temperature_param: updatedSettings.temperature,
             model_param: updatedSettings.model,
-            show_sources_param: updatedSettings.showSources
+            show_sources_param: updatedSettings.showSources,
+            ai_provider_param: updatedSettings.aiProvider,
+            openai_key_param: updatedSettings.openAiKey,
+            gemini_key_param: updatedSettings.geminiKey
           });
         } catch (dbError) {
           console.warn('Failed to save settings to database:', dbError);
