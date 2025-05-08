@@ -16,6 +16,7 @@ type AuthContextType = {
   signUp: (email: string, password: string, fullName: string, 
           userType: string, schoolCode: string, schoolName?: string) => Promise<{error?: {message: string}}>;
   refreshProfile: () => Promise<void>;
+  setTestUser: (userType: "teacher" | "student" | "school") => Promise<boolean>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -67,6 +68,64 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error: any) {
       console.error("Error in sign up:", error);
       return { error: { message: error.message || "An error occurred during registration" } };
+    }
+  };
+
+  // Function to set up a test user without authentication
+  const setTestUser = async (userType: "teacher" | "student" | "school"): Promise<boolean> => {
+    try {
+      console.log(`Setting up test ${userType} user...`);
+      
+      // Create a mock user object
+      const mockUser: User = {
+        id: `test-${userType}-${Date.now()}`,
+        app_metadata: {},
+        user_metadata: {
+          full_name: `Test ${userType.charAt(0).toUpperCase() + userType.slice(1)}`,
+          user_type: userType,
+          school_code: 'TESTCODE'
+        },
+        aud: 'authenticated',
+        created_at: new Date().toISOString(),
+        email: `${userType}.test@learnable.edu`,
+        role: 'authenticated',
+        identities: []
+      };
+      
+      // Create mock profile information
+      const mockProfile = {
+        id: mockUser.id,
+        user_type: userType,
+        full_name: mockUser.user_metadata.full_name,
+        email: mockUser.email,
+        school_id: userType === 'school' ? 'test-school-id' : null,
+        school_code: 'TESTCODE',
+        is_active: true
+      };
+      
+      // Set all the states
+      setUser(mockUser);
+      setProfile(mockProfile);
+      setUserRole(userType);
+      setSchoolId(userType === 'school' ? 'test-school-id' : null);
+      
+      // Create a mock session
+      const mockSession = {
+        access_token: 'test-access-token',
+        refresh_token: 'test-refresh-token',
+        expires_in: 3600,
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        token_type: 'bearer',
+        user: mockUser
+      } as Session;
+      
+      setSession(mockSession);
+      
+      console.log(`Test ${userType} user set up successfully`);
+      return true;
+    } catch (error) {
+      console.error(`Error setting up test ${userType} user:`, error);
+      return false;
     }
   };
 
@@ -166,6 +225,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Sign out function
   const signOut = async () => {
     try {
+      // Clear test account flags from localStorage
+      localStorage.removeItem('usingTestAccount');
+      localStorage.removeItem('testAccountType');
+      
       await supabase.auth.signOut();
       setUser(null);
       setSession(null);
@@ -188,6 +251,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signOut,
     signUp,
     refreshProfile,
+    setTestUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
