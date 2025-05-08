@@ -20,7 +20,16 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
-// Define form schema with validations - Fix excessive type instantiation by simplifying
+// Define the form values type explicitly first to avoid circular references
+type SchoolRegistrationFormValues = {
+  schoolName: string;
+  adminFullName: string;
+  adminEmail: string;
+  adminPassword: string;
+  confirmPassword: string;
+};
+
+// Define form schema with validations
 const schoolRegistrationSchema = z.object({
   schoolName: z.string().min(3, "School name must be at least 3 characters"),
   adminFullName: z.string().min(3, "Full name must be at least 3 characters"),
@@ -41,15 +50,6 @@ const schoolRegistrationSchema = z.object({
   }
 );
 
-// Define the form values type explicitly without referring to the schema
-type SchoolRegistrationFormValues = {
-  schoolName: string;
-  adminFullName: string;
-  adminEmail: string;
-  adminPassword: string;
-  confirmPassword: string;
-};
-
 const SchoolRegistrationForm: React.FC = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = React.useState(false);
@@ -59,7 +59,7 @@ const SchoolRegistrationForm: React.FC = () => {
   const [existingEmailError, setExistingEmailError] = React.useState<string | null>(null);
   const [existingUserRole, setExistingUserRole] = React.useState<string | null>(null);
 
-  // Initialize form
+  // Initialize form with explicitly typed form values
   const form = useForm<SchoolRegistrationFormValues>({
     resolver: zodResolver(schoolRegistrationSchema),
     defaultValues: {
