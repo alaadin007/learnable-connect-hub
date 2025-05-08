@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Clock, Loader2, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import sessionLogger from "@/utils/sessionLogger";
 
 const LoginForm = () => {
   const [email, setEmail] = useState("");
@@ -126,6 +127,14 @@ const LoginForm = () => {
               user.user_metadata?.full_name || email
             }!`,
           });
+
+          // Start session logging in background without affecting login flow
+          try {
+            sessionLogger.startSession("User login", user.id);
+          } catch (sessionError) {
+            console.error("Session logging error:", sessionError);
+            // Ignore session errors, don't affect login experience
+          }
 
           navigate(redirectPath);
         } else {

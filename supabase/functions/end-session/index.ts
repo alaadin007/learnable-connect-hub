@@ -37,7 +37,20 @@ serve(async (req: Request) => {
     );
 
     // Get request body
-    const { logId, performanceData = null } = await req.json();
+    let requestData;
+    try {
+      requestData = await req.json();
+    } catch (e) {
+      return new Response(
+        JSON.stringify({ error: "Invalid JSON in request body" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    const { logId, performanceData = null } = requestData;
 
     if (!logId) {
       return new Response(JSON.stringify({ error: "Log ID is required" }), {

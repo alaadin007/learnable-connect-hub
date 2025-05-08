@@ -37,10 +37,22 @@ serve(async (req: Request) => {
     );
 
     // Get request body
-    const requestData = await req.json();
-    const { log_id, action, topic } = requestData;
+    let requestData;
+    try {
+      requestData = await req.json();
+    } catch (e) {
+      return new Response(
+        JSON.stringify({ error: "Invalid JSON in request body" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
 
-    if (!log_id) {
+    const { logId, action, topic } = requestData;
+
+    if (!logId) {
       return new Response(JSON.stringify({ error: "Log ID is required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -55,12 +67,12 @@ serve(async (req: Request) => {
       // Increment query count
       ({ data: result, error } = await supabaseClient.rpc(
         "increment_session_query_count",
-        { log_id }
+        { log_id: logId }
       ));
     } else if (topic) {
       // Update topic
       ({ data: result, error } = await supabaseClient.rpc("update_session_topic", {
-        log_id,
+        log_id: logId,
         topic,
       }));
     } else {
