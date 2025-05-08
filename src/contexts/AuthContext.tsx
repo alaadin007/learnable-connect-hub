@@ -17,9 +17,18 @@ import { toast } from "sonner";
 import { isTestAccount, TEST_SCHOOL_CODE } from "@/integrations/supabase/client";
 import sessionLogger from "@/utils/sessionLogger";
 import { populateTestAccountWithSessions } from "@/utils/sessionLogging";
+import { Json } from "@/integrations/supabase/types";
 
+// Helper function to safely check if a value is a non-null object
 function isNonNullObject(value: any): value is object {
   return value !== null && typeof value === "object";
+}
+
+// Helper function to safely type-check organization data
+function isValidOrganization(org: unknown): org is { id: string; name: string; code?: string } {
+  return isNonNullObject(org) && 
+         typeof (org as any).id === 'string' && 
+         typeof (org as any).name === 'string';
 }
 
 export type UserRole = "school" | "teacher" | "student" | string;
@@ -144,9 +153,18 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       };
       
       // Process organization data if it exists in the profile
-      if (profileData.organization && typeof profileData.organization === 'object') {
-        safeProfileData.organization = profileData.organization;
-      }
+      if (profileData.organization && isNonNullObject(profileData.organization)) {
+        // Type check and safely convert organization data
+        if (isValidOrganization(profileData.organization)) {
+          safeProfileData.organization = {
+            id: profileData.organization.id,
+            name: profileData.organization.name,
+            code: profileData.organization.code
+          };
+        } else {
+          console.warn("AuthContext: Invalid organization structure in profile data", profileData.organization);
+        }
+      } 
       // Or fetch school data separately if we have a school_id
       else if (profileData.school_id) {
         try {
