@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -142,11 +141,15 @@ const Dashboard = () => {
       // but they might be a school admin based on DB records, check teachers table
       if (!userRole && user.id) {
         console.log("Dashboard: Checking database for user role");
-        supabase.from("teachers")
-          .select("is_supervisor")
-          .eq("id", user.id)
-          .single()
-          .then(({ data }) => {
+        
+        // Use async/await within a properly defined async function to handle the Promise
+        const checkTeacherRole = async () => {
+          try {
+            const { data } = await supabase.from("teachers")
+              .select("is_supervisor")
+              .eq("id", user.id)
+              .single();
+              
             if (data && data.is_supervisor) {
               console.log("Dashboard: School admin found in teachers table");
               navigate("/admin", { 
@@ -156,10 +159,13 @@ const Dashboard = () => {
             } else {
               console.log("Dashboard: User is not a supervisor in teachers table");
             }
-          })
-          .catch(error => {
+          } catch (error) {
             console.log("Dashboard: Error checking teachers table:", error);
-          });
+          }
+        };
+        
+        // Execute the async function
+        checkTeacherRole();
       }
 
       console.log("Dashboard: User remaining on student dashboard");
