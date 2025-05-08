@@ -55,12 +55,22 @@ const AdminTeachers = () => {
     const fetchInvites = async () => {
       try {
         const { data, error } = await supabase
-          .from("teacher_invites")
+          .from("teacher_invitations")
           .select("*")
           .order("created_at", { ascending: false });
 
         if (error) throw error;
-        setInvites(data || []);
+        
+        // Safely type cast the response to our TeacherInvite type
+        const safeData: TeacherInvite[] = data ? data.map((item: any) => ({
+          id: item.id,
+          email: item.email,
+          created_at: item.created_at,
+          expires_at: item.expires_at,
+          status: item.status,
+        })) : [];
+        
+        setInvites(safeData);
       } catch (error: any) {
         console.error("Error fetching teacher invites:", error);
         toast.error("Failed to load teacher invites");
@@ -112,12 +122,21 @@ const AdminTeachers = () => {
       
       // Refresh the invites list
       const { data: updatedInvites } = await supabase
-        .from("teacher_invites")
+        .from("teacher_invitations")
         .select("*")
         .order("created_at", { ascending: false });
 
       if (updatedInvites) {
-        setInvites(updatedInvites);
+        // Safely type cast the response to our TeacherInvite type
+        const safeData: TeacherInvite[] = updatedInvites.map((item: any) => ({
+          id: item.id,
+          email: item.email,
+          created_at: item.created_at,
+          expires_at: item.expires_at,
+          status: item.status,
+        }));
+        
+        setInvites(safeData);
       }
       
     } catch (error: any) {
