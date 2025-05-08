@@ -20,7 +20,24 @@ export const supabase = createClient<Database>(
       flowType: 'pkce',
       persistSession: true,
       storage: localStorage,
-      debug: import.meta.env.DEV
+      debug: import.meta.env.DEV,
+      cookieOptions: {
+        sameSite: 'lax',
+        secure: true
+      }
+    },
+    global: {
+      headers: {
+        'x-client-info': 'learnable-app'
+      },
+      // Add retry options for better network resilience
+      fetch: (url, options) => {
+        const fetchOptions = {
+          ...options,
+          credentials: 'include' as RequestCredentials
+        };
+        return fetch(url, fetchOptions);
+      }
     }
   }
 );

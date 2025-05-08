@@ -1,8 +1,8 @@
-
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase, isTestAccount } from '@/integrations/supabase/client';
 import { User, Session, AuthChangeEvent } from '@supabase/supabase-js';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 
 // Define the profile interface with is_supervisor property
 interface UserProfile {
@@ -134,38 +134,110 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
 
     try {
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
-      if (profileError) {
-        console.error("Error fetching profile:", profileError);
+      // First try getting profile using RPC function (more reliable)
+      const { data: profileData, error: rpcError } = await supabase
+        .rpc('get_profile_with_organization', { user_id_param: userId });
+      
+      if (profileData && !rpcError) {
+        setProfile(profileData);
+        setSchoolId(profileData?.school_id || null);
+        
+        // Map legacy role names for consistency
+        let role = profileData?.user_type;
+        if (role === 'school_admin') {
+          role = 'school';
+        }
+        setUserRole(role);
+        
+        // Set supervisor status from the profile data
+        if (profileData?.user_type === 'teacher_supervisor' || 
+            (profileData?.user_type === 'teacher' && profileData.is_supervisor === true)) {
+          setIsSupervisor(true);
+        } else {
+          setIsSupervisor(false);
+        }
+        
+        console.log("AuthContext: User profile loaded via RPC:", profileData);
         return;
       }
+      
+      // Fallback to direct query if RPC fails
+      if (rpcError) {
+        console.warn("RPC profile fetch failed, trying direct query:", rpcError);
+        
+        const { data: directProfileData, error: directError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .single();
 
-      setProfile(profileData);
-      setSchoolId(profileData?.school_id || null);
-      
-      // Map legacy role names for consistency
-      let role = profileData?.user_type;
-      if (role === 'school_admin') {
-        role = 'school';
+        if (directError) {
+          // If this also fails, try to extract information from user metadata
+          console.error("Error fetching profile via direct query:", directError);
+          
+          // Extract from user metadata as last resort
+          if (session?.user?.user_metadata) {
+            const metadata = session.user.user_metadata;
+            const fallbackProfile: UserProfile = {
+              id: userId,
+              user_type: metadata.user_type || 'student',
+              full_name: metadata.full_name || metadata.name || 'User',
+              email: metadata.email || session.user.email,
+              school_id: metadata.school_id || null,
+              school_code: metadata.school_code || null,
+              is_active: true,
+              is_supervisor: metadata.user_type === 'school_admin' || metadata.user_type === 'teacher_supervisor'
+            };
+            
+            setProfile(fallbackProfile);
+            setSchoolId(fallbackProfile.school_id);
+            
+            // Map legacy role names
+            let role = fallbackProfile.user_type;
+            if (role === 'school_admin') {
+              role = 'school';
+            }
+            setUserRole(role);
+            
+            // Set supervisor status
+            setIsSupervisor(fallbackProfile.is_supervisor || false);
+            
+            console.log("AuthContext: Created fallback profile from metadata:", fallbackProfile);
+            return;
+          }
+          
+          toast.error("Failed to load your profile", {
+            description: "Some features may not work correctly."
+          });
+          return;
+        }
+        
+        // Use direct profile data if available
+        setProfile(directProfileData);
+        setSchoolId(directProfileData?.school_id || null);
+        
+        // Map legacy role names for consistency
+        let role = directProfileData?.user_type;
+        if (role === 'school_admin') {
+          role = 'school';
+        }
+        setUserRole(role);
+        
+        // Set supervisor status
+        if (directProfileData?.user_type === 'teacher_supervisor' || 
+            (directProfileData?.user_type === 'teacher' && directProfileData.is_supervisor === true)) {
+          setIsSupervisor(true);
+        } else {
+          setIsSupervisor(false);
+        }
+        
+        console.log("AuthContext: User profile loaded via direct query:", directProfileData);
       }
-      setUserRole(role);
-      
-      // Set supervisor status from the profile data
-      if (profileData?.user_type === 'teacher_supervisor' || 
-          (profileData?.user_type === 'teacher' && profileData.is_supervisor === true)) {
-        setIsSupervisor(true);
-      } else {
-        setIsSupervisor(false);
-      }
-      
-      console.log("AuthContext: User profile loaded:", profileData);
     } catch (error) {
-      console.error("Error fetching profile:", error);
+      console.error("Error in profile fetch process:", error);
+      toast.error("Failed to load your profile", {
+        description: "Please try refreshing the page."
+      });
     }
   };
 
