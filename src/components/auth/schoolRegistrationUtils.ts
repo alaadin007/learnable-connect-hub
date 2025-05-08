@@ -54,7 +54,7 @@ export async function checkEmailExistingRole(email: string): Promise<string | nu
             const { data: profileData } = await supabase
               .from('profiles')
               .select('user_type')
-              .eq('id', matchingUser.id)
+              .eq('id', matchingUser.id as any)
               .single();
               
             if (profileData && typeof profileData === 'object' && 'user_type' in profileData) {
@@ -65,7 +65,7 @@ export async function checkEmailExistingRole(email: string): Promise<string | nu
             const { data: roleData } = await supabase
               .from('user_roles')
               .select('role')
-              .eq('user_id', matchingUser.id)
+              .eq('user_id', matchingUser.id as any)
               .single();
               
             if (roleData && typeof roleData === 'object' && 'role' in roleData) {

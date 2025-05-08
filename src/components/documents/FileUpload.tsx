@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -167,7 +166,7 @@ const FileUpload: React.FC = () => {
           file_size: file.size,
           storage_path: filePath,
           processing_status: 'pending'
-        })
+        } as any)
         .select()
         .single();
       

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -53,7 +54,7 @@ export const RegisterForm: React.FC = () => {
         const { data, error } = await supabase
           .from('schools')
           .select('*')
-          .eq('code', schoolCode)
+          .eq('code', schoolCode as any)
           .single();
 
         if (error) {

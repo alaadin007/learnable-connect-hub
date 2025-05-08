@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -92,7 +93,7 @@ const FileList: React.FC = () => {
       
       // Safely cast data to FileItem[]
       if (data) {
-        setFiles(data as FileItem[]);
+        setFiles(data as unknown as FileItem[]);
       } else {
         setFiles([]);
       }
@@ -186,7 +187,7 @@ const FileList: React.FC = () => {
       const { error: contentError } = await supabase
         .from('document_content')
         .delete()
-        .eq('document_id', fileToDelete.id);
+        .eq('document_id', fileToDelete.id as unknown as string);
         
       if (contentError) {
         console.error('Error deleting document content:', contentError);
@@ -197,7 +198,7 @@ const FileList: React.FC = () => {
       const { error: dbError } = await supabase
         .from('documents')
         .delete()
-        .eq('id', fileToDelete.id);
+        .eq('id', fileToDelete.id as unknown as string);
       
       if (dbError) {
         throw new Error(dbError.message);
@@ -231,7 +232,7 @@ const FileList: React.FC = () => {
         const { data, error } = await supabase
           .from('document_content')
           .select('*')
-          .eq('document_id', file.id)
+          .eq('document_id', file.id as unknown as string)
           .order('section_number', { ascending: true });
           
         if (error) {
@@ -240,7 +241,7 @@ const FileList: React.FC = () => {
         
         if (data && data.length > 0) {
           // Safely cast the data to DocumentContent[]
-          setFileContent(data as DocumentContent[]);
+          setFileContent(data as unknown as DocumentContent[]);
           setActiveSection(1);
           setShowContent(true);
         } else {
@@ -289,8 +290,8 @@ const FileList: React.FC = () => {
       // Update processing status back to pending
       const { error: updateError } = await supabase
         .from('documents')
-        .update({ processing_status: 'pending' })
-        .eq('id', file.id);
+        .update({ processing_status: 'pending' } as any)
+        .eq('id', file.id as unknown as string);
         
       if (updateError) {
         throw new Error(updateError.message);
