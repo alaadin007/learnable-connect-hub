@@ -1,6 +1,4 @@
 
-// Adding the incrementQueryCount function that was missing
-
 import { supabase } from '@/integrations/supabase/client';
 
 export interface SessionLogResult {
@@ -15,7 +13,7 @@ export interface PerformanceData {
 }
 
 const sessionLogger = {
-  startSessionLog: async (topic: string): Promise<string> => {
+  startSessionLog: async (topic: string): Promise<SessionLogResult> => {
     try {
       const { data, error } = await supabase.functions.invoke('create-session-log', {
         body: { topic }
@@ -23,13 +21,13 @@ const sessionLogger = {
 
       if (error) {
         console.error('Failed to start session log:', error);
-        return '';
+        return { sessionId: '', success: false };
       }
 
-      return data.session_id;
+      return { sessionId: data.session_id || data.logId, success: true };
     } catch (e) {
       console.error('Error starting session log:', e);
-      return '';
+      return { sessionId: '', success: false };
     }
   },
 

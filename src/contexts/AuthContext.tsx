@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -9,7 +10,9 @@ interface AuthContextType {
   userRole: string | null;
   organization: { id: string; name: string } | null;
   isLoading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: any }>;
+  schoolId: string | null; // Add missing schoolId property
+  dbError: boolean | null; // Add missing dbError property
+  signIn: (email: string, password: string) => Promise<{ error: any; data?: any }>;
   signUp: (email: string, password: string, metadata: any) => Promise<{ error: any; data: any }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: any }>;
@@ -24,6 +27,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [userRole, setUserRole] = useState<string | null>(null);
   const [organization, setOrganization] = useState<{ id: string; name: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [schoolId, setSchoolId] = useState<string | null>(null);
+  const [dbError, setDbError] = useState<boolean | null>(null);
 
   useEffect(() => {
     // Set up auth state listener
@@ -38,6 +43,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setProfile(null);
           setUserRole(null);
           setOrganization(null);
+          setSchoolId(null);
         }
         
         setIsLoading(false);
@@ -80,9 +86,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         
         // If organization data is available in the profile, use it
         if (profileData.organization && typeof profileData.organization === 'object') {
+          const orgData = profileData.organization as { [key: string]: any };
           organizationData = {
-            id: profileData.organization.id || '',
-            name: profileData.organization.name || ''
+            id: orgData.id || '',
+            name: orgData.name || ''
           };
         }
         // Otherwise, try to construct from school_id if available
@@ -110,21 +117,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setProfile(formattedProfile);
         setUserRole(profileData.user_type || null);
         setOrganization(organizationData);
+        setSchoolId(profileData.school_id || null);
       }
+      
+      setDbError(false);
     } catch (error) {
       console.error("Error loading profile:", error);
+      setDbError(true);
     }
   };
 
   const signIn = async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
-      return { error };
+      return { data, error };
     } catch (error) {
-      return { error };
+      return { data: null, error };
     }
   };
 
@@ -165,6 +176,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     userRole,
     organization,
     isLoading,
+    schoolId,
+    dbError,
     signIn,
     signUp,
     signOut,

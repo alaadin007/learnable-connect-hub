@@ -1,250 +1,202 @@
-import { useEffect, useState } from "react";
-import { DateRange, Student, TeacherAnalyticsData } from "@/components/analytics/types";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { fetchTeacherAnalytics, adaptTeacherAnalyticsData } from "@/utils/analyticsUtils";
-import { useAuth } from "@/contexts/AuthContext";
-import { DateRangePicker } from "@/components/analytics/DateRangePicker";
-import { StudentSelector } from "@/components/analytics/StudentSelector";
-import { StatsCard } from "@/components/analytics/StatsCard";
-import { getMockAnalyticsData } from "@/utils/sessionLogging";
-import { Skeleton } from "@/components/ui/skeleton";
-import { supabase } from "@/integrations/supabase/client";
 
-export default function TeacherAnalytics() {
-  const { user, userRole, profile } = useAuth();
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { DateRange } from 'react-day-picker';
+import { format } from 'date-fns';
+import StatsCard from '@/components/analytics/StatsCard';
+import StudentSelector from '@/components/analytics/StudentSelector';
+import { AnalyticsFilters } from '@/components/analytics/AnalyticsFilters';
+import { AnalyticsSummaryCards } from '@/components/analytics/AnalyticsSummaryCards';
+import SessionsTable from '@/components/analytics/SessionsTable';
+import TopicsChart from '@/components/analytics/TopicsChart';
+import StudyTimeChart from '@/components/analytics/StudyTimeChart';
+import { Student, AnalyticsSummary, SessionData, TopicData } from '@/components/analytics/types';
+import { supabase } from '@/integrations/supabase/client';
+
+const TeacherAnalytics = () => {
+  const { schoolId } = useAuth();
+  
+  const [activeTab, setActiveTab] = useState('overview');
+  const [isLoading, setIsLoading] = useState(true);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [selectedStudentId, setSelectedStudentId] = useState<string>('');
   const [dateRange, setDateRange] = useState<DateRange>({
     from: new Date(new Date().setDate(new Date().getDate() - 30)),
-    to: new Date(),
+    to: new Date()
   });
-  const [selectedStudentId, setSelectedStudentId] = useState<string | undefined>(undefined);
-  const [students, setStudents] = useState<Student[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [selectedTab, setSelectedTab] = useState("summary");
-  
-  const [analyticsData, setAnalyticsData] = useState<TeacherAnalyticsData[]>([]);
-  const [summary, setSummary] = useState({
+
+  const [summary, setSummary] = useState<AnalyticsSummary>({
     activeStudents: 0,
     totalSessions: 0,
     totalQueries: 0,
     avgSessionMinutes: 0
   });
-  const [sessions, setSessions] = useState([]);
-  const [topics, setTopics] = useState([]);
-  const [studyTime, setStudyTime] = useState([]);
-  
-  useEffect(() => {
-    // Fetch students only once when the component mounts
-    const fetchStudents = async () => {
-      if (profile?.school_id) {
-        try {
-          const { data, error } = await supabase
-            .from("profiles")
-            .select("id, full_name")
-            .eq("school_id", profile.school_id)
-            .eq("user_type", "student");
 
-          if (error) {
-            console.error("Error fetching students:", error);
-          } else {
-            const studentList = data ? data.map((student) => ({
-              id: student.id,
-              name: student.full_name,
-            })) : [];
-            setStudents(studentList);
-          }
-        } catch (error) {
-          console.error("Error fetching students:", error);
-        }
-      }
-    };
-
-    fetchStudents();
-  }, [profile?.school_id]);
+  const [sessions, setSessions] = useState<SessionData[]>([]);
+  const [topTopics, setTopTopics] = useState<TopicData[]>([]);
+  const [studyTime, setStudyTime] = useState<any[]>([]);
 
   useEffect(() => {
-    if (profile?.organization?.id) {
-      fetchData();
+    if (schoolId) {
+      fetchStudents();
+      fetchAnalyticsSummary();
     }
-  }, [dateRange, profile?.organization?.id]);
+  }, [schoolId]);
 
-  const handleDateRangeChange = (range: DateRange) => {
-    setDateRange(range);
+  useEffect(() => {
+    if (schoolId) {
+      fetchSessions();
+      fetchTopTopics();
+      fetchStudyTime();
+    }
+  }, [schoolId, selectedStudentId, dateRange]);
+
+  const fetchStudents = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('students')
+        .select('id, profiles:id(full_name)')
+        .eq('school_id', schoolId);
+
+      if (error) throw error;
+
+      const formattedStudents = data.map(student => ({
+        id: student.id,
+        name: student.profiles?.full_name || 'Unknown'
+      }));
+      
+      setStudents(formattedStudents);
+    } catch (error) {
+      console.error('Error fetching students:', error);
+    }
   };
 
-  const fetchData = async () => {
-    setIsLoading(true);
+  const fetchAnalyticsSummary = async () => {
     try {
-      let data;
+      setIsLoading(true);
       
-      if (profile?.organization?.id) {
-        // Use the new fetchTeacherAnalytics function
-        const teacherData = await fetchTeacherAnalytics(profile.organization.id, dateRange);
-        data = adaptTeacherAnalyticsData(teacherData);
-      } else {
-        console.error("No school ID found in profile");
-        return;
-      }
+      // This would be replaced with a real API call to get summary data
+      const mockSummary = {
+        activeStudents: 24,
+        totalSessions: 156,
+        totalQueries: 1203,
+        avgSessionMinutes: 18.5
+      };
       
-      setAnalyticsData(data);
-      
-      // Use the mock data function for additional analytics info
-      const mockData = getMockAnalyticsData(profile.organization.id);
-      setSummary(mockData.summary);
-      setSessions(mockData.sessions);
-      setTopics(mockData.topics);
-      setStudyTime(mockData.studyTime);
+      setSummary(mockSummary);
+      setIsLoading(false);
     } catch (error) {
-      console.error("Error fetching analytics:", error);
-    } finally {
+      console.error('Error fetching analytics summary:', error);
       setIsLoading(false);
     }
   };
 
-  const renderDateRangePicker = () => (
-    <DateRangePicker
-      dateRange={dateRange}
-      onDateRangeChange={handleDateRangeChange}
-    />
-  );
+  const fetchSessions = async () => {
+    // This would be replaced with an actual API call
+    const mockSessions: SessionData[] = [];
+    setSessions(mockSessions);
+  };
 
-  const renderStudentSelector = () => (
-    <StudentSelector
-      students={students}
-      selectedStudentId={selectedStudentId}
-      onStudentChange={setSelectedStudentId}
-    />
-  );
+  const fetchTopTopics = async () => {
+    // This would be replaced with an actual API call
+    const mockTopics: TopicData[] = [];
+    setTopTopics(mockTopics);
+  };
+
+  const fetchStudyTime = async () => {
+    // This would be replaced with an actual API call
+    const mockStudyTime: any[] = [];
+    setStudyTime(mockStudyTime);
+  };
 
   return (
-    <div className="container mx-auto py-10">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-2xl font-bold">Teacher Analytics</CardTitle>
-          <CardDescription>
-            Analyze teacher performance and student engagement metrics.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-            {renderDateRangePicker()}
-            {renderStudentSelector()}
-          </div>
+    <div className="container py-6">
+      <div className="flex flex-col space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold tracking-tight">Analytics</h1>
+          <Button variant="outline" onClick={fetchAnalyticsSummary}>
+            Refresh Data
+          </Button>
+        </div>
 
-          <Tabs value={selectedTab} onValueChange={setSelectedTab}>
-            <TabsList>
-              <TabsTrigger value="summary">Summary</TabsTrigger>
-              <TabsTrigger value="teachers">Teachers</TabsTrigger>
-              <TabsTrigger value="students">Students</TabsTrigger>
-              <TabsTrigger value="topics">Topics</TabsTrigger>
-              <TabsTrigger value="sessions">Sessions</TabsTrigger>
-              <TabsTrigger value="studyTime">Study Time</TabsTrigger>
-            </TabsList>
-            <TabsContent value="summary" className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatsCard
-                  title="Active Students"
-                  value={isLoading ? "Loading..." : summary.activeStudents.toString()}
-                  description="Number of students actively using the platform"
-                />
-                <StatsCard
-                  title="Total Sessions"
-                  value={isLoading ? "Loading..." : summary.totalSessions.toString()}
-                  description="Total number of learning sessions"
-                />
-                <StatsCard
-                  title="Total Queries"
-                  value={isLoading ? "Loading..." : summary.totalQueries.toString()}
-                  description="Total number of queries made by students"
-                />
-                <StatsCard
-                  title="Avg. Session Minutes"
-                  value={isLoading ? "Loading..." : summary.avgSessionMinutes.toString()}
-                  description="Average duration of learning sessions"
-                />
-              </div>
-            </TabsContent>
-            <TabsContent value="teachers" className="space-y-4">
-              <div>
-                <h3 className="text-lg font-semibold mb-2">Teacher Performance</h3>
-                {isLoading ? (
-                  <div>Loading teacher data...</div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {analyticsData.map((teacher) => (
-                      <Card key={teacher.id}>
-                        <CardHeader>
-                          <CardTitle>{teacher.name}</CardTitle>
-                          <CardDescription>Performance Metrics</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                          <p>Assessments Created: {teacher.assessmentsCount}</p>
-                          <p>Average Score: {teacher.averageScore.toFixed(2)}</p>
-                          <p>Completion Rate: {teacher.completionRate.toFixed(2)}%</p>
-                          <p>Students Assessed: {teacher.studentsAssessed}</p>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </TabsContent>
-            
-            <TabsContent value="students" className="space-y-4">
-              <div>
-                <h3 className="text-lg font-semibold mb-2">Student Performance</h3>
-                {isLoading ? (
-                  <div>Loading student data...</div>
-                ) : (
-                  <div>
-                    {/* Student performance data will be displayed here */}
-                    <p>Coming soon!</p>
-                  </div>
-                )}
-              </div>
-            </TabsContent>
-            <TabsContent value="topics" className="space-y-4">
-              <div>
-                <h3 className="text-lg font-semibold mb-2">Popular Topics</h3>
-                {isLoading ? (
-                  <div>Loading topic data...</div>
-                ) : (
-                  <div>
-                    {/* Topic data will be displayed here */}
-                    <p>Coming soon!</p>
-                  </div>
-                )}
-              </div>
-            </TabsContent>
-            <TabsContent value="sessions" className="space-y-4">
-              <div>
-                <h3 className="text-lg font-semibold mb-2">Session Details</h3>
-                {isLoading ? (
-                  <div>Loading session data...</div>
-                ) : (
-                  <div>
-                    {/* Session data will be displayed here */}
-                    <p>Coming soon!</p>
-                  </div>
-                )}
-              </div>
-            </TabsContent>
-            <TabsContent value="studyTime" className="space-y-4">
-              <div>
-                <h3 className="text-lg font-semibold mb-2">Study Time Analysis</h3>
-                {isLoading ? (
-                  <div>Loading study time data...</div>
-                ) : (
-                  <div>
-                    {/* Study time data will be displayed here */}
-                    <p>Coming soon!</p>
-                  </div>
-                )}
-              </div>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
+        <StudentSelector
+          students={students}
+          selectedStudentId={selectedStudentId}
+          onStudentChange={setSelectedStudentId}
+        />
+        
+        <AnalyticsFilters
+          dateRange={dateRange}
+          onDateRangeChange={setDateRange}
+        />
+
+        <AnalyticsSummaryCards summary={summary} isLoading={isLoading} />
+
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid grid-cols-3 w-full max-w-md mb-4">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="sessions">Sessions</TabsTrigger>
+            <TabsTrigger value="topics">Topics</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="overview" className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Topics</CardTitle>
+                  <CardDescription>Most studied topics</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <TopicsChart data={topTopics} />
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardHeader>
+                  <CardTitle>Study Time</CardTitle>
+                  <CardDescription>Hours spent studying</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <StudyTimeChart data={studyTime} />
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="sessions">
+            <Card>
+              <CardHeader>
+                <CardTitle>Session History</CardTitle>
+                <CardDescription>
+                  {selectedStudentId 
+                    ? `Sessions for selected student from ${format(dateRange.from!, 'PPP')} to ${format(dateRange.to!, 'PPP')}`
+                    : `All student sessions from ${format(dateRange.from!, 'PPP')} to ${format(dateRange.to!, 'PPP')}`}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <SessionsTable sessions={sessions} />
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          <TabsContent value="topics">
+            <Card>
+              <CardHeader>
+                <CardTitle>Top Topics</CardTitle>
+                <CardDescription>Most frequently studied subjects</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <TopicsChart data={topTopics} />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
-}
+};
+
+export default TeacherAnalytics;
