@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -11,6 +12,7 @@ interface SchoolRegistrationData {
   adminEmail: string;
   adminPassword: string;
   adminFullName: string;
+  userType?: string; // Optional, defaults to school_admin
 }
 
 serve(async (req) => {
@@ -28,6 +30,7 @@ serve(async (req) => {
         schoolName: requestData.schoolName,
         adminEmail: requestData.adminEmail,
         adminFullName: requestData.adminFullName,
+        userType: requestData.userType || 'school_admin',
         // Not logging password for security
       }));
     } catch (parseError) {
@@ -41,7 +44,7 @@ serve(async (req) => {
       );
     }
     
-    const { schoolName, adminEmail, adminPassword, adminFullName } = requestData as SchoolRegistrationData;
+    const { schoolName, adminEmail, adminPassword, adminFullName, userType = 'school_admin' } = requestData as SchoolRegistrationData;
     
     // Get request URL to determine origin for redirects
     const requestUrl = new URL(req.url);
@@ -330,6 +333,26 @@ serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" }
         }
       );
+    }
+
+    // Create user role entry for the school admin
+    try {
+      const { error: roleError } = await supabaseAdmin
+        .from("user_roles")
+        .insert({
+          user_id: adminUserId,
+          role: 'school_admin'
+        });
+
+      if (roleError) {
+        console.error("Error creating user role:", roleError);
+        // Continue despite role error, the trigger should handle this
+      } else {
+        console.log(`Created 'school_admin' role for user ${adminUserId}`);
+      }
+    } catch (roleError) {
+      console.error("Exception when creating user role:", roleError);
+      // Continue despite role error, the trigger should handle this
     }
 
     // Make multiple attempts to send confirmation email to improve delivery reliability

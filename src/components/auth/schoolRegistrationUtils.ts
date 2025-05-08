@@ -15,30 +15,79 @@ export async function checkEmailExistingRole(email: string): Promise<string | nu
 
     if (error) {
       console.error('Error checking email role:', error);
+      
+      // Fallback: try to get the profile directly if the RPC fails
+      try {
+        const { data: userData, error: userError } = await supabase.auth.admin.listUsers({
+          filters: {
+            email: email
+          }
+        });
+        
+        if (!userError && userData && userData.users && userData.users.length > 0) {
+          const user = userData.users[0];
+          
+          // Check user metadata first
+          if (user.user_metadata && user.user_metadata.user_type) {
+            return formatRoleForDisplay(user.user_metadata.user_type);
+          }
+          
+          // If not in metadata, check the profiles table
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('user_type')
+            .eq('id', user.id)
+            .single();
+            
+          if (profileData && profileData.user_type) {
+            return formatRoleForDisplay(profileData.user_type);
+          }
+          
+          // Last resort, check the user_roles table
+          const { data: roleData } = await supabase
+            .from('user_roles')
+            .select('role')
+            .eq('user_id', user.id)
+            .single();
+            
+          if (roleData && roleData.role) {
+            return formatRoleForDisplay(roleData.role);
+          }
+        }
+      } catch (fallbackError) {
+        console.error('Fallback email role check failed:', fallbackError);
+      }
+      
       return null;
     }
 
     // Format the role for display if needed
-    const role = data;
-    if (role) {
-      switch (role) {
-        case 'school':
-        case 'school_admin':
-          return 'School Administrator';
-        case 'teacher':
-        case 'teacher_supervisor':
-          return 'Teacher';
-        case 'student':
-          return 'Student';
-        default:
-          return role.charAt(0).toUpperCase() + role.slice(1);
-      }
-    }
-    
-    return null;
+    return formatRoleForDisplay(data);
   } catch (e) {
     console.error('Exception checking email role:', e);
     return null;
+  }
+}
+
+/**
+ * Format a role value for display
+ * @param role The raw role value
+ * @returns Formatted role for display
+ */
+function formatRoleForDisplay(role: string | null): string | null {
+  if (!role) return null;
+  
+  switch (role) {
+    case 'school':
+    case 'school_admin':
+      return 'School Administrator';
+    case 'teacher':
+    case 'teacher_supervisor':
+      return 'Teacher';
+    case 'student':
+      return 'Student';
+    default:
+      return role.charAt(0).toUpperCase() + role.slice(1);
   }
 }
 

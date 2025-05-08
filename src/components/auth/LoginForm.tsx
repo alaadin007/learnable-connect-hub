@@ -215,6 +215,22 @@ const LoginForm = () => {
           console.log("User type from metadata:", userType);
         }
         
+        // Check user_roles table as well for definitive role assignment
+        try {
+          const { data: userRole, error: roleError } = await supabase
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", data.user.id)
+            .single();
+            
+          if (!roleError && userRole) {
+            console.log("Found user role in user_roles table:", userRole.role);
+            userType = userRole.role;
+          }
+        } catch (roleError) {
+          console.error("Error checking user_roles table:", roleError);
+        }
+        
         // Normalize the user role to handle both "school" and "school_admin" formats
         if (userType === "school_admin") {
           userType = "school";
