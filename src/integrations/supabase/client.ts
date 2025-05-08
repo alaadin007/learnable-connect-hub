@@ -17,16 +17,15 @@ export const supabase = createClient<Database>(
     auth: {
       autoRefreshToken: true,
       detectSessionInUrl: true,
-      flowType: 'pkce',
       persistSession: true,
       storage: localStorage,
+      flowType: 'pkce',
       debug: import.meta.env.DEV
     },
     global: {
       headers: {
         'x-client-info': 'learnable-app'
       },
-      // Add retry options for better network resilience
       fetch: (url, options) => {
         const fetchOptions = {
           ...options,
@@ -35,11 +34,10 @@ export const supabase = createClient<Database>(
         return fetch(url, fetchOptions);
       }
     },
-    // Add db error handling for better resilience
+    // Configure better error handling
     db: {
       schema: 'public'
     },
-    // Configure better defaults for error handling
     realtime: {
       params: {
         eventsPerSecond: 10

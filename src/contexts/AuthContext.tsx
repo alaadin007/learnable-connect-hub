@@ -1,7 +1,8 @@
+
 import { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { AuthError } from '@supabase/supabase-js';
+import { AuthError, Session } from '@supabase/supabase-js';
 
 type UserType = 'student' | 'teacher' | 'school';
 
@@ -25,18 +26,19 @@ interface AuthContextType {
   user: any | null;
   profile: Profile | null;
   userType: UserType | null;
-  userRole?: string; // Added missing property
+  userRole?: string;
   schoolId: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   isTestAccount: boolean;
+  session: Session | null;
   login: (email: string, password: string) => Promise<boolean>;
   signup: (email: string, password: string, fullName: string, userType: UserType, schoolCode?: string, inviteCode?: string) => Promise<boolean>;
   logout: () => Promise<void>;
   setTestUser: (type: UserType) => void;
-  signUp: (email: string, password: string, userData: any) => Promise<boolean>; // Match the signature defined elsewhere
-  signOut?: () => Promise<void>; // Added missing method
-  refreshProfile?: () => Promise<void>; // Added missing method
+  signUp: (email: string, password: string, userData: any) => Promise<boolean>;
+  signOut?: () => Promise<void>;
+  refreshProfile?: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -66,16 +68,19 @@ const createCustomAuthError = (message: string, status: number = 400): AuthError
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [userType, setUserType] = useState<UserType | null>(null);
   const [schoolId, setSchoolId] = useState<string | null>(null);
   const [isLoading, setLoading] = useState(true);
   const [isTestAccount, setIsTestAccount] = useState(false);
+  const [initialized, setInitialized] = useState(false);
 
   const loadUserProfile = async () => {
     setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
+      console.log("loadUserProfile - user:", user);
       
       if (user) {
         // Fetch the user's profile from the profiles table
@@ -84,6 +89,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           .select('*, organization:schools(*)')
           .eq('id', user.id)
           .single();
+        
+        console.log("loadUserProfile - profile data:", profileData, "error:", profileError);
         
         if (profileError) {
           throw profileError;
@@ -95,6 +102,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setUserType(profile.user_type);
           setSchoolId(profile.school_id || null);
           setIsTestAccount(false);
+          setUser(user);
         } else {
           console.warn('No profile found for user', user.id);
           setProfile(null);
@@ -120,57 +128,65 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Add the refreshProfile method
   const refreshProfile = async () => {
+    console.log("Refreshing user profile...");
     return loadUserProfile();
   };
 
   useEffect(() => {
-    const loadSession = async () => {
-      setLoading(true);
+    if (initialized) return;
+    
+    console.log("Setting up auth state listener...");
+    
+    const loadInitialState = async () => {
       try {
+        setLoading(true);
+        
+        // Set up auth state change listener
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+          async (event, session) => {
+            console.log('Auth state change event:', event, session?.user?.id);
+            
+            if (event === 'SIGNED_IN') {
+              setSession(session);
+              setUser(session?.user ?? null);
+              await loadUserProfile();
+            } else if (event === 'SIGNED_OUT') {
+              setUser(null);
+              setSession(null);
+              setProfile(null);
+              setUserType(null);
+              setSchoolId(null);
+              setIsTestAccount(false);
+              setLoading(false);
+            }
+          }
+        );
+        
+        // Check for existing session
         const { data: { session } } = await supabase.auth.getSession();
+        console.log("Initial session check:", session?.user?.id);
         
         if (session) {
+          setSession(session);
           setUser(session.user);
           await loadUserProfile();
         } else {
           setLoading(false);
         }
+        
+        setInitialized(true);
+        
+        return () => {
+          subscription?.unsubscribe();
+        };
       } catch (error) {
-        console.error('Error loading session:', error);
-        toast.error('Failed to load session');
+        console.error('Error setting up auth:', error);
         setLoading(false);
       }
     };
 
-    loadSession();
-    
-    // Subscribe to auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('Auth state change event:', event);
-        if (event === 'INITIAL_SESSION') {
-          // Skip initial session event
-          return;
-        }
-        
-        if (session) {
-          setUser(session.user);
-          await loadUserProfile();
-        } else {
-          setUser(null);
-          setProfile(null);
-          setUserType(null);
-          setSchoolId(null);
-          setIsTestAccount(false);
-          setLoading(false);
-        }
-      }
-    );
-
-    return () => {
-      subscription?.unsubscribe();
-    };
-  }, []);
+    loadInitialState();
+  }, [initialized]);
 
   // Update the signup implementation to match the expected signature in the interface
   const signup = async (
@@ -183,14 +199,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   ): Promise<boolean> => {
     setLoading(true);
     try {
+      console.log("Signup initiated:", { email, fullName, userType, schoolCode });
+      
       // For school admin registrations, we need to verify the school code
       if (userType === 'school' && !schoolCode) {
         throw createCustomAuthError('School code is required for school admin registration');
-      }
-      
-      // For student registrations, we need to verify the invite code
-      if (userType === 'student' && !inviteCode) {
-        throw createCustomAuthError('Invite code is required for student registration');
       }
       
       // Register user
@@ -206,6 +219,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       });
       
+      console.log("Signup response:", data, error);
+      
       if (error) {
         throw error;
       }
@@ -218,8 +233,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const errorMsg = error.message || 'An error occurred during signup';
       toast.error(errorMsg);
       console.error('Signup error:', error);
-      setLoading(false);
       return false;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -234,13 +250,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     
     try {
+      console.log("Login initiated:", email);
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
       });
       
+      console.log("Login response:", data?.user?.id, error);
+      
       if (error) {
         throw error;
+      }
+      
+      if (data.session) {
+        setSession(data.session);
+        setUser(data.user);
       }
       
       // Fetch user profile after successful login
@@ -252,19 +277,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const errorMsg = error.message || 'An error occurred during login';
       toast.error(errorMsg);
       console.error('Login error:', error);
-      setLoading(false);
       return false;
+    } finally {
+      setLoading(false);
     }
   };
 
   const logout = async () => {
     try {
+      console.log("Logout initiated");
       await supabase.auth.signOut();
+      console.log("Logout completed");
+      
+      // Clear local state
       setUser(null);
+      setSession(null);
       setProfile(null);
       setUserType(null);
       setSchoolId(null);
       setIsTestAccount(false);
+      
       // No need to set loading to false here as loadUserProfile will do that eventually
     } catch (error: any) {
       const errorMsg = error.message || 'An error occurred during logout';
@@ -328,10 +360,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       signup,
       logout,
       signUp,
-      signOut: logout, // Ensure signOut is defined
+      signOut: logout,
       refreshProfile,
       setTestUser,
-      isTestAccount
+      isTestAccount,
+      session
     }}>
       {children}
     </AuthContext.Provider>

@@ -6,14 +6,18 @@ import { useAuth } from '@/contexts/AuthContext';
 import Footer from '@/components/landing/Footer';
 import Navbar from '@/components/layout/Navbar';
 import LoginForm from '@/components/auth/LoginForm';
+import LoginDebug from '@/components/auth/LoginDebug';
 
 const Login = () => {
   const { isAuthenticated, userType } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const from = location.state?.from || '/';
+  const [showDebug, setShowDebug] = useState(false);
 
   useEffect(() => {
+    console.log('Login page loaded', { isAuthenticated, userType, from });
+    
     if (isAuthenticated && userType) {
       let redirectPath = '/';
       
@@ -51,6 +55,8 @@ const Login = () => {
           </div>
 
           <LoginForm />
+          
+          <LoginDebug />
 
           <div className="mt-6 text-center">
             <p className="text-learnable-gray">

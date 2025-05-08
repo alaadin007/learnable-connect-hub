@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { LogIn, Loader2 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 const loginSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address' }),
@@ -38,9 +39,27 @@ const LoginForm: React.FC = () => {
     console.log('LoginForm: Attempting login for', values.email);
 
     try {
+      // First try direct login through Supabase for debugging purposes
+      console.log('Attempting direct Supabase login...');
+      const { data: directData, error: directError } = await supabase.auth.signInWithPassword({
+        email: values.email,
+        password: values.password,
+      });
+
+      if (directError) {
+        console.error('Direct login error:', directError);
+        setIsLoading(false);
+        toast.error(`Authentication error: ${directError.message}`);
+        return;
+      }
+
+      console.log('Direct login successful, user:', directData.user);
+
+      // Now use the Auth context login function which should handle session state management
       const success = await login(values.email, values.password);
       
       if (success) {
+        console.log('Context login successful, refreshing profile...');
         // Refresh the profile after login to ensure we have latest data
         if (refreshProfile) {
           await refreshProfile();
@@ -50,8 +69,10 @@ const LoginForm: React.FC = () => {
         toast.success('Successfully signed in');
         
         // Redirect to the page they were trying to access, or the default dashboard
+        console.log('Redirecting to:', from);
         navigate(from, { replace: true });
       } else {
+        console.error('Context login returned false');
         toast.error('Login failed. Please check your credentials and try again.');
       }
     } catch (err: any) {
