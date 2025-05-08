@@ -29,7 +29,8 @@ export async function checkEmailExistingRole(email: string): Promise<string | nu
  */
 export async function checkIfEmailExists(email: string): Promise<boolean> {
   try {
-    const { data, error } = await supabase.rpc('check_email_exists', {
+    // Use rpc function that's available in the database
+    const { data, error } = await supabase.rpc('check_if_email_exists', {
       p_email: email
     });
 
@@ -38,7 +39,8 @@ export async function checkIfEmailExists(email: string): Promise<boolean> {
       return false;
     }
 
-    return data || false;
+    // Ensure we return a boolean value
+    return Boolean(data);
   } catch (e) {
     console.error('Exception checking if email exists:', e);
     return false;
