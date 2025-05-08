@@ -1,10 +1,32 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
+// Define interfaces for better type safety
 interface SessionLogResult {
   success: boolean;
   sessionId?: string;
   message?: string;
+}
+
+interface PerformanceData {
+  duration?: number;
+  queries?: number;
+  errors?: number;
+  [key: string]: any;
+}
+
+interface SessionLog {
+  id: string;
+  topic_or_content_used: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface SupabaseFunctionResponse<T> {
+  data: T | null;
+  error: {
+    message: string;
+    status?: number;
+  } | null;
 }
 
 /**
@@ -12,7 +34,7 @@ interface SessionLogResult {
  */
 export const startSessionLog = async (topic: string): Promise<SessionLogResult> => {
   try {
-    const { data, error } = await supabase.functions.invoke('create-session-log', {
+    const { data, error } = await supabase.functions.invoke<SessionLog>('create-session-log', {
       body: { topic }
     });
 
@@ -21,14 +43,14 @@ export const startSessionLog = async (topic: string): Promise<SessionLogResult> 
       return { success: false, message: error.message };
     }
 
-    if (data && data.id) {
+    if (data?.id) {
       return { success: true, sessionId: data.id };
     }
 
     // Fallback to direct database call if function fails
     const { data: directData, error: directError } = await supabase
       .from('session_logs')
-      .insert({
+      .insert<Partial<SessionLog>>({
         topic_or_content_used: topic
       })
       .select()
@@ -39,20 +61,33 @@ export const startSessionLog = async (topic: string): Promise<SessionLogResult> 
       return { success: false, message: directError.message };
     }
 
+    if (!directData?.id) {
+      return { success: false, message: "No session ID returned" };
+    }
+
     return { success: true, sessionId: directData.id };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error in startSessionLog:", error);
-    return { success: false, message: error.message || "An unexpected error occurred" };
+    return { 
+      success: false, 
+      message: error instanceof Error ? error.message : "An unexpected error occurred" 
+    };
   }
 };
 
 /**
  * End an existing session log
  */
-export const endSessionLog = async (sessionId: string, performanceData?: any): Promise<SessionLogResult> => {
+export const endSessionLog = async (
+  sessionId: string, 
+  performanceData?: PerformanceData
+): Promise<SessionLogResult> => {
   try {
-    const { data, error } = await supabase.functions.invoke('end-session', {
-      body: { session_id: sessionId, performance_data: performanceData }
+    const { data, error } = await supabase.functions.invoke<SessionLog>('end-session', {
+      body: { 
+        session_id: sessionId, 
+        performance_data: performanceData 
+      }
     });
 
     if (error) {
@@ -61,19 +96,28 @@ export const endSessionLog = async (sessionId: string, performanceData?: any): P
     }
 
     return { success: true, sessionId };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error in endSessionLog:", error);
-    return { success: false, message: error.message || "An unexpected error occurred" };
+    return { 
+      success: false, 
+      message: error instanceof Error ? error.message : "An unexpected error occurred" 
+    };
   }
 };
 
 /**
  * Update a session topic
  */
-export const updateSessionTopic = async (sessionId: string, topic: string): Promise<SessionLogResult> => {
+export const updateSessionTopic = async (
+  sessionId: string, 
+  topic: string
+): Promise<SessionLogResult> => {
   try {
-    const { data, error } = await supabase.functions.invoke('update-session', {
-      body: { session_id: sessionId, topic }
+    const { data, error } = await supabase.functions.invoke<SessionLog>('update-session', {
+      body: { 
+        session_id: sessionId, 
+        topic 
+      }
     });
 
     if (error) {
@@ -82,14 +126,20 @@ export const updateSessionTopic = async (sessionId: string, topic: string): Prom
     }
 
     return { success: true, sessionId };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error in updateSessionTopic:", error);
-    return { success: false, message: error.message || "An unexpected error occurred" };
+    return { 
+      success: false, 
+      message: error instanceof Error ? error.message : "An unexpected error occurred" 
+    };
   }
 };
 
-export default {
+// Create a type-safe session logger object
+const sessionLogger = {
   startSessionLog,
   endSessionLog,
   updateSessionTopic
-};
+} as const;
+
+export default sessionLogger;
