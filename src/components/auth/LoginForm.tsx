@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -80,7 +79,7 @@ const LoginForm = () => {
       setLoginError(null);
       console.log(`LoginForm: Fast login as ${type}`);
       
-      // Clean up any existing session
+      // Clean up any existing session to prevent conflicts
       await signOut();
       
       // Reset state flags
@@ -147,7 +146,7 @@ const LoginForm = () => {
     try {
       // If there's already a test account active, sign out first
       if (activeTestAccount) {
-        await signOut();
+        await signOut(); // This will handle both test and real accounts properly now
         localStorage.removeItem('usingTestAccount');
         localStorage.removeItem('testAccountType');
         setActiveTestAccount(null);

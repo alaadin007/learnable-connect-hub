@@ -23,18 +23,26 @@ const Navbar = () => {
   const toggleMenu = () => setIsOpen((open) => !open);
 
   const handleLogout = useCallback(async () => {
-    await signOut();
-    navigate("/");
-    setIsOpen(false);
+    try {
+      await signOut();
+      navigate("/");
+      setIsOpen(false);
+    } catch (error) {
+      console.error("Navbar: Error during logout:", error);
+    }
   }, [signOut, navigate]);
 
   const handleBackToTestAccounts = useCallback(async () => {
-    await signOut();
-    navigate("/test-accounts");
-    setIsOpen(false);
+    try {
+      await signOut();
+      navigate("/test-accounts");
+      setIsOpen(false);
+    } catch (error) {
+      console.error("Navbar: Error navigating to test accounts:", error);
+    }
   }, [signOut, navigate]);
 
-  const isTestAccount = user?.email?.includes(".test@learnable.edu") || user?.id?.startsWith("test-");
+  const isTestAccount = user?.email?.includes(".test@learnable.edu") || user?.id?.startsWith("test-") || localStorage.getItem('usingTestAccount') === 'true';
   const isPublicPage = ["/", "/features", "/pricing", "/about", "/contact"].includes(location.pathname);
   const isAuthPage = ["/login", "/register", "/school-registration", "/test-accounts"].some(path =>
     location.pathname === path || location.pathname.startsWith("/invitation/")

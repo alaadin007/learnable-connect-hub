@@ -176,9 +176,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signOut = async () => {
     try {
-      await supabase.auth.signOut();
+      // Check if we're using a test account
+      const usingTestAccount = localStorage.getItem('usingTestAccount') === 'true';
+      
+      if (usingTestAccount) {
+        // For test accounts, we just need to clear local storage and state
+        console.log("AuthContext: Signing out test account");
+        localStorage.removeItem('usingTestAccount');
+        localStorage.removeItem('testAccountType');
+      } else {
+        // For real accounts, call Supabase's signOut method
+        console.log("AuthContext: Signing out real account");
+        await supabase.auth.signOut();
+      }
+      
+      // Clear session state regardless of account type
       clearSession();
-      console.log("AuthContext: User signed out.");
+      console.log("AuthContext: User signed out successfully");
     } catch (error) {
       console.error("Error signing out:", error);
     }
@@ -301,8 +315,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setProfile(null);
     setUserRole(null);
     setSchoolId(null);
+    setIsSupervisor(false);
+    
+    // Clear any persisted auth data from localStorage
     localStorage.removeItem('supabase.auth.token');
     localStorage.removeItem('supabase.auth.session');
+    
     console.log("AuthContext: Session cleared.");
   };
 
