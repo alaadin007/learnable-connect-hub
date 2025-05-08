@@ -23,7 +23,14 @@ export async function checkEmailExistingRole(email: string): Promise<string | nu
         
         // Filter users manually - make sure to check for undefined users field
         if (userData && userData.users && Array.isArray(userData.users)) {
-          const matchingUser = userData.users.find((user) => {
+          // Define a type for the user object to fix the TypeScript error
+          interface AuthUser {
+            id: string;
+            email?: string;
+            user_metadata?: Record<string, any>;
+          }
+          
+          const matchingUser = userData.users.find((user): user is AuthUser => {
             // Type-guard to ensure user is an object with an email property
             return user && 
                   typeof user === 'object' && 
