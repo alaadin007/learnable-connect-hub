@@ -18,25 +18,23 @@ export async function checkEmailExistingRole(email: string): Promise<string | nu
       
       // Fallback: try to get the profile directly if the RPC fails
       try {
-        const { data: userData, error: userError } = await supabase.auth.admin.listUsers({
-          filters: {
-            email: email
-          }
-        });
+        // Use the listUsers API correctly without filters
+        const { data: userData, error: userError } = await supabase.auth.admin.listUsers();
         
-        if (!userError && userData && userData.users && userData.users.length > 0) {
-          const user = userData.users[0];
-          
+        // Filter users manually
+        const matchingUser = userData?.users?.find(user => user.email === email);
+        
+        if (!userError && matchingUser) {
           // Check user metadata first
-          if (user.user_metadata && user.user_metadata.user_type) {
-            return formatRoleForDisplay(user.user_metadata.user_type);
+          if (matchingUser.user_metadata && matchingUser.user_metadata.user_type) {
+            return formatRoleForDisplay(matchingUser.user_metadata.user_type);
           }
           
           // If not in metadata, check the profiles table
           const { data: profileData } = await supabase
             .from('profiles')
             .select('user_type')
-            .eq('id', user.id)
+            .eq('id', matchingUser.id)
             .single();
             
           if (profileData && profileData.user_type) {
@@ -47,7 +45,7 @@ export async function checkEmailExistingRole(email: string): Promise<string | nu
           const { data: roleData } = await supabase
             .from('user_roles')
             .select('role')
-            .eq('user_id', user.id)
+            .eq('user_id', matchingUser.id)
             .single();
             
           if (roleData && roleData.role) {
