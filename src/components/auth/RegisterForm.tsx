@@ -1,212 +1,550 @@
-
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import React, { useState } from "react";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { toast } from 'sonner';
-import { supabase, TEST_SCHOOL_CODE } from '@/integrations/supabase/client';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { asDbId } from '@/utils/supabaseTypeHelpers';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { Loader2, AlertCircle } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
-interface SchoolCodeData {
-  id: string;
-  name: string;
-  code: string;
-  active: boolean;
-}
-
-export const RegisterForm: React.FC = () => {
-  const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [schoolCode, setSchoolCode] = useState('');
-  const [userType, setUserType] = useState<"teacher" | "student" | "school">('student');
-  const [schoolName, setSchoolName] = useState<string | null>(null);
-  const [schoolId, setSchoolId] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [schoolCodeValid, setSchoolCodeValid] = useState(false);
-  const [schoolCodeLoading, setSchoolCodeLoading] = useState(false);
-  const [schoolCodeError, setSchoolCodeError] = useState<string | null>(null);
+const RegisterForm = () => {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<"teacher" | "student">("teacher");
+  const { signUp } = useAuth();
 
-  useEffect(() => {
-    // Check if the school code is the test school code
-    if (schoolCode.trim().toUpperCase() === TEST_SCHOOL_CODE) {
-      setSchoolName('Test School');
-      setSchoolCodeValid(true);
-      setSchoolCodeError(null);
-      return;
+  // Teacher registration state
+  const [teacherName, setTeacherName] = useState("");
+  const [teacherEmail, setTeacherEmail] = useState("");
+  const [teacherPassword, setTeacherPassword] = useState("");
+  const [teacherSchoolCode, setTeacherSchoolCode] = useState("");
+  const [isVerifyingTeacherCode, setIsVerifyingTeacherCode] = useState(false);
+  const [teacherSchoolName, setTeacherSchoolName] = useState("");
+  const [teacherError, setTeacherError] = useState<string | null>(null);
+  const [teacherExistingRole, setTeacherExistingRole] = useState<string | null>(null);
+
+  // Student registration state
+  const [studentName, setStudentName] = useState("");
+  const [studentEmail, setStudentEmail] = useState("");
+  const [studentPassword, setStudentPassword] = useState("");
+  const [studentSchoolCode, setStudentSchoolCode] = useState("");
+  const [isVerifyingStudentCode, setIsVerifyingStudentCode] = useState(false);
+  const [studentSchoolName, setStudentSchoolName] = useState("");
+  const [studentError, setStudentError] = useState<string | null>(null);
+  const [studentExistingRole, setStudentExistingRole] = useState<string | null>(null);
+
+  const validateSchoolCode = async (code: string, userType: "teacher" | "student") => {
+    if (!code) {
+      toast.error("Please enter a school code");
+      return false;
     }
 
-    if (schoolCode.trim() === '') {
-      setSchoolName(null);
-      setSchoolCodeValid(false);
-      setSchoolCodeError(null);
-      return;
-    }
-
-    const checkSchoolCode = async () => {
-      setSchoolCodeLoading(true);
-      setSchoolCodeError(null);
-      try {
-        const { data, error } = await supabase
-          .from('schools')
-          .select('*')
-          .eq('code', asDbId(schoolCode))
-          .single();
-
-        if (error) {
-          console.error("Error fetching school:", error);
-          setSchoolName(null);
-          setSchoolCodeValid(false);
-          setSchoolCodeError("Invalid school code");
-        } else if (data) {
-          const schoolData = processSchool(data);
-          if (schoolData.active) {
-            setSchoolName(schoolData.name);
-            setSchoolId(schoolData.id);
-            setSchoolCodeValid(true);
-          } else {
-            setSchoolName(null);
-            setSchoolCodeValid(false);
-            setSchoolCodeError("School code is not active");
-          }
-        } else {
-          setSchoolName(null);
-          setSchoolCodeValid(false);
-          setSchoolCodeError("School code not found");
-        }
-      } catch (err) {
-        console.error("Error:", err);
-        setSchoolName(null);
-        setSchoolCodeValid(false);
-        setSchoolCodeError("Failed to validate school code");
-      } finally {
-        setSchoolCodeLoading(false);
-      }
-    };
-
-    checkSchoolCode();
-  }, [schoolCode]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!schoolCodeValid) {
-      toast.error("Please enter a valid school code.");
-      return;
-    }
-
-    setIsSubmitting(true);
     try {
-      // Create the user with Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: fullName,
-            user_type: userType,
-            school_code: schoolCode
-          }
+      const { data, error } = await supabase.rpc('verify_school_code', { code });
+      
+      if (error) {
+        toast.error("Error validating school code");
+        console.error("Error validating school code:", error);
+        return false;
+      }
+      
+      if (!data) {
+        toast.error("Invalid school code");
+        return false;
+      }
+
+      // Fetch school name
+      const { data: schoolNameData, error: schoolNameError } = await supabase.rpc(
+        'get_school_name_from_code',
+        { code }
+      );
+      
+      if (!schoolNameError && schoolNameData !== null) {
+        // Convert to string and ensure it's not null
+        const schoolNameStr = String(schoolNameData || "");
+        
+        if (userType === 'teacher') {
+          setTeacherSchoolName(schoolNameStr);
+        } else {
+          setStudentSchoolName(schoolNameStr);
         }
+        
+        toast.success(`Code verified for ${schoolNameStr}`);
+        return true;
+      }
+
+      return !!data;
+    } catch (error) {
+      console.error("Error validating school code:", error);
+      toast.error("Error validating school code");
+      return false;
+    }
+  };
+
+  const checkEmailExistingRole = async (email: string): Promise<string | null> => {
+    try {
+      // Try to get the user's role from the profiles table
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('user_type')
+        .ilike('id', `%${email}%`) // This is a workaround since we can't directly query by email
+        .limit(1);
+      
+      if (error) {
+        console.error("Error checking user role:", error);
+        return null;
+      }
+      
+      if (data && data.length > 0 && data[0].user_type) {
+        // Return the role name with proper capitalization for display
+        const role = data[0].user_type;
+        switch (role) {
+          case 'school':
+            return 'School Administrator';
+          case 'teacher':
+            return 'Teacher';
+          case 'student':
+            return 'Student';
+          default:
+            return role.charAt(0).toUpperCase() + role.slice(1);
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      console.error("Error checking email role:", error);
+      return null;
+    }
+  };
+
+  const checkIfEmailExists = async (email: string): Promise<boolean> => {
+    try {
+      // First, check if the email is already registered using a query to auth.users
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: email,
+        password: "dummy-password-for-check-only",
       });
 
-      if (authError) {
-        throw authError;
+      // If there's no error or the error is not about invalid credentials, email might exist
+      const emailExists = !signInError || (signInError && !signInError.message.includes("Invalid login credentials"));
+      
+      if (emailExists) {
+        // Try to get the user role
+        const userRole = await checkEmailExistingRole(email);
+        return true;
       }
 
-      toast.success("Registration successful! Please check your email to verify your account.");
-      navigate('/login?registered=true');
-    } catch (err: any) {
-      console.error("Error during registration:", err);
-      toast.error("An unexpected error occurred during registration.");
-    } finally {
-      setIsSubmitting(false);
+      return emailExists;
+    } catch (error) {
+      console.error("Error checking email existence:", error);
+      // In case of error, safer to assume it might exist
+      return true;
     }
   };
 
-  const processSchool = (data: any): SchoolCodeData => {
-    return {
-      id: data.id,
-      name: data.name,
-      code: data.school_code || data.code, // Handle both field formats
-      active: data.active !== undefined ? data.active : true
-    };
+  const handleVerifyTeacherCode = async () => {
+    setIsVerifyingTeacherCode(true);
+    try {
+      await validateSchoolCode(teacherSchoolCode, "teacher");
+    } finally {
+      setIsVerifyingTeacherCode(false);
+    }
   };
 
-  const handleUserTypeChange = (value: string) => {
-    setUserType(value as "teacher" | "student" | "school");
+  const handleVerifyStudentCode = async () => {
+    setIsVerifyingStudentCode(true);
+    try {
+      await validateSchoolCode(studentSchoolCode, "student");
+    } finally {
+      setIsVerifyingStudentCode(false);
+    }
+  };
+
+  const clearTeacherErrors = () => {
+    setTeacherError(null);
+    setTeacherExistingRole(null);
+  };
+
+  const clearStudentErrors = () => {
+    setStudentError(null);
+    setStudentExistingRole(null);
+  };
+
+  const handleRegisterTeacher = async (event: React.FormEvent) => {
+    event.preventDefault();
+    clearTeacherErrors();
+    
+    if (!teacherName || !teacherEmail || !teacherPassword || !teacherSchoolCode) {
+      toast.error("Please fill in all fields");
+      return;
+    }
+
+    // Validate school code first
+    const isValid = await validateSchoolCode(teacherSchoolCode, "teacher");
+    if (!isValid) return;
+
+    setIsLoading(true);
+    
+    try {
+      // Check if email already exists in any role
+      const emailExists = await checkIfEmailExists(teacherEmail);
+      
+      if (emailExists) {
+        // Try to get the user role
+        const userRole = await checkEmailExistingRole(teacherEmail);
+        setTeacherExistingRole(userRole);
+        
+        setTeacherError(teacherEmail);
+        
+        const roleMessage = userRole 
+          ? `This email is already registered as a ${userRole}`
+          : "This email is already registered";
+          
+        toast.error(roleMessage, {
+          description: "Please use a different email address. Each user can only have one role in the system."
+        });
+        return;
+      }
+
+      // Fix: Pass only two arguments to signUp
+      await signUp(teacherEmail, teacherPassword);
+      
+      toast.success("Registration successful!", {
+        description: "Please check your email to verify your account."
+      });
+      
+      // Navigate to login page with a query parameter
+      navigate("/login?registered=true");
+      
+    } catch (error: any) {
+      console.error("Registration error:", error);
+      if (error.message?.includes("already registered")) {
+        // Try to get the user role
+        const userRole = await checkEmailExistingRole(teacherEmail);
+        setTeacherExistingRole(userRole);
+        
+        setTeacherError(teacherEmail);
+        
+        const roleMessage = userRole 
+          ? `This email is already registered as a ${userRole}`
+          : "This email is already registered";
+          
+        toast.error(roleMessage, {
+          description: "Please use a different email address. Each user can only have one role in the system."
+        });
+      } else {
+        toast.error(`Registration failed: ${error.message || "Unknown error"}`);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRegisterStudent = async (event: React.FormEvent) => {
+    event.preventDefault();
+    clearStudentErrors();
+    
+    if (!studentName || !studentEmail || !studentPassword || !studentSchoolCode) {
+      toast.error("Please fill in all fields");
+      return;
+    }
+
+    // Validate school code first
+    const isValid = await validateSchoolCode(studentSchoolCode, "student");
+    if (!isValid) return;
+
+    setIsLoading(true);
+    
+    try {
+      // Check if email already exists in any role
+      const emailExists = await checkIfEmailExists(studentEmail);
+      
+      if (emailExists) {
+        // Try to get the user role
+        const userRole = await checkEmailExistingRole(studentEmail);
+        setStudentExistingRole(userRole);
+        
+        setStudentError(studentEmail);
+        
+        const roleMessage = userRole 
+          ? `This email is already registered as a ${userRole}`
+          : "This email is already registered";
+          
+        toast.error(roleMessage, {
+          description: "Please use a different email address. Each user can only have one role in the system."
+        });
+        return;
+      }
+
+      // Fix: Pass only two arguments to signUp
+      await signUp(studentEmail, studentPassword);
+      
+      toast.success("Registration successful!", {
+        description: "Please check your email to verify your account."
+      });
+      
+      // Navigate to login page with a query parameter
+      navigate("/login?registered=true");
+      
+    } catch (error: any) {
+      console.error("Registration error:", error);
+      if (error.message?.includes("already registered")) {
+        // Try to get the user role
+        const userRole = await checkEmailExistingRole(studentEmail);
+        setStudentExistingRole(userRole);
+        
+        setStudentError(studentEmail);
+        
+        const roleMessage = userRole 
+          ? `This email is already registered as a ${userRole}`
+          : "This email is already registered";
+          
+        toast.error(roleMessage, {
+          description: "Please use a different email address. Each user can only have one role in the system."
+        });
+      } else {
+        toast.error(`Registration failed: ${error.message || "Unknown error"}`);
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <Label htmlFor="fullName">Full Name</Label>
-        <Input
-          type="text"
-          id="fullName"
-          placeholder="Enter your full name"
-          value={fullName}
-          onChange={(e) => setFullName(e.target.value)}
-          required
-        />
-      </div>
-      <div>
-        <Label htmlFor="email">Email</Label>
-        <Input
-          type="email"
-          id="email"
-          placeholder="Enter your email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-      </div>
-      <div>
-        <Label htmlFor="password">Password</Label>
-        <Input
-          type="password"
-          id="password"
-          placeholder="Enter your password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-      </div>
-      <div>
-        <Label htmlFor="schoolCode">School Code</Label>
-        <Input
-          type="text"
-          id="schoolCode"
-          placeholder="Enter your school code"
-          value={schoolCode}
-          onChange={(e) => setSchoolCode(e.target.value)}
-          required
-        />
-        {schoolCodeLoading && <p className="text-sm text-gray-500">Validating school code...</p>}
-        {schoolCodeError && <p className="text-sm text-red-500">{schoolCodeError}</p>}
-        {schoolName && !schoolCodeError && <p className="text-sm text-green-500">School: {schoolName}</p>}
-      </div>
-      <div>
-        <Label htmlFor="userType">User Type</Label>
-        <Select onValueChange={handleUserTypeChange} defaultValue="student">
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Select user type" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="student">Student</SelectItem>
-            <SelectItem value="teacher">Teacher</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      <Button type="submit" disabled={isSubmitting || !schoolCodeValid} className="w-full">
-        {isSubmitting ? 'Submitting...' : 'Register'}
-      </Button>
-    </form>
+    <Card className="w-full">
+      <CardHeader className="space-y-1">
+        <CardTitle className="text-2xl font-bold">Create an account</CardTitle>
+        <CardDescription>
+          Choose your account type to get started
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Tabs 
+          defaultValue="teacher" 
+          className="w-full"
+          value={activeTab}
+          onValueChange={(value) => {
+            setActiveTab(value as "teacher" | "student");
+            clearTeacherErrors();
+            clearStudentErrors();
+          }}
+        >
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="teacher">Teacher</TabsTrigger>
+            <TabsTrigger value="student">Student</TabsTrigger>
+          </TabsList>
+          <TabsContent value="teacher" className="mt-4">
+            {teacherError && (
+              <Alert variant="destructive" className="mb-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>
+                  {teacherExistingRole 
+                    ? `Email Already Registered as ${teacherExistingRole}` 
+                    : 'Email Already Registered'}
+                </AlertTitle>
+                <AlertDescription>
+                  The email address "{teacherError}" is already registered
+                  {teacherExistingRole ? ` as a ${teacherExistingRole} account` : ''}.
+                  Please use a different email or <Link to="/login" className="font-medium underline">login</Link> if this is your account.
+                  Each user can only have one role in the system.
+                </AlertDescription>
+              </Alert>
+            )}
+            
+            <form onSubmit={handleRegisterTeacher} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="teacher-name">Full Name</Label>
+                <Input 
+                  id="teacher-name" 
+                  placeholder="Your name"
+                  value={teacherName}
+                  onChange={(e) => setTeacherName(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="teacher-email">Email</Label>
+                <Input 
+                  id="teacher-email" 
+                  type="email" 
+                  placeholder="teacher@yourschool.edu"
+                  value={teacherEmail}
+                  onChange={(e) => {
+                    setTeacherEmail(e.target.value);
+                    clearTeacherErrors();
+                  }}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <Label htmlFor="school-code">School Code</Label>
+                  {teacherSchoolName && (
+                    <span className="text-xs text-green-600">{teacherSchoolName}</span>
+                  )}
+                </div>
+                <div className="flex space-x-2">
+                  <Input 
+                    id="school-code" 
+                    placeholder="Enter school registration code"
+                    value={teacherSchoolCode}
+                    onChange={(e) => setTeacherSchoolCode(e.target.value)}
+                    required
+                  />
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={handleVerifyTeacherCode}
+                    disabled={isVerifyingTeacherCode || !teacherSchoolCode}
+                  >
+                    {isVerifyingTeacherCode ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Checking...
+                      </>
+                    ) : "Verify"}
+                  </Button>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="teacher-password">Password</Label>
+                <Input 
+                  id="teacher-password" 
+                  type="password"
+                  value={teacherPassword}
+                  onChange={(e) => setTeacherPassword(e.target.value)}
+                  required
+                  minLength={6}
+                />
+              </div>
+              <Button 
+                type="submit" 
+                className="w-full gradient-bg"
+                disabled={isLoading || !teacherSchoolName}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Registering...
+                  </>
+                ) : "Register as Teacher"}
+              </Button>
+            </form>
+          </TabsContent>
+          <TabsContent value="student" className="mt-4">
+            {studentError && (
+              <Alert variant="destructive" className="mb-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>
+                  {studentExistingRole 
+                    ? `Email Already Registered as ${studentExistingRole}` 
+                    : 'Email Already Registered'}
+                </AlertTitle>
+                <AlertDescription>
+                  The email address "{studentError}" is already registered
+                  {studentExistingRole ? ` as a ${studentExistingRole} account` : ''}.
+                  Please use a different email or <Link to="/login" className="font-medium underline">login</Link> if this is your account.
+                  Each user can only have one role in the system.
+                </AlertDescription>
+              </Alert>
+            )}
+            
+            <form onSubmit={handleRegisterStudent} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="student-name">Full Name</Label>
+                <Input 
+                  id="student-name" 
+                  placeholder="Your name"
+                  value={studentName}
+                  onChange={(e) => setStudentName(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="student-email">Email</Label>
+                <Input 
+                  id="student-email" 
+                  type="email" 
+                  placeholder="student@yourschool.edu"
+                  value={studentEmail}
+                  onChange={(e) => {
+                    setStudentEmail(e.target.value);
+                    clearStudentErrors();
+                  }}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <Label htmlFor="student-code">School Code</Label>
+                  {studentSchoolName && (
+                    <span className="text-xs text-green-600">{studentSchoolName}</span>
+                  )}
+                </div>
+                <div className="flex space-x-2">
+                  <Input 
+                    id="student-code" 
+                    placeholder="Enter school registration code"
+                    value={studentSchoolCode}
+                    onChange={(e) => setStudentSchoolCode(e.target.value)}
+                    required
+                  />
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={handleVerifyStudentCode}
+                    disabled={isVerifyingStudentCode || !studentSchoolCode}
+                  >
+                    {isVerifyingStudentCode ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Checking...
+                      </>
+                    ) : "Verify"}
+                  </Button>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="student-password">Password</Label>
+                <Input 
+                  id="student-password" 
+                  type="password"
+                  value={studentPassword}
+                  onChange={(e) => setStudentPassword(e.target.value)}
+                  required
+                  minLength={6}
+                />
+              </div>
+              <Button 
+                type="submit" 
+                className="w-full gradient-bg"
+                disabled={isLoading || !studentSchoolName}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Registering...
+                  </>
+                ) : "Register as Student"}
+              </Button>
+            </form>
+          </TabsContent>
+        </Tabs>
+      </CardContent>
+      <CardFooter>
+        <p className="text-sm text-gray-600 text-center w-full">
+          Already have an account?{" "}
+          <Link to="/login" className="text-learnable-blue hover:underline">
+            Log in
+          </Link>
+        </p>
+      </CardFooter>
+    </Card>
   );
 };
 
+export default RegisterForm;

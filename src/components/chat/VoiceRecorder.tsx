@@ -1,117 +1,145 @@
 
-import { useState, useRef, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Mic, Square } from 'lucide-react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { Button } from "@/components/ui/button";
+import { Mic, Loader2, StopCircle } from "lucide-react";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
-export interface VoiceRecorderProps {
-  onTranscript: (transcript: string) => void;
-  isRecording: boolean;
-  setIsRecording: React.Dispatch<React.SetStateAction<boolean>>;
-  placeholder?: string;
-  onSendMessage?: (message: string) => void;
+interface VoiceRecorderProps {
+  onTranscriptionComplete: (text: string) => void;
 }
 
-export const VoiceRecorder = ({ 
-  onTranscript, 
-  isRecording, 
-  setIsRecording,
-  placeholder = "Voice recording...",
-  onSendMessage
-}: VoiceRecorderProps) => {
-  const mediaRecorder = useRef<MediaRecorder | null>(null);
-  const audioChunks = useRef<Blob[]>([]);
+const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptionComplete }) => {
+  const [isRecording, setIsRecording] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const timerRef = useRef<number | null>(null);
 
+  // Add timer for recording duration
   useEffect(() => {
-    const getMicrophone = async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder.current = new MediaRecorder(stream);
-
-        mediaRecorder.current.ondataavailable = (event) => {
-          audioChunks.current.push(event.data);
-        };
-
-        mediaRecorder.current.onstop = async () => {
-          const audioBlob = new Blob(audioChunks.current, { type: 'audio/webm' });
-          audioChunks.current = [];
-
-          const formData = new FormData();
-          formData.append('audio', audioBlob, 'recording.webm');
-
-          try {
-            const response = await fetch('/api/transcribe', {
-              method: 'POST',
-              body: formData,
-            });
-
-            if (!response.ok) {
-              console.error('Transcription failed:', response.status, response.statusText);
-              return;
-            }
-
-            const data = await response.json();
-            if (data && data.transcript) {
-              onTranscript(data.transcript);
-              if (onSendMessage) {
-                onSendMessage(data.transcript);
-              }
-            } else {
-              console.error('No transcript received');
-            }
-          } catch (error) {
-            console.error('Error during transcription:', error);
-          }
-        };
-      } catch (error) {
-        console.error("Error accessing microphone:", error);
+    if (isRecording) {
+      timerRef.current = window.setInterval(() => {
+        setRecordingDuration(prev => prev + 1);
+      }, 1000);
+    } else {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
       }
-    };
-
-    getMicrophone();
+      setRecordingDuration(0);
+    }
 
     return () => {
-      if (mediaRecorder.current && mediaRecorder.current.state === 'recording') {
-        mediaRecorder.current.stop();
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
       }
     };
-  }, [onTranscript, onSendMessage]);
+  }, [isRecording]);
 
-  const startRecording = () => {
-    if (mediaRecorder.current && mediaRecorder.current.state === 'inactive') {
-      audioChunks.current = [];
-      mediaRecorder.current.start();
+  const startRecording = useCallback(async () => {
+    try {
+      chunksRef.current = [];
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          chunksRef.current.push(e.data);
+        }
+      };
+      
+      mediaRecorder.onstop = async () => {
+        setIsProcessing(true);
+        const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        await processAudio(audioBlob);
+      };
+      
+      mediaRecorder.start();
       setIsRecording(true);
+      toast.success("Recording started. Speak clearly into your microphone.");
+    } catch (err) {
+      console.error('Error accessing microphone:', err);
+      toast.error("Could not access microphone. Please check permissions.");
+    }
+  }, []);
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      
+      // Stop all audio tracks
+      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+      
+      setIsRecording(false);
+      toast.info("Processing your voice input...");
     }
   };
 
-  const stopRecording = () => {
-    if (mediaRecorder.current && mediaRecorder.current.state === 'recording') {
-      mediaRecorder.current.stop();
-      setIsRecording(false);
+  const processAudio = async (audioBlob: Blob) => {
+    try {
+      // Convert blob to base64
+      const reader = new FileReader();
+      reader.readAsDataURL(audioBlob);
+      
+      reader.onloadend = async () => {
+        const base64data = reader.result as string;
+        // Remove the data URL prefix (e.g., "data:audio/webm;base64,")
+        const base64Audio = base64data.split(',')[1];
+        
+        const { data, error } = await supabase.functions.invoke('transcribe-audio', {
+          body: { audio: base64Audio }
+        });
+        
+        if (error) throw error;
+        
+        if (data.text) {
+          onTranscriptionComplete(data.text);
+          toast.success("Voice input processed successfully!");
+        } else {
+          toast.error("Could not transcribe audio. Please try again.");
+        }
+        
+        setIsProcessing(false);
+      };
+    } catch (err) {
+      console.error('Error processing audio:', err);
+      toast.error("Error processing audio. Please try again.");
+      setIsProcessing(false);
     }
+  };
+
+  // Format recording time as MM:SS
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
   return (
-    <div>
-      <Button
-        variant="outline"
-        onClick={isRecording ? stopRecording : startRecording}
-        className="w-full mt-2"
-        disabled={!mediaRecorder.current}
-      >
-        {isRecording ? (
-          <>
-            <Square className="mr-2 h-4 w-4" />
-            Stop Recording
-          </>
-        ) : (
-          <>
-            <Mic className="mr-2 h-4 w-4" />
-            {placeholder}
-          </>
-        )}
-      </Button>
-    </div>
+    <Button 
+      variant={isRecording ? "destructive" : "outline"} 
+      size="icon"
+      onClick={isRecording ? stopRecording : startRecording}
+      disabled={isProcessing}
+      className="flex items-center justify-center"
+      type="button"
+      title={isRecording ? "Stop recording" : "Record voice message"}
+    >
+      {isProcessing ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : isRecording ? (
+        <div className="flex items-center">
+          <StopCircle className="h-4 w-4" />
+          <span className="ml-1 text-xs">{formatTime(recordingDuration)}</span>
+        </div>
+      ) : (
+        <Mic className="h-4 w-4" />
+      )}
+    </Button>
   );
 };
 

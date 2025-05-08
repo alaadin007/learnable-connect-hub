@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/landing/Footer';
 import { useAuth } from '@/contexts/AuthContext';
@@ -12,21 +11,26 @@ import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const Documents: React.FC = () => {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('upload');
-  const [refreshTrigger, setRefreshTrigger] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
 
-  // Handler for when upload is complete
-  const handleUploadComplete = () => {
-    setRefreshTrigger(prev => !prev); // Toggle to trigger re-fetch in FileList
-    setActiveTab('list'); // Switch to the list tab to show the newly uploaded file
-  };
+  // Redirect if not logged in
+  useEffect(() => {
+    if (!user && !redirecting) {
+      setRedirecting(true);
+      navigate('/login', { state: { from: '/documents' } });
+    }
+  }, [user, navigate, redirecting]);
 
-  // Immediate conditional rendering instead of waiting
   if (!user) {
-    navigate('/login', { state: { from: '/documents' } });
-    return null;
+    return (
+      <div className="flex justify-center items-center h-screen" role="status" aria-live="polite">
+        {/* Consider replacing with spinner or skeleton */}
+        Loading your documents page...
+      </div>
+    );
   }
 
   return (
@@ -62,10 +66,10 @@ const Documents: React.FC = () => {
                   <TabsTrigger value="list" role="tab" aria-selected={activeTab === 'list'}>My Files</TabsTrigger>
                 </TabsList>
                 <TabsContent value="upload" role="tabpanel" tabIndex={0}>
-                  <FileUpload onUploadComplete={handleUploadComplete} />
+                  <FileUpload />
                 </TabsContent>
                 <TabsContent value="list" role="tabpanel" tabIndex={0}>
-                  <FileList refreshTrigger={refreshTrigger} />
+                  <FileList />
                 </TabsContent>
               </Tabs>
             </CardContent>

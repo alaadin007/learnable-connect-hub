@@ -1,71 +1,71 @@
 
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAuth } from '@/contexts/AuthContext';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { StudentPerformanceTable } from "./StudentPerformanceTable";
-import { StudentPerformanceMetric } from './types';
-import { getStudentPerformanceMetrics } from '@/utils/supabaseHelpers';
+import React from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
+import { format } from 'date-fns';
+import { StudentPerformanceData } from "./types";
 
-export function StudentPerformancePanel() {
-  const { schoolId } = useAuth();
-  const [selectedTab, setSelectedTab] = useState<string>("table");
-  const [students, setStudents] = useState<StudentPerformanceMetric[]>([]);
-  const [error, setError] = useState<string | null>(null);
+interface StudentPerformanceTableProps {
+  data: StudentPerformanceData[];
+  isLoading: boolean;
+}
 
-  useEffect(() => {
-    async function fetchStudentPerformance() {
-      try {
-        if (!schoolId) {
-          console.error("No school ID found");
-          setStudents([]);
-          return;
-        }
-        
-        // Use our improved helper function for consistent type handling
-        const performanceData = await getStudentPerformanceMetrics(schoolId);
-        setStudents(performanceData);
-      } catch (err: any) {
-        console.error("Error fetching student performance:", err);
-        setError(err.message || "Failed to load student performance data");
-        setStudents([]);
-      }
-    }
-
-    fetchStudentPerformance();
-  }, [schoolId]);
+export const StudentPerformanceTable = ({ data, isLoading }: StudentPerformanceTableProps) => {
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Student Performance</CardTitle>
+          <CardDescription>Student assessment metrics</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Skeleton className="h-[300px] w-full" />
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
-    <Card className="col-span-3">
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-lg font-medium">
-          Student Performance
-        </CardTitle>
-        <Tabs value={selectedTab} onValueChange={setSelectedTab} className="w-[400px]">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="table">Table View</TabsTrigger>
-            <TabsTrigger value="chart">Chart View</TabsTrigger>
-          </TabsList>
-        </Tabs>
+    <Card>
+      <CardHeader>
+        <CardTitle>Student Performance</CardTitle>
+        <CardDescription>Student assessment metrics and performance data</CardDescription>
       </CardHeader>
       <CardContent>
-        {error ? (
-          <div className="text-center text-destructive p-4">{error}</div>
+        {data.length === 0 ? (
+          <div className="flex justify-center items-center py-10 text-muted-foreground">
+            No student performance data available
+          </div>
         ) : (
-          <>
-            <TabsContent value="table" className="mt-0">
-              <StudentPerformanceTable students={students} />
-            </TabsContent>
-            <TabsContent value="chart" className="mt-0">
-              <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-                Student performance charts will be available soon.
-              </div>
-            </TabsContent>
-          </>
+          <div className="overflow-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Student</TableHead>
+                  <TableHead className="text-right">Avg. Score</TableHead>
+                  <TableHead className="text-right">Assessments Taken</TableHead>
+                  <TableHead className="text-right">Completion Rate</TableHead>
+                  <TableHead>Last Active</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.map((student, index) => (
+                  <TableRow key={student.id || index}>
+                    <TableCell className="font-medium">{student.name}</TableCell>
+                    <TableCell className="text-right">{student.avg_score || student.average_score || 0}%</TableCell>
+                    <TableCell className="text-right">{student.assessments_taken || 0}</TableCell>
+                    <TableCell className="text-right">{student.completion_rate || 0}%</TableCell>
+                    <TableCell>{student.last_active || "Not available"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         )}
       </CardContent>
     </Card>
   );
-}
+};
 
-export default StudentPerformancePanel;
+export default StudentPerformanceTable;

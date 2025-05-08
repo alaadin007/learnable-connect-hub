@@ -12,7 +12,6 @@ interface SchoolRegistrationData {
   adminEmail: string;
   adminPassword: string;
   adminFullName: string;
-  userType?: string; // Optional, defaults to school_admin
 }
 
 serve(async (req) => {
@@ -30,7 +29,6 @@ serve(async (req) => {
         schoolName: requestData.schoolName,
         adminEmail: requestData.adminEmail,
         adminFullName: requestData.adminFullName,
-        userType: requestData.userType || 'school_admin',
         // Not logging password for security
       }));
     } catch (parseError) {
@@ -44,7 +42,7 @@ serve(async (req) => {
       );
     }
     
-    const { schoolName, adminEmail, adminPassword, adminFullName, userType = 'school_admin' } = requestData as SchoolRegistrationData;
+    const { schoolName, adminEmail, adminPassword, adminFullName } = requestData as SchoolRegistrationData;
     
     // Get request URL to determine origin for redirects
     const requestUrl = new URL(req.url);
@@ -100,15 +98,41 @@ serve(async (req) => {
     
     // Check if email already exists FIRST before creating any resources
     try {
-      // Check if email exists using our custom RPC function
-      const { data: emailExists, error: emailCheckError } = await supabaseAdmin.rpc(
-        'check_if_email_exists', 
-        { input_email: adminEmail }
-      );
-      
+      // First check using auth.admin.listUsers
+      const { data: existingUsers, error: emailCheckError } = await supabaseAdmin.auth.admin.listUsers({
+        filter: {
+          email: adminEmail
+        }
+      });
+
+      // If there was an error checking for existing users, try a different approach
       if (emailCheckError) {
-        console.error("Error checking for existing users:", emailCheckError);
-      } else if (emailExists === true) {
+        console.error("Error checking for existing users with listUsers:", emailCheckError);
+        
+        // Try checking if we can sign in with this email
+        const { data: signInData, error: signInError } = await supabaseAdmin.auth.signInWithPassword({
+          email: adminEmail,
+          password: "dummy-password-for-check"
+        });
+        
+        // If there's no error or the error is not about invalid credentials, email might exist
+        if (!signInError || (signInError && !signInError.message.includes("Invalid login credentials"))) {
+          console.log("Email appears to exist based on signIn check:", adminEmail);
+          return new Response(
+            JSON.stringify({ 
+              error: "Email already registered", 
+              message: "This email address is already registered. Please use a different email address. Each user can only have one role in the system."
+            }),
+            { 
+              status: 409, 
+              headers: { ...corsHeaders, "Content-Type": "application/json" }
+            }
+          );
+        }
+      }
+
+      // If there are users with this email, return an error
+      if (existingUsers && existingUsers.users.length > 0) {
         console.log("Email already exists:", adminEmail);
         return new Response(
           JSON.stringify({ 
@@ -212,7 +236,7 @@ serve(async (req) => {
       email_confirm: false, // Require email confirmation
       user_metadata: {
         full_name: adminFullName,
-        user_type: 'school_admin', // Use the exact user_type that matches the database constraint
+        user_type: "school", // Designate as school admin
         school_code: schoolCode,
         school_name: schoolName
       },
@@ -292,7 +316,7 @@ serve(async (req) => {
       .from("profiles")
       .insert({
         id: adminUserId,
-        user_type: 'school_admin', // Use consistent user_type value
+        user_type: "school",
         full_name: adminFullName,
         school_code: schoolCode,
         school_name: schoolName
@@ -333,26 +357,6 @@ serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" }
         }
       );
-    }
-
-    // Create user role entry for the school admin
-    try {
-      const { error: roleError } = await supabaseAdmin
-        .from("user_roles")
-        .insert({
-          user_id: adminUserId,
-          role: 'school_admin'
-        });
-
-      if (roleError) {
-        console.error("Error creating user role:", roleError);
-        // Continue despite role error, the trigger should handle this
-      } else {
-        console.log(`Created 'school_admin' role for user ${adminUserId}`);
-      }
-    } catch (roleError) {
-      console.error("Exception when creating user role:", roleError);
-      // Continue despite role error, the trigger should handle this
     }
 
     // Make multiple attempts to send confirmation email to improve delivery reliability

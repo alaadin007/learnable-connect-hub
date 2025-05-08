@@ -1,265 +1,308 @@
 
-import React, { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Input } from '@/components/ui/input';
-import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
-import { TeacherInvite } from '@/utils/supabaseTypeHelpers';
-import { toast } from 'sonner';
+import React, { useState, useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import Navbar from "@/components/layout/Navbar";
+import Footer from "@/components/landing/Footer";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { toast } from "sonner";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Mail, UserPlus } from "lucide-react";
 
-const AdminTeachers: React.FC = () => {
-  const [teachers, setTeachers] = useState<any[]>([]);
+// Define the schema for teacher form
+const addTeacherSchema = z.object({
+  email: z.string().email({ message: "Please enter a valid email address" }),
+  method: z.enum(["invite", "create"], {
+    required_error: "Please select a method",
+  }),
+  full_name: z.string().optional(),
+});
+
+type AddTeacherFormValues = z.infer<typeof addTeacherSchema>;
+
+type TeacherInvite = {
+  id: string;
+  email: string;
+  created_at: string;
+  expires_at: string;
+  status: string;
+};
+
+const AdminTeachers = () => {
+  const { user, profile, isSuperviser } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
   const [invites, setInvites] = useState<TeacherInvite[]>([]);
-  const [newTeacherEmail, setNewTeacherEmail] = useState('');
-  const [loading, setLoading] = useState(false);
-  const { profile, schoolId } = useAuth();
 
+  const form = useForm<AddTeacherFormValues>({
+    resolver: zodResolver(addTeacherSchema),
+    defaultValues: {
+      email: "",
+      method: "invite",
+      full_name: "",
+    },
+  });
+  
+  const selectedMethod = form.watch("method");
+
+  // Load teacher invites
   useEffect(() => {
-    if (schoolId) {
-      fetchTeachers();
-      fetchInvitations();
-    }
-  }, [schoolId]);
+    const fetchInvites = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("teacher_invites")
+          .select("*")
+          .order("created_at", { ascending: false });
 
-  const fetchTeachers = async () => {
-    if (!schoolId) return;
-    
-    try {
-      const { data, error } = await supabase
-        .from('teachers')
-        .select(`
-          id,
-          is_supervisor,
-          profiles (
-            id,
-            full_name,
-            email,
-            is_active
-          )
-        `)
-        .eq('school_id', schoolId);
-      
-      if (error) throw error;
-      setTeachers(data || []);
-    } catch (error) {
-      console.error('Error fetching teachers:', error);
-      toast.error('Failed to load teachers');
-    }
-  };
-
-  const fetchInvitations = async () => {
-    if (!schoolId) return;
-    
-    try {
-      const { data, error } = await supabase
-        .from('teacher_invitations')
-        .select('*')
-        .eq('school_id', schoolId);
-      
-      if (error) throw error;
-      setInvites(data as TeacherInvite[] || []);
-    } catch (error) {
-      console.error('Error fetching invitations:', error);
-      toast.error('Failed to load invitations');
-    }
-  };
-
-  const handleInviteTeacher = async () => {
-    if (!schoolId || !profile?.id || !newTeacherEmail.trim()) {
-      toast.error('Missing required information');
-      return;
-    }
-    
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('invite-teacher', {
-        body: {
-          email: newTeacherEmail.trim(),
-          school_id: schoolId,
-          created_by: profile.id
-        }
-      });
-      
-      if (error) throw error;
-      
-      if (data?.success) {
-        toast.success(`Invitation sent to ${newTeacherEmail}`);
-        setNewTeacherEmail('');
-        fetchInvitations(); // Refresh invitation list
-      } else {
-        toast.error(data?.message || 'Failed to send invitation');
+        if (error) throw error;
+        setInvites(data || []);
+      } catch (error: any) {
+        console.error("Error fetching teacher invites:", error);
+        toast.error("Failed to load teacher invites");
       }
-    } catch (error) {
-      console.error('Error inviting teacher:', error);
-      toast.error('Failed to send invitation');
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
 
-  const handleDeleteInvite = async (inviteId: string) => {
+    fetchInvites();
+  }, []);
+
+  const onSubmit = async (values: AddTeacherFormValues) => {
+    if (!user) return;
+    
+    setIsLoading(true);
+    
     try {
-      const { error } = await supabase
-        .from('teacher_invitations')
-        .delete()
-        .eq('id', inviteId);
-      
-      if (error) throw error;
-      
-      setInvites(invites.filter(invite => invite.id !== inviteId));
-      toast.success('Invitation deleted');
-    } catch (error) {
-      console.error('Error deleting invitation:', error);
-      toast.error('Failed to delete invitation');
-    }
-  };
+      if (values.method === "invite") {
+        // Call the invite-teacher edge function
+        const { data, error } = await supabase.functions.invoke("invite-teacher", {
+          body: { email: values.email }
+        });
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString();
+        if (error) throw new Error(error.message);
+        
+        toast.success(`Invitation sent to ${values.email}`);
+      } else {
+        // Call the create-teacher edge function
+        const { data, error } = await supabase.functions.invoke("create-teacher", {
+          body: { 
+            email: values.email,
+            full_name: values.full_name || undefined
+          }
+        });
+
+        if (error) throw new Error(error.message);
+        
+        // Show success message with temporary password
+        toast.success(
+          <div>
+            <p>Teacher account created for {values.email}</p>
+            <p className="mt-2 font-mono text-xs">
+              Temporary password: {data.temp_password}
+            </p>
+          </div>,
+          { duration: 10000 }
+        );
+      }
+      
+      form.reset();
+      
+      // Refresh the invites list
+      const { data: updatedInvites } = await supabase
+        .from("teacher_invites")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (updatedInvites) {
+        setInvites(updatedInvites);
+      }
+      
+    } catch (error: any) {
+      console.error("Error adding teacher:", error);
+      toast.error(error.message || "Failed to add teacher");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-6">Teacher Management</h1>
-      
-      {/* Teacher Invitation Form */}
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle>Invite a Teacher</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-4">
-            <Input
-              type="email"
-              placeholder="Teacher's email address"
-              value={newTeacherEmail}
-              onChange={(e) => setNewTeacherEmail(e.target.value)}
-              className="flex-1"
-            />
-            <Button 
-              onClick={handleInviteTeacher}
-              disabled={loading || !newTeacherEmail.trim()}
-            >
-              {loading ? 'Sending...' : 'Send Invitation'}
-            </Button>
+    <div className="min-h-screen flex flex-col">
+      <Navbar />
+      <main className="flex-grow bg-learnable-super-light py-8">
+        <div className="container mx-auto px-4">
+          <div className="mb-6">
+            <h1 className="text-3xl font-bold gradient-text mb-2">Teacher Management</h1>
+            <p className="text-learnable-gray">
+              Add or invite teachers to join your school
+            </p>
           </div>
-        </CardContent>
-      </Card>
-      
-      {/* Current Teachers */}
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle>Current Teachers</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Supervisor</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {teachers.length > 0 ? (
-                teachers.map((teacher) => (
-                  <TableRow key={teacher.id}>
-                    <TableCell>{teacher.profiles?.full_name || 'Unknown'}</TableCell>
-                    <TableCell>{teacher.profiles?.email || 'No email'}</TableCell>
-                    <TableCell>
-                      {teacher.profiles?.is_active ? (
-                        <span className="text-green-500">Active</span>
-                      ) : (
-                        <span className="text-red-500">Inactive</span>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle>Add New Teacher</CardTitle>
+              <CardDescription>
+                Invite a teacher via email or create an account directly
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                  <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email</FormLabel>
+                        <FormControl>
+                          <Input placeholder="teacher@example.com" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="method"
+                    render={({ field }) => (
+                      <FormItem className="space-y-3">
+                        <FormLabel>Method</FormLabel>
+                        <FormControl>
+                          <RadioGroup
+                            onValueChange={field.onChange}
+                            defaultValue={field.value}
+                            className="flex flex-col space-y-1"
+                          >
+                            <FormItem className="flex items-center space-x-3 space-y-0">
+                              <FormControl>
+                                <RadioGroupItem value="invite" />
+                              </FormControl>
+                              <FormLabel className="font-normal">
+                                Invite via Email
+                              </FormLabel>
+                            </FormItem>
+                            <FormItem className="flex items-center space-x-3 space-y-0">
+                              <FormControl>
+                                <RadioGroupItem value="create" />
+                              </FormControl>
+                              <FormLabel className="font-normal">
+                                Create Account Directly
+                              </FormLabel>
+                            </FormItem>
+                          </RadioGroup>
+                        </FormControl>
+                        <FormDescription>
+                          {selectedMethod === "invite" 
+                            ? "The teacher will receive an email invitation to join your school." 
+                            : "You will create the account directly and get a temporary password."}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  {selectedMethod === "create" && (
+                    <FormField
+                      control={form.control}
+                      name="full_name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Full Name (Optional)</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Jane Doe" {...field} />
+                          </FormControl>
+                          <FormDescription>
+                            The teacher's name will be pre-filled in their profile.
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
                       )}
-                    </TableCell>
-                    <TableCell>
-                      {teacher.is_supervisor ? (
-                        <span className="text-blue-500">Yes</span>
-                      ) : (
-                        <span>No</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {/* Actions will be added in future implementations */}
-                      <Button variant="outline" size="sm" disabled>Manage</Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-4">
-                    No teachers found
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-      
-      {/* Pending Invitations */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Pending Invitations</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Email</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Invited On</TableHead>
-                <TableHead>Expires</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+                    />
+                  )}
+                  
+                  <Button 
+                    type="submit" 
+                    className="gradient-bg" 
+                    disabled={isLoading}
+                  >
+                    {selectedMethod === "invite" ? (
+                      <>
+                        <Mail className="mr-2 h-4 w-4" />
+                        {isLoading ? "Sending..." : "Send Invitation"}
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus className="mr-2 h-4 w-4" />
+                        {isLoading ? "Creating..." : "Create Teacher Account"}
+                      </>
+                    )}
+                  </Button>
+                </form>
+              </Form>
+            </CardContent>
+          </Card>
+          
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle>Teacher Invitations</CardTitle>
+              <CardDescription>
+                Pending and accepted teacher invitations
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
               {invites.length > 0 ? (
-                invites.map((invite) => (
-                  <TableRow key={invite.id}>
-                    <TableCell>{invite.email}</TableCell>
-                    <TableCell>
-                      <span className={
-                        invite.status === 'pending' 
-                          ? 'text-yellow-500'
-                          : invite.status === 'accepted' 
-                            ? 'text-green-500' 
-                            : 'text-red-500'
-                      }>
-                        {invite.status.charAt(0).toUpperCase() + invite.status.slice(1)}
-                      </span>
-                    </TableCell>
-                    <TableCell>{formatDate(invite.created_at)}</TableCell>
-                    <TableCell>{formatDate(invite.expires_at)}</TableCell>
-                    <TableCell>
-                      {invite.status === 'pending' && (
-                        <Button 
-                          variant="destructive" 
-                          size="sm"
-                          onClick={() => handleDeleteInvite(invite.id)}
-                        >
-                          Cancel
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left py-2 px-1">Email</th>
+                        <th className="text-left py-2 px-1">Sent</th>
+                        <th className="text-left py-2 px-1">Expires</th>
+                        <th className="text-left py-2 px-1">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {invites.map((invite) => (
+                        <tr key={invite.id} className="border-b hover:bg-muted/50">
+                          <td className="py-2 px-1">{invite.email}</td>
+                          <td className="py-2 px-1">
+                            {new Date(invite.created_at).toLocaleDateString()}
+                          </td>
+                          <td className="py-2 px-1">
+                            {new Date(invite.expires_at).toLocaleDateString()}
+                          </td>
+                          <td className="py-2 px-1">
+                            <span className={`text-xs font-medium px-2 py-0.5 rounded ${
+                              invite.status === "pending"
+                                ? "bg-yellow-100 text-yellow-800"
+                                : invite.status === "accepted"
+                                ? "bg-green-100 text-green-800"
+                                : "bg-red-100 text-red-800"
+                            }`}>
+                              {invite.status.charAt(0).toUpperCase() + invite.status.slice(1)}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               ) : (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-4">
-                    No pending invitations
-                  </TableCell>
-                </TableRow>
+                <p className="text-muted-foreground">No invitations found.</p>
               )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+            </CardContent>
+            <CardFooter>
+              <p className="text-xs text-muted-foreground">
+                Teacher invitations expire after 7 days. Teachers need to sign up using the same email the invitation was sent to.
+              </p>
+            </CardFooter>
+          </Card>
+        </div>
+      </main>
+      <Footer />
     </div>
   );
 };

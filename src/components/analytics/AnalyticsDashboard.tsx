@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -7,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuth } from "@/contexts/AuthContext";
 import { format, subDays, startOfWeek, endOfWeek } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Download, Calendar } from 'lucide-react';
+import { Loader2, Download, Calendar } from 'lucide-react';
 
 // Define types for analytics data
 interface Session {
@@ -107,8 +106,11 @@ const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff8042', '#0088fe', '#00C49F'
 
 const AnalyticsDashboard: React.FC = () => {
   const { profile, schoolId, user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [initialLoad, setInitialLoad] = useState(true);
   const [timeRange, setTimeRange] = useState('7days');
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
+  const [dataLoaded, setDataLoaded] = useState(false);
   
   // Check if we're using a test account
   const isTestAccount = useMemo(() => {
@@ -148,25 +150,61 @@ const AnalyticsDashboard: React.FC = () => {
     };
   };
   
-  // Initialize mock data immediately for all accounts
+  // Initialize mock data immediately for test accounts
   useEffect(() => {
-    console.log("Initializing analytics data");
-    const mockData = getMockAnalyticsData(schoolId || 'default');
-    setAnalyticsData(mockData);
-  }, [schoolId]);
+    if (isTestAccount && !dataLoaded) {
+      console.log("Test account detected, using mock data immediately");
+      const mockData = getMockAnalyticsData(schoolId || 'test');
+      setAnalyticsData(mockData);
+      setDataLoaded(true);
+      setLoading(false);
+      setInitialLoad(false);
+    }
+  }, [isTestAccount, schoolId, dataLoaded]);
   
-  // Update analytics data when time range changes
+  // Fetch analytics data asynchronously
   useEffect(() => {
-    if (!schoolId) return;
+    // Skip data fetch for test accounts
+    if (isTestAccount) {
+      return;
+    }
     
-    const dateRange = getDateRange();
-    const mockData = getMockAnalyticsData(schoolId, {
-      startDate: dateRange.startDate,
-      endDate: dateRange.endDate
-    });
+    const fetchAnalyticsData = async () => {
+      if (!initialLoad) {
+        setLoading(true);
+      }
+      
+      try {
+        if (!schoolId) {
+          throw new Error('School ID not available');
+        }
+        
+        const dateRange = getDateRange();
+
+        // Use mock data for now, but in a non-blocking way
+        const mockData = getMockAnalyticsData(schoolId, {
+          startDate: dateRange.startDate,
+          endDate: dateRange.endDate
+        });
+
+        setAnalyticsData(mockData);
+        setDataLoaded(true);
+      } catch (error) {
+        console.error('Error fetching analytics data:', error);
+        // Use mock data fallback
+        if (schoolId) {
+          const mockData = getMockAnalyticsData(schoolId, {});
+          setAnalyticsData(mockData);
+          setDataLoaded(true);
+        }
+      } finally {
+        setLoading(false);
+        setInitialLoad(false);
+      }
+    };
     
-    setAnalyticsData(mockData);
-  }, [timeRange, schoolId]);
+    fetchAnalyticsData();
+  }, [schoolId, timeRange, isTestAccount]);
   
   // Format duration for display
   const formatDuration = (minutes: number | string) => {
@@ -240,55 +278,27 @@ const AnalyticsDashboard: React.FC = () => {
     document.body.removeChild(link);
   };
   
-  // Fallback mock data if not yet loaded
-  if (!analyticsData) {
-    const mockData = getMockAnalyticsData(schoolId || 'default');
+  // Only show loading on initial load and not when we already have data
+  const showLoading = initialLoad && loading && !dataLoaded && !analyticsData;
+  
+  if (showLoading) {
     return (
-      <div className="space-y-6">
-        {/* Show a fully rendered UI with mock data */}
-        <AnalyticsDashboardContent 
-          analyticsData={mockData}
-          timeRange={timeRange}
-          setTimeRange={setTimeRange}
-          profile={profile}
-          formatDuration={formatDuration}
-          studentStats={[]}
-          CustomTooltip={CustomTooltip}
-          exportData={exportData}
-        />
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-learnable-purple" />
+      </div>
+    );
+  }
+  
+  if (!analyticsData) {
+    return (
+      <div className="text-center py-8">
+        <p>No analytics data available.</p>
       </div>
     );
   }
   
   return (
     <div className="space-y-6">
-      <AnalyticsDashboardContent 
-        analyticsData={analyticsData}
-        timeRange={timeRange}
-        setTimeRange={setTimeRange}
-        profile={profile}
-        formatDuration={formatDuration}
-        studentStats={studentStats}
-        CustomTooltip={CustomTooltip}
-        exportData={exportData}
-      />
-    </div>
-  );
-};
-
-// Separate content component to avoid code duplication
-const AnalyticsDashboardContent = ({ 
-  analyticsData, 
-  timeRange, 
-  setTimeRange, 
-  profile, 
-  formatDuration, 
-  studentStats, 
-  CustomTooltip, 
-  exportData 
-}: any) => {
-  return (
-    <>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold">Analytics Dashboard</h2>
@@ -494,20 +504,14 @@ const AnalyticsDashboardContent = ({
                     </tr>
                   </thead>
                   <tbody>
-                    {analyticsData.studyTime.map((student) => {
-                      const studentData = studentStats.find((s: any) => s.studentName === student.studentName) || {
-                        sessionCount: 0,
-                        avgDuration: 0
-                      };
-                      return (
-                        <tr key={student.studentName} className="border-b">
-                          <td className="py-2 px-4">{student.studentName}</td>
-                          <td className="py-2 px-4 text-right">{student.hours}</td>
-                          <td className="py-2 px-4 text-right">{studentData.sessionCount}</td>
-                          <td className="py-2 px-4 text-right">{formatDuration(studentData.avgDuration)}</td>
-                        </tr>
-                      );
-                    })}
+                    {studentStats.map((student) => (
+                      <tr key={student.studentName} className="border-b">
+                        <td className="py-2 px-4">{student.studentName}</td>
+                        <td className="py-2 px-4 text-right">{student.hours}</td>
+                        <td className="py-2 px-4 text-right">{student.sessionCount}</td>
+                        <td className="py-2 px-4 text-right">{formatDuration(student.avgDuration)}</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -553,7 +557,7 @@ const AnalyticsDashboardContent = ({
           </Card>
         </TabsContent>
       </Tabs>
-    </>
+    </div>
   );
 };
 

@@ -1,49 +1,45 @@
 
 import React from "react";
 import StatsCard from "./StatsCard";
-import { BarChart, MessageSquare, Clock, Users } from "lucide-react";
-
-interface AnalyticsSummary {
-  activeStudents: number;
-  totalSessions: number;
-  totalQueries: number;
-  avgSessionMinutes: number;
-}
+import { Activity, MessageSquare, Clock, LayoutGrid } from "lucide-react";
+import { AnalyticsSummary } from "./types";
+import { DateRange } from "react-day-picker";
 
 interface AnalyticsSummaryCardsProps {
   summary: AnalyticsSummary;
   isLoading?: boolean;
+  dateRange?: DateRange | undefined;
 }
 
-export function AnalyticsSummaryCards({ summary, isLoading }: AnalyticsSummaryCardsProps) {
+export function AnalyticsSummaryCards({ summary, isLoading, dateRange }: AnalyticsSummaryCardsProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
       <StatsCard
         title="Active Students"
         value={summary.activeStudents}
         description="Students engaged with the platform"
-        icon={Users}
+        icon={<Activity className="h-6 w-6 text-blue-500" />}
       />
       
       <StatsCard
         title="Total Sessions"
         value={summary.totalSessions}
         description="Learning sessions conducted"
-        icon={BarChart}
+        icon={<LayoutGrid className="h-6 w-6 text-green-500" />}
       />
       
       <StatsCard
         title="Total Queries"
         value={summary.totalQueries}
         description="Questions asked by students"
-        icon={MessageSquare}
+        icon={<MessageSquare className="h-6 w-6 text-purple-500" />}
       />
       
       <StatsCard
         title="Avg Session Length"
         value={`${summary.avgSessionMinutes.toFixed(1)} min`}
         description="Average duration per session"
-        icon={Clock}
+        icon={<Clock className="h-6 w-6 text-orange-500" />}
       />
     </div>
   );

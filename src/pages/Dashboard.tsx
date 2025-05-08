@@ -1,14 +1,15 @@
+
 import React, { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, BarChart, Users, School, FileText, Settings } from "lucide-react";
+import { MessageSquare, BookOpen, BarChart3, Users, School, FileText, Settings } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import Footer from "@/components/layout/Footer";
 
 const Dashboard = () => {
-  const { user, profile, userType } = useAuth();
+  const { user, profile, userRole } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -26,51 +27,47 @@ const Dashboard = () => {
     }
   }, [user, navigate, location.state]);
 
-  // Always redirect school admins to the admin dashboard
+  // More targeted approach to role-based redirection
   useEffect(() => {
-    // If coming from test accounts, don't redirect to avoid infinite loops
-    if (location.state?.fromTestAccounts || location.state?.fromNavigation) {
-      return;
-    }
+    // Only redirect on specific conditions
+    const isDirectDashboardAccess = !location.state?.fromNavigation && 
+                                   !location.state?.fromTestAccounts &&
+                                   !location.state?.preserveContext &&
+                                   !location.state?.fromDashboard;
     
-    // Otherwise redirect to appropriate dashboard
-    if (userType === "school") {
-      console.log("Dashboard: Redirecting school admin to admin panel");
-      navigate("/admin", {
-        replace: true,
-        state: { fromDashboard: true, preserveContext: true }
+    // Only redirect if we know the role and it's a direct access
+    if (userRole && isDirectDashboardAccess) {
+      console.log("Dashboard: Redirecting based on role", {
+        userRole,
+        isDirectDashboardAccess,
+        locationState: location.state
       });
-    } else if (userType === "teacher") {
-      console.log("Dashboard: Redirecting teacher to teacher dashboard");
-      navigate("/teacher/dashboard", {
-        replace: true,
-        state: { fromDashboard: true, preserveContext: true }
-      });
-    } else if (userType === "student") {
-      console.log("Dashboard: Redirecting student to student dashboard");
-      navigate("/student/dashboard", {
-        replace: true,
-        state: { fromDashboard: true, preserveContext: true }
-      });
+      
+      if (userRole === "school" && profile?.organization?.id) {
+        navigate("/admin", { replace: true, state: { fromDashboard: true, preserveContext: true } });
+      } else if (userRole === "teacher") {
+        navigate("/teacher/analytics", { replace: true, state: { fromDashboard: true, preserveContext: true } });
+      }
+      // Student stays on dashboard
     }
-  }, [userType, profile, navigate, location.state]);
+  }, [userRole, navigate, location.state, profile]);
 
-  if (!user) {
+  // Show loading state if user or profile data is not ready
+  if (!user && !location.state?.fromTestAccounts) {
     return (
       <>
         <Navbar />
         <main className="container mx-auto px-4 py-8 min-h-screen flex items-center justify-center">
-          <p className="text-xl">Please log in to access your dashboard</p>
+          <p className="text-xl">Loading your dashboard...</p>
         </main>
-        <Footer />
       </>
     );
   }
 
   const renderUserDashboard = () => {
-    const userRole = userType;
+    const userType = profile?.user_type;
 
-    if (userRole === "school") {
+    if (userType === "school") {
       return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <DashboardCard
@@ -88,7 +85,7 @@ const Dashboard = () => {
           <DashboardCard
             title="Analytics"
             description="View school-wide performance analytics"
-            icon={<BarChart className="h-10 w-10" />}
+            icon={<BarChart3 className="h-10 w-10" />}
             onClick={() => navigate("/admin/analytics", { state: { fromNavigation: true, preserveContext: true } })}
           />
           <DashboardCard
@@ -101,7 +98,7 @@ const Dashboard = () => {
       );
     }
 
-    if (userRole === "teacher") {
+    if (userType === "teacher") {
       return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <DashboardCard
@@ -113,7 +110,7 @@ const Dashboard = () => {
           <DashboardCard
             title="Analytics"
             description="View student performance analytics"
-            icon={<BarChart className="h-10 w-10" />}
+            icon={<BarChart3 className="h-10 w-10" />}
             onClick={() => navigate("/teacher/analytics", { state: { fromNavigation: true, preserveContext: true } })}
           />
           <DashboardCard
@@ -144,7 +141,7 @@ const Dashboard = () => {
         <DashboardCard
           title="My Progress"
           description="Track your performance and learning progress"
-          icon={<BarChart className="h-10 w-10" />}
+          icon={<BarChart3 className="h-10 w-10" />}
           onClick={() => navigate("/student/progress", { state: { fromNavigation: true, preserveContext: true } })}
         />
         <DashboardCard
@@ -164,13 +161,13 @@ const Dashboard = () => {
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">Welcome, {profile?.full_name || "User"}</h1>
           <p className="text-gray-600">
-            {userType === "school"
+            {profile?.user_type === "school"
               ? "Manage your school, teachers, and view analytics"
-              : userType === "teacher"
+              : profile?.user_type === "teacher"
               ? "Manage your students and view their progress"
               : "Access your learning resources and complete your assessments"}
           </p>
-          {userType === "student" && profile?.organization && (
+          {profile?.user_type === "student" && profile?.organization && (
             <p className="text-sm text-gray-500 mt-2">School: {profile.organization.name}</p>
           )}
         </div>

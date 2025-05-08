@@ -1,8 +1,7 @@
-
-// Update the DateRangePicker component to support the onDateRangeChange prop
-import * as React from "react";
-import { CalendarIcon } from "lucide-react";
-import { DateRange } from "@/components/analytics/types";
+import React from "react";
+import { format } from "date-fns";
+import { Calendar as CalendarIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -10,32 +9,26 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
-import { format } from "date-fns";
-import type { DateRange as ReactDayPickerDateRange } from 'react-day-picker';
+import { DateRange } from "./types";
 
-export interface DateRangePickerProps {
-  className?: string;
-  dateRange: DateRange;
-  onDateRangeChange: (range: DateRange) => void;
+interface DateRangePickerProps {
+  dateRange: DateRange | undefined;
+  onDateRangeChange: (range: DateRange | undefined) => void;
 }
 
-export function DateRangePicker({
-  className,
-  dateRange,
-  onDateRangeChange,
-}: DateRangePickerProps) {
+export function DateRangePicker({ dateRange, onDateRangeChange }: DateRangePickerProps) {
   return (
-    <div className={cn("grid gap-2", className)}>
+    <div className="grid gap-2">
       <Popover>
         <PopoverTrigger asChild>
           <Button
             id="date"
-            variant={"outline"}
+            variant="outline"
             className={cn(
               "w-full justify-start text-left font-normal",
-              !dateRange && "text-muted-foreground"
+              !dateRange?.from && "text-muted-foreground"
             )}
+            aria-label="Select date range"
           >
             <CalendarIcon className="mr-2 h-4 w-4" />
             {dateRange?.from ? (
@@ -52,23 +45,19 @@ export function DateRangePicker({
             )}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="center">
+        <PopoverContent className="w-auto p-0" align="start">
           <Calendar
             initialFocus
             mode="range"
             defaultMonth={dateRange?.from}
-            selected={dateRange as ReactDayPickerDateRange}
-            onSelect={(range) => {
-              if (range) {
-                // Ensure we always have both from and to properties
-                const completeRange: DateRange = {
-                  from: range.from,
-                  to: range.to || range.from
-                };
-                onDateRangeChange(completeRange);
-              }
-            }}
+            selected={
+              dateRange
+                ? { from: dateRange.from || undefined, to: dateRange.to }
+                : undefined
+            }
+            onSelect={onDateRangeChange}
             numberOfMonths={2}
+            className={cn("p-3 pointer-events-auto")}
           />
         </PopoverContent>
       </Popover>

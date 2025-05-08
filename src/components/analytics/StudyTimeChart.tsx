@@ -1,76 +1,86 @@
 
-import React from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { StudyTimeData } from './types';
-
-// Format the name for display
-const formatName = (name: string) => {
-  if (name.length > 15) {
-    return name.substring(0, 12) + '...';
-  }
-  return name;
-};
+import React from "react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer
+} from "recharts";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { StudyTimeData } from "./types";
+import { ChartContainer } from "@/components/ui/chart";
 
 interface StudyTimeChartProps {
   data: StudyTimeData[];
   title?: string;
   description?: string;
+  isLoading?: boolean;
 }
 
-const StudyTimeChart: React.FC<StudyTimeChartProps> = ({
-  data,
-  title = 'Study Time by Student',
-  description = 'Hours spent learning in the past week',
-}) => {
-  // Format data for the chart
-  const chartData = data.map(item => ({
-    name: formatName(item.studentName || item.name || item.student_name || 'Unknown'),
-    hours: item.hours || (item.total_minutes ? item.total_minutes / 60 : 0),
-    studentId: item.student_id || '',
-  }));
+const StudyTimeChart = ({ 
+  data, 
+  title = "Weekly Study Time", 
+  description = "Hours studied per student this week",
+  isLoading = false 
+}: StudyTimeChartProps) => {
+  // Prepare data for chart - only if we have data
+  const chartData = React.useMemo(() => {
+    if (!data || data.length === 0) return [];
+    
+    return data.map(item => ({
+      name: item.student_name || item.studentName || item.name || `Student ${item.student_id || ""}`,
+      hours: item.total_minutes ? (item.total_minutes / 60) : (item.hours || 0)
+    }));
+  }, [data]);
 
   return (
-    <Card>
+    <Card className="w-full">
       <CardHeader>
         <CardTitle>{title}</CardTitle>
         <CardDescription>{description}</CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="h-[300px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={chartData}
-              margin={{
-                top: 5,
-                right: 30,
-                left: 20,
-                bottom: 65,
+      <CardContent className="pt-2">
+        <div className="h-[300px] w-full">
+          {isLoading ? (
+            <div className="flex h-full items-center justify-center">
+              <p className="text-muted-foreground">Loading chart data...</p>
+            </div>
+          ) : chartData.length > 0 ? (
+            <ChartContainer 
+              config={{
+                hours: { color: "#3b82f6" } // Blue color for bars
               }}
             >
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis
-                dataKey="name"
-                angle={-45}
-                textAnchor="end"
-                height={70}
-                tick={{ fontSize: 12 }}
-              />
-              <YAxis
-                label={{ value: 'Hours', angle: -90, position: 'insideLeft' }}
-              />
-              <Tooltip
-                formatter={(value: number) => [`${value.toFixed(1)} hours`, 'Time Spent']}
-                labelFormatter={(name) => `Student: ${name}`}
-              />
-              <Legend />
-              <Bar dataKey="hours" name="Study Hours" fill="#8884d8" />
-            </BarChart>
-          </ResponsiveContainer>
+              <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 50 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis 
+                  dataKey="name" 
+                  angle={-45}
+                  textAnchor="end"
+                  height={70}
+                  tick={{ fontSize: 12 }}
+                />
+                <YAxis label={{ value: 'Hours', angle: -90, position: 'insideLeft' }} />
+                <Tooltip 
+                  formatter={(value) => [`${value} hours`, 'Study Time']}
+                />
+                <Legend />
+                <Bar dataKey="hours" name="Study Hours" fill="var(--color-hours)" />
+              </BarChart>
+            </ChartContainer>
+          ) : (
+            <div className="flex h-full items-center justify-center">
+              <p className="text-muted-foreground">No data available</p>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
   );
 };
 
-export default StudyTimeChart;
+export default React.memo(StudyTimeChart);

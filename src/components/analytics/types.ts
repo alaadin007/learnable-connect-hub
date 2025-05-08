@@ -1,38 +1,18 @@
 
-// Ensure our DateRange type is properly defined
-export interface DateRange {
-  from: Date;
-  to: Date; // Making to required to fix type issues
+import { DateRange as CalendarDateRange } from "react-day-picker";
+
+export interface DateRange extends CalendarDateRange {
+  from: Date | undefined;
+  to?: Date;
 }
 
-export interface SessionLog {
-  id: string;
-  user_id: string;
-  topic_or_content_used: string;
-  session_start: string;
-  session_end: string;
-  num_queries: number;
-  profiles: {
-    full_name: string;
-  };
-}
-
-export interface TeacherAnalyticsData {
-  id: string;
-  name: string;
-  assessmentsCount: number;
-  averageScore: number;
-  completionRate: number;
-  studentsAssessed: number;
-}
-
-export interface StudentAnalyticsFilterProps {
+export interface AnalyticsFilters {
+  dateRange?: DateRange;
   schoolId?: string;
-  selectedStudentId?: string;
-  dateRange: DateRange;
+  teacherId?: string;
+  studentId?: string;
 }
 
-// Add missing types that were referenced in error messages
 export interface AnalyticsSummary {
   activeStudents: number;
   totalSessions: number;
@@ -42,71 +22,122 @@ export interface AnalyticsSummary {
 
 export interface SessionData {
   id: string;
-  userId: string;
-  userName: string;
-  startTime: string;
-  endTime?: string;
-  duration: number;
-  topicOrContent: string;
-  numQueries: number;
-  // Add fields that match the database schema
-  student_name?: string;
-  student_id?: string;
+  student_name: string;
+  student_id: string;
+  session_date: string;
+  duration_minutes: number;
+  topics: string[];
+  questions_asked: number;
+  questions_answered: number;
+  
+  // Compatibility fields for existing code
+  userId?: string;
+  userName?: string;
   student?: string;
-  session_date?: string;
-  duration_minutes?: number;
-  topic_or_content_used?: string;
-  questions_asked?: number;
-  queries?: number;
-  topics?: string[];
+  topicOrContent?: string;
   topic?: string;
+  startTime?: string;
+  endTime?: string | null;
+  duration?: string | number;
+  numQueries?: number;
+  queries?: number;
 }
 
 export interface TopicData {
   topic: string;
-  name: string;
   count: number;
-  value: number;
+  
+  // Compatibility fields for existing code
+  name?: string;
+  value?: number;
 }
 
 export interface StudyTimeData {
-  studentName: string;
-  name: string;
-  hours: number;
-  week: number;
-  year: number;
-  // Add fields that match the database schema
-  student_name?: string;
-  student_id?: string;
-  week_number?: number;
-  total_minutes?: number;
+  student_name: string;
+  student_id: string;
+  total_minutes: number;
+  
+  // Compatibility fields for existing code
+  studentName?: string;
+  name?: string;
+  hours?: number;
+  week?: number;
+  year?: number;
 }
 
 export interface Student {
   id: string;
   name: string;
-  full_name?: string;
 }
 
-export interface AnalyticsFilters {
-  dateRange: DateRange;
-  selectedTeacherId?: string;
-  selectedStudentId?: string;
-  schoolId?: string; // Add missing schoolId property
+export interface Teacher {
+  id: string;
+  name: string;
 }
 
-export interface StudentPerformanceTableProps {
-  students: StudentPerformanceMetric[];
+// Performance data types aligned with component expectations
+export interface SchoolPerformanceSummary {
+  total_assessments: number;
+  students_with_submissions: number;
+  total_students: number;
+  avg_submissions_per_assessment: number;
+  avg_score: number;
+  completion_rate: number;
+  student_participation_rate: number;
+  
+  // Additional properties from utils
+  average_score?: number;
+  total_questions?: number;
+  improvement_rate?: number;
 }
 
-export interface StudentPerformanceMetric {
+export interface SchoolPerformanceData {
+  month: string;
+  avg_monthly_score: number;
+  monthly_completion_rate: number;
+  score_improvement_rate: number;
+  completion_improvement_rate: number;
+
+  // Additional properties from utils
+  average_score?: number;
+  total_questions?: number;
+}
+
+export interface TeacherPerformanceData {
+  teacher_id: string;
+  teacher_name: string;
+  assessments_created: number;
+  students_assessed: number;
+  completion_rate: number;
+  avg_student_score: number;
+  avg_submissions_per_assessment: number;
+  
+  // Additional properties from utils
+  id?: string;
+  name?: string;
+  students_count?: number;
+  average_score?: number;
+  total_questions?: number;
+  improvement_rate?: number;
+}
+
+export interface StudentPerformanceData {
   student_id: string;
   student_name: string;
-  avg_score: number;
   assessments_taken: number;
+  avg_score: number;
+  avg_time_spent_seconds: number;
+  assessments_completed: number;
   completion_rate: number;
-  avg_time_spent_seconds?: number;
-  top_strengths?: string;
-  top_weaknesses?: string;
+  top_strengths: string;
+  top_weaknesses: string;
+  
+  // Additional properties from utils
+  id?: string;
+  name?: string;
+  teacher_name?: string;
+  average_score?: number;
+  total_questions?: number;
+  improvement_rate?: number;
   last_active?: string;
 }

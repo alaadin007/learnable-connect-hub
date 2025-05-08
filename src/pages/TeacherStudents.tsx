@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,40 @@ import { useAuth } from "@/contexts/AuthContext";
 const TeacherStudents = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { userType } = useAuth(); // Use userType instead of userRole
+  const { user, profile, userRole } = useAuth();
+  const [pageInitialized, setPageInitialized] = useState(false);
+  
+  // Process location state once on first render
+  useEffect(() => {
+    if (pageInitialized) return;
+    
+    console.log("TeacherStudents: Initial render with state:", location.state);
+    setPageInitialized(true);
+  }, [location.state, pageInitialized]);
+  
+  // Protection against direct access without authentication
+  useEffect(() => {
+    // Skip authentication check for test accounts with proper navigation context
+    if (location.state?.fromTestAccounts || location.state?.fromNavigation) {
+      console.log("TeacherStudents: Allowing access due to navigation context");
+      return;
+    }
+    
+    if (!user) {
+      console.log("TeacherStudents: No user found, redirecting to login");
+      navigate("/login", { replace: true });
+      return;
+    }
+    
+    // Verify the user is a teacher when directly accessing this page
+    // But skip this check if we're coming from a known navigation flow
+    if (userRole && 
+        userRole !== "teacher" && 
+        !location.state?.preserveContext) {
+      console.log("TeacherStudents: Redirecting non-teacher user to dashboard");
+      navigate("/dashboard", { replace: true });
+    }
+  }, [user, userRole, navigate, location.state]);
   
   // Handle back navigation with context preservation
   const handleBack = () => {

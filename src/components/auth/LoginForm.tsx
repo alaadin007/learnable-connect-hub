@@ -1,195 +1,352 @@
+import React, { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { Clock, Loader2, AlertCircle } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
-import React, { useState } from 'react';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
-import { useAuth } from '@/contexts/AuthContext';
-import { LogIn, Loader2 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import { isTestUser } from '@/utils/supabaseTypeHelpers';
-
-const loginSchema = z.object({
-  email: z.string().email({ message: 'Please enter a valid email address' }),
-  password: z.string().min(1, { message: 'Password is required' }),
-});
-
-type LoginFormValues = z.infer<typeof loginSchema>;
-
-const LoginForm: React.FC = () => {
+const LoginForm = () => {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const { isAuthenticated, user } = useAuth();
+  const { signIn, setTestUser, userRole } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
-  const from = (location.state as any)?.from || '/dashboard';
-
-  const form = useForm<LoginFormValues>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: {
-      email: '',
-      password: '',
-    },
-  });
-
-  const onSubmit = async (values: LoginFormValues) => {
-    setIsLoading(true);
-    console.log('LoginForm: Attempting login for', values.email);
-    
-    try {
-      // First check if the Supabase client is properly initialized
-      if (!supabase) {
-        console.error('Supabase client not initialized');
-        toast.error('Authentication service unavailable. Please try again later.');
-        setIsLoading(false);
-        return;
-      }
-
-      // For test accounts, handle them with special password
-      if (isTestUser(values.email)) {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: values.email, 
-          password: 'password123'
-        });
-        
-        if (error) {
-          console.error('Test account login error:', error);
-          toast.error(`Login failed: ${error.message}`);
-        } else {
-          toast.success('Successfully signed in with test account');
-        }
-        
-        setIsLoading(false);
-        return;
-      }
-
-      // Standard email/password login
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: values.email,
-        password: values.password
+  const [searchParams] = useSearchParams();
+  const [loginError, setLoginError] = useState<string | null>(null);
+  
+  // Show success toast for registration and email verification
+  useEffect(() => {
+    if (searchParams.get('registered') === 'true') {
+      toast.success("Registration successful!", {
+        description: "Please check your email to verify your account before logging in."
       });
-      
-      if (error) {
-        console.error('Login error:', error);
-        toast.error(`Login failed: ${error.message}`);
-      } else {
-        toast.success('Successfully signed in');
+    }
+    if (searchParams.get('email_confirmed') === 'true') {
+      toast.success("Email verified!", {
+        description: "Your email has been verified. You can now log in."
+      });
+    }
+  }, [searchParams]);
+
+  // Redirect if user role already set
+  useEffect(() => {
+    if (userRole) {
+      const redirectPath = userRole === "school"
+        ? "/admin"
+        : userRole === "teacher"
+        ? "/teacher/analytics"
+        : "/dashboard";
+
+      navigate(redirectPath);
+    }
+  }, [userRole, navigate]);
+
+  const handleLogin = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setLoginError(null);
+
+    if (!email || !password) {
+      toast.error("Please enter both email and password");
+      return;
+    }
+    setIsLoading(true);
+
+    try {
+      // Handle test accounts - direct login without authentication
+      if (email.includes(".test@learnable.edu")) {
+        let type: "school" | "teacher" | "student" = "student";
+        if (email.startsWith("school")) type = "school";
+        else if (email.startsWith("teacher")) type = "teacher";
+
+        console.log(`LoginForm: Setting up test user of type ${type}`);
+        await setTestUser(type);
+        console.log(`LoginForm: Successfully set up test user of type ${type}`);
+
+        const redirectPath = type === "school"
+          ? "/admin"
+          : type === "teacher"
+          ? "/teacher/analytics"
+          : "/dashboard";
+
+        toast.success("Login successful", {
+          description: `Welcome, ${
+            type === "school"
+              ? "School Admin"
+              : type === "teacher"
+              ? "Teacher"
+              : "Student"
+          }!`,
+        });
+
+        console.log(`LoginForm: Redirecting test user to ${redirectPath}`);
+        navigate(redirectPath, { 
+          replace: true, 
+          state: { 
+            fromTestAccounts: true, 
+            accountType: type,
+            preserveContext: true
+          } 
+        });
+        return;
       }
-    } catch (err: any) {
-      console.error('Login error:', err);
-      toast.error(`Login failed: ${err.message || 'Unknown error'}`);
+
+      // Regular user login flow
+      await signIn(email, password);
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("user_type")
+          .eq("id", user.id)
+          .single();
+
+        const redirectPath =
+          profile?.user_type === "school"
+            ? "/admin"
+            : profile?.user_type === "teacher"
+            ? "/teacher/analytics"
+            : "/dashboard";
+
+        toast.success("Login successful", {
+          description: `Welcome back, ${
+            user.user_metadata?.full_name || email
+          }!`,
+        });
+
+        navigate(redirectPath);
+      } else {
+        // fallback
+        toast.success("Login successful");
+        navigate("/dashboard");
+      }
+    } catch (error: any) {
+      console.error("Login error:", error);
+      setLoginError(error.message);
+
+      if (error.message.includes("Email not confirmed")) {
+        toast.error("Email not verified", {
+          description:
+            "Please check your inbox and spam folder for the verification email.",
+        });
+      } else if (error.message.includes("Invalid login credentials")) {
+        toast.error("Login failed", {
+          description: "Invalid email or password. Please try again.",
+        });
+      } else {
+        toast.error(`Login failed: ${error.message}`);
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Handle test account login shortcuts
-  const loginWithTestAccount = (type: 'student' | 'teacher' | 'school') => {
-    const email = `${type}.test@learnable.edu`;
-    form.setValue('email', email);
-    form.setValue('password', 'password123');
-    form.handleSubmit(onSubmit)();
+  const handleQuickLogin = async (
+    type: "school" | "teacher" | "student",
+    schoolIndex = 0
+  ) => {
+    setIsLoading(true);
+    setLoginError(null);
+
+    try {
+      console.log(`LoginForm: Quick login as ${type}`);
+      
+      // Direct login for test accounts
+      await setTestUser(type, schoolIndex);
+      console.log(`LoginForm: Successfully set up quick login for ${type}`);
+
+      // Define redirect paths
+      let redirectPath = "/dashboard";
+      if (type === "school") {
+        redirectPath = "/admin";
+      } else if (type === "teacher") {
+        redirectPath = "/teacher/analytics";
+      }
+
+      console.log(`LoginForm: Redirecting quick login user to ${redirectPath}`);
+      toast.success(
+        `Logged in as ${
+          type === "school"
+            ? "School Admin"
+            : type === "teacher"
+            ? "Teacher"
+            : "Student"
+        }`
+      );
+
+      navigate(redirectPath, { 
+        replace: true,
+        state: { 
+          fromTestAccounts: true,
+          accountType: type,
+          preserveContext: true,
+          timestamp: Date.now()
+        }
+      });
+    } catch (error: any) {
+      console.error("Quick login error:", error);
+      setLoginError(`Failed to log in with test account: ${error.message}`);
+      toast.error("Failed to log in with test account");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!email) {
+      toast.error("Please enter your email address");
+      return;
+    }
+    setIsLoading(true);
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/login?email_confirmed=true`,
+      });
+
+      if (error) {
+        toast.error("Failed to send password reset email: " + error.message);
+      } else {
+        toast.success("Password reset email sent", {
+          description:
+            "Please check your inbox and spam folder for the reset link.",
+        });
+      }
+    } catch (error: any) {
+      toast.error("An error occurred: " + error.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
-    <div className="w-full max-w-md mx-auto bg-white p-8 rounded-lg shadow-md">
-      <h2 className="text-3xl font-bold text-gray-900 mb-6 text-center">Login</h2>
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          <FormField
-            control={form.control}
-            name="email"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Email</FormLabel>
-                <FormControl>
-                  <Input placeholder="you@example.com" type="email" autoComplete="email" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+    <div className="max-w-md w-full mx-auto p-4">
+      <Card className="w-full">
+        <CardHeader className="space-y-1">
+          <CardTitle className="text-2xl font-bold">Welcome back</CardTitle>
+          <CardDescription>Enter your email and password to log in</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loginError && (
+            <Alert variant="destructive" className="mb-6">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Login Error</AlertTitle>
+              <AlertDescription>
+                {loginError.includes("Email not confirmed")
+                  ? "Your email address has not been verified. Please check your inbox for the verification email."
+                  : loginError}
+              </AlertDescription>
+            </Alert>
+          )}
 
-          <FormField
-            control={form.control}
-            name="password"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Password</FormLabel>
-                <FormControl>
-                  <Input placeholder="••••••••" type="password" autoComplete="current-password" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-md">
+            <div className="flex">
+              <Clock className="h-5 w-5 text-amber-700 mr-2 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-amber-800 font-medium">Need quick access?</p>
+                <p className="mt-1 text-sm text-amber-700">
+                  Use our pre-configured test accounts for instant login without email verification.
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleQuickLogin("school")}
+                    className="text-sm text-blue-800 font-semibold hover:text-blue-900 bg-blue-100 px-3 py-1 rounded-full transition-colors duration-200"
+                  >
+                    Admin Login
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickLogin("teacher")}
+                    className="text-sm text-green-800 font-semibold hover:text-green-900 bg-green-100 px-3 py-1 rounded-full transition-colors duration-200"
+                  >
+                    Teacher Login
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickLogin("student")}
+                    className="text-sm text-purple-800 font-semibold hover:text-purple-900 bg-purple-100 px-3 py-1 rounded-full transition-colors duration-200"
+                  >
+                    Student Login
+                  </button>
+                  <Link
+                    to="/test-accounts"
+                    className="text-sm text-amber-800 font-semibold hover:text-amber-900 bg-amber-200 px-3 py-1 rounded-full transition-colors duration-200"
+                  >
+                    View All →
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
 
-          <div className="pt-2">
-            <Button type="submit" className="w-full" disabled={isLoading}>
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="you@school.edu"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoComplete="email"
+              />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Password</Label>
+                <button
+                  type="button"
+                  onClick={handleResetPassword}
+                  className="text-sm text-learnable-blue hover:underline"
+                >
+                  Forgot password?
+                </button>
+              </div>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoComplete="current-password"
+              />
+            </div>
+            <Button
+              type="submit"
+              className="w-full gradient-bg"
+              disabled={isLoading}
+              aria-busy={isLoading}
+            >
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Signing in...
+                  Logging in...
                 </>
               ) : (
-                <>
-                  <LogIn className="mr-2 h-4 w-4" />
-                  Sign In
-                </>
+                "Log in"
               )}
             </Button>
-          </div>
-
-          <div className="text-center text-sm">
-            <p className="text-gray-500 mb-2">Quick access with test accounts:</p>
-            <div className="flex justify-center space-x-2">
-              <Button 
-                type="button"
-                size="sm" 
-                variant="outline" 
-                onClick={() => loginWithTestAccount('student')}
-                className="text-xs"
-              >
-                Student
-              </Button>
-              <Button 
-                type="button"
-                size="sm" 
-                variant="outline" 
-                onClick={() => loginWithTestAccount('teacher')}
-                className="text-xs"
-              >
-                Teacher
-              </Button>
-              <Button 
-                type="button"
-                size="sm" 
-                variant="outline" 
-                onClick={() => loginWithTestAccount('school')}
-                className="text-xs"
-              >
-                School
-              </Button>
-            </div>
-          </div>
-        </form>
-      </Form>
-      
-      <div className="mt-6 text-center text-sm">
-        <Link to="/forgot-password" className="text-blue-600 hover:text-blue-800">
-          Forgot your password?
-        </Link>
-      </div>
-      
-      <div className="mt-4 text-center text-sm">
-        <span className="text-gray-600">Don't have an account?</span>{' '}
-        <Link to="/register" className="text-blue-600 hover:text-blue-800 font-medium">
-          Register
-        </Link>
-      </div>
+          </form>
+        </CardContent>
+        <CardFooter>
+          <p className="text-sm text-gray-600 text-center w-full">
+            Don't have an account?{" "}
+            <Link to="/register" className="text-learnable-blue hover:underline">
+              Register
+            </Link>
+          </p>
+        </CardFooter>
+      </Card>
     </div>
   );
 };

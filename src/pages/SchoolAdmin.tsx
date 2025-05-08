@@ -1,148 +1,226 @@
 
-import React from "react";
-import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
-
+import React, { useEffect, useState } from "react";
 import Navbar from "@/components/layout/Navbar";
-import Footer from "@/components/layout/Footer";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import Footer from "@/components/landing/Footer";
+import { useAuth } from "@/contexts/AuthContext";
+import TeacherManagement from "@/components/school-admin/TeacherManagement";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, School, BarChart, Settings, FileText } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Link, useNavigate, useLocation } from "react-router-dom";
+import { Users, BarChart2, ChevronDown, Settings, User } from "lucide-react";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
-const SchoolAdmin = () => {
-  const { user, profile, userRole } = useAuth();
-  const navigate = useNavigate();
-
-  if (!user || !profile || userRole !== "school") {
-    return (
-      <>
-        <Navbar />
-        <div className="container mx-auto px-4 py-8">
-          <p className="text-center text-xl">Access restricted. Please login with a school administrator account.</p>
-        </div>
-        <Footer />
-      </>
-    );
-  }
-
-  const schoolName = profile.organization?.name || "Your School";
-
-  return (
-    <>
-      <Navbar />
-      <main className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold">School Administration</h1>
-          <p className="text-gray-600">Manage {schoolName}</p>
-        </div>
-
-        <Tabs defaultValue="dashboard" className="w-full">
-          <TabsList className="grid grid-cols-5 mb-8">
-            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-            <TabsTrigger value="teachers">Teachers</TabsTrigger>
-            <TabsTrigger value="students">Students</TabsTrigger>
-            <TabsTrigger value="analytics">Analytics</TabsTrigger>
-            <TabsTrigger value="settings">Settings</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="dashboard">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <AdminCard 
-                title="Teachers" 
-                description="Manage teacher accounts"
-                icon={<Users className="h-10 w-10" />}
-                onClick={() => navigate("/admin/teachers")}
-              />
-              <AdminCard 
-                title="Students" 
-                description="View and manage student accounts"
-                icon={<Users className="h-10 w-10" />}
-                onClick={() => navigate("/admin/students")}
-              />
-              <AdminCard 
-                title="Analytics" 
-                description="View school performance metrics"
-                icon={<BarChart className="h-10 w-10" />}
-                onClick={() => navigate("/admin/analytics")}
-              />
-              <AdminCard 
-                title="Settings" 
-                description="Configure school settings"
-                icon={<Settings className="h-10 w-10" />}
-                onClick={() => navigate("/admin/settings")}
-              />
-            </div>
-          </TabsContent>
-
-          <TabsContent value="teachers">
-            <Button 
-              onClick={() => navigate("/admin/teacher-management")} 
-              className="mb-6"
-            >
-              Manage Teachers
-            </Button>
-            <p>Quick access to teacher management functions.</p>
-          </TabsContent>
-
-          <TabsContent value="students">
-            <Button 
-              onClick={() => navigate("/admin/students")} 
-              className="mb-6"
-            >
-              Manage Students
-            </Button>
-            <p>Quick access to student management functions.</p>
-          </TabsContent>
-
-          <TabsContent value="analytics">
-            <Button 
-              onClick={() => navigate("/admin/analytics")} 
-              className="mb-6"
-            >
-              View Analytics
-            </Button>
-            <p>Quick access to school analytics dashboard.</p>
-          </TabsContent>
-
-          <TabsContent value="settings">
-            <Button 
-              onClick={() => navigate("/admin/settings")} 
-              className="mb-6"
-            >
-              School Settings
-            </Button>
-            <p>Configure school settings and preferences.</p>
-          </TabsContent>
-        </Tabs>
-      </main>
-      <Footer />
-    </>
-  );
+// Define the basic type for teacher invitations
+export type TeacherInvitation = {
+  id: string;
+  email: string;
+  status: "pending" | "accepted" | "rejected";
+  school_id: string;
+  invitation_token: string;
+  created_by: string;
+  created_at: string;
+  expires_at: string;
 };
 
-interface AdminCardProps {
-  title: string;
-  description: string;
-  icon: React.ReactNode;
-  onClick: () => void;
-}
+const SchoolAdmin = () => {
+  const { profile, userRole } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [activeTab, setActiveTab] = useState("teachers");
+  
+  // Use optional chaining for organization properties
+  const schoolId = profile?.organization?.id || null;
+  
+  // Verify correct user role
+  useEffect(() => {
+    if (userRole && userRole !== "school") {
+      navigate("/dashboard");
+    }
+  }, [userRole, navigate]);
 
-const AdminCard: React.FC<AdminCardProps> = ({ title, description, icon, onClick }) => {
+  // Fixed Quick actions dropdown handler to prevent navigation issues
+  const handleQuickActionSelect = (action: string) => {
+    switch (action) {
+      case "manage-teachers":
+        navigate("/admin/teacher-management");
+        break;
+      case "view-analytics":
+        navigate("/admin/analytics");
+        break;
+      case "school-settings":
+        navigate("/admin/settings");
+        break;
+      case "student-management":
+        navigate("/admin/students");
+        break;
+      case "dashboard":
+        // Clear any previous state and set new state to prevent redirect loops
+        navigate("/dashboard", { 
+          state: { fromNavigation: true },
+          replace: true
+        });
+        break;
+      default:
+        break;
+    }
+  };
+
+  // Handle tab selections with consistency
+  const handleTabClick = (value: string) => {
+    setActiveTab(value);
+    
+    if (value === "students") {
+      navigate("/admin/students");
+    } else if (value === "settings") {
+      navigate("/admin/settings");
+    }
+  };
+
   return (
-    <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={onClick}>
-      <CardHeader>
-        <CardTitle className="flex items-center">
-          <div className="text-primary mr-4">{icon}</div>
-          {title}
-        </CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent></CardContent>
-      <CardFooter>
-        <Button onClick={onClick} className="w-full">Manage {title}</Button>
-      </CardFooter>
-    </Card>
+    <div className="min-h-screen flex flex-col">
+      <Navbar />
+      <main className="flex-grow bg-learnable-super-light py-8">
+        <div className="container mx-auto px-4">
+          <div className="mb-6">
+            <h1 className="text-3xl font-bold gradient-text mb-2">School Admin Panel</h1>
+            <p className="text-learnable-gray">
+              Manage your school settings, teachers, and students
+            </p>
+          </div>
+          
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>School Information</CardTitle>
+              <CardDescription>Your school details</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <div className="flex flex-col sm:flex-row sm:items-center">
+                  <span className="font-medium min-w-32">School Name:</span>
+                  <span>{profile?.organization?.name || "Not available"}</span>
+                </div>
+                <div className="flex flex-col sm:flex-row sm:items-center">
+                  <span className="font-medium min-w-32">School Code:</span>
+                  <span className="font-mono">{profile?.organization?.code || "Not available"}</span>
+                </div>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Your school code is used to invite teachers and students to join your school.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <div className="mb-6 flex flex-wrap gap-3 justify-between items-center">
+            <h2 className="text-xl font-semibold">Quick Actions</h2>
+            <div className="flex flex-wrap gap-3">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+                    Quick Actions
+                    <ChevronDown className="ml-2 h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56 bg-white">
+                  <DropdownMenuItem onClick={() => handleQuickActionSelect("dashboard")}>
+                    <User className="mr-2 h-4 w-4" />
+                    <span>Dashboard</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleQuickActionSelect("manage-teachers")}>
+                    <Users className="mr-2 h-4 w-4" />
+                    <span>Manage Teachers</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleQuickActionSelect("view-analytics")}>
+                    <BarChart2 className="mr-2 h-4 w-4" />
+                    <span>View Analytics</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleQuickActionSelect("school-settings")}>
+                    <Settings className="mr-2 h-4 w-4" />
+                    <span>School Settings</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleQuickActionSelect("student-management")}>
+                    <User className="mr-2 h-4 w-4" />
+                    <span>Student Management</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+          
+          <Tabs defaultValue="teachers" value={activeTab} onValueChange={handleTabClick} className="space-y-4">
+            <TabsList className="w-full border-b">
+              <TabsTrigger value="teachers" className="flex-1">
+                Teachers
+              </TabsTrigger>
+              <TabsTrigger value="students" className="flex-1">
+                Students
+              </TabsTrigger>
+              <TabsTrigger value="settings" className="flex-1">
+                School Settings
+              </TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="teachers" className="space-y-4">
+              <TeacherManagement />
+            </TabsContent>
+            
+            <TabsContent value="students" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Student Management</CardTitle>
+                  <CardDescription>Manage students at your school</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-col gap-4">
+                    <p className="text-muted-foreground mb-4">
+                      Manage your school's students, including enrollment and class assignments.
+                    </p>
+                    <Button 
+                      onClick={() => navigate('/admin/students')} 
+                      className="w-full sm:w-auto gradient-bg"
+                    >
+                      <User className="mr-2 h-4 w-4" />
+                      Go to Student Management
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+            
+            <TabsContent value="settings" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>School Settings</CardTitle>
+                  <CardDescription>Configure school-wide settings</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-col gap-4">
+                    <p className="text-muted-foreground mb-4">
+                      Configure your school settings, including notification preferences and school details.
+                    </p>
+                    <Button 
+                      onClick={() => navigate('/admin/settings')} 
+                      className="w-full sm:w-auto gradient-bg"
+                    >
+                      <Settings className="mr-2 h-4 w-4" />
+                      Go to School Settings
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </div>
+      </main>
+      <Footer />
+    </div>
   );
 };
 

@@ -29,7 +29,7 @@ const SchoolRegistration = () => {
         </div>
       </main>
       <Footer />
-      <Toaster position="top-center" />
+      <Toaster />
     </div>
   );
 };

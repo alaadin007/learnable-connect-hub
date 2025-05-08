@@ -1,85 +1,73 @@
 
-import { ReactNode, useEffect } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
-import { Loader2 } from 'lucide-react';
+import { Navigate, useLocation } from "react-router-dom";
+import { useAuth, UserRole } from "@/contexts/AuthContext";
 
 interface ProtectedRouteProps {
-  children: ReactNode;
-  requiredUserType?: 'student' | 'teacher' | 'school' | 'any';
+  children: React.ReactNode;
+  requiredUserType?: UserRole;
+  requireSupervisor?: boolean;
+  requireSameSchool?: boolean;
+  schoolId?: string;
+  allowedRoles?: Array<UserRole>;
 }
 
 const ProtectedRoute = ({ 
   children, 
-  requiredUserType = 'any' 
+  requiredUserType,
+  allowedRoles, 
+  requireSupervisor = false,
+  requireSameSchool = false,
+  schoolId
 }: ProtectedRouteProps) => {
-  const { isAuthenticated, isCheckingSession, userType, isTestAccount } = useAuth();
+  const { user, profile, isSuperviser, isLoading, userRole, schoolId: userSchoolId } = useAuth();
   const location = useLocation();
 
-  useEffect(() => {
-    // Log for debugging purposes
-    console.log('ProtectedRoute:', { 
-      isAuthenticated, 
-      isCheckingSession, 
-      userType, 
-      requiredUserType, 
-      isTestAccount,
-      fromTestAccounts: location.state?.fromTestAccounts,
-      path: location.pathname
-    });
-  }, [isAuthenticated, isCheckingSession, userType, requiredUserType, isTestAccount, location]);
-
-  // Always allow access if coming from test accounts
-  if (isTestAccount || location.state?.fromTestAccounts) {
-    console.log('ProtectedRoute: Allowing access for test account');
-    return <>{children}</>;
+  if (isLoading) {
+    return <div className="flex items-center justify-center h-screen">Loading...</div>;
   }
 
-  if (isCheckingSession) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+  // Not logged in
+  if (!user) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (!isAuthenticated) {
-    // Redirect to login if not authenticated, preserving the attempted URL
-    console.log('ProtectedRoute: Not authenticated, redirecting to login');
-    return <Navigate to="/login" state={{ from: location.pathname }} replace />;
-  }
-
-  // Check user type if specified
-  if (requiredUserType !== 'any' && userType !== requiredUserType) {
-    // Check if user has a higher level role (e.g., school admin has teacher access)
-    if (requiredUserType === 'teacher' && userType === 'school') {
-      // School admins can access teacher pages
-      console.log('ProtectedRoute: School admin accessing teacher page');
-      return <>{children}</>;
-    }
-
-    // Redirect to appropriate dashboard based on actual user type
-    console.log(`ProtectedRoute: User type ${userType} doesn't match required type ${requiredUserType}, redirecting`);
-    
-    let redirectPath = '/dashboard';
-    switch (userType) {
-      case 'student':
-        redirectPath = '/student/dashboard';
-        break;
-      case 'teacher':
-        redirectPath = '/teacher/dashboard';
-        break;
-      case 'school':
-        redirectPath = '/admin';
-        break;
-    }
-
+  // If we require a specific user type and the user doesn't have it
+  if (requiredUserType && userRole !== requiredUserType) {
+    // Redirect based on user role instead of generic dashboard
+    const redirectPath = userRole === 'school' ? '/admin' : 
+                        userRole === 'teacher' ? '/teacher/analytics' : 
+                        '/dashboard';
     return <Navigate to={redirectPath} replace />;
   }
 
-  console.log('ProtectedRoute: Access granted');
+  // If we require specific roles and the user doesn't have one of them
+  if (allowedRoles && userRole && !allowedRoles.includes(userRole)) {
+    // Redirect based on user role instead of generic dashboard
+    const redirectPath = userRole === 'school' ? '/admin' : 
+                        userRole === 'teacher' ? '/teacher/analytics' : 
+                        '/dashboard';
+    return <Navigate to={redirectPath} replace />;
+  }
+
+  // If we require supervisor access and the user isn't a supervisor
+  if (requireSupervisor && !isSuperviser) {
+    // Redirect based on user role instead of generic dashboard
+    const redirectPath = userRole === 'school' ? '/admin' : 
+                        userRole === 'teacher' ? '/teacher/analytics' : 
+                        '/dashboard';
+    return <Navigate to={redirectPath} replace />;
+  }
+
+  // If we require same school access and the school IDs don't match
+  if (requireSameSchool && schoolId && userSchoolId && schoolId !== userSchoolId) {
+    // Redirect based on user role
+    const redirectPath = userRole === 'school' ? '/admin' : 
+                        userRole === 'teacher' ? '/teacher/analytics' : 
+                        '/dashboard';
+    return <Navigate to={redirectPath} replace />;
+  }
+
   return <>{children}</>;
 };
 
 export default ProtectedRoute;
-

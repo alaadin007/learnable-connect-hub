@@ -1,92 +1,46 @@
 
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { useAuth } from '@/contexts/AuthContext';
-import Footer from '@/components/landing/Footer';
-import Navbar from '@/components/layout/Navbar';
-import LoginForm from '@/components/auth/LoginForm';
-import LoginDebug from '@/components/auth/LoginDebug';
+import React from "react";
+import Navbar from "@/components/layout/Navbar";
+import LoginForm from "@/components/auth/LoginForm";
+import Footer from "@/components/landing/Footer";
+import { Link } from "react-router-dom";
+import { AlertCircle } from "lucide-react";
 
 const Login = () => {
-  const { isAuthenticated, user, userType } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const from = location.state?.from || '/';
-  const [showDebug, setShowDebug] = useState(false);
-
-  useEffect(() => {
-    console.log('Login page loaded', { isAuthenticated, user, userType, from });
-    
-    if (isAuthenticated && user && userType) {
-      console.log('User is authenticated, redirecting', { userType });
-      
-      let redirectPath = '/dashboard';
-      
-      // Redirect based on user type
-      if (userType === 'student') {
-        redirectPath = '/student/dashboard';
-      } else if (userType === 'teacher') {
-        redirectPath = '/teacher/dashboard';
-      } else if (userType === 'school') {
-        // School admin
-        redirectPath = '/admin';
-      }
-      
-      // Use the 'from' path if it exists and is not the login or register page
-      const shouldUseFromPath = 
-        from && 
-        from !== '/login' && 
-        from !== '/register' && 
-        !from.includes('invitation');
-        
-      const finalPath = shouldUseFromPath ? from : redirectPath;
-      console.log('Redirecting to', finalPath);
-      
-      // Add a small delay to ensure state has fully updated
-      setTimeout(() => {
-        navigate(finalPath, { replace: true });
-      }, 100);
-    }
-  }, [isAuthenticated, user, userType, navigate, from]);
-
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
-      <div className="flex-1 flex items-center justify-center bg-learnable-super-light">
-        <div className="w-full max-w-md px-4 py-8">
-          <div className="text-center mb-6">
-            <h1 className="text-3xl font-bold gradient-text">Welcome Back</h1>
-            <p className="text-learnable-gray mt-2">
-              Log in to continue your learning journey
-            </p>
-          </div>
-
-          <LoginForm />
-          
-          <LoginDebug />
-
-          <div className="mt-6 text-center">
-            <p className="text-learnable-gray">
-              Don't have an account?{" "}
-              <Link to="/register" className="text-primary hover:underline">
-                Register
-              </Link>
-            </p>
-            <div className="mt-4">
-              <Button variant="link" asChild>
-                <Link to="/test-accounts" className="text-learnable-gray">
-                  Want to try a demo account?
-                </Link>
-              </Button>
+      <main className="flex-grow bg-learnable-super-light flex flex-col items-center justify-center py-10">
+        <div className="max-w-md w-full mx-auto mb-6">
+          <div className="bg-amber-100 border-l-4 border-amber-500 p-4 rounded-md shadow">
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <AlertCircle className="h-5 w-5 text-amber-500" />
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-amber-800 font-medium">
+                  Testing the application?
+                </p>
+                <p className="mt-1 text-sm text-amber-700">
+                  You can quickly create test accounts for all user roles (school admin, teacher, student) on our dedicated test page.
+                </p>
+                <div className="mt-2">
+                  <Link 
+                    to="/test-accounts" 
+                    className="text-sm text-amber-800 font-semibold hover:text-amber-900 bg-amber-200 px-3 py-1 rounded-full transition-colors duration-200"
+                  >
+                    Access Test Accounts →
+                  </Link>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+        <LoginForm />
+      </main>
       <Footer />
     </div>
   );
 };
 
 export default Login;
-

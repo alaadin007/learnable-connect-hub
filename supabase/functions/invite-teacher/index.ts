@@ -1,131 +1,107 @@
 
-import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.42.0'
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-interface InviteTeacherRequest {
-  email: string;
-}
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
 
-serve(async (req: Request) => {
+// Handle CORS preflight requests
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, {
+      headers: corsHeaders,
+      status: 204,
+    });
+  }
+
   try {
-    // Get request body
-    const { email } = await req.json() as InviteTeacherRequest;
-    
-    if (!email) {
-      throw new Error('Email is required');
-    }
-    
-    // Create Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL') as string;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') as string;
-    const supabaseClient = createClient(supabaseUrl, supabaseKey);
-    
-    // Get auth user from request
-    const authHeader = req.headers.get('Authorization')?.replace('Bearer ', '');
-    if (!authHeader) {
-      throw new Error('Missing auth token');
-    }
-    
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(authHeader);
-    if (userError || !user) {
-      throw new Error('Unauthorized');
-    }
-    
-    // Check if user is a supervisor by calling the RPC function
-    const { data: isSupervisor, error: supervisorError } = await supabaseClient.rpc(
-      'is_user_supervisor',
-      { user_id: user.id }
-    );
-    
-    if (supervisorError || !isSupervisor) {
-      throw new Error('Only school supervisors can invite teachers');
-    }
-    
-    // Get the school for this supervisor
-    const { data: teacherRecord, error: teacherError } = await supabaseClient
-      .from('teachers')
-      .select('school_id')
-      .eq('id', user.id)
-      .single();
-      
-    if (teacherError || !teacherRecord) {
-      throw new Error('Could not find your school information');
-    }
-    
-    // Get school name
-    const { data: schoolData, error: schoolError } = await supabaseClient
-      .from('schools')
-      .select('name')
-      .eq('id', teacherRecord.school_id)
-      .single();
-      
-    if (schoolError) {
-      throw new Error('Could not find school information');
-    }
-    
-    // Invite the teacher by creating an invitation record
-    const invitationToken = generateToken();
-    
-    const { data: invitation, error: inviteError } = await supabaseClient
-      .from('teacher_invitations')
-      .insert({
-        school_id: teacherRecord.school_id,
-        email: email,
-        invitation_token: invitationToken,
-        created_by: user.id,
-        status: 'pending',
-        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 days
-      })
-      .select()
-      .single();
-      
-    if (inviteError) {
-      throw new Error('Failed to create invitation: ' + inviteError.message);
-    }
-    
-    // TODO: Send email to the invited teacher with the invitation link
-    // This would typically be done with a separate service like SendGrid or AWS SES
-    
-    // Return the invitation data
-    return new Response(
-      JSON.stringify({
-        success: true,
-        invitation_id: invitation.id,
-        school_id: teacherRecord.school_id,
-        school_name: schoolData.name,
-        email: email,
-        invitation_link: `${supabaseUrl.replace('.supabase.co', '')}/invitation/${invitationToken}`
-      }),
+    const supabaseClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
       {
-        headers: { 'Content-Type': 'application/json' },
+        global: {
+          headers: { Authorization: req.headers.get("Authorization")! },
+        },
+      }
+    );
+
+    // Verify the user is logged in and is a school supervisor
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+
+    if (userError || !user) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        {
+          status: 401,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
+
+    // Check if user is a school supervisor
+    const { data: isSupervisor, error: supervisorError } = await supabaseClient
+      .rpc("is_supervisor", { user_id: user.id });
+
+    if (supervisorError || !isSupervisor) {
+      return new Response(
+        JSON.stringify({ error: "Only school supervisors can invite teachers" }),
+        { 
+          status: 403,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
+
+    // Parse the request body
+    const { email } = await req.json();
+
+    if (!email) {
+      return new Response(
+        JSON.stringify({ error: "Email is required" }),
+        { 
+          status: 400,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
+
+    // Use RPC to invite teacher with existing function
+    const { data: inviteResult, error: inviteError } = await supabaseClient
+      .rpc("invite_teacher", {
+        teacher_email: email
+      });
+
+    if (inviteError) {
+      console.error("Error inviting teacher:", inviteError);
+      return new Response(
+        JSON.stringify({ error: inviteError.message }),
+        { 
+          status: 500,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
+
+    return new Response(
+      JSON.stringify({ 
+        message: "Teacher invitation sent successfully",
+        data: { inviteId: inviteResult }
+      }),
+      { 
         status: 200,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
       }
     );
   } catch (error) {
+    console.error("Error processing request:", error);
     return new Response(
-      JSON.stringify({
-        error: error.message
-      }),
-      {
-        headers: { 'Content-Type': 'application/json' },
-        status: 400,
+      JSON.stringify({ error: "Internal server error" }),
+      { 
+        status: 500,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
       }
     );
   }
 });
-
-// Helper function to generate a secure token
-function generateToken(): string {
-  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let result = '';
-  const length = 20;
-  
-  // Generate a cryptographically secure random string
-  const values = crypto.getRandomValues(new Uint8Array(length));
-  
-  for (let i = 0; i < length; i++) {
-    result += characters.charAt(values[i] % characters.length);
-  }
-  
-  return result;
-}

@@ -3,9 +3,8 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-// Use environment variables if available, otherwise fall back to defaults
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://ldlgckwkdsvrfuymidrr.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxkbGdja3drZHN2cmZ1eW1pZHJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDYwNTc2NzksImV4cCI6MjA2MTYzMzY3OX0.kItrTMcKThMXuwNDClYNTGkEq-1EVVldq1vFw7ZsKx0";
+const SUPABASE_URL = "https://ldlgckwkdsvrfuymidrr.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxkbGdja3drZHN2cmZ1eW1pZHJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDYwNTc2NzksImV4cCI6MjA2MTYzMzY3OX0.kItrTMcKThMXuwNDClYNTGkEq-1EVVldq1vFw7ZsKx0";
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
@@ -16,55 +15,17 @@ export const supabase = createClient<Database>(
   {
     auth: {
       autoRefreshToken: true,
-      detectSessionInUrl: true,
       persistSession: true,
-      storage: localStorage,
-      flowType: 'pkce',
-    },
-    global: {
-      headers: {
-        'x-client-info': 'learnable-app'
-      }
-    },
-    db: {
-      schema: 'public'
-    },
-    realtime: {
-      params: {
-        eventsPerSecond: 10
-      }
-    },
-    queries: {
-      retryCount: 0, // Disable retries to prevent recursion issues
-      retryDelay: 500,
+      detectSessionInUrl: true,
+      flowType: 'pkce', // Use PKCE flow for more security but better compatibility
+      debug: process.env.NODE_ENV === 'development', // Enable debug mode in development
     }
   }
 );
 
-// Helper function to handle Supabase queries safely
-export const safeQuery = async <T>(queryFn: () => Promise<{ data: T | null, error: any }>, fallback: T | null = null): Promise<{ data: T | null, error: any }> => {
-  try {
-    const result = await queryFn();
-    return result;
-  } catch (err: any) {
-    console.warn('Error in Supabase query, using fallback', err);
-    return { data: fallback, error: { message: 'Error in query', details: err } };
-  }
-};
-
-// Safe type assertion for database IDs - handles UUID type issues
-export const asDbId = (value: string): string => {
-  return value;
-};
-
-// Type guard to check if an object has required fields
-export function hasRequiredFields<T>(obj: any, fields: (keyof T)[]): obj is T {
-  if (!obj || typeof obj !== 'object') return false;
-  return fields.every(field => field in obj);
-}
-
 // Helper function to detect test accounts
 export const isTestAccount = (email: string): boolean => {
+  // Used to identify development test accounts which get special handling
   if (!email) return false;
   return email.endsWith('@testschool.edu') || email.endsWith('.test@learnable.edu');
 };
@@ -79,56 +40,3 @@ export type TeacherInvitationResult = {
   school_name: string;
   email: string;
 }
-
-// Safe helper for getUserSchoolId that won't cause recursion
-export const getUserSchoolId = async (): Promise<string | null> => {
-  try {
-    const { data: user } = await supabase.auth.getUser();
-    if (!user?.user) return null;
-    
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('school_id')
-      .eq('id', user.user.id)
-      .single();
-      
-    if (error) {
-      console.error("Error getting school ID:", error);
-      return null;
-    }
-    
-    return data?.school_id || null;
-  } catch (err) {
-    console.error("Error in getUserSchoolId:", err);
-    return null;
-  }
-};
-
-// Safe helper for getUserRole that won't cause recursion
-export const getUserRole = async (): Promise<string | null> => {
-  try {
-    const { data: user } = await supabase.auth.getUser();
-    if (!user?.user) return null;
-    
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('user_type')
-      .eq('id', user.user.id)
-      .single();
-      
-    if (error) {
-      console.error("Error getting user role:", error);
-      return null;
-    }
-    
-    return data?.user_type || null;
-  } catch (err) {
-    console.error("Error in getUserRole:", err);
-    return null;
-  }
-};
-
-// Export the URL and key for direct access without using the protected properties
-export const SUPABASE_PUBLIC_URL = SUPABASE_URL;
-export const SUPABASE_PUBLIC_KEY = SUPABASE_PUBLISHABLE_KEY;
-

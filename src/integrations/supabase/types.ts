@@ -9,30 +9,6 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      api_keys: {
-        Row: {
-          api_key: string
-          created_at: string | null
-          id: string
-          service_name: string
-          updated_at: string | null
-        }
-        Insert: {
-          api_key: string
-          created_at?: string | null
-          id?: string
-          service_name: string
-          updated_at?: string | null
-        }
-        Update: {
-          api_key?: string
-          created_at?: string | null
-          id?: string
-          service_name?: string
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
       assessment_submissions: {
         Row: {
           assessment_id: string
@@ -130,13 +106,6 @@ export type Database = {
             foreignKeyName: "fk_school_id"
             columns: ["school_id"]
             isOneToOne: false
-            referencedRelation: "school_analytics_summary"
-            referencedColumns: ["school_id"]
-          },
-          {
-            foreignKeyName: "fk_school_id"
-            columns: ["school_id"]
-            isOneToOne: false
             referencedRelation: "school_improvement_metrics"
             referencedColumns: ["school_id"]
           },
@@ -215,13 +184,6 @@ export type Database = {
             foreignKeyName: "conversations_school_id_fkey"
             columns: ["school_id"]
             isOneToOne: false
-            referencedRelation: "school_analytics_summary"
-            referencedColumns: ["school_id"]
-          },
-          {
-            foreignKeyName: "conversations_school_id_fkey"
-            columns: ["school_id"]
-            isOneToOne: false
             referencedRelation: "school_improvement_metrics"
             referencedColumns: ["school_id"]
           },
@@ -287,7 +249,6 @@ export type Database = {
           filename: string
           id: string
           processing_status: string
-          school_id: string | null
           storage_path: string
           user_id: string
         }
@@ -298,7 +259,6 @@ export type Database = {
           filename: string
           id?: string
           processing_status?: string
-          school_id?: string | null
           storage_path: string
           user_id: string
         }
@@ -309,40 +269,10 @@ export type Database = {
           filename?: string
           id?: string
           processing_status?: string
-          school_id?: string | null
           storage_path?: string
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "documents_school_id_fkey"
-            columns: ["school_id"]
-            isOneToOne: false
-            referencedRelation: "school_analytics_summary"
-            referencedColumns: ["school_id"]
-          },
-          {
-            foreignKeyName: "documents_school_id_fkey"
-            columns: ["school_id"]
-            isOneToOne: false
-            referencedRelation: "school_improvement_metrics"
-            referencedColumns: ["school_id"]
-          },
-          {
-            foreignKeyName: "documents_school_id_fkey"
-            columns: ["school_id"]
-            isOneToOne: false
-            referencedRelation: "school_performance_metrics"
-            referencedColumns: ["school_id"]
-          },
-          {
-            foreignKeyName: "documents_school_id_fkey"
-            columns: ["school_id"]
-            isOneToOne: false
-            referencedRelation: "schools"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       messages: {
         Row: {
@@ -385,76 +315,32 @@ export type Database = {
       profiles: {
         Row: {
           created_at: string
-          email: string | null
           full_name: string | null
           id: string
-          is_active: boolean | null
-          is_supervisor: boolean | null
-          organization: Json | null
           school_code: string | null
-          school_id: string | null
           school_name: string | null
           updated_at: string
           user_type: string
         }
         Insert: {
           created_at?: string
-          email?: string | null
           full_name?: string | null
           id: string
-          is_active?: boolean | null
-          is_supervisor?: boolean | null
-          organization?: Json | null
           school_code?: string | null
-          school_id?: string | null
           school_name?: string | null
           updated_at?: string
           user_type: string
         }
         Update: {
           created_at?: string
-          email?: string | null
           full_name?: string | null
           id?: string
-          is_active?: boolean | null
-          is_supervisor?: boolean | null
-          organization?: Json | null
           school_code?: string | null
-          school_id?: string | null
           school_name?: string | null
           updated_at?: string
           user_type?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "profiles_school_id_fkey"
-            columns: ["school_id"]
-            isOneToOne: false
-            referencedRelation: "school_analytics_summary"
-            referencedColumns: ["school_id"]
-          },
-          {
-            foreignKeyName: "profiles_school_id_fkey"
-            columns: ["school_id"]
-            isOneToOne: false
-            referencedRelation: "school_improvement_metrics"
-            referencedColumns: ["school_id"]
-          },
-          {
-            foreignKeyName: "profiles_school_id_fkey"
-            columns: ["school_id"]
-            isOneToOne: false
-            referencedRelation: "school_performance_metrics"
-            referencedColumns: ["school_id"]
-          },
-          {
-            foreignKeyName: "profiles_school_id_fkey"
-            columns: ["school_id"]
-            isOneToOne: false
-            referencedRelation: "schools"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       school_codes: {
         Row: {
@@ -560,13 +446,6 @@ export type Database = {
             foreignKeyName: "session_logs_school_id_fkey"
             columns: ["school_id"]
             isOneToOne: false
-            referencedRelation: "school_analytics_summary"
-            referencedColumns: ["school_id"]
-          },
-          {
-            foreignKeyName: "session_logs_school_id_fkey"
-            columns: ["school_id"]
-            isOneToOne: false
             referencedRelation: "school_improvement_metrics"
             referencedColumns: ["school_id"]
           },
@@ -582,13 +461,6 @@ export type Database = {
             columns: ["school_id"]
             isOneToOne: false
             referencedRelation: "schools"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "session_logs_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -622,13 +494,6 @@ export type Database = {
           status?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "student_invites_school_id_fkey"
-            columns: ["school_id"]
-            isOneToOne: false
-            referencedRelation: "school_analytics_summary"
-            referencedColumns: ["school_id"]
-          },
           {
             foreignKeyName: "student_invites_school_id_fkey"
             columns: ["school_id"]
@@ -733,13 +598,6 @@ export type Database = {
             foreignKeyName: "student_progress_history_school_id_fkey"
             columns: ["school_id"]
             isOneToOne: false
-            referencedRelation: "school_analytics_summary"
-            referencedColumns: ["school_id"]
-          },
-          {
-            foreignKeyName: "student_progress_history_school_id_fkey"
-            columns: ["school_id"]
-            isOneToOne: false
             referencedRelation: "school_improvement_metrics"
             referencedColumns: ["school_id"]
           },
@@ -778,38 +636,21 @@ export type Database = {
           created_at: string
           id: string
           school_id: string | null
-          status: string
           updated_at: string
         }
         Insert: {
           created_at?: string
           id: string
           school_id?: string | null
-          status?: string
           updated_at?: string
         }
         Update: {
           created_at?: string
           id?: string
           school_id?: string | null
-          status?: string
           updated_at?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "students_profiles_fkey"
-            columns: ["id"]
-            isOneToOne: true
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "students_school_id_fkey"
-            columns: ["school_id"]
-            isOneToOne: false
-            referencedRelation: "school_analytics_summary"
-            referencedColumns: ["school_id"]
-          },
           {
             foreignKeyName: "students_school_id_fkey"
             columns: ["school_id"]
@@ -869,13 +710,6 @@ export type Database = {
             foreignKeyName: "teacher_invitations_school_id_fkey"
             columns: ["school_id"]
             isOneToOne: false
-            referencedRelation: "school_analytics_summary"
-            referencedColumns: ["school_id"]
-          },
-          {
-            foreignKeyName: "teacher_invitations_school_id_fkey"
-            columns: ["school_id"]
-            isOneToOne: false
             referencedRelation: "school_improvement_metrics"
             referencedColumns: ["school_id"]
           },
@@ -888,6 +722,58 @@ export type Database = {
           },
           {
             foreignKeyName: "teacher_invitations_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teacher_invites: {
+        Row: {
+          created_at: string | null
+          email: string
+          expires_at: string
+          id: string
+          school_id: string
+          status: string
+          token: string
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          expires_at?: string
+          id?: string
+          school_id: string
+          status?: string
+          token: string
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          expires_at?: string
+          id?: string
+          school_id?: string
+          status?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teacher_invites_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_improvement_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "teacher_invites_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_performance_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "teacher_invites_school_id_fkey"
             columns: ["school_id"]
             isOneToOne: false
             referencedRelation: "schools"
@@ -922,13 +808,6 @@ export type Database = {
             foreignKeyName: "teachers_school_id_fkey"
             columns: ["school_id"]
             isOneToOne: false
-            referencedRelation: "school_analytics_summary"
-            referencedColumns: ["school_id"]
-          },
-          {
-            foreignKeyName: "teachers_school_id_fkey"
-            columns: ["school_id"]
-            isOneToOne: false
             referencedRelation: "school_improvement_metrics"
             referencedColumns: ["school_id"]
           },
@@ -948,57 +827,6 @@ export type Database = {
           },
         ]
       }
-      user_api_keys: {
-        Row: {
-          api_key: string
-          created_at: string
-          id: string
-          provider: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          api_key: string
-          created_at?: string
-          id?: string
-          provider: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          api_key?: string
-          created_at?: string
-          id?: string
-          provider?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      user_roles: {
-        Row: {
-          created_at: string
-          id: string
-          role: Database["public"]["Enums"]["app_role"]
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          role: Database["public"]["Enums"]["app_role"]
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          role?: Database["public"]["Enums"]["app_role"]
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
     }
     Views: {
       most_studied_topics: {
@@ -1009,13 +837,6 @@ export type Database = {
           topic_rank: number | null
         }
         Relationships: [
-          {
-            foreignKeyName: "session_logs_school_id_fkey"
-            columns: ["school_id"]
-            isOneToOne: false
-            referencedRelation: "school_analytics_summary"
-            referencedColumns: ["school_id"]
-          },
           {
             foreignKeyName: "session_logs_school_id_fkey"
             columns: ["school_id"]
@@ -1049,7 +870,29 @@ export type Database = {
           total_queries: number | null
           total_sessions: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "session_logs_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_improvement_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "session_logs_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_performance_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "session_logs_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       school_improvement_metrics: {
         Row: {
@@ -1107,13 +950,6 @@ export type Database = {
             foreignKeyName: "session_logs_school_id_fkey"
             columns: ["school_id"]
             isOneToOne: false
-            referencedRelation: "school_analytics_summary"
-            referencedColumns: ["school_id"]
-          },
-          {
-            foreignKeyName: "session_logs_school_id_fkey"
-            columns: ["school_id"]
-            isOneToOne: false
             referencedRelation: "school_improvement_metrics"
             referencedColumns: ["school_id"]
           },
@@ -1129,13 +965,6 @@ export type Database = {
             columns: ["school_id"]
             isOneToOne: false
             referencedRelation: "schools"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "session_logs_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1155,20 +984,6 @@ export type Database = {
           total_submissions: number | null
         }
         Relationships: [
-          {
-            foreignKeyName: "students_profiles_fkey"
-            columns: ["student_id"]
-            isOneToOne: true
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "students_school_id_fkey"
-            columns: ["school_id"]
-            isOneToOne: false
-            referencedRelation: "school_analytics_summary"
-            referencedColumns: ["school_id"]
-          },
           {
             foreignKeyName: "students_school_id_fkey"
             columns: ["school_id"]
@@ -1206,13 +1021,6 @@ export type Database = {
             foreignKeyName: "session_logs_school_id_fkey"
             columns: ["school_id"]
             isOneToOne: false
-            referencedRelation: "school_analytics_summary"
-            referencedColumns: ["school_id"]
-          },
-          {
-            foreignKeyName: "session_logs_school_id_fkey"
-            columns: ["school_id"]
-            isOneToOne: false
             referencedRelation: "school_improvement_metrics"
             referencedColumns: ["school_id"]
           },
@@ -1230,13 +1038,6 @@ export type Database = {
             referencedRelation: "schools"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "session_logs_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
         ]
       }
       teacher_performance_metrics: {
@@ -1251,13 +1052,6 @@ export type Database = {
           teacher_name: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "teachers_school_id_fkey"
-            columns: ["school_id"]
-            isOneToOne: false
-            referencedRelation: "school_analytics_summary"
-            referencedColumns: ["school_id"]
-          },
           {
             foreignKeyName: "teachers_school_id_fkey"
             columns: ["school_id"]
@@ -1287,40 +1081,13 @@ export type Database = {
         Args: { token: string; user_id?: string }
         Returns: boolean
       }
-      approve_student_direct: {
-        Args: { student_id_param: string }
-        Returns: boolean
-      }
-      assign_role: {
-        Args: {
-          user_id_param: string
-          role_param: Database["public"]["Enums"]["app_role"]
-        }
-        Returns: boolean
-      }
-      check_if_email_exists: {
-        Args: { input_email: string }
-        Returns: boolean
-      }
       create_session_log: {
         Args: { topic?: string }
         Returns: string
       }
-      create_student_invitation: {
-        Args: { school_id_param: string }
-        Returns: {
-          code: string
-          expires_at: string
-          invite_id: string
-        }[]
-      }
       end_session_log: {
         Args: { log_id: string; performance_data?: Json }
         Returns: undefined
-      }
-      generate_invitation_code: {
-        Args: Record<PropertyKey, never>
-        Returns: string
       }
       generate_invitation_token: {
         Args: Record<PropertyKey, never>
@@ -1329,36 +1096,6 @@ export type Database = {
       generate_school_code: {
         Args: Record<PropertyKey, never>
         Returns: string
-      }
-      get_api_key: {
-        Args: { service: string }
-        Returns: string
-      }
-      get_current_school_info: {
-        Args: Record<PropertyKey, never>
-        Returns: {
-          school_id: string
-          school_name: string
-          school_code: string
-          contact_email: string
-        }[]
-      }
-      get_profile_safely: {
-        Args: { uid?: string }
-        Returns: Json
-      }
-      get_profile_with_organization: {
-        Args: { user_id_param?: string }
-        Returns: Json
-      }
-      get_school_by_code: {
-        Args: { input_code: string }
-        Returns: {
-          id: string
-          name: string
-          school_code: string
-          active: boolean
-        }[]
       }
       get_school_improvement_metrics: {
         Args: { p_school_id: string; p_months_to_include?: number }
@@ -1392,33 +1129,6 @@ export type Database = {
           student_participation_rate: number
         }[]
       }
-      get_session_logs_with_user_details: {
-        Args: { school_id_param?: string }
-        Returns: {
-          id: string
-          user_id: string
-          school_id: string
-          topic_or_content_used: string
-          session_start: string
-          session_end: string
-          num_queries: number
-          user_name: string
-          user_email: string
-        }[]
-      }
-      get_student_metrics_for_school: {
-        Args: { school_id_param: string }
-        Returns: {
-          student_id: string
-          student_name: string
-          avg_score: number
-          assessments_taken: number
-          completion_rate: number
-          avg_time_spent_seconds: number
-          top_strengths: string
-          top_weaknesses: string
-        }[]
-      }
       get_student_performance_metrics: {
         Args: {
           p_school_id: string
@@ -1437,27 +1147,6 @@ export type Database = {
           top_weaknesses: string
         }[]
       }
-      get_students_for_school: {
-        Args: { school_id_param: string }
-        Returns: {
-          id: string
-          full_name: string
-          email: string
-          status: string
-          created_at: string
-        }[]
-      }
-      get_students_with_profiles: {
-        Args: { school_id_param: string }
-        Returns: {
-          id: string
-          full_name: string
-          email: string
-          status: string
-          created_at: string
-          last_active: string
-        }[]
-      }
       get_teacher_performance_metrics: {
         Args: {
           p_school_id: string
@@ -1474,66 +1163,24 @@ export type Database = {
           completion_rate: number
         }[]
       }
-      get_teachers_for_school: {
-        Args: { school_id_param: string }
-        Returns: {
-          id: string
-          full_name: string
-          email: string
-          is_supervisor: boolean
-          created_at: string
-        }[]
-      }
       get_user_role: {
         Args: Record<PropertyKey, never>
         Returns: string
       }
-      get_user_role_by_email: {
-        Args: { input_email: string }
-        Returns: string
-      }
-      get_user_roles: {
-        Args: Record<PropertyKey, never>
-        Returns: Database["public"]["Enums"]["app_role"][]
-      }
       get_user_school_id: {
-        Args: Record<PropertyKey, never> | { user_id?: string }
+        Args: Record<PropertyKey, never>
         Returns: string
-      }
-      get_user_school_id_safely: {
-        Args: { uid?: string }
-        Returns: string
-      }
-      has_any_role: {
-        Args: { _roles: Database["public"]["Enums"]["app_role"][] }
-        Returns: boolean
-      }
-      has_role: {
-        Args: { _role: Database["public"]["Enums"]["app_role"] }
-        Returns: boolean
       }
       increment_session_query_count: {
         Args: { log_id: string }
         Returns: undefined
       }
-      invite_student_direct: {
-        Args: { school_id_param: string }
-        Returns: {
-          code: string
-          expires_at: string
-          invite_id: string
-        }[]
-      }
       invite_teacher: {
         Args: { teacher_email: string; inviter_id?: string }
         Returns: string
       }
-      invite_teacher_direct: {
-        Args: { teacher_email: string; school_id: string }
-        Returns: string
-      }
       is_supervisor: {
-        Args: { user_id?: string }
+        Args: { user_id: string }
         Returns: boolean
       }
       is_user_supervisor: {
@@ -1543,42 +1190,6 @@ export type Database = {
       populatetestaccountwithsessions: {
         Args: { userid: string; schoolid: string; num_sessions?: number }
         Returns: undefined
-      }
-      proxy_gemini_request: {
-        Args: { prompt: string; model?: string }
-        Returns: Json
-      }
-      proxy_openai_request: {
-        Args: { prompt: string; model?: string }
-        Returns: Json
-      }
-      register_school: {
-        Args: {
-          p_school_name: string
-          p_admin_email: string
-          p_admin_full_name: string
-          p_contact_email?: string
-        }
-        Returns: {
-          school_id: string
-          school_code: string
-          admin_id: string
-        }[]
-      }
-      remove_role: {
-        Args: {
-          user_id_param: string
-          role_param: Database["public"]["Enums"]["app_role"]
-        }
-        Returns: boolean
-      }
-      revoke_student_access_direct: {
-        Args: { student_id_param: string }
-        Returns: boolean
-      }
-      set_api_key: {
-        Args: { service: string; key_value: string }
-        Returns: boolean
       }
       update_session_topic: {
         Args: { log_id: string; topic: string }
@@ -1599,18 +1210,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role:
-        | "school_admin"
-        | "teacher_supervisor"
-        | "teacher"
-        | "student"
-        | "system_admin"
-      user_role:
-        | "school_admin"
-        | "teacher_supervisor"
-        | "teacher"
-        | "student"
-        | "system_admin"
+      [_ in never]: never
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1725,21 +1325,6 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {
-      app_role: [
-        "school_admin",
-        "teacher_supervisor",
-        "teacher",
-        "student",
-        "system_admin",
-      ],
-      user_role: [
-        "school_admin",
-        "teacher_supervisor",
-        "teacher",
-        "student",
-        "system_admin",
-      ],
-    },
+    Enums: {},
   },
 } as const

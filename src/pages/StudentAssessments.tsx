@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Clock, FileCheck, RefreshCw } from "lucide-react";
+import { Loader2, Calendar, Clock, FileCheck } from "lucide-react";
 import { format } from "date-fns";
 
 interface Assessment {
@@ -32,6 +32,7 @@ const StudentAssessments = () => {
   const { user, profile, schoolId } = useAuth();
   const navigate = useNavigate();
   const [assessments, setAssessments] = useState<Assessment[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -46,68 +47,69 @@ const StudentAssessments = () => {
       return;
     }
 
-    if (schoolId) {
-      fetchAssessments();
-    }
+    const fetchAssessments = async () => {
+      setLoading(true);
+      try {
+        // Fetch assessments for this student's school
+        if (!schoolId) return;
+
+        const { data, error } = await supabase
+          .from("assessments")
+          .select(`
+            id, 
+            title, 
+            description, 
+            due_date, 
+            created_at,
+            teacher_id,
+            teacher:teachers(
+              id, 
+              profiles(full_name)
+            ),
+            submission:assessment_submissions(
+              id, 
+              score, 
+              completed,
+              submitted_at
+            )
+          `)
+          .eq("school_id", schoolId)
+          .order("due_date", { ascending: true });
+
+        if (error) throw error;
+
+        // Process data to format teacher name and submission
+        const formattedData = data.map((assessment: any) => {
+          // Extract teacher name from nested object
+          const teacherFullName = assessment.teacher?.profiles?.length > 0 
+            ? assessment.teacher.profiles[0].full_name 
+            : "Unknown Teacher";
+
+          // Extract submission data (if any)
+          const submission = assessment.submission?.length > 0 
+            ? assessment.submission[0] 
+            : undefined;
+
+          return {
+            ...assessment,
+            teacher: {
+              full_name: teacherFullName
+            },
+            submission
+          };
+        });
+
+        setAssessments(formattedData);
+      } catch (err: any) {
+        console.error("Error fetching assessments:", err);
+        setError(err.message || "Failed to load assessments");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAssessments();
   }, [user, profile, schoolId, navigate]);
-
-  const fetchAssessments = async () => {
-    try {
-      // Fetch assessments for this student's school
-      if (!schoolId) return;
-
-      const { data, error } = await supabase
-        .from("assessments")
-        .select(`
-          id, 
-          title, 
-          description, 
-          due_date, 
-          created_at,
-          teacher_id,
-          teacher:teachers(
-            id, 
-            profiles(full_name)
-          ),
-          submission:assessment_submissions(
-            id, 
-            score, 
-            completed,
-            submitted_at
-          )
-        `)
-        .eq("school_id", schoolId)
-        .order("due_date", { ascending: true });
-
-      if (error) throw error;
-
-      // Process data to format teacher name and submission
-      const formattedData = data.map((assessment: any) => {
-        // Extract teacher name from nested object
-        const teacherFullName = assessment.teacher?.profiles?.length > 0 
-          ? assessment.teacher.profiles[0].full_name 
-          : "Unknown Teacher";
-
-        // Extract submission data (if any)
-        const submission = assessment.submission?.length > 0 
-          ? assessment.submission[0] 
-          : undefined;
-
-        return {
-          ...assessment,
-          teacher: {
-            full_name: teacherFullName
-          },
-          submission
-        };
-      });
-
-      setAssessments(formattedData);
-    } catch (err: any) {
-      console.error("Error fetching assessments:", err);
-      setError(err.message || "Failed to load assessments");
-    }
-  };
 
   const handleTakeAssessment = (assessmentId: string) => {
     navigate(`/student/assessment/${assessmentId}`);
@@ -117,28 +119,18 @@ const StudentAssessments = () => {
     navigate(`/student/assessment-results/${assessmentId}/${submissionId}`);
   };
 
-  // If not logged in or not a student, we've already redirected
-  if (!user || (profile && profile.user_type !== "student")) {
-    return null;
-  }
-
   return (
     <>
       <Navbar />
       <main className="container mx-auto px-4 py-8 min-h-screen">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold">My Assessments</h1>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={fetchAssessments}
-            className="flex items-center gap-2"
-          >
-            <RefreshCw className="h-4 w-4" /> Refresh
-          </Button>
-        </div>
+        <h1 className="text-3xl font-bold mb-6">My Assessments</h1>
 
-        {error ? (
+        {loading ? (
+          <div className="flex items-center justify-center h-64">
+            <Loader2 className="h-8 w-8 animate-spin text-learnable-blue" />
+            <span className="ml-2">Loading assessments...</span>
+          </div>
+        ) : error ? (
           <div className="bg-red-50 p-4 rounded-md text-red-500">{error}</div>
         ) : assessments.length === 0 ? (
           <div className="text-center py-12 bg-gray-50 rounded-md">

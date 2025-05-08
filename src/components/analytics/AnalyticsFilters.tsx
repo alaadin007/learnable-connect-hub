@@ -1,89 +1,84 @@
-
-import React from 'react';
+import React from "react";
+import { DateRangePicker } from "./DateRangePicker";
+import { StudentSelector } from "./StudentSelector";
+import { TeacherSelector } from "./TeacherSelector";
 import { Card, CardContent } from "@/components/ui/card";
-import { DateRange } from 'react-day-picker';
-import { format } from 'date-fns';
-import { Calendar } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { cn } from '@/lib/utils';
-import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { Filter } from "lucide-react";
+import { AnalyticsFilters as FiltersType, DateRange } from "./types";
 
 interface AnalyticsFiltersProps {
-  dateRange: DateRange;
-  onDateRangeChange: (range: DateRange) => void;
-  selectedTeacherId?: string;
+  filters: FiltersType;
+  onFiltersChange: (filters: FiltersType) => void;
+  showStudentSelector?: boolean;
+  showTeacherSelector?: boolean;
+  students?: { id: string; name: string }[];
 }
 
-export const AnalyticsFilters = ({ 
-  dateRange, 
-  onDateRangeChange,
-  selectedTeacherId
-}: AnalyticsFiltersProps) => {
+export const AnalyticsFilters: React.FC<AnalyticsFiltersProps> = ({
+  filters,
+  onFiltersChange,
+  showStudentSelector = false,
+  showTeacherSelector = false,
+  students = []
+}) => {
+  const handleDateRangeChange = (range: DateRange | undefined) => {
+    onFiltersChange({
+      ...filters,
+      dateRange: range,
+    });
+  };
+
+  const handleStudentChange = (studentId: string | undefined) => {
+    onFiltersChange({
+      ...filters,
+      studentId,
+    });
+  };
+
+  const handleTeacherChange = (teacherId: string | undefined) => {
+    onFiltersChange({
+      ...filters,
+      teacherId,
+    });
+  };
+
   return (
-    <Card>
-      <CardContent className="flex flex-col sm:flex-row justify-between gap-4 p-4">
-        <div className="flex items-center space-x-2">
-          <span className="text-sm font-medium">Date Range:</span>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                id="date"
-                variant="outline"
-                className={cn(
-                  "w-[300px] justify-start text-left font-normal",
-                  !dateRange && "text-muted-foreground"
-                )}
-              >
-                <Calendar className="mr-2 h-4 w-4" />
-                {dateRange?.from ? (
-                  dateRange.to ? (
-                    <>
-                      {format(dateRange.from, "LLL dd, y")} -{" "}
-                      {format(dateRange.to, "LLL dd, y")}
-                    </>
-                  ) : (
-                    format(dateRange.from, "LLL dd, y")
-                  )
-                ) : (
-                  <span>Pick a date range</span>
-                )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <CalendarComponent
-                initialFocus
-                mode="range"
-                defaultMonth={dateRange?.from}
-                selected={dateRange}
-                onSelect={(range) => onDateRangeChange(range as DateRange)}
-                numberOfMonths={2}
+    <Card className="mb-6">
+      <CardContent className="pt-6">
+        <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
+          <div className="flex items-center text-muted-foreground mb-2 md:mb-0">
+            <Filter className="w-4 h-4 mr-2" />
+            <span>Filter Analytics:</span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full">
+            <div>
+              <DateRangePicker
+                dateRange={filters.dateRange}
+                onDateRangeChange={handleDateRangeChange}
               />
-            </PopoverContent>
-          </Popover>
-        </div>
-        
-        <div className="flex items-center space-x-2">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => onDateRangeChange({
-              from: new Date(new Date().setDate(new Date().getDate() - 7)),
-              to: new Date(),
-            })}
-          >
-            Last 7 days
-          </Button>
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => onDateRangeChange({
-              from: new Date(new Date().setDate(new Date().getDate() - 30)),
-              to: new Date(),
-            })}
-          >
-            Last 30 days
-          </Button>
+            </div>
+
+            {showStudentSelector && (
+              <div>
+                <StudentSelector
+                  students={students}
+                  selectedStudentId={filters.studentId}
+                  onStudentChange={handleStudentChange}
+                />
+              </div>
+            )}
+
+            {showTeacherSelector && (
+              <div>
+                <TeacherSelector
+                  schoolId={typeof filters.schoolId === "string" ? filters.schoolId : ""}
+                  selectedTeacherId={filters.teacherId}
+                  onTeacherChange={handleTeacherChange}
+                />
+              </div>
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>
