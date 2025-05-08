@@ -93,6 +93,11 @@ const LoginForm = () => {
     try {
       console.log(`LoginForm: Instant login as ${type}`);
       
+      // Sign out first if there's an active session to prevent conflicts
+      if (activeTestAccount) {
+        await signOut();
+      }
+      
       // Set test account flags immediately
       localStorage.setItem('usingTestAccount', 'true');
       localStorage.setItem('testAccountType', type);
