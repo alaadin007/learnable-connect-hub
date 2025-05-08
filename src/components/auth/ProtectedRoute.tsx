@@ -39,17 +39,27 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   // Check if user has required role
   if (requiredUserType && userRole !== requiredUserType) {
-    toast.error(`Only ${requiredUserType}s can access this page`);
-    
-    // Redirect to appropriate dashboard based on actual role
-    if (userRole === 'school' || userRole === 'school_admin') {
-      return <Navigate to="/admin" replace />;
-    } else if (userRole === 'teacher' || userRole === 'teacher_supervisor') {
-      return <Navigate to="/teacher/analytics" replace />;
+    // Map similar role types for compatibility
+    const normalizedUserRole = userRole === 'school_admin' ? 'school' : 
+                              (userRole === 'teacher_supervisor' ? 'teacher' : userRole);
+    const normalizedRequiredRole = requiredUserType === 'school_admin' ? 'school' : 
+                                  (requiredUserType === 'teacher_supervisor' ? 'teacher' : requiredUserType);
+                                  
+    if (normalizedUserRole !== normalizedRequiredRole) {
+      toast.error(`Only ${requiredUserType}s can access this page`);
+      
+      // Redirect to appropriate dashboard based on actual role
+      if (normalizedUserRole === 'school') {
+        return <Navigate to="/admin" replace />;
+      } else if (normalizedUserRole === 'teacher') {
+        return <Navigate to="/teacher/analytics" replace />;
+      } else if (normalizedUserRole === 'student') {
+        return <Navigate to="/dashboard" replace />;
+      }
+      
+      // Default dashboard fallback
+      return <Navigate to="/dashboard" replace />;
     }
-    
-    // Default dashboard fallback
-    return <Navigate to="/dashboard" replace />;
   }
 
   // Render children if authenticated and authorized

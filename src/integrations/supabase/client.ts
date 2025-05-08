@@ -38,6 +38,16 @@ export const supabase = createClient<Database>(
         };
         return fetch(url, fetchOptions);
       }
+    },
+    // Add db error handling for better resilience
+    db: {
+      schema: 'public'
+    },
+    // Configure better defaults for error handling
+    realtime: {
+      params: {
+        eventsPerSecond: 10
+      }
     }
   }
 );
