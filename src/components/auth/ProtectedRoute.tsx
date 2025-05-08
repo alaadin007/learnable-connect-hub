@@ -1,5 +1,5 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
@@ -15,18 +15,31 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 }) => {
   const { user, userRole, isLoading, session } = useAuth();
   const location = useLocation();
+  const [showNotification, setShowNotification] = useState(false);
 
+  // Use effect to delay showing error notifications
+  // This prevents flashing errors during initial loading
   useEffect(() => {
-    // Only show toast notifications if we're not initially loading
-    // This prevents flashing error messages during auth state initialization
-    if (!isLoading) {
-      if (!user || !session) {
-        toast.error("You must be logged in to access this page");
-      } else if (requiredUserType && userRole !== requiredUserType) {
-        toast.error(`Only ${requiredUserType}s can access this page`);
+    // Only show notifications after a short delay and if still not authenticated
+    const timer = setTimeout(() => {
+      if (!isLoading && showNotification) {
+        if (!user || !session) {
+          toast.error("You must be logged in to access this page");
+        } else if (requiredUserType && userRole !== requiredUserType) {
+          toast.error(`Only ${requiredUserType}s can access this page`);
+        }
       }
+    }, 1000);
+    
+    return () => clearTimeout(timer);
+  }, [isLoading, user, session, userRole, requiredUserType, showNotification]);
+  
+  // Set flag to show notification after initial loading
+  useEffect(() => {
+    if (!isLoading) {
+      setShowNotification(true);
     }
-  }, [isLoading, user, session, userRole, requiredUserType]);
+  }, [isLoading]);
 
   // Show loading state - but only briefly to prevent long waits
   if (isLoading) {

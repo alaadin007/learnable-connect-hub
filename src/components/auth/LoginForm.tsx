@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,6 +20,7 @@ const LoginForm = () => {
   const { signIn, setTestUser, userRole, session, signOut } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   
   // Show success toast for registration and email verification
   useEffect(() => {
@@ -64,13 +65,15 @@ const LoginForm = () => {
       console.log("LoginForm: User role already set, redirecting to appropriate dashboard:", userRole);
       setIsRedirecting(true);
       
+      // Get intended destination from location state or use default
+      const from = location.state?.from?.pathname || getUserRedirectPath(userRole);
+      
       // Small timeout to prevent potential redirect loops
       setTimeout(() => {
-        const redirectPath = getUserRedirectPath(userRole);
-        navigate(redirectPath, { replace: true });
+        navigate(from, { replace: true });
       }, 100);
     }
-  }, [userRole, session, navigate]);
+  }, [userRole, session, navigate, location.state]);
 
   // Helper function to determine redirect path based on user role
   const getUserRedirectPath = (role: string): string => {
@@ -192,9 +195,6 @@ const LoginForm = () => {
       if (data?.user) {
         console.log("Login successful:", data.user.id);
         
-        // We don't need to determine the user type here anymore
-        // The AuthContext's onAuthStateChange will handle that
-        
         toast.success("Login successful", {
           description: "Welcome back!",
         });
@@ -219,7 +219,7 @@ const LoginForm = () => {
           description: "Invalid email or password. Please try again.",
         });
       } else {
-        toast.error(`Login failed: ${error.message}`);
+        toast.error(`Login failed: ${error.message || "Unknown error"}`);
       }
     } finally {
       setIsLoading(false);
@@ -281,6 +281,7 @@ const LoginForm = () => {
     }
   };
 
+  
   return (
     <div className="max-w-md w-full mx-auto p-4">
       <Card className="w-full">

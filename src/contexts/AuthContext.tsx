@@ -57,22 +57,55 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Initialize auth state from Supabase session
   useEffect(() => {
-    let subscription: any;
-    const handleAuthChange = async (session: Session | null) => {
-      setSession(session);
-      // ... rest of handleAuthChange logic ...
-    };
-    const { data } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        console.log("Auth state changed, event:", _event);
-        await handleAuthChange(session);
-      }
-    );
-    subscription = data?.subscription;
-
+    let authSubscription: { unsubscribe: () => void } | null = null;
+    
     const initAuth = async () => {
       setIsLoading(true);
       try {
+        // First set up the auth listener
+        const { data } = supabase.auth.onAuthStateChange(
+          async (_event, newSession) => {
+            console.log("Auth state changed, event:", _event);
+            setSession(newSession);
+            setUser(newSession?.user || null);
+            
+            // Check if we're using test accounts
+            const usingTestAccount = localStorage.getItem('usingTestAccount') === 'true';
+            const testAccountType = localStorage.getItem('testAccountType') as UserRole;
+            
+            if (newSession?.user) {
+              if (usingTestAccount && testAccountType) {
+                console.log("Auth state change: Using test account type:", testAccountType);
+                setUserRole(testAccountType);
+                setSchoolId('00000000-0000-0000-0000-000000000000');
+                setProfile({
+                  id: newSession.user.id,
+                  full_name: `Test ${testAccountType.charAt(0).toUpperCase() + testAccountType.slice(1)}`,
+                  user_type: testAccountType,
+                  organization: testAccountType === 'school' ? {
+                    id: '00000000-0000-0000-0000-000000000000',
+                    name: 'Test School'
+                  } : null
+                });
+                setIsSupervisor(testAccountType === 'school');
+              } else {
+                // Use setTimeout to avoid potential deadlock with Supabase auth
+                setTimeout(() => {
+                  fetchUserProfile(newSession.user.id);
+                }, 0);
+              }
+            } else {
+              // Clear user data on sign out
+              setUserRole(null);
+              setSchoolId(null);
+              setProfile(null);
+              setIsSupervisor(false);
+            }
+          }
+        );
+        
+        authSubscription = data.subscription;
+
         // After setting up the listener, check for existing session
         const { data: { session: currentSession } } = await supabase.auth.getSession();
         
@@ -113,7 +146,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     initAuth();
 
     return () => {
-      if (subscription) subscription.unsubscribe();
+      if (authSubscription) authSubscription.unsubscribe();
     };
   }, []);
 

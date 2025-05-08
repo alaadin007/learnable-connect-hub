@@ -1,3 +1,4 @@
+
 import React from "react";
 import { Routes, Route } from "react-router-dom";
 import Home from "@/pages/Home";
@@ -128,4 +129,5 @@ const App = () => (
   </Routes>
 );
 
+// Make sure to export App as the default export
 export default App;
