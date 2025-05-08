@@ -1532,6 +1532,10 @@ export type Database = {
         Args: { teacher_email: string; school_id: string }
         Returns: string
       }
+      is_same_user_or_supervisor: {
+        Args: { user_id: string }
+        Returns: boolean
+      }
       is_supervisor: {
         Args: { user_id?: string }
         Returns: boolean

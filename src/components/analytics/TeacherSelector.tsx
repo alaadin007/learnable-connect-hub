@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 interface TeacherSelectorProps {
   schoolId: string;
@@ -38,12 +39,19 @@ export function TeacherSelector({
 
       setIsLoading(true);
       try {
+        // First, get teacher IDs with a simple query
         const { data: teachersData, error } = await supabase
           .from("teachers")
           .select("id")
           .eq("school_id", schoolId);
 
-        if (error) throw error;
+        if (error) {
+          console.error("Error fetching teacher IDs:", error);
+          toast.error("Failed to load teachers. Please try again.");
+          setTeachers([]);
+          setIsLoading(false);
+          return;
+        }
 
         if (!teachersData || teachersData.length === 0) {
           setTeachers([]);
@@ -51,13 +59,20 @@ export function TeacherSelector({
           return;
         }
 
+        // Then, get profile data for these teachers
         const teacherIds = teachersData.map((t) => t.id);
         const { data: profilesData, error: profilesError } = await supabase
           .from("profiles")
           .select("id, full_name")
           .in("id", teacherIds);
 
-        if (profilesError) throw profilesError;
+        if (profilesError) {
+          console.error("Error fetching teacher profiles:", profilesError);
+          toast.error("Failed to load teacher information. Please try again.");
+          setTeachers([]);
+          setIsLoading(false);
+          return;
+        }
 
         const formattedTeachers: Teacher[] = (profilesData ?? []).map(
           (profile) => ({
@@ -68,7 +83,8 @@ export function TeacherSelector({
 
         setTeachers(formattedTeachers);
       } catch (error) {
-        console.error("Error fetching teachers:", error);
+        console.error("Error in TeacherSelector:", error);
+        toast.error("An unexpected error occurred. Please try again.");
         setTeachers([]);
       } finally {
         setIsLoading(false);
