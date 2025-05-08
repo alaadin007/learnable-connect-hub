@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -71,8 +70,10 @@ const LoginForm = () => {
   const getUserRedirectPath = (role: string): string => {
     switch (role) {
       case "school":
+      case "school_admin":
         return "/admin";
       case "teacher":
+      case "teacher_supervisor":
         return "/teacher/analytics";
       case "student":
         return "/dashboard";
@@ -202,14 +203,27 @@ const LoginForm = () => {
             if (!profileError && profile) {
               userType = profile.user_type;
               userName = profile.full_name || userName;
+              
+              // Log the exact user type for debugging
+              console.log("Fetched user type from profile:", userType);
             }
           } catch (profileError) {
             console.error("Error fetching user profile:", profileError);
           }
+        } else {
+          // Log the exact user type from metadata for debugging
+          console.log("User type from metadata:", userType);
+        }
+        
+        // Normalize the user role to handle both "school" and "school_admin" formats
+        if (userType === "school_admin") {
+          userType = "school";
         }
         
         // Default to dashboard if we still can't determine the role
         const redirectPath = userType ? getUserRedirectPath(userType) : "/dashboard";
+        
+        console.log(`User type: ${userType}, redirecting to: ${redirectPath}`);
           
         toast.success("Login successful", {
           description: `Welcome back, ${userName || email}!`,
