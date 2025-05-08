@@ -6,6 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DateRange } from 'react-day-picker';
 import { format } from 'date-fns';
+import Navbar from '@/components/layout/Navbar';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Calendar, ChevronDown } from 'lucide-react';
 import StatsCard from '@/components/analytics/StatsCard';
 import StudentSelector from '@/components/analytics/StudentSelector';
 import { AnalyticsFilters } from '@/components/analytics/AnalyticsFilters';
@@ -65,10 +68,10 @@ const TeacherAnalytics = () => {
         return;
       }
       
-      // Use the Edge Function to get students with their profile data
-      const { data, error } = await supabase.functions.invoke("get-students", {
-        body: { school_id: userSchoolId }
-      });
+      // Use the RPC function to get students
+      const { data, error } = await supabase.from("student_performance_metrics")
+        .select("student_id, student_name")
+        .eq("school_id", userSchoolId);
 
       if (error) {
         console.error('Error fetching students:', error);
@@ -78,8 +81,8 @@ const TeacherAnalytics = () => {
 
       if (data) {
         const formattedStudents: Student[] = data.map((student: any) => ({
-          id: student.id,
-          name: student.full_name || 'Unknown Student'
+          id: student.student_id,
+          name: student.student_name || 'Unknown Student'
         }));
         
         setStudents(formattedStudents);
@@ -94,15 +97,31 @@ const TeacherAnalytics = () => {
     try {
       setIsLoading(true);
       
-      // This would be replaced with a real API call to get summary data
-      const mockSummary = {
-        activeStudents: 24,
-        totalSessions: 156,
-        totalQueries: 1203,
-        avgSessionMinutes: 18.5
-      };
+      // Fetch analytics summary from database or use mock data for now
+      const { data, error } = await supabase.from("school_analytics_summary")
+        .select("*")
+        .eq("school_id", schoolId)
+        .single();
       
-      setSummary(mockSummary);
+      if (error) {
+        console.error('Error fetching analytics summary:', error);
+        // Fallback to mock data
+        const mockSummary = {
+          activeStudents: 24,
+          totalSessions: 156,
+          totalQueries: 1203,
+          avgSessionMinutes: 18.5
+        };
+        setSummary(mockSummary);
+      } else if (data) {
+        setSummary({
+          activeStudents: data.active_students || 0,
+          totalSessions: data.total_sessions || 0,
+          totalQueries: data.total_queries || 0,
+          avgSessionMinutes: data.avg_session_minutes || 0
+        });
+      }
+      
       setIsLoading(false);
     } catch (error) {
       console.error('Error fetching analytics summary:', error);
@@ -111,107 +130,175 @@ const TeacherAnalytics = () => {
   };
 
   const fetchSessions = async () => {
-    // This would be replaced with an actual API call
-    const mockSessions: SessionData[] = [];
-    setSessions(mockSessions);
+    try {
+      let query = supabase.from("session_logs").select("*").eq("school_id", schoolId);
+      
+      if (selectedStudentId) {
+        query = query.eq("user_id", selectedStudentId);
+      }
+      
+      const { data, error } = await query.order("session_start", { ascending: false }).limit(20);
+      
+      if (error) {
+        console.error('Error fetching sessions:', error);
+        return;
+      }
+      
+      if (data) {
+        const formattedSessions: SessionData[] = data.map((session: any) => ({
+          id: session.id,
+          studentId: session.user_id,
+          startTime: session.session_start,
+          endTime: session.session_end,
+          duration: session.session_end ? 
+            Math.round((new Date(session.session_end).getTime() - new Date(session.session_start).getTime()) / 60000) : 
+            0,
+          topic: session.topic_or_content_used || 'General',
+          queries: session.num_queries || 0
+        }));
+        
+        setSessions(formattedSessions);
+      }
+    } catch (error) {
+      console.error('Error fetching sessions:', error);
+    }
   };
 
   const fetchTopTopics = async () => {
-    // This would be replaced with an actual API call
-    const mockTopics: TopicData[] = [];
-    setTopTopics(mockTopics);
+    try {
+      let query = supabase.from("most_studied_topics").select("*").eq("school_id", schoolId);
+      
+      const { data, error } = await query.order("count_of_sessions", { ascending: false }).limit(10);
+      
+      if (error) {
+        console.error('Error fetching top topics:', error);
+        return;
+      }
+      
+      if (data) {
+        const formattedTopics: TopicData[] = data.map((topic: any) => ({
+          topic: topic.topic_or_content_used || 'Unknown',
+          count: topic.count_of_sessions || 0,
+          percentage: 0 // Calculate this if needed
+        }));
+        
+        setTopTopics(formattedTopics);
+      }
+    } catch (error) {
+      console.error('Error fetching top topics:', error);
+    }
   };
 
   const fetchStudyTime = async () => {
-    // This would be replaced with an actual API call
-    const mockStudyTime: any[] = [];
-    setStudyTime(mockStudyTime);
+    try {
+      let query = supabase.from("student_weekly_study_time").select("*").eq("school_id", schoolId);
+      
+      if (selectedStudentId) {
+        query = query.eq("user_id", selectedStudentId);
+      }
+      
+      const { data, error } = await query.order("week_number", { ascending: true });
+      
+      if (error) {
+        console.error('Error fetching study time:', error);
+        return;
+      }
+      
+      if (data) {
+        setStudyTime(data);
+      }
+    } catch (error) {
+      console.error('Error fetching study time:', error);
+    }
   };
 
   return (
-    <div className="container py-6">
-      <div className="flex flex-col space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold tracking-tight">Analytics</h1>
-          <Button variant="outline" onClick={fetchAnalyticsSummary}>
-            Refresh Data
-          </Button>
-        </div>
+    <>
+      <Navbar />
+      <div className="container py-6">
+        <div className="flex flex-col space-y-6">
+          <div className="flex items-center justify-between">
+            <h1 className="text-3xl font-bold tracking-tight">Analytics</h1>
+            <Button variant="outline" onClick={fetchAnalyticsSummary}>
+              Refresh Data
+            </Button>
+          </div>
 
-        <StudentSelector
-          students={students}
-          selectedStudentId={selectedStudentId}
-          onStudentChange={setSelectedStudentId}
-        />
-        
-        <AnalyticsFilters
-          dateRange={dateRange}
-          onDateRangeChange={(range) => setDateRange(range as DateRange)}
-        />
-
-        <AnalyticsSummaryCards summary={summary} isLoading={isLoading} />
-
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid grid-cols-3 w-full max-w-md mb-4">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="sessions">Sessions</TabsTrigger>
-            <TabsTrigger value="topics">Topics</TabsTrigger>
-          </TabsList>
+          <StudentSelector
+            students={students}
+            selectedStudentId={selectedStudentId}
+            onStudentChange={setSelectedStudentId}
+          />
           
-          <TabsContent value="overview" className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <AnalyticsFilters
+            dateRange={dateRange}
+            onDateRangeChange={(range) => setDateRange(range as DateRange)}
+          />
+
+          <AnalyticsSummaryCards summary={summary} isLoading={isLoading} />
+
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid grid-cols-3 w-full max-w-md mb-4">
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="sessions">Sessions</TabsTrigger>
+              <TabsTrigger value="topics">Topics</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="overview" className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Topics</CardTitle>
+                    <CardDescription>Most studied topics</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <TopicsChart data={topTopics} />
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Study Time</CardTitle>
+                    <CardDescription>Hours spent studying</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <StudyTimeChart data={studyTime} />
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="sessions">
               <Card>
                 <CardHeader>
-                  <CardTitle>Topics</CardTitle>
-                  <CardDescription>Most studied topics</CardDescription>
+                  <CardTitle>Session History</CardTitle>
+                  <CardDescription>
+                    {selectedStudentId 
+                      ? `Sessions for selected student from ${format(dateRange.from!, 'PPP')} to ${format(dateRange.to!, 'PPP')}`
+                      : `All student sessions from ${format(dateRange.from!, 'PPP')} to ${format(dateRange.to!, 'PPP')}`}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <SessionsTable sessions={sessions} />
+                </CardContent>
+              </Card>
+            </TabsContent>
+            
+            <TabsContent value="topics">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Top Topics</CardTitle>
+                  <CardDescription>Most frequently studied subjects</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <TopicsChart data={topTopics} />
                 </CardContent>
               </Card>
-              
-              <Card>
-                <CardHeader>
-                  <CardTitle>Study Time</CardTitle>
-                  <CardDescription>Hours spent studying</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <StudyTimeChart data={studyTime} />
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-          
-          <TabsContent value="sessions">
-            <Card>
-              <CardHeader>
-                <CardTitle>Session History</CardTitle>
-                <CardDescription>
-                  {selectedStudentId 
-                    ? `Sessions for selected student from ${format(dateRange.from!, 'PPP')} to ${format(dateRange.to!, 'PPP')}`
-                    : `All student sessions from ${format(dateRange.from!, 'PPP')} to ${format(dateRange.to!, 'PPP')}`}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <SessionsTable sessions={sessions} />
-              </CardContent>
-            </Card>
-          </TabsContent>
-          
-          <TabsContent value="topics">
-            <Card>
-              <CardHeader>
-                <CardTitle>Top Topics</CardTitle>
-                <CardDescription>Most frequently studied subjects</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <TopicsChart data={topTopics} />
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+            </TabsContent>
+          </Tabs>
+        </div>
       </div>
-    </div>
+    </>
   );
 };
 

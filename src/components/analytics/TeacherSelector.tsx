@@ -1,13 +1,12 @@
 
-import React, { useState, useEffect } from "react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { getTeachersWithProfiles } from "@/utils/supabaseHelpers";
+import React, { useState, useEffect } from 'react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { supabase } from "@/integrations/supabase/client";
+
+interface Teacher {
+  id: string;
+  name: string;
+}
 
 interface TeacherSelectorProps {
   schoolId: string;
@@ -15,82 +14,59 @@ interface TeacherSelectorProps {
   onTeacherChange: (teacherId: string | undefined) => void;
 }
 
-interface Teacher {
-  id: string;
-  name: string;
-}
-
-export function TeacherSelector({
-  schoolId,
-  selectedTeacherId,
-  onTeacherChange,
-}: TeacherSelectorProps) {
+export const TeacherSelector = ({ schoolId, selectedTeacherId, onTeacherChange }: TeacherSelectorProps) => {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const fetchTeachers = async () => {
-      if (!schoolId) {
-        setTeachers([]);
-        return;
-      }
-      
-      try {
-        // Use our improved helper function
-        const teachersData = await getTeachersWithProfiles(schoolId);
-        
-        if (!teachersData || teachersData.length === 0) {
-          setTeachers([]);
-          return;
-        }
-
-        // Transform to required format
-        const formattedTeachers: Teacher[] = teachersData.map(teacher => ({
-          id: teacher.id,
-          name: teacher.full_name
-        }));
-
-        setTeachers(formattedTeachers);
-      } catch (error) {
-        console.error("Error fetching teachers:", error);
-        setTeachers([]);
-      }
-    };
-
-    fetchTeachers();
+    if (schoolId) {
+      fetchTeachers();
+    }
   }, [schoolId]);
 
-  const labelId = "teacher-selector-label";
+  const fetchTeachers = async () => {
+    setIsLoading(true);
+    try {
+      // Use teacher_performance_metrics view instead of querying directly
+      const { data, error } = await supabase
+        .from('teacher_performance_metrics')
+        .select('teacher_id, teacher_name')
+        .eq('school_id', schoolId);
+
+      if (error) {
+        console.error('Error fetching teachers:', error);
+      } else if (data) {
+        const formattedTeachers: Teacher[] = data.map((teacher: any) => ({
+          id: teacher.teacher_id,
+          name: teacher.teacher_name || 'Unknown Teacher',
+        }));
+        setTeachers(formattedTeachers);
+      }
+    } catch (err) {
+      console.error('Failed to fetch teachers:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
-    <div className="space-y-2">
-      <label id={labelId} className="text-sm font-medium">
-        Filter by Teacher:
-      </label>
-      <Select
-        value={selectedTeacherId ?? "all"}
-        onValueChange={(value) =>
-          onTeacherChange(value === "all" ? undefined : value)
-        }
-        aria-labelledby={labelId}
+    <div className="w-full max-w-md">
+      <Select 
+        value={selectedTeacherId || ''} 
+        onValueChange={(value) => onTeacherChange(value || undefined)}
       >
-        <SelectTrigger className="w-full">
+        <SelectTrigger id="teacher-select" className="w-full">
           <SelectValue placeholder="Select teacher..." />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">All Teachers</SelectItem>
-          {teachers.length === 0 ? (
-            <SelectItem disabled value="none" className="cursor-default">
-              No teachers found
+          <SelectItem value="">All Teachers</SelectItem>
+          {teachers.map((teacher) => (
+            <SelectItem key={teacher.id} value={teacher.id}>
+              {teacher.name}
             </SelectItem>
-          ) : (
-            teachers.map((teacher) => (
-              <SelectItem key={teacher.id} value={teacher.id}>
-                {teacher.name}
-              </SelectItem>
-            ))
-          )}
+          ))}
         </SelectContent>
       </Select>
     </div>
   );
-}
+};

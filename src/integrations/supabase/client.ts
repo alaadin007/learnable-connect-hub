@@ -33,6 +33,11 @@ export const supabase = createClient<Database>(
       params: {
         eventsPerSecond: 10
       }
+    },
+    // Add this to avoid potential recursion issues
+    queries: {
+      retryCount: 2,
+      retryDelay: 1000,
     }
   }
 );
@@ -54,6 +59,35 @@ export type TeacherInvitationResult = {
   school_name: string;
   email: string;
 }
+
+// RPC function wrappers to avoid recursion issues
+export const getUserSchoolId = async (): Promise<string | null> => {
+  try {
+    const { data, error } = await supabase.rpc("get_user_school_id");
+    if (error) {
+      console.error("Error getting school ID:", error);
+      return null;
+    }
+    return data;
+  } catch (err) {
+    console.error("Error in getUserSchoolId:", err);
+    return null;
+  }
+};
+
+export const getUserRole = async (): Promise<string | null> => {
+  try {
+    const { data, error } = await supabase.rpc("get_user_role");
+    if (error) {
+      console.error("Error getting user role:", error);
+      return null;
+    }
+    return data;
+  } catch (err) {
+    console.error("Error in getUserRole:", err);
+    return null;
+  }
+};
 
 // Export the URL and key for direct access without using the protected properties
 export const SUPABASE_PUBLIC_URL = SUPABASE_URL;
