@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useEffect, useContext, useCallback } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase, isTestAccount } from '@/integrations/supabase/client';
@@ -16,6 +15,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   updateProfile: (updates: any) => Promise<void>;
   refreshSession: () => Promise<void>;
+  setTestUser: (type: 'student' | 'teacher' | 'school') => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -31,6 +31,7 @@ const AuthContext = createContext<AuthContextType>({
   logout: async () => {},
   updateProfile: async () => {},
   refreshSession: async () => {},
+  setTestUser: () => {},
 });
 
 // Function to safely check and get profile data
@@ -76,6 +77,38 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       console.error('Login error:', error.message);
       return false;
     }
+  };
+
+  // Create a function to set test user without actual authentication
+  const setTestUser = (type: 'student' | 'teacher' | 'school') => {
+    // Create mock user data
+    const mockUser = {
+      id: `test-${type}-${Date.now()}`,
+      email: `${type}.test@learnable.edu`,
+      user_metadata: {
+        full_name: `Test ${type.charAt(0).toUpperCase() + type.slice(1)}`,
+        user_type: type,
+      },
+    } as User;
+    
+    // Mock profile data
+    const mockProfile = {
+      id: mockUser.id,
+      full_name: mockUser.user_metadata.full_name,
+      user_type: type,
+      school_id: 'test-school-001',
+    };
+    
+    // Set the states
+    setUser(mockUser);
+    setProfile(mockProfile);
+    setUserType(type);
+    setSchoolId(mockProfile.school_id);
+    setIsTestAccount(true);
+    setIsAuthenticated(true);
+    setIsCheckingSession(false);
+    
+    console.log('Test user set:', { type, mockUser, mockProfile });
   };
 
   const register = async (email: string, password: string): Promise<boolean> => {
@@ -214,6 +247,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     logout,
     updateProfile,
     refreshSession,
+    setTestUser,
   };
 
   return (

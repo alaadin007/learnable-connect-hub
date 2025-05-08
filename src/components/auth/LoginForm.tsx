@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { LogIn, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { isTestUser } from '@/utils/supabaseTypeHelpers';
 
 const loginSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address' }),
@@ -48,10 +49,10 @@ const LoginForm: React.FC = () => {
       }
 
       // For test accounts, handle them with special password
-      if (values.email.includes('@testschool.edu') || values.email.includes('.test@learnable.edu')) {
+      if (isTestUser(values.email)) {
         const { data, error } = await supabase.auth.signInWithPassword({
           email: values.email, 
-          password: 'testpassword123'
+          password: 'password123'
         });
         
         if (error) {
@@ -87,9 +88,9 @@ const LoginForm: React.FC = () => {
 
   // Handle test account login shortcuts
   const loginWithTestAccount = (type: 'student' | 'teacher' | 'school') => {
-    const email = `${type}@testschool.edu`;
+    const email = `${type}.test@learnable.edu`;
     form.setValue('email', email);
-    form.setValue('password', 'testpassword123');
+    form.setValue('password', 'password123');
     form.handleSubmit(onSubmit)();
   };
 

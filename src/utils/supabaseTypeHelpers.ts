@@ -74,6 +74,7 @@ export interface TeacherInvitation {
   expires_at: string;
   school_id: string;
   created_by: string;
+  role?: string;
 }
 
 export interface TeacherInvite {
@@ -85,5 +86,12 @@ export interface TeacherInvite {
   school_id: string;
   invitation_token: string;
   created_by: string;
+  role?: string;
 }
 
+// Helper function for test users
+export function isTestUser(email: string | null | undefined): boolean {
+  if (!email) return false;
+  return email.includes('@testschool.edu') || 
+         email.includes('.test@learnable.edu');
+}
