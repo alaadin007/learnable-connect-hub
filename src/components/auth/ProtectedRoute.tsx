@@ -24,9 +24,10 @@ const ProtectedRoute = ({
       userType, 
       requiredUserType, 
       isTestAccount,
-      fromTestAccounts: location.state?.fromTestAccounts 
+      fromTestAccounts: location.state?.fromTestAccounts,
+      path: location.pathname
     });
-  }, [isAuthenticated, isLoading, userType, requiredUserType, isTestAccount, location.state]);
+  }, [isAuthenticated, isLoading, userType, requiredUserType, isTestAccount, location]);
 
   // Always allow access if coming from test accounts
   if (isTestAccount || location.state?.fromTestAccounts) {

@@ -37,48 +37,81 @@ const LoginForm: React.FC = () => {
   const onSubmit = async (values: LoginFormValues) => {
     setIsLoading(true);
     console.log('LoginForm: Attempting login for', values.email);
+    let errorDetails = '';
 
     try {
-      // First try direct login through Supabase for debugging purposes
-      console.log('Attempting direct Supabase login...');
-      const { data: directData, error: directError } = await supabase.auth.signInWithPassword({
-        email: values.email,
-        password: values.password,
-      });
+      // First try direct login through Supabase
+      console.log('Attempting Supabase login directly...');
 
-      if (directError) {
-        console.error('Direct login error:', directError);
-        setIsLoading(false);
-        toast.error(`Authentication error: ${directError.message}`);
-        return;
+      // Test connection before attempting login
+      try {
+        // Simple check to verify Supabase connection
+        const { data: testData, error: testError } = await supabase.from('profiles').select('count').limit(1);
+        if (testError) {
+          console.error('Supabase connection error:', testError);
+          errorDetails = `Connection error: ${testError.message}`;
+        } else {
+          console.log('Supabase connection successful');
+        }
+      } catch (connErr: any) {
+        console.error('Connection test failed:', connErr);
+        errorDetails = `Connection test failed: ${connErr.message}`;
       }
 
-      console.log('Direct login successful, user:', directData.user);
+      // Proceed with login attempt
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: values.email,
+          password: values.password,
+        });
 
-      // Now use the Auth context login function which should handle session state management
-      const success = await login(values.email, values.password);
-      
-      if (success) {
-        console.log('Context login successful, refreshing profile...');
-        // Refresh the profile after login to ensure we have latest data
-        if (refreshProfile) {
-          await refreshProfile();
+        if (error) {
+          console.error('Direct login error:', error);
+          toast.error(`Authentication error: ${error.message}`);
+          setIsLoading(false);
+          return;
         }
-        
-        // Show success message and redirect
-        toast.success('Successfully signed in');
-        
-        // Redirect to the page they were trying to access, or the default dashboard
-        console.log('Redirecting to:', from);
-        navigate(from, { replace: true });
-      } else {
-        console.error('Context login returned false');
-        toast.error('Login failed. Please check your credentials and try again.');
+
+        if (data?.user) {
+          console.log('Direct login successful, user:', data.user.id);
+          
+          // Now use the Auth context login
+          const success = await login(values.email, values.password);
+          
+          if (success) {
+            console.log('Context login successful, refreshing profile...');
+            // Refresh the profile after login
+            if (refreshProfile) {
+              await refreshProfile();
+            }
+            
+            toast.success('Successfully signed in');
+            
+            // Redirect to the appropriate page
+            console.log('Redirecting to:', from);
+            navigate(from, { replace: true });
+          } else {
+            console.error('Context login returned false but no error was thrown');
+            toast.error('Login failed. Please check your credentials and try again.');
+          }
+        } else {
+          console.error('No user returned from login but no error was thrown');
+          toast.error('Unable to log in. Please try again.');
+        }
+      } catch (authErr: any) {
+        console.error('Authentication error:', authErr);
+        errorDetails = `Auth error: ${authErr.message}`;
+        toast.error(`Authentication error: ${authErr.message}`);
       }
     } catch (err: any) {
       console.error('Unexpected login error:', err);
-      toast.error(err.message || 'An unexpected error occurred');
+      errorDetails += ` | Unexpected error: ${err.message}`;
+      toast.error('An unexpected error occurred. Please try again.');
     } finally {
+      if (errorDetails) {
+        console.error('Login failed with details:', errorDetails);
+        toast.error('Login failed. Please check console for details.');
+      }
       setIsLoading(false);
     }
   };
@@ -95,7 +128,7 @@ const LoginForm: React.FC = () => {
               <FormItem>
                 <FormLabel>Email</FormLabel>
                 <FormControl>
-                  <Input placeholder="you@example.com" type="email" {...field} />
+                  <Input placeholder="you@example.com" type="email" autoComplete="email" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -109,7 +142,7 @@ const LoginForm: React.FC = () => {
               <FormItem>
                 <FormLabel>Password</FormLabel>
                 <FormControl>
-                  <Input placeholder="••••••••" type="password" {...field} />
+                  <Input placeholder="••••••••" type="password" autoComplete="current-password" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>

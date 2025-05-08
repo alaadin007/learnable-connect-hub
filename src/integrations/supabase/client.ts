@@ -20,18 +20,10 @@ export const supabase = createClient<Database>(
       persistSession: true,
       storage: localStorage,
       flowType: 'pkce',
-      debug: import.meta.env.DEV
     },
     global: {
       headers: {
         'x-client-info': 'learnable-app'
-      },
-      fetch: (url, options) => {
-        const fetchOptions = {
-          ...options,
-          credentials: 'include' as RequestCredentials
-        };
-        return fetch(url, fetchOptions);
       }
     },
     // Configure better error handling

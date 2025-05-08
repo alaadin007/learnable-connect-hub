@@ -9,14 +9,14 @@ import LoginForm from '@/components/auth/LoginForm';
 import LoginDebug from '@/components/auth/LoginDebug';
 
 const Login = () => {
-  const { isAuthenticated, userType } = useAuth();
+  const { isAuthenticated, userType, isTestAccount } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const from = location.state?.from || '/';
   const [showDebug, setShowDebug] = useState(false);
 
   useEffect(() => {
-    console.log('Login page loaded', { isAuthenticated, userType, from });
+    console.log('Login page loaded', { isAuthenticated, userType, from, isTestAccount });
     
     if (isAuthenticated && userType) {
       let redirectPath = '/dashboard';
@@ -43,7 +43,7 @@ const Login = () => {
         state: { preserveContext: true }
       });
     }
-  }, [isAuthenticated, userType, navigate, from]);
+  }, [isAuthenticated, userType, navigate, from, isTestAccount]);
 
   return (
     <div className="min-h-screen flex flex-col">

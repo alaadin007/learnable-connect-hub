@@ -39,6 +39,11 @@ export const LoginDebug: React.FC = () => {
     alert(data.session ? 'Active session found' : 'No active session');
   };
 
+  const clearAndReload = () => {
+    localStorage.clear();
+    window.location.reload();
+  };
+
   return (
     <div className="mt-6 text-sm">
       <div className="flex items-center justify-between">
@@ -80,10 +85,7 @@ export const LoginDebug: React.FC = () => {
             <Button 
               size="sm" 
               variant="outline"
-              onClick={() => {
-                localStorage.clear();
-                window.location.reload();
-              }}
+              onClick={clearAndReload}
               className="text-xs"
             >
               Clear Storage & Reload

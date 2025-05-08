@@ -51,10 +51,6 @@ export const useAuth = () => {
   return context;
 };
 
-interface AuthProviderProps {
-  children: ReactNode;
-}
-
 // Create custom AuthError for consistency
 const createCustomAuthError = (message: string, status: number = 400): AuthError => {
   return {
@@ -76,6 +72,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isTestAccount, setIsTestAccount] = useState(false);
   const [initialized, setInitialized] = useState(false);
 
+  // Function to check if we're using a test account from localStorage
+  const checkForTestAccount = () => {
+    const usingTestAccount = localStorage.getItem('usingTestAccount');
+    const testUserType = localStorage.getItem('testUserType');
+    
+    if (usingTestAccount === 'true' && testUserType) {
+      console.log('Restoring test account from localStorage:', testUserType);
+      setTestUser(testUserType as UserType);
+      return true;
+    }
+    return false;
+  };
+
   const loadUserProfile = async () => {
     setLoading(true);
     try {
@@ -93,6 +102,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         console.log("loadUserProfile - profile data:", profileData, "error:", profileError);
         
         if (profileError) {
+          console.error("Profile fetch error:", profileError);
           throw profileError;
         }
         
@@ -111,16 +121,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setIsTestAccount(false);
         }
       } else {
+        // No authenticated user found, check for test account
+        if (!checkForTestAccount()) {
+          // Clear state if no real user and no test user
+          setUser(null);
+          setProfile(null);
+          setUserType(null);
+          setSchoolId(null);
+          setIsTestAccount(false);
+        }
+      }
+    } catch (error: any) {
+      const errorMsg = error.message || 'An error occurred while loading user profile';
+      toast.error(errorMsg);
+      console.error('Error loading user profile:', error);
+      
+      // Check for test account as fallback
+      if (!checkForTestAccount()) {
+        // Clear state if no error recovery possible
         setUser(null);
         setProfile(null);
         setUserType(null);
         setSchoolId(null);
         setIsTestAccount(false);
       }
-    } catch (error: any) {
-      const errorMsg = error.message || 'An error occurred while loading user profile';
-      toast.error(errorMsg);
-      console.error('Error loading user profile:', error);
     } finally {
       setLoading(false);
     }
@@ -141,16 +165,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       try {
         setLoading(true);
         
+        // First check for test account in localStorage
+        const isTestUser = checkForTestAccount();
+        if (isTestUser) {
+          // Test user setup complete in checkForTestAccount
+          setLoading(false);
+          setInitialized(true);
+          return;
+        }
+
         // Set up auth state change listener
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
-          async (event, session) => {
-            console.log('Auth state change event:', event, session?.user?.id);
+          (event, currentSession) => {
+            console.log('Auth state change event:', event, currentSession?.user?.id);
             
             if (event === 'SIGNED_IN') {
-              setSession(session);
-              setUser(session?.user ?? null);
-              await loadUserProfile();
+              setSession(currentSession);
+              setUser(currentSession?.user ?? null);
+              loadUserProfile();
             } else if (event === 'SIGNED_OUT') {
+              // Clean up local test account flags on real logout
+              localStorage.removeItem('usingTestAccount');
+              localStorage.removeItem('testUserType');
+              
               setUser(null);
               setSession(null);
               setProfile(null);
@@ -158,17 +195,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               setSchoolId(null);
               setIsTestAccount(false);
               setLoading(false);
+            } else if (event === 'TOKEN_REFRESHED') {
+              setSession(currentSession);
             }
           }
         );
         
         // Check for existing session
-        const { data: { session } } = await supabase.auth.getSession();
-        console.log("Initial session check:", session?.user?.id);
+        const { data: { session: existingSession } } = await supabase.auth.getSession();
+        console.log("Initial session check:", existingSession?.user?.id);
         
-        if (session) {
-          setSession(session);
-          setUser(session.user);
+        if (existingSession) {
+          setSession(existingSession);
+          setUser(existingSession.user);
           await loadUserProfile();
         } else {
           setLoading(false);
@@ -182,6 +221,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } catch (error) {
         console.error('Error setting up auth:', error);
         setLoading(false);
+        setInitialized(true);
       }
     };
 
@@ -286,7 +326,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const logout = async () => {
     try {
       console.log("Logout initiated");
-      await supabase.auth.signOut();
+      
+      // Clear test account flags
+      localStorage.removeItem('usingTestAccount');
+      localStorage.removeItem('testUserType');
+      
+      if (!isTestAccount) {
+        // Only call real logout if not using test account
+        await supabase.auth.signOut();
+      }
+      
       console.log("Logout completed");
       
       // Clear local state
@@ -312,6 +361,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const setTestUser = (type: UserType) => {
     // Store test account flag in localStorage for persistence
     localStorage.setItem('usingTestAccount', 'true');
+    localStorage.setItem('testUserType', type);
     
     const testUserEmail = `test.${type}@learnable.edu`;
     const testProfile: Profile = {
