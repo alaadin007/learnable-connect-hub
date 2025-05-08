@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -98,34 +99,46 @@ const LoginForm = () => {
       // Regular user login flow
       await signIn(email, password);
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-      if (user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("user_type")
-          .eq("id", user.id)
-          .single();
+        if (user) {
+          // Get the user type from profiles table
+          const { data: profile, error: profileError } = await supabase
+            .from("profiles")
+            .select("user_type")
+            .eq("id", user.id)
+            .single();
 
-        const redirectPath =
-          profile?.user_type === "school"
-            ? "/admin"
-            : profile?.user_type === "teacher"
-            ? "/teacher/analytics"
-            : "/dashboard";
+          if (profileError) {
+            console.error("Error fetching user profile:", profileError);
+            toast.error("Could not fetch user profile");
+          }
 
-        toast.success("Login successful", {
-          description: `Welcome back, ${
-            user.user_metadata?.full_name || email
-          }!`,
-        });
+          const redirectPath =
+            profile?.user_type === "school"
+              ? "/admin"
+              : profile?.user_type === "teacher"
+              ? "/teacher/analytics"
+              : "/dashboard";
 
-        navigate(redirectPath);
-      } else {
-        // fallback
-        toast.success("Login successful");
+          toast.success("Login successful", {
+            description: `Welcome back, ${
+              user.user_metadata?.full_name || email
+            }!`,
+          });
+
+          navigate(redirectPath);
+        } else {
+          // fallback
+          toast.success("Login successful");
+          navigate("/dashboard");
+        }
+      } catch (profileError) {
+        console.error("Error fetching user profile:", profileError);
+        toast.success("Login successful, but profile information couldn't be loaded");
         navigate("/dashboard");
       }
     } catch (error: any) {

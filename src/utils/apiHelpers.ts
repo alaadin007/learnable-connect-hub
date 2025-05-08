@@ -17,30 +17,21 @@ export async function invokeEdgeFunction<T = any>(functionName: string, payload?
       throw new Error("Authentication error: " + sessionError.message);
     }
     
-    // If no session, try silent refresh before giving up
-    if (!session) {
-      console.warn("No active session found, attempting to refresh");
-      const { data: refreshData } = await supabase.auth.refreshSession();
-      
-      if (!refreshData.session) {
-        console.error("No session after refresh attempt");
-        throw new Error("Authorization required: Please login");
-      }
+    // Define headers - will add authorization if available
+    const headers: Record<string, string> = {};
+    
+    // If we have a session, add the authorization header
+    if (session?.access_token) {
+      headers.Authorization = `Bearer ${session.access_token}`;
+    } else {
+      // If this is a test user or special case, we can continue without auth
+      console.warn("No active session found, continuing without authentication");
     }
     
-    // Always get the latest session after potential refresh
-    const { data: { session: currentSession } } = await supabase.auth.getSession();
-    
-    if (!currentSession) {
-      throw new Error("No active session");
-    }
-    
-    // Invoke the function with explicit authorization header
+    // Invoke the function with explicit authorization header if available
     const { data, error } = await supabase.functions.invoke(functionName, {
       body: payload,
-      headers: {
-        Authorization: `Bearer ${currentSession.access_token}`
-      }
+      headers
     });
     
     if (error) {

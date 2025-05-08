@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { invokeEdgeFunction } from "./apiHelpers";
@@ -12,11 +13,18 @@ const logSessionStart = async (topic?: string, userId?: string): Promise<string 
       return null;
     }
     
+    console.log("Starting session logging for topic:", topic, "userId:", userId || "current user");
+    
     try {
-      // Use invokeEdgeFunction for proper authentication
-      const result = await invokeEdgeFunction<{ logId: string; success: boolean }>("create-session-log", {
-        topic: topic || "General Chat"
-      });
+      // Use invokeEdgeFunction with proper userId if provided (for test accounts)
+      const payload: Record<string, any> = { topic: topic || "General Chat" };
+      if (userId) {
+        payload.userId = userId;
+      }
+      
+      const result = await invokeEdgeFunction<{ logId: string; success: boolean }>("create-session-log", payload);
+      
+      console.log("Session log creation result:", result);
       
       if (result?.success && result?.logId) {
         return result.logId;
@@ -24,39 +32,7 @@ const logSessionStart = async (topic?: string, userId?: string): Promise<string 
       return null;
     } catch (error) {
       console.error("Error creating session:", error);
-      // For test account fallback, keep existing implementation
-      if (userId) {
-        console.log("Falling back to direct DB access for test account");
-        // First get the school ID for this user
-        const { data: userData } = await supabase
-          .from('students')
-          .select('school_id')
-          .eq('id', userId)
-          .single();
-          
-        if (!userData?.school_id) {
-          console.error("No school ID found for test user");
-          return null;
-        }
-        
-        // Then create the session log directly
-        const { data: sessionData, error: sessionError } = await supabase
-          .from('session_logs')
-          .insert({
-            user_id: userId,
-            school_id: userData.school_id,
-            topic_or_content_used: topic || "General Chat"
-          })
-          .select('id')
-          .single();
-          
-        if (sessionError) {
-          console.error("Error creating test session:", sessionError);
-          return null;
-        }
-        
-        return sessionData?.id || null;
-      }
+      toast.error("Failed to start session logging");
       return null;
     }
   } catch (error) {
@@ -73,6 +49,8 @@ const logSessionEnd = async (sessionId?: string, performanceData?: any): Promise
       return;
     }
 
+    console.log("Ending session:", sessionId);
+
     // Call the endpoint to end the session
     const { error } = await supabase.functions.invoke("end-session", {
       body: { logId: sessionId, performanceData }
@@ -80,6 +58,7 @@ const logSessionEnd = async (sessionId?: string, performanceData?: any): Promise
 
     if (error) {
       console.error("Error ending session:", error);
+      toast.error("Failed to end session logging");
       return;
     }
 
@@ -153,11 +132,16 @@ const sessionLogger = {
         return null;
       }
       
+      console.log(`Starting session with topic: ${topic}, userId: ${userId || 'current user'}`);
+      
       const sessionId = await logSessionStart(topic, userId);
       if (sessionId) {
         localStorage.setItem("activeSessionId", sessionId);
+        console.log(`Session started successfully with ID: ${sessionId}`);
         return sessionId;
       }
+      
+      console.warn("Failed to start session - no sessionId returned");
       return null;
     } catch (error) {
       console.error("Error in startSession:", error);
@@ -172,7 +156,10 @@ const sessionLogger = {
     
     const sessionId = localStorage.getItem("activeSessionId");
     if (sessionId) {
+      console.log(`Ending session ${sessionId}, reason: ${reason || 'not specified'}`);
       await logSessionEnd(sessionId, performanceData);
+    } else {
+      console.log("No active session to end");
     }
   },
   updateSessionTopic,

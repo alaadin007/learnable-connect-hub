@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
@@ -19,34 +18,13 @@ serve(async (req: Request) => {
   try {
     // Get the authorization token from the request
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      console.error("Missing authorization header");
-      return new Response(
-        JSON.stringify({ error: "Authorization header missing" }),
-        {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-
-    // Create a Supabase client with the authorization token
+    
+    // Create a Supabase client with the authorization token if present
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-      { global: { headers: { Authorization: authHeader } } }
+      { global: { headers: authHeader ? { Authorization: authHeader } : {} } }
     );
-
-    // Verify the user session to ensure they're authenticated
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
-    
-    if (authError || !user) {
-      console.error("Authentication error:", authError);
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
 
     // Get request body
     let body;
@@ -57,46 +35,92 @@ serve(async (req: Request) => {
       body = {};
     }
 
-    const { topic = null } = body;
+    const { topic = null, userId = null } = body;
+    
+    // If userId is provided, use it (for test accounts)
+    // Otherwise get user from auth
+    let userIdToUse = userId;
+    let schoolIdToUse = null;
+    
+    if (!userIdToUse) {
+      // Verify the user session if no userId was explicitly provided
+      const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+      
+      if (authError || !user) {
+        console.error("Authentication error or no user found:", authError);
+        return new Response(JSON.stringify({ 
+          error: "Unauthorized or no user found",
+          details: authError?.message || "No authenticated user"
+        }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      
+      userIdToUse = user.id;
+    }
+
+    console.log(`Processing session for user ID: ${userIdToUse}`);
 
     // Get the user's school_id from either students or teachers table
-    let schoolId = null;
-    
     // First check students table
-    const { data: studentData } = await supabaseClient
+    const { data: studentData, error: studentError } = await supabaseClient
       .from("students")
       .select("school_id")
-      .eq("id", user.id)
+      .eq("id", userIdToUse)
       .single();
       
     if (studentData?.school_id) {
-      schoolId = studentData.school_id;
+      schoolIdToUse = studentData.school_id;
     } else {
+      console.log("User not found in students table, checking teachers table");
       // If not a student, check teachers table
-      const { data: teacherData } = await supabaseClient
+      const { data: teacherData, error: teacherError } = await supabaseClient
         .from("teachers")
         .select("school_id")
-        .eq("id", user.id)
+        .eq("id", userIdToUse)
         .single();
         
       if (teacherData?.school_id) {
-        schoolId = teacherData.school_id;
+        schoolIdToUse = teacherData.school_id;
       }
     }
     
-    if (!schoolId) {
-      return new Response(JSON.stringify({ error: "User has no associated school" }), {
+    // If still no school found, check profiles table directly
+    if (!schoolIdToUse) {
+      console.log("School ID not found in students/teachers tables, checking profiles");
+      const { data: profileData, error: profileError } = await supabaseClient
+        .from("profiles")
+        .select("school_id, organization")
+        .eq("id", userIdToUse)
+        .single();
+        
+      if (profileData?.school_id) {
+        schoolIdToUse = profileData.school_id;
+      } else if (profileData?.organization?.id) {
+        schoolIdToUse = profileData.organization.id;
+      }
+    }
+    
+    if (!schoolIdToUse) {
+      console.error("No school ID found for user");
+      return new Response(JSON.stringify({ 
+        error: "School not found",
+        details: "User has no associated school in any table" 
+      }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
     
-    // Insert the session log directly instead of using RPC
+    console.log(`Found school ID: ${schoolIdToUse} for user ${userIdToUse}`);
+    
+    // Insert the session log directly
     const { data: logData, error: insertError } = await supabaseClient
       .from("session_logs")
       .insert({
-        user_id: user.id,
-        school_id: schoolId,
+        user_id: userIdToUse,
+        school_id: schoolIdToUse,
         topic_or_content_used: topic || "General Chat",
         session_start: new Date().toISOString()
       })
@@ -105,7 +129,10 @@ serve(async (req: Request) => {
       
     if (insertError) {
       console.error("Error creating session log:", insertError);
-      return new Response(JSON.stringify({ error: insertError.message }), {
+      return new Response(JSON.stringify({ 
+        error: insertError.message,
+        details: "Failed to create session log"
+      }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -117,7 +144,10 @@ serve(async (req: Request) => {
     });
   } catch (err) {
     console.error("Unhandled error:", err);
-    return new Response(JSON.stringify({ error: "Internal server error" }), {
+    return new Response(JSON.stringify({ 
+      error: "Internal server error",
+      details: err.message || "Unknown error" 
+    }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
