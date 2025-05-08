@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -93,6 +94,8 @@ const LoginForm = () => {
         return;
       }
 
+      console.log(`Attempting to login with email: ${email}`);
+      
       // Regular user login flow - using direct Supabase auth
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -100,52 +103,59 @@ const LoginForm = () => {
       });
 
       if (error) {
+        console.error("Supabase authentication error:", error);
         throw error;
       }
 
-      if (data.user) {
-        // Get the user type from profiles table with minimal fields
-        const { data: profile, error: profileError } = await supabase
-          .from("profiles")
-          .select("user_type")
-          .eq("id", data.user.id)
-          .single();
-
-        if (profileError) {
-          // Continue with login even if profile fetch fails
-          console.error("Error fetching user profile:", profileError);
-          navigate("/dashboard");
-          toast.success("Login successful");
-          return;
-        }
-
-        const redirectPath =
-          profile?.user_type === "school"
-            ? "/admin"
-            : profile?.user_type === "teacher"
-            ? "/teacher/analytics"
-            : "/dashboard";
-
-        toast.success("Login successful", {
-          description: `Welcome back, ${
-            data.user.user_metadata?.full_name || email
-          }!`,
+      if (!data?.user) {
+        console.error("Login successful but no user data returned");
+        toast.error("Login failed", {
+          description: "User data not found after authentication"
         });
-
-        // Start session logging in background without affecting login flow
-        try {
-          sessionLogger.startSession("User login", data.user.id);
-        } catch (sessionError) {
-          console.error("Session logging error:", sessionError);
-          // Ignore session errors, don't affect login experience
-        }
-
-        navigate(redirectPath);
-      } else {
-        // fallback
-        toast.success("Login successful");
-        navigate("/dashboard");
+        return;
       }
+
+      console.log("Login successful, user data:", data.user);
+
+      // Get the user type from profiles table with minimal fields
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("user_type")
+        .eq("id", data.user.id)
+        .single();
+
+      if (profileError) {
+        // Continue with login even if profile fetch fails
+        console.error("Error fetching user profile:", profileError);
+        navigate("/dashboard");
+        toast.success("Login successful");
+        return;
+      }
+
+      console.log("Fetched profile data:", profile);
+      
+      const redirectPath =
+        profile?.user_type === "school"
+          ? "/admin"
+          : profile?.user_type === "teacher"
+          ? "/teacher/analytics"
+          : "/dashboard";
+
+      toast.success("Login successful", {
+        description: `Welcome back, ${
+          data.user.user_metadata?.full_name || email
+        }!`,
+      });
+
+      // Start session logging in background without affecting login flow
+      try {
+        sessionLogger.startSession("User login", data.user.id);
+      } catch (sessionError) {
+        console.error("Session logging error:", sessionError);
+        // Ignore session errors, don't affect login experience
+      }
+
+      navigate(redirectPath);
     } catch (error: any) {
       console.error("Login error:", error);
       setLoginError(error.message);
@@ -156,10 +166,12 @@ const LoginForm = () => {
             "Please check your inbox and spam folder for the verification email.",
         });
       } else if (error.message.includes("Invalid login credentials")) {
+        console.log("Invalid credentials provided:", { email, passwordLength: password.length });
         toast.error("Login failed", {
           description: "Invalid email or password. Please try again.",
         });
       } else {
+        console.log("Login error details:", error.status, error.name);
         toast.error(`Login failed: ${error.message}`);
       }
     } finally {

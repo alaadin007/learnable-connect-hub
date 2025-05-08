@@ -37,7 +37,7 @@ export async function invokeEdgeFunction<T = any>(functionName: string, payload?
     return data as T;
   } catch (error) {
     console.error(`Failed to invoke ${functionName}:`, error);
-    return { success: false } as unknown as T;
+    throw error; // Rethrow to allow proper error handling by caller
   }
 }
 
@@ -66,5 +66,38 @@ export async function getAuthToken(): Promise<string | null> {
   } catch (error) {
     console.error("Error getting auth token:", error);
     return null;
+  }
+}
+
+/**
+ * Helper to check the validity of a Supabase session
+ * This can be used to verify if authentication is working correctly
+ * @returns Object with session status information
+ */
+export async function checkSessionStatus(): Promise<{
+  hasSession: boolean;
+  hasUser: boolean;
+  userId: string | null;
+  expiresAt: number | null;
+  error?: string;
+}> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    return {
+      hasSession: !!session,
+      hasUser: !!session?.user,
+      userId: session?.user?.id || null,
+      expiresAt: session?.expires_at || null
+    };
+  } catch (error) {
+    console.error("Error checking session status:", error);
+    return {
+      hasSession: false,
+      hasUser: false,
+      userId: null,
+      expiresAt: null,
+      error: error instanceof Error ? error.message : String(error)
+    };
   }
 }
