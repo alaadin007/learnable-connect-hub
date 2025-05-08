@@ -26,7 +26,6 @@ export const supabase = createClient<Database>(
         'x-client-info': 'learnable-app'
       }
     },
-    // Configure better error handling
     db: {
       schema: 'public'
     },

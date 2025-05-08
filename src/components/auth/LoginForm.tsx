@@ -24,7 +24,7 @@ const LoginForm: React.FC = () => {
   const { login, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const from = (location.state as any)?.from?.pathname || '/dashboard';
+  const from = (location.state as any)?.from || '/dashboard';
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -37,81 +37,40 @@ const LoginForm: React.FC = () => {
   const onSubmit = async (values: LoginFormValues) => {
     setIsLoading(true);
     console.log('LoginForm: Attempting login for', values.email);
-    let errorDetails = '';
-
+    
     try {
-      // First try direct login through Supabase
-      console.log('Attempting Supabase login directly...');
-
-      // Test connection before attempting login
-      try {
-        // Simple check to verify Supabase connection
-        const { data: testData, error: testError } = await supabase.from('profiles').select('count').limit(1);
-        if (testError) {
-          console.error('Supabase connection error:', testError);
-          errorDetails = `Connection error: ${testError.message}`;
-        } else {
-          console.log('Supabase connection successful');
-        }
-      } catch (connErr: any) {
-        console.error('Connection test failed:', connErr);
-        errorDetails = `Connection test failed: ${connErr.message}`;
+      // First check if the Supabase client is properly initialized
+      if (!supabase) {
+        console.error('Supabase client not initialized');
+        toast.error('Authentication service unavailable. Please try again later.');
+        setIsLoading(false);
+        return;
       }
 
-      // Proceed with login attempt
-      try {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: values.email,
-          password: values.password,
-        });
-
-        if (error) {
-          console.error('Direct login error:', error);
-          toast.error(`Authentication error: ${error.message}`);
-          setIsLoading(false);
-          return;
+      // Attempt login through Auth context which will handle session management
+      const success = await login(values.email, values.password);
+      
+      if (success) {
+        console.log('Login successful, refreshing profile...');
+        
+        // Refresh profile after login if the function exists
+        if (refreshProfile) {
+          await refreshProfile();
         }
-
-        if (data?.user) {
-          console.log('Direct login successful, user:', data.user.id);
-          
-          // Now use the Auth context login
-          const success = await login(values.email, values.password);
-          
-          if (success) {
-            console.log('Context login successful, refreshing profile...');
-            // Refresh the profile after login
-            if (refreshProfile) {
-              await refreshProfile();
-            }
-            
-            toast.success('Successfully signed in');
-            
-            // Redirect to the appropriate page
-            console.log('Redirecting to:', from);
-            navigate(from, { replace: true });
-          } else {
-            console.error('Context login returned false but no error was thrown');
-            toast.error('Login failed. Please check your credentials and try again.');
-          }
-        } else {
-          console.error('No user returned from login but no error was thrown');
-          toast.error('Unable to log in. Please try again.');
-        }
-      } catch (authErr: any) {
-        console.error('Authentication error:', authErr);
-        errorDetails = `Auth error: ${authErr.message}`;
-        toast.error(`Authentication error: ${authErr.message}`);
+        
+        toast.success('Successfully signed in');
+        
+        // Redirect to the appropriate page
+        console.log('Redirecting to:', from);
+        navigate(from, { replace: true });
+      } else {
+        console.error('Login function returned false');
+        toast.error('Login failed. Please check your credentials and try again.');
       }
     } catch (err: any) {
-      console.error('Unexpected login error:', err);
-      errorDetails += ` | Unexpected error: ${err.message}`;
-      toast.error('An unexpected error occurred. Please try again.');
+      console.error('Login error:', err);
+      toast.error(`Login failed: ${err.message || 'Unknown error'}`);
     } finally {
-      if (errorDetails) {
-        console.error('Login failed with details:', errorDetails);
-        toast.error('Login failed. Please check console for details.');
-      }
       setIsLoading(false);
     }
   };

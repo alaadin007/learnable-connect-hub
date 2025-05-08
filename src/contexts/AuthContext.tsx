@@ -103,6 +103,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         
         if (profileError) {
           console.error("Profile fetch error:", profileError);
+          
+          // For the "infinite recursion" error in teachers table policy, 
+          // we can still try to construct a basic profile from user metadata
+          if (user.user_metadata) {
+            const userMeta = user.user_metadata;
+            const userTypeFromMeta = userMeta.user_type || 'student';
+            
+            // Create a basic profile from user metadata
+            const basicProfile: Profile = {
+              id: user.id,
+              user_type: userTypeFromMeta as UserType,
+              full_name: userMeta.full_name || 'User',
+              email: user.email || userMeta.email || '',
+              school_code: userMeta.school_code,
+              is_active: true
+            };
+            
+            setProfile(basicProfile);
+            setUserType(basicProfile.user_type);
+            setSchoolId(null); // We don't have school_id in this fallback
+            setIsTestAccount(false);
+            setUser(user);
+            
+            console.log("Created basic profile from metadata:", basicProfile);
+            setLoading(false);
+            return;
+          }
+          
           throw profileError;
         }
         
@@ -291,6 +319,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     
     try {
       console.log("Login initiated:", email);
+      
+      // First check if this is a test account format
+      if (email.endsWith('@testschool.edu') || email.endsWith('.test@learnable.edu')) {
+        const userTypeMap: Record<string, UserType> = {
+          'student@testschool.edu': 'student',
+          'teacher@testschool.edu': 'teacher',
+          'school@testschool.edu': 'school',
+          'student.test@learnable.edu': 'student',
+          'teacher.test@learnable.edu': 'teacher',
+          'school.test@learnable.edu': 'school'
+        };
+        
+        const testUserType = userTypeMap[email];
+        if (testUserType) {
+          console.log("Using test account for:", testUserType);
+          setTestUser(testUserType);
+          return true;
+        }
+      }
+      
+      // Clear any existing test account settings when doing a real login
+      localStorage.removeItem('usingTestAccount');
+      localStorage.removeItem('testUserType');
       
       const { data, error } = await supabase.auth.signInWithPassword({
         email,

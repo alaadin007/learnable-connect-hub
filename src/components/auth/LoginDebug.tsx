@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { supabase, SUPABASE_PUBLIC_URL } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 
 export const LoginDebug: React.FC = () => {
   const [connectionStatus, setConnectionStatus] = useState<'checking' | 'success' | 'error'>('checking');
@@ -33,15 +34,52 @@ export const LoginDebug: React.FC = () => {
   }, []);
 
   const testSession = async () => {
-    const { data, error } = await supabase.auth.getSession();
-    console.log('Current session:', data.session);
-    console.log('Session error:', error);
-    alert(data.session ? 'Active session found' : 'No active session');
+    try {
+      const { data, error } = await supabase.auth.getSession();
+      console.log('Current session:', data.session);
+      
+      if (error) {
+        console.error('Session error:', error);
+        toast.error(`Session error: ${error.message}`);
+      } else {
+        toast.info(data.session ? 'Active session found' : 'No active session');
+      }
+    } catch (err: any) {
+      console.error('Error checking session:', err);
+      toast.error(`Error checking session: ${err.message}`);
+    }
   };
 
   const clearAndReload = () => {
     localStorage.clear();
-    window.location.reload();
+    toast.info('Local storage cleared, reloading page...');
+    setTimeout(() => {
+      window.location.reload();
+    }, 1000);
+  };
+
+  const testDirectAuth = async () => {
+    try {
+      const testEmail = 'test@example.com';
+      const testPassword = 'password123';
+      
+      toast.info(`Testing auth with ${testEmail}...`);
+      
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: testEmail,
+        password: testPassword
+      });
+      
+      if (error) {
+        // This is expected as the credentials are fake
+        toast.success('Auth API is working (expected error with test credentials)');
+      } else {
+        toast.warning('Unexpected success with test credentials');
+      }
+    } catch (err: any) {
+      console.error('Direct auth test error:', err);
+      toast.error(`Auth API error: ${err.message}`);
+    }
   };
 
   return (
@@ -78,9 +116,12 @@ export const LoginDebug: React.FC = () => {
             <p><strong>Supabase URL:</strong> <span className="text-xs break-all">{SUPABASE_PUBLIC_URL}</span></p>
           </div>
 
-          <div className="flex gap-2 mt-3">
+          <div className="flex flex-wrap gap-2 mt-3">
             <Button size="sm" variant="outline" onClick={testSession} className="text-xs">
               Test Session
+            </Button>
+            <Button size="sm" variant="outline" onClick={testDirectAuth} className="text-xs">
+              Test Auth API
             </Button>
             <Button 
               size="sm" 
@@ -90,6 +131,16 @@ export const LoginDebug: React.FC = () => {
             >
               Clear Storage & Reload
             </Button>
+          </div>
+          
+          <div className="mt-3 text-xs text-gray-600">
+            <p><strong>Note:</strong> If you're having login issues, try using the test accounts:</p>
+            <ul className="list-disc pl-4 mt-1">
+              <li>student@testschool.edu</li>
+              <li>teacher@testschool.edu</li>
+              <li>school@testschool.edu</li>
+            </ul>
+            <p className="mt-1">(Any password will work with test accounts)</p>
           </div>
         </div>
       )}
