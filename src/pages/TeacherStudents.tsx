@@ -1,5 +1,5 @@
 
-import React, { useEffect } from "react";
+import React from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,31 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 const TeacherStudents = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, userRole } = useAuth();
-  
-  // Protection against direct access without authentication
-  useEffect(() => {
-    // Skip authentication check for test accounts with proper navigation context
-    if (location.state?.fromTestAccounts || location.state?.fromNavigation) {
-      console.log("TeacherStudents: Allowing access due to navigation context");
-      return;
-    }
-    
-    if (!user) {
-      console.log("TeacherStudents: No user found, redirecting to login");
-      navigate("/login", { replace: true });
-      return;
-    }
-    
-    // Verify the user is a teacher when directly accessing this page
-    // But skip this check if we're coming from a known navigation flow
-    if (userRole && 
-        userRole !== "teacher" && 
-        !location.state?.preserveContext) {
-      console.log("TeacherStudents: Redirecting non-teacher user to dashboard");
-      navigate("/dashboard", { replace: true });
-    }
-  }, [user, userRole, navigate, location.state]);
+  const { userRole } = useAuth();
   
   // Handle back navigation with context preservation
   const handleBack = () => {

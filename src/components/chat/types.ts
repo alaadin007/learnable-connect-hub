@@ -9,16 +9,17 @@ export interface Message {
 export interface Conversation {
   id: string;
   title: string;
-  messages: Message[];
+  topic?: string;
   created_at: string;
-  updated_at: string;
+  last_message_at: string;
+  user_id: string;
 }
 
 export interface ConversationListProps {
-  conversations: any[];
+  conversations: Conversation[];
   selectedId?: string;
   onSelectConversation: (id: string) => void;
-  onRefresh?: () => Promise<void>;
+  onRefresh: () => Promise<void>;
   onArchiveConversation?: (id: string) => void;
 }
 
@@ -33,7 +34,6 @@ export interface TextToSpeechProps {
   messages?: Message[];
 }
 
-// Add types for session logger
 export interface SessionLogResult {
   id: string;
   success: boolean;
