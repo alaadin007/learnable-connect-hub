@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { DatePickerWithRange } from '@/components/ui/date-range-picker'; // Fixed import
+import { DatePickerWithRange } from '@/components/ui/date-range-picker'; 
 import { format } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { getMockAnalyticsData } from '@/utils/sessionLogger';
@@ -119,6 +119,16 @@ const AdminAnalytics: React.FC = () => {
         // Format session data to match our SessionData interface
         const formattedSessions: SessionData[] = sessionsData ? sessionsData.map((session: any) => ({
           id: session.id,
+          student_id: session.user_id,
+          student_name: session.profiles?.full_name || 'Unknown',
+          session_date: session.session_start,
+          duration_minutes: session.session_end ? 
+            Math.round((new Date(session.session_end).getTime() - new Date(session.session_start).getTime()) / 60000) : 
+            0,
+          topics: [session.topic_or_content_used || 'General'],
+          questions_asked: session.num_queries,
+          questions_answered: session.num_queries,
+          // Compatibility fields
           userId: session.user_id,
           userName: session.profiles?.full_name || 'Unknown',
           startTime: session.session_start,
@@ -143,8 +153,9 @@ const AdminAnalytics: React.FC = () => {
         // Format topic data to match our TopicData interface
         const formattedTopics: TopicData[] = topicsData ? topicsData.map((topic: any) => ({
           topic: topic.topic_or_content_used || 'Unknown',
-          name: topic.topic_or_content_used || 'Unknown',
           count: topic.count_of_sessions || 0,
+          // Compatibility fields
+          name: topic.topic_or_content_used || 'Unknown',
           value: topic.count_of_sessions || 0
         })) : [];
 
@@ -160,6 +171,10 @@ const AdminAnalytics: React.FC = () => {
 
         // Format study time data to match our StudyTimeData interface
         const formattedStudyTime: StudyTimeData[] = studyTimeData ? studyTimeData.map((item: any) => ({
+          student_name: item.student_name || 'Unknown',
+          student_id: item.user_id || '',
+          total_minutes: (item.study_hours || 0) * 60,
+          // Compatibility fields
           studentName: item.student_name || 'Unknown',
           name: item.student_name || 'Unknown',
           hours: item.study_hours || 0,
@@ -330,11 +345,11 @@ const AdminAnalytics: React.FC = () => {
                   <tbody>
                     {analyticsData?.sessions.map((session) => (
                       <tr key={session.id} className="border-b hover:bg-gray-50">
-                        <td className="py-3 px-4">{session.userName}</td>
-                        <td className="py-3 px-4">{session.topicOrContent}</td>
-                        <td className="py-3 px-4">{new Date(session.startTime).toLocaleString()}</td>
-                        <td className="py-3 px-4">{session.duration} min</td>
-                        <td className="py-3 px-4">{session.numQueries}</td>
+                        <td className="py-3 px-4">{session.student_name}</td>
+                        <td className="py-3 px-4">{session.topics ? session.topics[0] : 'Unknown'}</td>
+                        <td className="py-3 px-4">{new Date(session.session_date).toLocaleString()}</td>
+                        <td className="py-3 px-4">{session.duration_minutes} min</td>
+                        <td className="py-3 px-4">{session.questions_asked}</td>
                       </tr>
                     ))}
                     {(!analyticsData?.sessions || analyticsData.sessions.length === 0) && (
