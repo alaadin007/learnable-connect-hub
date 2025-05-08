@@ -38,13 +38,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [profile, setProfile] = useState<any | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [schoolId, setSchoolId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false); // No initial loading
   const [isSupervisor, setIsSupervisor] = useState<boolean>(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     const loadSession = async () => {
-      setIsLoading(true);
       try {
         const { data: { session } } = await supabase.auth.getSession();
 
@@ -55,8 +54,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       } catch (error) {
         console.error("Error loading session:", error);
-      } finally {
-        setIsLoading(false);
       }
     };
 
@@ -112,7 +109,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       // Set supervisor status if applicable
       if (profileData?.user_type === 'teacher_supervisor' || 
-          (profileData?.user_type === 'teacher' && profileData.is_supervisor)) {
+          (profileData?.user_type === 'teacher' && profileData.is_supervisor === true)) {
         setIsSupervisor(true);
       } else {
         setIsSupervisor(false);
@@ -144,7 +141,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signIn = async (email: string, password: string) => {
-    setIsLoading(true);
     try {
       const result = await supabase.auth.signInWithPassword({ email, password });
       
@@ -159,26 +155,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (error: any) {
       console.error("Error signing in:", error);
       return { error };
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const signOut = async () => {
-    setIsLoading(true);
     try {
       await supabase.auth.signOut();
       clearSession();
       console.log("AuthContext: User signed out.");
     } catch (error) {
       console.error("Error signing out:", error);
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const signUp = async (email: string, password: string, fullName: string, userType: string, schoolCode: string, schoolName?: string) => {
-    setIsLoading(true);
     try {
       const { data, error } = await supabase.auth.signUp({
         email: email,
@@ -203,13 +193,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (error: any) {
       console.error("Error in sign up:", error);
       return { error };
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const updateProfile = async (updates: any) => {
-    setIsLoading(true);
     try {
       const { error } = await supabase
         .from('profiles')
@@ -226,8 +213,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.log("AuthContext: Profile updated successfully:", updates);
     } catch (error: any) {
       alert(error.error_description || error.message);
-    } finally {
-      setIsLoading(false);
     }
   };
 
