@@ -10,55 +10,20 @@ import { DatePickerWithRange } from '@/components/ui/date-range-picker'; // Fixe
 import { format } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { getMockAnalyticsData } from '@/utils/sessionLogger';
-import { DateRange } from '@/components/analytics/types';
-
-// Define types for analytics data
-interface SessionData {
-  id: string;
-  userId: string;
-  userName: string;
-  startTime: string;
-  endTime: string;
-  duration: number;
-  topicOrContent: string;
-  numQueries: number;
-}
-
-interface TopicData {
-  topic: string;
-  name: string;
-  count: number;
-  value: number;
-}
-
-interface StudyTimeData {
-  studentName: string;
-  name: string;
-  hours: number;
-  week: number;
-  year: number;
-}
-
-interface AnalyticsSummary {
-  activeStudents: number;
-  totalSessions: number;
-  totalQueries: number;
-  avgSessionMinutes: number;
-}
-
-interface AnalyticsData {
-  summary: AnalyticsSummary;
-  sessions: SessionData[];
-  topics: TopicData[];
-  studyTime: StudyTimeData[];
-}
+import { DateRange, AnalyticsSummary, SessionData, TopicData, StudyTimeData } from '@/components/analytics/types';
+import { AnalyticsSummaryCards } from '@/components/analytics/AnalyticsSummaryCards';
 
 // Colors for charts
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
 
 const AdminAnalytics: React.FC = () => {
   const { user, schoolId, userRole } = useAuth();
-  const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
+  const [analyticsData, setAnalyticsData] = useState<{
+    summary: AnalyticsSummary;
+    sessions: SessionData[];
+    topics: TopicData[];
+    studyTime: StudyTimeData[];
+  } | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [dateRange, setDateRange] = useState<DateRange>({
     from: new Date(new Date().setDate(new Date().getDate() - 30)),
@@ -115,7 +80,7 @@ const AdminAnalytics: React.FC = () => {
         const startDate = format(dateRange.from || new Date(), 'yyyy-MM-dd');
         const endDate = format(dateRange.to || new Date(), 'yyyy-MM-dd');
 
-        // Fetch summary data - using a direct query rather than rpc
+        // Fetch summary data from the school_analytics_summary view
         const { data: summaryData, error: summaryError } = await supabase
           .from('school_analytics_summary')
           .select('*')
@@ -124,7 +89,15 @@ const AdminAnalytics: React.FC = () => {
 
         if (summaryError) throw summaryError;
 
-        // Fetch session data - using a direct query rather than rpc
+        // Map the returned data to match our AnalyticsSummary interface
+        const formattedSummary: AnalyticsSummary = {
+          activeStudents: summaryData?.active_students || 0,
+          totalSessions: summaryData?.total_sessions || 0,
+          totalQueries: summaryData?.total_queries || 0,
+          avgSessionMinutes: summaryData?.avg_session_minutes || 0
+        };
+
+        // Fetch session data from session_logs
         const { data: sessionsData, error: sessionsError } = await supabase
           .from('session_logs')
           .select(`
@@ -143,7 +116,7 @@ const AdminAnalytics: React.FC = () => {
 
         if (sessionsError) throw sessionsError;
 
-        // Format session data to match our interface
+        // Format session data to match our SessionData interface
         const formattedSessions: SessionData[] = sessionsData ? sessionsData.map((session: any) => ({
           id: session.id,
           userId: session.user_id,
@@ -157,7 +130,7 @@ const AdminAnalytics: React.FC = () => {
           numQueries: session.num_queries
         })) : [];
 
-        // Fetch topic data - using a direct query rather than rpc
+        // Fetch topic data from most_studied_topics view
         const { data: topicsData, error: topicsError } = await supabase
           .from('most_studied_topics')
           .select('*')
@@ -167,7 +140,7 @@ const AdminAnalytics: React.FC = () => {
 
         if (topicsError) throw topicsError;
 
-        // Format topic data to match our interface
+        // Format topic data to match our TopicData interface
         const formattedTopics: TopicData[] = topicsData ? topicsData.map((topic: any) => ({
           topic: topic.topic_or_content_used || 'Unknown',
           name: topic.topic_or_content_used || 'Unknown',
@@ -175,7 +148,7 @@ const AdminAnalytics: React.FC = () => {
           value: topic.count_of_sessions || 0
         })) : [];
 
-        // Fetch study time data - using a direct query rather than rpc
+        // Fetch study time data from student_weekly_study_time view
         const { data: studyTimeData, error: studyTimeError } = await supabase
           .from('student_weekly_study_time')
           .select('*')
@@ -185,7 +158,7 @@ const AdminAnalytics: React.FC = () => {
 
         if (studyTimeError) throw studyTimeError;
 
-        // Format study time data to match our interface
+        // Format study time data to match our StudyTimeData interface
         const formattedStudyTime: StudyTimeData[] = studyTimeData ? studyTimeData.map((item: any) => ({
           studentName: item.student_name || 'Unknown',
           name: item.student_name || 'Unknown',
@@ -196,12 +169,7 @@ const AdminAnalytics: React.FC = () => {
 
         // Combine all data
         setAnalyticsData({
-          summary: summaryData || {
-            activeStudents: 0,
-            totalSessions: 0,
-            totalQueries: 0,
-            avgSessionMinutes: 0
-          },
+          summary: formattedSummary,
           sessions: formattedSessions,
           topics: formattedTopics,
           studyTime: formattedStudyTime
@@ -279,47 +247,7 @@ const AdminAnalytics: React.FC = () => {
         
         {/* Overview Tab */}
         <TabsContent value="overview">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg">Active Students</CardTitle>
-                <CardDescription>Students using the platform</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold">{analyticsData?.summary.activeStudents || 0}</p>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg">Total Sessions</CardTitle>
-                <CardDescription>Learning sessions</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold">{analyticsData?.summary.totalSessions || 0}</p>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg">Total Queries</CardTitle>
-                <CardDescription>Questions asked</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold">{analyticsData?.summary.totalQueries || 0}</p>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg">Avg. Session</CardTitle>
-                <CardDescription>Minutes per session</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold">{analyticsData?.summary.avgSessionMinutes.toFixed(1) || 0}</p>
-              </CardContent>
-            </Card>
-          </div>
+          {analyticsData && <AnalyticsSummaryCards summary={analyticsData.summary} />}
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
