@@ -9,11 +9,15 @@ import { supabase } from '@/integrations/supabase/client';
 export async function checkEmailExistingRole(email: string): Promise<string | null> {
   try {
     // Explicitly define the return type to prevent deep type instantiation
+    interface ProfileResponse {
+      user_type: string | null;
+    }
+    
     const { data, error } = await supabase
       .from('profiles')
       .select('user_type')
       .eq('email', email)
-      .maybeSingle();
+      .maybeSingle<ProfileResponse>();
 
     if (error) {
       console.error('Error checking email role:', error);
