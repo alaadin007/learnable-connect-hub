@@ -4,10 +4,26 @@ import { supabase, isTestAccount } from '@/integrations/supabase/client';
 import { User, Session, AuthChangeEvent } from '@supabase/supabase-js';
 import { useNavigate } from 'react-router-dom';
 
+// Define the profile interface with is_supervisor property
+interface UserProfile {
+  id: string;
+  user_type: string | null;
+  full_name: string | null;
+  email: string | null;
+  school_id: string | null;
+  school_code: string | null;
+  is_active: boolean;
+  organization?: any;
+  school_name?: string | null;
+  updated_at?: string;
+  created_at?: string;
+  is_supervisor?: boolean;
+}
+
 interface AuthContextProps {
   user: User | null;
   session: Session | null;
-  profile: any | null;
+  profile: UserProfile | null;
   userRole: string | null;
   schoolId: string | null;
   isLoading: boolean;
@@ -35,7 +51,7 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<any | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [schoolId, setSchoolId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false); // No initial loading
