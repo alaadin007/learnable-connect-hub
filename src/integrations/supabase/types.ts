@@ -387,6 +387,7 @@ export type Database = {
           created_at: string
           full_name: string | null
           id: string
+          is_active: boolean | null
           school_code: string | null
           school_id: string | null
           school_name: string | null
@@ -397,6 +398,7 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id: string
+          is_active?: boolean | null
           school_code?: string | null
           school_id?: string | null
           school_name?: string | null
@@ -407,6 +409,7 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id?: string
+          is_active?: boolean | null
           school_code?: string | null
           school_id?: string | null
           school_name?: string | null

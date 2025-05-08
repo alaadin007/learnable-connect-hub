@@ -42,7 +42,7 @@ serve(async (req) => {
       throw new Error("school_id parameter is required");
     }
 
-    // Get the profile of the current user to check if they're a teacher
+    // Get the profile of the current user to check their role
     const { data: userProfile, error: profileError } = await supabaseClient
       .from('profiles')
       .select('user_type, school_id')
@@ -54,15 +54,16 @@ serve(async (req) => {
     }
     
     // Check if user is authorized to access this school's data
-    if (userProfile.school_id !== schoolId && 
-        !['school', 'school_admin', 'teacher', 'teacher_supervisor'].includes(userProfile.user_type)) {
+    // Allow school admins and teachers to access student data for their school
+    const allowedRoles = ['school', 'school_admin', 'teacher', 'teacher_supervisor'];
+    if (userProfile.school_id !== schoolId && !allowedRoles.includes(userProfile.user_type)) {
       throw new Error("Not authorized to access this school's data");
     }
     
-    // Get students for this school
+    // Get students for this school - now using profiles table with new policies
     const { data: studentsData, error: studentsError } = await supabaseClient
       .from('profiles')
-      .select('id, full_name, user_type, created_at')
+      .select('id, full_name, user_type, created_at, is_active')
       .eq('school_id', schoolId)
       .eq('user_type', 'student');
       

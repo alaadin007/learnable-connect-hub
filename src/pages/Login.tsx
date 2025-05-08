@@ -13,7 +13,7 @@ const Login = () => {
       <Navbar />
       <main className="flex-grow bg-learnable-super-light flex flex-col items-center justify-center py-10">
         <div className="max-w-md w-full mx-auto mb-6">
-          <Alert variant="warning" className="bg-amber-100 border-l-4 border-amber-500">
+          <Alert variant="default" className="bg-amber-100 border-l-4 border-amber-500">
             <div className="flex items-start">
               <div className="flex-shrink-0">
                 <AlertCircle className="h-5 w-5 text-amber-500" />

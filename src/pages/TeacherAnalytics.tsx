@@ -8,14 +8,14 @@ import SessionsTable from "@/components/analytics/SessionsTable";
 import { SessionData, TopicData, StudyTimeData, DateRange, AnalyticsFilters, Student } from "@/components/analytics/types";
 import { DateRangePicker } from "@/components/analytics/DateRangePicker";
 import { StudentSelector } from "@/components/analytics/StudentSelector";
-import AnalyticsSummaryCards from "@/components/analytics/AnalyticsSummaryCards";
+import { AnalyticsSummaryCards } from "@/components/analytics/AnalyticsSummaryCards";
 import { fetchTeacherAnalytics, adaptTeacherAnalyticsData } from "@/utils/analyticsUtils";
 import { format } from "date-fns";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { DownloadCloud } from "lucide-react";
 import { toast } from "sonner";
-import AnalyticsExport from "@/components/analytics/AnalyticsExport";
+import { AnalyticsExport } from "@/components/analytics/AnalyticsExport";
 import StudentPerformancePanel from "@/components/analytics/StudentPerformancePanel";
 
 interface AnalyticsSummary {
@@ -218,10 +218,12 @@ const TeacherAnalytics: React.FC = () => {
       
       {/* Analytics Summary */}
       <AnalyticsSummaryCards
-        activeStudents={summary.activeStudents}
-        totalSessions={summary.totalSessions}
-        totalQueries={summary.totalQueries}
-        avgSessionMinutes={summary.avgSessionMinutes}
+        summary={{
+          activeStudents: summary.activeStudents,
+          totalSessions: summary.totalSessions,
+          totalQueries: summary.totalQueries,
+          avgSessionMinutes: summary.avgSessionMinutes
+        }}
         isLoading={isLoading}
       />
       

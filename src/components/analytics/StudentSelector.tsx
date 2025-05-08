@@ -13,6 +13,7 @@ interface StudentSelectorProps {
 
 export function StudentSelector({ 
   students = [], 
+  selectedStudent,
   selectedStudentId,
   onStudentSelect,
   onStudentChange
