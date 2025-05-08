@@ -10,6 +10,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface TeacherSelectorProps {
   schoolId: string;
@@ -30,6 +31,7 @@ export function TeacherSelector({
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [loadAttempts, setLoadAttempts] = useState(0);
+  const { user, session } = useAuth();
 
   useEffect(() => {
     const fetchTeachers = async () => {
@@ -43,23 +45,17 @@ export function TeacherSelector({
         console.log(`TeacherSelector: Fetching teachers for school ${schoolId}`);
         
         // First check if we have an active session
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        
-        if (sessionError) {
-          console.error("TeacherSelector: Session error:", sessionError);
-          throw new Error("Authentication error");
-        }
-        
         if (!session) {
           console.warn("TeacherSelector: No active session when fetching teachers");
-          // For test accounts, we might want to continue anyway
+          throw new Error("Authentication required");
         }
         
         // First, get teacher IDs with a simple query
         const { data: teachersData, error } = await supabase
           .from("teachers")
           .select("id")
-          .eq("school_id", schoolId);
+          .eq("school_id", schoolId)
+          .abortSignal(new AbortController().signal); // Allow for proper clean-up on unmount
 
         if (error) {
           console.error("Error fetching teacher IDs:", error);
@@ -93,11 +89,17 @@ export function TeacherSelector({
 
         console.log(`TeacherSelector: Found ${formattedTeachers.length} teachers`);
         setTeachers(formattedTeachers);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error in TeacherSelector:", error);
         
+        // If specifically an auth error, show a friendly message
+        if (error.message?.includes("Authentication") || error.message?.includes("Authorization")) {
+          toast.error("Please log in to view teachers", {
+            description: "Your session may have expired"
+          });
+        } 
         // Implement retry logic for transient errors
-        if (loadAttempts < 2) {
+        else if (loadAttempts < 2) {
           console.log(`TeacherSelector: Retrying... Attempt ${loadAttempts + 1}`);
           setLoadAttempts(prev => prev + 1);
           setTimeout(() => fetchTeachers(), 1000); // Retry after 1 second
@@ -111,7 +113,7 @@ export function TeacherSelector({
     };
 
     fetchTeachers();
-  }, [schoolId, loadAttempts]);
+  }, [schoolId, loadAttempts, session, user]);
 
   const labelId = "teacher-selector-label";
 

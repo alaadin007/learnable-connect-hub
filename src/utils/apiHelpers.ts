@@ -17,13 +17,26 @@ export async function invokeEdgeFunction<T = any>(functionName: string, payload?
       throw new Error("Authentication error");
     }
     
+    // If no session, try silent refresh before giving up
     if (!session) {
-      console.warn("No active session when invoking edge function");
-      // We'll still try the function call, as some functions might work with anonymous access
+      console.warn("No active session found, attempting to refresh");
+      const { data: refreshData } = await supabase.auth.refreshSession();
+      
+      if (!refreshData.session) {
+        console.error("No session after refresh attempt");
+        throw new Error("Authorization required: Please login");
+      }
     }
     
+    // Get the latest session after potential refresh
+    const { data: { session: currentSession } } = await supabase.auth.getSession();
+    
+    // Invoke the function with explicit authorization header
     const { data, error } = await supabase.functions.invoke(functionName, {
-      body: payload
+      body: payload,
+      headers: {
+        Authorization: `Bearer ${currentSession?.access_token}`
+      }
     });
     
     if (error) {
@@ -57,6 +70,16 @@ export async function isAuthenticated(): Promise<boolean> {
  * @returns The current JWT token or null if not authenticated
  */
 export async function getAuthToken(): Promise<string | null> {
-  const { data: { session } } = await supabase.auth.getSession();
-  return session?.access_token || null;
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      // Try to refresh the token if not present
+      const { data: refreshData } = await supabase.auth.refreshSession();
+      return refreshData.session?.access_token || null;
+    }
+    return session.access_token;
+  } catch (error) {
+    console.error("Error getting auth token:", error);
+    return null;
+  }
 }

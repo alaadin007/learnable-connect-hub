@@ -19,20 +19,23 @@ const ProtectedRoute = ({
   requireSameSchool = false,
   schoolId
 }: ProtectedRouteProps) => {
-  const { user, profile, isSuperviser, isLoading, userRole, schoolId: userSchoolId } = useAuth();
+  const { user, profile, isSuperviser, isLoading, userRole, schoolId: userSchoolId, session } = useAuth();
   const location = useLocation();
 
+  // Show loading state while we check authentication
   if (isLoading) {
     return <div className="flex items-center justify-center h-screen">Loading...</div>;
   }
 
-  // Not logged in
-  if (!user) {
+  // If no user or session, redirect to login
+  if (!user || !session) {
+    console.log("ProtectedRoute: No authenticated user found, redirecting to login");
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   // If we require a specific user type and the user doesn't have it
   if (requiredUserType && userRole !== requiredUserType) {
+    console.log(`ProtectedRoute: User role ${userRole} doesn't match required ${requiredUserType}`);
     // Redirect based on user role instead of generic dashboard
     const redirectPath = userRole === 'school' ? '/admin' : 
                         userRole === 'teacher' ? '/teacher/analytics' : 
@@ -42,6 +45,7 @@ const ProtectedRoute = ({
 
   // If we require specific roles and the user doesn't have one of them
   if (allowedRoles && userRole && !allowedRoles.includes(userRole)) {
+    console.log(`ProtectedRoute: User role ${userRole} not in allowed roles`);
     // Redirect based on user role instead of generic dashboard
     const redirectPath = userRole === 'school' ? '/admin' : 
                         userRole === 'teacher' ? '/teacher/analytics' : 
@@ -51,6 +55,7 @@ const ProtectedRoute = ({
 
   // If we require supervisor access and the user isn't a supervisor
   if (requireSupervisor && !isSuperviser) {
+    console.log("ProtectedRoute: User is not a supervisor");
     // Redirect based on user role instead of generic dashboard
     const redirectPath = userRole === 'school' ? '/admin' : 
                         userRole === 'teacher' ? '/teacher/analytics' : 
@@ -60,6 +65,7 @@ const ProtectedRoute = ({
 
   // If we require same school access and the school IDs don't match
   if (requireSameSchool && schoolId && userSchoolId && schoolId !== userSchoolId) {
+    console.log(`ProtectedRoute: School ID mismatch - user: ${userSchoolId}, required: ${schoolId}`);
     // Redirect based on user role
     const redirectPath = userRole === 'school' ? '/admin' : 
                         userRole === 'teacher' ? '/teacher/analytics' : 
