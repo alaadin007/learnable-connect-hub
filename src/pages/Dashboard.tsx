@@ -57,7 +57,7 @@ const Dashboard = () => {
 
       console.log("Dashboard: User role detected:", userRole);
 
-      // Handle redirection logic with fallbacks
+      // Handle redirection logic with improved handling for school admin roles
       if (userRole === "school" || userRole === "school_admin") {
         console.log("Dashboard: School admin detected, redirecting to admin dashboard");
         navigate("/admin", { 

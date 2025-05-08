@@ -41,13 +41,16 @@ const LoginForm = () => {
     if (userRole) {
       console.log("User already logged in with role:", userRole);
       
-      const redirectPath = userRole === "school"
+      // Handle school admin role with better fallback checks
+      const redirectPath = userRole === "school" || userRole === "school_admin"
         ? "/admin"
         : userRole === "teacher"
         ? "/teacher/analytics"
         : "/dashboard";
 
-      navigate(redirectPath);
+      navigate(redirectPath, { 
+        state: { preserveContext: true }
+      });
     }
   }, [userRole, navigate]);
 
@@ -146,7 +149,7 @@ const LoginForm = () => {
       // Get the user type from profiles table with minimal fields
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
-        .select("user_type")
+        .select("user_type, organization")
         .eq("id", data.user.id)
         .single();
 
@@ -160,12 +163,15 @@ const LoginForm = () => {
 
       console.log("Fetched profile data:", profile);
       
-      const redirectPath =
-        profile?.user_type === "school"
-          ? "/admin"
-          : profile?.user_type === "teacher"
-          ? "/teacher/analytics"
-          : "/dashboard";
+      // Handle school_admin role properly with better handling for organization data
+      const userType = profile?.user_type;
+      const isSchoolAdmin = userType === "school" || userType === "school_admin";
+      
+      const redirectPath = isSchoolAdmin
+        ? "/admin"
+        : userType === "teacher"
+        ? "/teacher/analytics"
+        : "/dashboard";
 
       toast.success("Login successful", {
         description: `Welcome back, ${
@@ -181,7 +187,9 @@ const LoginForm = () => {
         // Ignore session errors, don't affect login experience
       }
 
-      navigate(redirectPath);
+      navigate(redirectPath, { 
+        state: { preserveContext: true }
+      });
     } catch (error: any) {
       console.error("Login error:", error);
       console.error("Login error details:", {

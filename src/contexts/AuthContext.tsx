@@ -31,7 +31,7 @@ function isValidOrganization(org: unknown): org is { id: string; name: string; c
          typeof (org as any).name === 'string';
 }
 
-export type UserRole = "school" | "teacher" | "student" | string;
+export type UserRole = "school" | "school_admin" | "teacher" | "student" | string;
 
 export type UserProfile = {
   id: string;
@@ -191,11 +191,16 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       console.log("AuthContext: Processed profile data:", safeProfileData);
 
       setProfile(safeProfileData);
-      setUserRole(profileData.user_type || null);
-      setIsSuperviser(profileData.is_supervisor || profileData.user_type === "superviser");
+      
+      // Handle different role variations for school admin
+      const userType = profileData.user_type;
+      const isSchoolAdmin = userType === "school" || userType === "school_admin";
+      setUserRole(isSchoolAdmin ? "school" : userType || null);
+      
+      setIsSuperviser(profileData.is_supervisor || profileData.user_type === "superviser" || isSchoolAdmin);
       setSchoolId(profileData.school_id || safeProfileData.organization?.id || null);
       
-      console.log("AuthContext: Set user role to:", profileData.user_type);
+      console.log("AuthContext: Set user role to:", isSchoolAdmin ? "school" : userType);
       console.log("AuthContext: Set school ID to:", profileData.school_id || safeProfileData.organization?.id);
 
       if (user && isTestAccount(user.email || '')) {
