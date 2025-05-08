@@ -147,7 +147,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       setProfile(profileData);
       setSchoolId(profileData?.school_id || null);
-      setUserRole(profileData?.user_type || null);
+      
+      // Map legacy role names for consistency
+      let role = profileData?.user_type;
+      if (role === 'school_admin') {
+        role = 'school';
+      }
+      setUserRole(role);
       
       // Set supervisor status from the profile data
       if (profileData?.user_type === 'teacher_supervisor' || 

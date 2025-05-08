@@ -150,7 +150,7 @@ const LoginForm = () => {
     try {
       // If there's already a test account active, sign out first
       if (activeTestAccount) {
-        await signOut(); // This will handle both test and real accounts properly now
+        await signOut();
         localStorage.removeItem('usingTestAccount');
         localStorage.removeItem('testAccountType');
         setActiveTestAccount(null);
@@ -169,7 +169,6 @@ const LoginForm = () => {
       
       // Handle normal login with credentials
       const result = await signIn(email, password);
-      setIsSubmitting(false);
       
       if (result?.error) {
         throw result.error;
@@ -191,7 +190,6 @@ const LoginForm = () => {
     } catch (error: any) {
       console.error("Login error:", error);
       setLoginError(error.message);
-      setIsSubmitting(false);
 
       // Improved error messages
       if (error.message?.includes("Email not confirmed")) {
@@ -209,6 +207,8 @@ const LoginForm = () => {
       } else {
         toast.error(`Login failed: ${error.message || "Unknown error"}`);
       }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -219,7 +219,6 @@ const LoginForm = () => {
     }
     
     try {
-      // Direct call to Supabase to resend verification email
       const { error } = await supabase.auth.resend({
         type: 'signup',
         email,
@@ -244,7 +243,6 @@ const LoginForm = () => {
     }
 
     try {
-      // Direct call to Supabase to reset password
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/login?email_confirmed=true`,
       });

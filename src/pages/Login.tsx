@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useEffect } from "react";
 import Navbar from "@/components/layout/Navbar";
 import LoginForm from "@/components/auth/LoginForm";
 import Footer from "@/components/landing/Footer";
@@ -13,19 +13,21 @@ const Login = () => {
   const navigate = useNavigate();
   
   // Immediately redirect logged-in users to appropriate dashboard
-  if (user && userRole) {
-    // Determine where to redirect based on user role
-    let redirectPath = '/dashboard';
-    
-    if (userRole === 'school' || userRole === 'school_admin') {
-      redirectPath = '/admin';
-    } else if (userRole === 'teacher' || userRole === 'teacher_supervisor') {
-      redirectPath = '/teacher/analytics';
+  useEffect(() => {
+    if (user && userRole) {
+      // Determine where to redirect based on user role
+      let redirectPath = '/dashboard';
+      
+      if (userRole === 'school' || userRole === 'school_admin') {
+        redirectPath = '/admin';
+      } else if (userRole === 'teacher' || userRole === 'teacher_supervisor') {
+        redirectPath = '/teacher/analytics';
+      }
+      
+      console.log(`Login: Redirecting logged-in user to ${redirectPath}`);
+      navigate(redirectPath, { replace: true });
     }
-    
-    console.log(`Login: Redirecting logged-in user to ${redirectPath}`);
-    navigate(redirectPath, { replace: true });
-  }
+  }, [user, userRole, navigate]);
   
   return (
     <div className="min-h-screen flex flex-col">

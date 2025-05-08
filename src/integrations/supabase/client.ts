@@ -20,7 +20,7 @@ export const supabase = createClient<Database>(
       flowType: 'pkce',
       persistSession: true,
       storage: localStorage,
-      debug: process.env.NODE_ENV === 'development',
+      debug: import.meta.env.DEV
     }
   }
 );
