@@ -96,12 +96,11 @@ const incrementQueryCount = async (sessionId: string): Promise<void> => {
 
   // Silently try to increment count without causing UI errors
   try {
-    // PostgrestFilterBuilder doesn't have .catch(), use destructuring to get error
-    const { error } = await supabase.rpc("increment_session_query_count", {
-      log_id: sessionId
+    // Use the update-session edge function instead of direct RPC call
+    const { error } = await supabase.functions.invoke("update-session", {
+      body: { logId: sessionId, action: "increment_query" }
     });
     
-    // Check for errors without using .catch()
     if (error) {
       console.error("Silent error incrementing query count:", error);
     }

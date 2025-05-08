@@ -2,7 +2,7 @@
 import { supabase } from "@/integrations/supabase/client";
 
 /**
- * Helper function to invoke Supabase Edge Functions with proper authentication
+ * Helper function to invoke Supabase Edge Functions with proper authentication and CORS handling
  * @param functionName The name of the edge function to invoke
  * @param payload The payload to send to the function
  * @returns The response from the edge function
@@ -13,7 +13,10 @@ export async function invokeEdgeFunction<T = any>(functionName: string, payload?
     const { data: { session } } = await supabase.auth.getSession();
     
     // Define headers - will add authorization if available
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = {
+      "Origin": window.location.origin,
+      "Content-Type": "application/json"
+    };
     
     // If we have a session, add the authorization header
     if (session?.access_token) {
