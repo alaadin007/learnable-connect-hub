@@ -1,7 +1,7 @@
 
 import React from "react";
 import StatsCard from "./StatsCard";
-import { Activity, MessageSquare, Clock, LayoutGrid } from "lucide-react";
+import { BarChart, MessageSquare, Clock, Users } from "lucide-react";
 
 interface AnalyticsSummary {
   activeStudents: number;
@@ -22,14 +22,14 @@ export function AnalyticsSummaryCards({ summary, isLoading }: AnalyticsSummaryCa
         title="Active Students"
         value={summary.activeStudents}
         description="Students engaged with the platform"
-        icon={<Activity size={24} />}
+        icon={<Users size={24} />}
       />
       
       <StatsCard
         title="Total Sessions"
         value={summary.totalSessions}
         description="Learning sessions conducted"
-        icon={<LayoutGrid size={24} />}
+        icon={<BarChart size={24} />}
       />
       
       <StatsCard

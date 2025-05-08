@@ -58,8 +58,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isSupervisor, setIsSupervisor] = useState<boolean>(false);
   const navigate = useNavigate();
 
+  // Handle auth state changes from Supabase
   useEffect(() => {
-    // Set up auth state change listener first
+    // First check for a test account in localStorage
+    const isTestSession = localStorage.getItem('usingTestAccount') === 'true';
+    const testAccountType = localStorage.getItem('testAccountType');
+    
+    if (isTestSession && testAccountType) {
+      console.log("AuthContext: Setting up test user from localStorage");
+      setTestUser(testAccountType)
+        .then(() => {
+          setIsLoading(false);
+        })
+        .catch(error => {
+          console.error("Error restoring test user session:", error);
+          clearSession();
+          setIsLoading(false);
+        });
+      return;
+    }
+    
+    // Set up auth state change listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       console.log(`AuthContext: Auth state change event: ${event}`);
       
@@ -67,26 +86,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUser(newSession?.user || null);
         setSession(newSession || null);
         if (newSession?.user) {
-          // Use setTimeout to prevent deadlocks
-          setTimeout(() => {
-            fetchUserProfile(newSession.user.id);
-          }, 0);
+          await fetchUserProfile(newSession.user.id);
         }
+        setIsLoading(false);
       } else if (event === 'SIGNED_OUT') {
         clearSession();
+        setIsLoading(false);
       } else if (event === 'USER_UPDATED') {
         setUser(newSession?.user || null);
         setSession(newSession || null);
         if (newSession?.user) {
-          // Use setTimeout to prevent deadlocks
-          setTimeout(() => {
-            fetchUserProfile(newSession.user.id);
-          }, 0);
+          await fetchUserProfile(newSession.user.id);
         }
+        setIsLoading(false);
       }
     });
 
-    // Then check for existing session
+    // Check for existing Supabase session
     const loadSession = async () => {
       try {
         setIsLoading(true);
@@ -118,7 +134,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
 
     try {
-      setIsLoading(true);
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
@@ -145,8 +160,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.log("AuthContext: User profile loaded:", profileData);
     } catch (error) {
       console.error("Error fetching profile:", error);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -159,6 +172,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const refreshSession = async () => {
     try {
       setIsLoading(true);
+      
+      // Check for test account
+      const isTestSession = localStorage.getItem('usingTestAccount') === 'true';
+      const testAccountType = localStorage.getItem('testAccountType');
+      
+      if (isTestSession && testAccountType) {
+        await setTestUser(testAccountType);
+        return;
+      }
+      
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         setUser(session.user);
@@ -196,6 +219,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signOut = async () => {
     try {
       setIsLoading(true);
+      
       // Check if we're using a test account
       const usingTestAccount = localStorage.getItem('usingTestAccount') === 'true';
       
@@ -210,7 +234,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         await supabase.auth.signOut();
       }
       
-      // Clear session state regardless of account type
+      // Always clear session state
       clearSession();
       console.log("AuthContext: User signed out successfully");
     } catch (error) {
@@ -268,7 +292,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setProfile(prevProfile => ({ ...prevProfile, ...updates }));
       console.log("AuthContext: Profile updated successfully:", updates);
     } catch (error: any) {
-      alert(error.error_description || error.message);
+      console.error("Error updating profile:", error);
     } finally {
       setIsLoading(false);
     }

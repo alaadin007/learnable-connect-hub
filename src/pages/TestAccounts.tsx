@@ -60,31 +60,6 @@ const TestAccounts = () => {
   const [dataCreationLoading, setDataCreationLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Clear any existing sessions when arriving at the test accounts page
-  useEffect(() => {
-    const clearPreviousSessions = async () => {
-      try {
-        console.log("TestAccounts: Beginning session cleanup");
-        
-        // First clear any auth state in Supabase
-        await supabase.auth.signOut();
-        
-        // Clear any previous test account flags
-        localStorage.removeItem('usingTestAccount');
-        localStorage.removeItem('testAccountType');
-        
-        console.log("TestAccounts: Cleared previous sessions on page load");
-        
-        // Also clear out state in AuthContext
-        await signOut();
-      } catch (error) {
-        console.error("Error clearing sessions:", error);
-      }
-    };
-
-    clearPreviousSessions();
-  }, [signOut]);
-
   const createTestAccounts = useCallback(async () => {
     try {
       setDataCreationLoading(true);
@@ -126,9 +101,12 @@ const TestAccounts = () => {
       setLoadingAccount(accountType);
 
       try {
+        // Clear any existing sessions first
+        await signOut();
+        
         console.log(`TestAccounts: Fast login as ${accountType} test account...`);
 
-        // Skip authentication and just set up the local test flags
+        // Set up the local test flags
         localStorage.setItem('usingTestAccount', 'true');
         localStorage.setItem('testAccountType', accountType);
         
@@ -179,7 +157,7 @@ const TestAccounts = () => {
         setLoadingAccount(null);
       }
     },
-    [navigate, setTestUser]
+    [navigate, setTestUser, signOut]
   );
 
   return (

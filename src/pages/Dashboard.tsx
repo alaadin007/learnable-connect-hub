@@ -3,7 +3,7 @@ import React, { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, BookOpen, BarChart3, Users, School, FileText, Settings } from "lucide-react";
+import { MessageSquare, BarChart, Users, School, FileText, Settings } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import Footer from "@/components/layout/Footer";
@@ -27,21 +27,9 @@ const Dashboard = () => {
     }
   }, [user, navigate, location.state]);
 
-  // Show loading state if user, userRole, or profile data is not ready
-  if (!user || !userRole || !profile) {
-    return (
-      <>
-        <Navbar />
-        <main className="container mx-auto px-4 py-8 min-h-screen flex items-center justify-center">
-          <p className="text-xl">Loading your dashboard...</p>
-        </main>
-      </>
-    );
-  }
-
   // Always redirect school admins to the admin dashboard
   useEffect(() => {
-    if (userRole === "school" && profile.organization?.id) {
+    if (userRole === "school" && profile?.organization?.id) {
       console.log("Dashboard: Redirecting school admin to admin panel");
       navigate("/admin", {
         replace: true,
@@ -49,6 +37,18 @@ const Dashboard = () => {
       });
     }
   }, [userRole, profile, navigate]);
+
+  if (!user) {
+    return (
+      <>
+        <Navbar />
+        <main className="container mx-auto px-4 py-8 min-h-screen flex items-center justify-center">
+          <p className="text-xl">Please log in to access your dashboard</p>
+        </main>
+        <Footer />
+      </>
+    );
+  }
 
   const renderUserDashboard = () => {
     const userType = profile?.user_type;
@@ -71,7 +71,7 @@ const Dashboard = () => {
           <DashboardCard
             title="Analytics"
             description="View school-wide performance analytics"
-            icon={<BarChart3 className="h-10 w-10" />}
+            icon={<BarChart className="h-10 w-10" />}
             onClick={() => navigate("/admin/analytics", { state: { fromNavigation: true, preserveContext: true } })}
           />
           <DashboardCard
@@ -96,7 +96,7 @@ const Dashboard = () => {
           <DashboardCard
             title="Analytics"
             description="View student performance analytics"
-            icon={<BarChart3 className="h-10 w-10" />}
+            icon={<BarChart className="h-10 w-10" />}
             onClick={() => navigate("/teacher/analytics", { state: { fromNavigation: true, preserveContext: true } })}
           />
           <DashboardCard
@@ -127,7 +127,7 @@ const Dashboard = () => {
         <DashboardCard
           title="My Progress"
           description="Track your performance and learning progress"
-          icon={<BarChart3 className="h-10 w-10" />}
+          icon={<BarChart className="h-10 w-10" />}
           onClick={() => navigate("/student/progress", { state: { fromNavigation: true, preserveContext: true } })}
         />
         <DashboardCard

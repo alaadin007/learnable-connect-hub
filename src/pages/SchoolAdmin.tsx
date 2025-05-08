@@ -1,5 +1,5 @@
 
-import React, { useEffect } from "react";
+import React from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -8,25 +8,18 @@ import Footer from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, School, BarChart3, Settings, FileText } from "lucide-react";
+import { Users, School, BarChart, Settings, FileText } from "lucide-react";
 
 const SchoolAdmin = () => {
   const { user, profile, userRole } = useAuth();
   const navigate = useNavigate();
-
-  useEffect(() => {
-    // Redirect if not a school admin
-    if (user && userRole !== "school") {
-      navigate("/dashboard");
-    }
-  }, [user, userRole, navigate]);
 
   if (!user || !profile || userRole !== "school") {
     return (
       <>
         <Navbar />
         <div className="container mx-auto px-4 py-8">
-          <p className="text-center text-xl">Loading...</p>
+          <p className="text-center text-xl">Access restricted. Please login with a school administrator account.</p>
         </div>
         <Footer />
       </>
@@ -70,7 +63,7 @@ const SchoolAdmin = () => {
               <AdminCard 
                 title="Analytics" 
                 description="View school performance metrics"
-                icon={<BarChart3 className="h-10 w-10" />}
+                icon={<BarChart className="h-10 w-10" />}
                 onClick={() => navigate("/admin/analytics")}
               />
               <AdminCard 

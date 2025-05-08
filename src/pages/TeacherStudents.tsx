@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,16 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 const TeacherStudents = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, profile, userRole } = useAuth();
-  const [pageInitialized, setPageInitialized] = useState(false);
-  
-  // Process location state once on first render
-  useEffect(() => {
-    if (pageInitialized) return;
-    
-    console.log("TeacherStudents: Initial render with state:", location.state);
-    setPageInitialized(true);
-  }, [location.state, pageInitialized]);
+  const { user, userRole } = useAuth();
   
   // Protection against direct access without authentication
   useEffect(() => {
