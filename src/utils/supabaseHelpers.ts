@@ -2,8 +2,39 @@
 import { supabase } from '@/integrations/supabase/client';
 import { PostgrestError } from '@supabase/supabase-js';
 
+// Define proper types for teacher and student data
+interface StudentWithProfile {
+  id: string;
+  school_id: string;
+  status: string;
+  created_at: string;
+  full_name: string;
+  email: string;
+}
+
+interface TeacherWithProfile {
+  id: string;
+  school_id: string;
+  isSupevisor: boolean;
+  createdAt: string;
+  full_name: string;
+  email: string;
+}
+
+interface StudentPerformanceMetrics {
+  student_id: string;
+  student_name: string;
+  assessments_taken: number;
+  avg_score: number;
+  avg_time_spent_seconds: number;
+  assessments_completed: number;
+  completion_rate: number;
+  top_strengths: string;
+  top_weaknesses: string;
+}
+
 // Fix the TypeScript error by properly handling the Promise types
-export async function getStudentsWithProfiles(schoolId: string): Promise<any[]> {
+export async function getStudentsWithProfiles(schoolId: string): Promise<StudentWithProfile[]> {
   try {
     if (!schoolId) {
       console.error("No school ID provided");
@@ -52,8 +83,8 @@ export async function getStudentsWithProfiles(schoolId: string): Promise<any[]> 
   }
 }
 
-// Add the missing getTeachersWithProfiles function
-export async function getTeachersWithProfiles(schoolId: string): Promise<any[]> {
+// Export the getTeachersWithProfiles function with proper type handling
+export async function getTeachersWithProfiles(schoolId: string): Promise<TeacherWithProfile[]> {
   try {
     if (!schoolId) {
       console.error("No school ID provided");
@@ -67,7 +98,7 @@ export async function getTeachersWithProfiles(schoolId: string): Promise<any[]> 
         school_id,
         is_supervisor,
         created_at,
-        profiles:profiles (
+        profiles (
           full_name,
           email
         )
@@ -101,8 +132,8 @@ export async function getTeachersWithProfiles(schoolId: string): Promise<any[]> 
   }
 }
 
-// Add the missing getStudentPerformanceMetrics function
-export async function getStudentPerformanceMetrics(schoolId: string, teacherId?: string): Promise<any[]> {
+// Add the getStudentPerformanceMetrics function with proper typing
+export async function getStudentPerformanceMetrics(schoolId: string, teacherId?: string): Promise<StudentPerformanceMetrics[]> {
   try {
     if (!schoolId) {
       console.error("No school ID provided");

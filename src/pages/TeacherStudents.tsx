@@ -11,7 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 const TeacherStudents = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { userRole } = useAuth();
+  const { userType } = useAuth(); // Use userType instead of userRole
   
   // Handle back navigation with context preservation
   const handleBack = () => {

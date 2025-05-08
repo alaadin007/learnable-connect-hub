@@ -1,3 +1,4 @@
+
 import { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -14,20 +15,29 @@ interface Profile {
   school_code?: string;
   is_active: boolean;
   is_supervisor?: boolean;
+  organization?: {
+    id: string;
+    name: string;
+    code: string;
+  };
 }
 
 interface AuthContextType {
   user: any | null;
   profile: Profile | null;
   userType: UserType | null;
+  userRole?: string; // Added missing property
   schoolId: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isTestAccount: boolean;
   login: (email: string, password: string) => Promise<boolean>;
   signup: (email: string, password: string, fullName: string, userType: UserType, schoolCode?: string, inviteCode?: string) => Promise<boolean>;
   logout: () => Promise<void>;
   setTestUser: (type: UserType) => void;
-  isTestAccount: boolean;
+  signUp?: (email: string, password: string, userData: any) => Promise<boolean>; // Added missing method
+  signOut?: () => Promise<void>; // Added missing method
+  refreshProfile?: () => Promise<void>; // Added missing method
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -52,7 +62,7 @@ const createCustomAuthError = (message: string, status: number = 400): AuthError
     name: 'AuthError',
     code: 'custom',
     __isAuthError: true
-  } as AuthError;
+  } as unknown as AuthError; // Use type assertion to handle protected property
 };
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
@@ -62,6 +72,57 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [schoolId, setSchoolId] = useState<string | null>(null);
   const [isLoading, setLoading] = useState(true);
   const [isTestAccount, setIsTestAccount] = useState(false);
+
+  const loadUserProfile = async () => {
+    setLoading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        // Fetch the user's profile from the profiles table
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('*, organization:schools(*)')
+          .eq('id', user.id)
+          .single();
+        
+        if (profileError) {
+          throw profileError;
+        }
+        
+        if (profileData) {
+          const profile = profileData as Profile;
+          setProfile(profile);
+          setUserType(profile.user_type);
+          setSchoolId(profile.school_id || null);
+          setIsTestAccount(false);
+        } else {
+          console.warn('No profile found for user', user.id);
+          setProfile(null);
+          setUserType(null);
+          setSchoolId(null);
+          setIsTestAccount(false);
+        }
+      } else {
+        setUser(null);
+        setProfile(null);
+        setUserType(null);
+        setSchoolId(null);
+        setIsTestAccount(false);
+      }
+    } catch (error: any) {
+      const errorMsg = error.message || 'An error occurred while loading user profile';
+      toast.error(errorMsg);
+      console.error('Error loading user profile:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Add the refreshProfile method
+  const refreshProfile = async () => {
+    return loadUserProfile();
+  };
 
   useEffect(() => {
     const loadSession = async () => {
@@ -111,52 +172,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       subscription?.unsubscribe();
     };
   }, []);
-
-  const loadUserProfile = async () => {
-    setLoading(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (user) {
-        // Fetch the user's profile from the profiles table
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single();
-        
-        if (profileError) {
-          throw profileError;
-        }
-        
-        if (profileData) {
-          const profile = profileData as Profile;
-          setProfile(profile);
-          setUserType(profile.user_type);
-          setSchoolId(profile.school_id || null);
-          setIsTestAccount(false);
-        } else {
-          console.warn('No profile found for user', user.id);
-          setProfile(null);
-          setUserType(null);
-          setSchoolId(null);
-          setIsTestAccount(false);
-        }
-      } else {
-        setUser(null);
-        setProfile(null);
-        setUserType(null);
-        setSchoolId(null);
-        setIsTestAccount(false);
-      }
-    } catch (error: any) {
-      const errorMsg = error.message || 'An error occurred while loading user profile';
-      toast.error(errorMsg);
-      console.error('Error loading user profile:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const signup = async (
     email: string,
@@ -208,6 +223,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   };
 
+  // Add signUp alias for compatibility
+  const signUp = signup;
+
   const login = async (email: string, password: string): Promise<boolean> => {
     setLoading(true);
     
@@ -251,6 +269,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   };
 
+  // Add signOut alias for compatibility
+  const signOut = logout;
+
   // Function to set a test user - used for demo purposes only
   const setTestUser = (type: UserType) => {
     const testUserEmail = `test.${type}@learnable.edu`;
@@ -262,6 +283,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       school_id: 'test-school-id',
       school_code: 'TESTCODE',
       is_active: true,
+      organization: {
+        id: 'test-school-id',
+        name: 'Test School',
+        code: 'TESTCODE'
+      }
     };
 
     setUser({
@@ -282,17 +308,24 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     setIsTestAccount(true);
   };
 
+  // Calculate userRole based on userType for compatibility
+  const userRole = userType;
+
   return (
     <AuthContext.Provider value={{
       user,
       profile,
       userType,
+      userRole,
       schoolId,
       isAuthenticated: !!user,
       isLoading,
       login,
       signup,
       logout,
+      signUp,
+      signOut,
+      refreshProfile,
       setTestUser,
       isTestAccount
     }}>
