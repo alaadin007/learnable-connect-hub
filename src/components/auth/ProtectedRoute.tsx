@@ -1,59 +1,64 @@
 
-import React from 'react';
+import { ReactNode, useEffect } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { toast } from 'sonner';
+import { Loader2 } from 'lucide-react';
 
 interface ProtectedRouteProps {
-  children: React.ReactNode;
-  requiredUserType?: 'school' | 'teacher' | 'student';
+  children: ReactNode;
+  requiredUserType?: 'student' | 'teacher' | 'school' | 'any';
 }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
-  children,
-  requiredUserType
-}) => {
-  const { user, userRole, session } = useAuth();
+const ProtectedRoute = ({ 
+  children, 
+  requiredUserType = 'any' 
+}: ProtectedRouteProps) => {
+  const { isAuthenticated, isLoading, userType } = useAuth();
   const location = useLocation();
 
-  // If no user is authenticated, redirect to login
-  if (!user || !session) {
-    // Only show toast when not already on login page
-    if (!location.pathname.includes('login')) {
-      toast.error("You must be logged in to access this page");
-    }
-    
-    // Pass the intended location in state so we can redirect back after login
-    return <Navigate to="/login" state={{ from: location }} replace />;
+  useEffect(() => {
+    // Log for debugging purposes
+    console.log('ProtectedRoute:', { isAuthenticated, isLoading, userType, requiredUserType });
+  }, [isAuthenticated, isLoading, userType, requiredUserType]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
-  // Check if user has required role
-  if (requiredUserType && userRole !== requiredUserType) {
-    // Map similar role types for compatibility
-    let normalizedUserRole = userRole;
-    if (userRole === 'school_admin') normalizedUserRole = 'school';
-    if (userRole === 'teacher_supervisor') normalizedUserRole = 'teacher';
-    
-    let normalizedRequiredRole = requiredUserType;
-    
-    if (normalizedUserRole !== normalizedRequiredRole) {
-      toast.error(`Only ${requiredUserType}s can access this page`);
-      
-      // Redirect to appropriate dashboard based on actual role
-      if (normalizedUserRole === 'school') {
-        return <Navigate to="/admin" replace />;
-      } else if (normalizedUserRole === 'teacher') {
-        return <Navigate to="/teacher/analytics" replace />;
-      } else if (normalizedUserRole === 'student') {
-        return <Navigate to="/dashboard" replace />;
-      }
-      
-      // Default dashboard fallback
-      return <Navigate to="/dashboard" replace />;
-    }
+  if (!isAuthenticated) {
+    // Redirect to login if not authenticated, preserving the attempted URL
+    return <Navigate to="/login" state={{ from: location.pathname }} replace />;
   }
 
-  // Render children if authenticated and authorized
+  // Check user type if specified
+  if (requiredUserType !== 'any' && userType !== requiredUserType) {
+    // Check if user has a higher level role (e.g., school admin has teacher access)
+    if (requiredUserType === 'teacher' && userType === 'school') {
+      // School admins can access teacher pages
+      return <>{children}</>;
+    }
+
+    // Redirect to appropriate dashboard based on actual user type
+    let redirectPath = '/';
+    switch (userType) {
+      case 'student':
+        redirectPath = '/student/dashboard';
+        break;
+      case 'teacher':
+        redirectPath = '/teacher/dashboard';
+        break;
+      case 'school':
+        redirectPath = '/school/dashboard';
+        break;
+    }
+
+    return <Navigate to={redirectPath} replace />;
+  }
+
   return <>{children}</>;
 };
 

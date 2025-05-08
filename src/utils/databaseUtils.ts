@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 export async function fetchSchoolCodes() {
@@ -76,9 +75,9 @@ export async function getStudentInvitationCodes(schoolId: string) {
   try {
     // Fix the RPC function name to match the one in the database
     const { data, error } = await supabase
-      .rpc('get_student_invitations', {
-        school_id_param: schoolId,
-      });
+      .from('student_invites')
+      .select('*')
+      .eq('school_id', schoolId);
     
     if (error) {
       console.error('Error fetching student invitation codes:', error);
@@ -140,7 +139,7 @@ export async function inviteStudentDirect(
   email?: string
 ): Promise<{ success: boolean; code?: string; message?: string }> {
   try {
-    const { user } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
     
     if (!user) {
       return { success: false, message: 'Not authenticated' };
@@ -197,7 +196,7 @@ export async function inviteTeacherDirect(
   email: string
 ): Promise<{ success: boolean; message?: string }> {
   try {
-    const { user } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
     
     if (!user) {
       return { success: false, message: 'Not authenticated' };
