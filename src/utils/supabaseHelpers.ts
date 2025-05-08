@@ -49,17 +49,18 @@ export async function safeQueryArray<T>(
  */
 export async function getUserSchoolId(userId?: string): Promise<string | null> {
   try {
-    const { data, error } = await supabase.rpc(
-      'get_user_school_id_safely', 
-      userId ? { uid: userId } : {}
-    );
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('school_id')
+      .eq('id', userId || '')
+      .single();
     
     if (error) {
       console.error("Error getting user school ID:", error);
       return null;
     }
     
-    return data;
+    return data?.school_id || null;
   } catch (error) {
     console.error("Unexpected error getting user school ID:", error);
     return null;
@@ -71,9 +72,15 @@ export async function getUserSchoolId(userId?: string): Promise<string | null> {
  */
 export async function getUserProfileSafely(userId?: string) {
   try {
-    const { data, error } = userId 
-      ? await supabase.rpc('get_profile_safely', { uid: userId })
-      : await supabase.rpc('get_profile_safely');
+    if (!userId) {
+      return null;
+    }
+    
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
     
     if (error) {
       console.error("Error getting user profile:", error);
@@ -105,33 +112,35 @@ export async function getProfileById(userId: string) {
  */
 export async function getTeachersWithProfiles(schoolId: string) {
   try {
-    // Using an explicit JOIN to ensure we get properly typed data
-    const { data, error } = await supabase
-      .from('teachers')
-      .select(`
-        id,
-        is_supervisor,
-        created_at,
-        profiles!inner(
-          id,
-          full_name,
-          email
-        )
-      `)
-      .eq('school_id', schoolId);
-
-    if (error) {
-      console.error("Error fetching teachers:", error);
+    const teachersData = await safeQueryArray(
+      supabase
+        .from('teachers')
+        .select('id, is_supervisor, created_at')
+        .eq('school_id', schoolId)
+    );
+    
+    if (!teachersData || teachersData.length === 0) {
       return [];
     }
-
-    return data.map(teacher => ({
-      id: teacher.id,
-      isSupevisor: teacher.is_supervisor,
-      createdAt: teacher.created_at,
-      full_name: teacher.profiles.full_name,
-      email: teacher.profiles.email
-    })) || [];
+    
+    const teacherIds = teachersData.map(t => t.id);
+    const profilesData = await safeQueryArray(
+      supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .in('id', teacherIds)
+    );
+    
+    return teachersData.map(teacher => {
+      const profile = profilesData.find(p => p.id === teacher.id);
+      return {
+        id: teacher.id,
+        isSupevisor: teacher.is_supervisor,
+        createdAt: teacher.created_at,
+        full_name: profile?.full_name || "Unknown Teacher",
+        email: profile?.email || "No email"
+      };
+    });
   } catch (error) {
     console.error("Unexpected error fetching teachers:", error);
     return [];
@@ -143,35 +152,36 @@ export async function getTeachersWithProfiles(schoolId: string) {
  */
 export async function getStudentsWithProfiles(schoolId: string) {
   try {
-    // Using an explicit JOIN to ensure we get properly typed data
-    const { data, error } = await supabase
-      .from('students')
-      .select(`
-        id,
-        school_id,
-        status,
-        created_at,
-        profiles!inner(
-          id,
-          full_name,
-          email
-        )
-      `)
-      .eq('school_id', schoolId);
-
-    if (error) {
-      console.error("Error fetching students:", error);
+    const studentsData = await safeQueryArray(
+      supabase
+        .from('students')
+        .select('id, school_id, status, created_at')
+        .eq('school_id', schoolId)
+    );
+    
+    if (!studentsData || studentsData.length === 0) {
       return [];
     }
-
-    return data.map(student => ({
-      id: student.id,
-      school_id: student.school_id,
-      status: student.status,
-      created_at: student.created_at,
-      full_name: student.profiles.full_name,
-      email: student.profiles.email
-    })) || [];
+    
+    const studentIds = studentsData.map(s => s.id);
+    const profilesData = await safeQueryArray(
+      supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .in('id', studentIds)
+    );
+    
+    return studentsData.map(student => {
+      const profile = profilesData.find(p => p.id === student.id);
+      return {
+        id: student.id,
+        school_id: student.school_id,
+        status: student.status,
+        created_at: student.created_at,
+        full_name: profile?.full_name || "Unknown Student",
+        email: profile?.email || "No email"
+      };
+    });
   } catch (error) {
     console.error("Unexpected error fetching students:", error);
     return [];
@@ -184,7 +194,9 @@ export async function getStudentsWithProfiles(schoolId: string) {
 export async function getStudentPerformanceMetrics(schoolId: string) {
   try {
     const { data, error } = await supabase
-      .rpc('get_student_performance_metrics', { p_school_id: schoolId });
+      .from('student_performance_metrics')
+      .select('*')
+      .eq('school_id', schoolId);
     
     if (error) {
       console.error("Error getting student performance metrics:", error);

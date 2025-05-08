@@ -10,7 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
 const Login = () => {
-  const { user, userRole, isLoading } = useAuth();
+  const { user, userRole } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   
@@ -19,8 +19,6 @@ const Login = () => {
   
   // Immediately redirect logged-in users to appropriate dashboard
   useEffect(() => {
-    if (isLoading) return; // Don't redirect while still loading
-    
     if (user && userRole) {
       // Determine where to redirect based on user role
       let redirectPath = from || '/dashboard';
@@ -35,7 +33,7 @@ const Login = () => {
       toast.success(`Welcome back, ${user.user_metadata?.full_name || 'User'}!`);
       navigate(redirectPath, { replace: true });
     }
-  }, [user, userRole, isLoading, navigate, from]);
+  }, [user, userRole, navigate, from]);
   
   return (
     <div className="min-h-screen flex flex-col">
@@ -67,18 +65,11 @@ const Login = () => {
           </Alert>
         </div>
         
-        {isLoading ? (
-          <div className="flex items-center justify-center p-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-learnable-blue"></div>
-            <span className="ml-3 text-gray-600">Loading...</span>
-          </div>
-        ) : (
-          <LoginForm />
-        )}
+        <LoginForm />
       </main>
       <Footer />
     </div>
   );
-};
+}
 
 export default Login;

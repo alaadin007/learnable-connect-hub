@@ -13,19 +13,9 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children,
   requiredUserType
 }) => {
-  const { user, userRole, schoolId, session, isLoading } = useAuth();
+  const { user, userRole, schoolId, session } = useAuth();
   const location = useLocation();
 
-  // Show loading state while authentication is being checked
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-learnable-blue"></div>
-        <span className="ml-3 text-gray-600">Checking authentication...</span>
-      </div>
-    );
-  }
-  
   // If no user is authenticated, redirect to login
   if (!user || !session) {
     // Toast only when not already on login page to avoid notification spam

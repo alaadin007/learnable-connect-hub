@@ -8,7 +8,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2 } from "lucide-react";
 import { safeQueryArray } from "@/utils/supabaseHelpers";
 
 interface TeacherSelectorProps {
@@ -28,7 +27,6 @@ export function TeacherSelector({
   onTeacherChange,
 }: TeacherSelectorProps) {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     const fetchTeachers = async () => {
@@ -36,8 +34,7 @@ export function TeacherSelector({
         setTeachers([]);
         return;
       }
-
-      setIsLoading(true);
+      
       try {
         // Use our helper function for safer data fetching
         const teachersData = await safeQueryArray(
@@ -49,7 +46,6 @@ export function TeacherSelector({
 
         if (!teachersData || teachersData.length === 0) {
           setTeachers([]);
-          setIsLoading(false);
           return;
         }
 
@@ -72,8 +68,6 @@ export function TeacherSelector({
       } catch (error) {
         console.error("Error fetching teachers:", error);
         setTeachers([]);
-      } finally {
-        setIsLoading(false);
       }
     };
 
@@ -92,7 +86,6 @@ export function TeacherSelector({
         onValueChange={(value) =>
           onTeacherChange(value === "all" ? undefined : value)
         }
-        disabled={isLoading}
         aria-labelledby={labelId}
       >
         <SelectTrigger className="w-full">
@@ -100,15 +93,7 @@ export function TeacherSelector({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">All Teachers</SelectItem>
-
-          {isLoading ? (
-            <SelectItem disabled value="loading" className="cursor-default">
-              <div className="flex items-center justify-center space-x-2 py-1">
-                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">Loading...</span>
-              </div>
-            </SelectItem>
-          ) : teachers.length === 0 ? (
+          {teachers.length === 0 ? (
             <SelectItem disabled value="none" className="cursor-default">
               No teachers found
             </SelectItem>
