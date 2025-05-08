@@ -16,6 +16,18 @@ import StudyTimeChart from '@/components/analytics/StudyTimeChart';
 import { Student, AnalyticsSummary, SessionData, TopicData } from '@/components/analytics/types';
 import { supabase } from '@/integrations/supabase/client';
 
+// Define proper props interfaces
+interface StudentSelectorProps {
+  students: Student[];
+  selectedStudentId: string;
+  onStudentChange: (id: string) => void;
+}
+
+interface AnalyticsFiltersProps {
+  dateRange: DateRange;
+  onDateRangeChange: (range: DateRange) => void;
+}
+
 const TeacherAnalytics = () => {
   const { schoolId } = useAuth();
   
@@ -63,12 +75,14 @@ const TeacherAnalytics = () => {
 
       if (error) throw error;
 
-      const formattedStudents = data.map(student => ({
-        id: student.id,
-        name: student.profiles?.full_name || 'Unknown'
-      }));
-      
-      setStudents(formattedStudents);
+      if (data) {
+        const formattedStudents = data.map(student => ({
+          id: student.id,
+          name: student.profiles?.full_name || 'Unknown'
+        }));
+        
+        setStudents(formattedStudents);
+      }
     } catch (error) {
       console.error('Error fetching students:', error);
     }

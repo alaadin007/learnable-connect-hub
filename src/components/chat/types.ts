@@ -19,15 +19,29 @@ export interface ConversationListProps {
   selectedId?: string;
   onSelectConversation: (id: string) => void;
   onRefresh?: () => Promise<void>;
+  onArchiveConversation?: (id: string) => void;
 }
 
 export interface VoiceRecorderProps {
   onTranscript: (transcript: string) => void;
   setIsRecording?: React.Dispatch<React.SetStateAction<boolean>>;
+  isRecording?: boolean;
 }
 
 export interface TextToSpeechProps {
   message?: string;
+  messages?: Message[];
 }
 
-// Add any other chat-related interfaces that are needed
+// Add types for session logger
+export interface SessionLogResult {
+  id: string;
+  success: boolean;
+  error?: string;
+}
+
+export interface PerformanceData {
+  accuracy?: number;
+  speed?: number;
+  completion?: number;
+}

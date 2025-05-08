@@ -89,7 +89,7 @@ const ChatWithAI: React.FC = () => {
         <h2 className="text-lg font-semibold mb-4">Your Conversations</h2>
         <ConversationList
           conversations={conversations}
-          selectedId={activeConversationId}
+          selectedId={activeConversationId || undefined}
           onSelectConversation={(id) => setActiveConversationId(id)}
           onRefresh={fetchConversations}
         />

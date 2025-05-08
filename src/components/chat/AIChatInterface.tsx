@@ -1,332 +1,339 @@
-// Only updating the problematic parts, not the entire file
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Input } from '@/components/ui/input';
+import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { Send, Mic, X, MessageSquare, Stop } from "lucide-react";
+import ChatMessage from "./ChatMessage";
+import TypingIndicator from "./TypingIndicator";
+import VoiceRecorder from "./VoiceRecorder";
+import TextToSpeech from "./TextToSpeech";
+import { Message, SessionLogResult, PerformanceData } from "./types";
+import { sessionLogger } from '@/utils/sessionLogger';
 import { Button } from '@/components/ui/button';
-import { Send, Mic, Loader2 } from 'lucide-react';
-import ChatMessage from './ChatMessage';
-import TypingIndicator from './TypingIndicator';
-import VoiceRecorder from './VoiceRecorder';
-import TextToSpeech from './TextToSpeech';
-import { Separator } from '@/components/ui/separator';
-import { useTheme } from '@/contexts/ThemeContext';
-import sessionLogger from '@/utils/sessionLogger';
-import { Message } from './types';
+import { Input } from '@/components/ui/input';
 
-// Define conversation and message types
-export type Conversation = {
-  id: string;
-  title: string;
-  messages: Message[];
-};
-
-// Update the Props interface to include onConversationCreated
-interface Props {
+interface AIChatInterfaceProps {
   conversationId?: string;
   topic?: string;
   onConversationCreated?: (id: string) => void;
 }
 
-export function AIChatInterface({ conversationId, topic, onConversationCreated }: Props) {
-  const { user } = useAuth();
+const AIChatInterface: React.FC<AIChatInterfaceProps> = ({ conversationId, topic: initialTopic, onConversationCreated }) => {
+  const { user, profile } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { theme } = useTheme();
-  const [currentConversationId, setCurrentConversationId] = useState<string | undefined>(conversationId);
+  const [textToSpeechEnabled, setTextToSpeechEnabled] = useState(true);
+  const [lastAssistantMessage, setLastAssistantMessage] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [topic, setTopic] = useState<string | null>(initialTopic || null);
 
-  // Scroll to bottom of messages
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  // Load conversation history
+  // Session handling
   useEffect(() => {
-    if (currentConversationId) {
-      loadConversation(currentConversationId);
-    } else {
-      // Start with a welcome message
-      setMessages([
-        {
-          id: 'welcome',
-          role: 'assistant',
-          content: 'Hello! How can I help you today?',
-          timestamp: new Date().toISOString(),
-        },
-      ]);
+    if (topic && !sessionId) {
+      startSession();
     }
-  }, [currentConversationId]);
-
-  // Start session logging
-  useEffect(() => {
-    const startSession = async () => {
-      const sessionId = await sessionLogger.startSessionLog(topic || '');
-      setActiveSessionId(sessionId);
-    };
-
-    startSession();
-
+    
     return () => {
-      if (activeSessionId) {
-        sessionLogger.endSessionLog(activeSessionId, {});
+      if (sessionId) {
+        endSession();
       }
     };
   }, [topic]);
 
-  // Scroll to bottom when messages change
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  // Load conversation from database
-  const loadConversation = async (id: string) => {
+  const startSession = async () => {
+    if (!topic) return;
+    
     try {
-      setIsLoading(true);
+      const result = await sessionLogger.startSessionLog(topic);
+      if (result && result.id) {
+        setSessionId(result.id);
+      }
+    } catch (error) {
+      console.error("Failed to start session:", error);
+    }
+  };
+
+  const endSession = async () => {
+    if (!sessionId) return;
+    
+    try {
+      await sessionLogger.endSessionLog(sessionId);
+    } catch (error) {
+      console.error("Failed to end session:", error);
+    }
+  };
+
+  // Handle conversation loading
+  useEffect(() => {
+    if (conversationId) {
+      loadConversation();
+    }
+  }, [conversationId]);
+
+  const loadConversation = async () => {
+    setLoading(true);
+    try {
       const { data, error } = await supabase
         .from('messages')
         .select('*')
-        .eq('conversation_id', id)
+        .eq('conversation_id', conversationId)
         .order('timestamp', { ascending: true });
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
       if (data) {
-        const formattedMessages = data.map((msg) => ({
+        const formattedMessages = data.map(msg => ({
           id: msg.id,
-          role: msg.sender === 'user' ? 'user' : 'assistant' as 'user' | 'assistant' | 'system',
+          role: msg.sender as "user" | "assistant" | "system",
           content: msg.content,
-          timestamp: msg.timestamp,
+          timestamp: msg.timestamp
         }));
+        
         setMessages(formattedMessages);
+        
+        // Set the topic from conversation if not provided
+        if (!topic) {
+          const { data: convData } = await supabase
+            .from('conversations')
+            .select('topic, title')
+            .eq('id', conversationId)
+            .single();
+            
+          if (convData) {
+            setTopic(convData.topic || convData.title || null);
+          }
+        }
       }
-    } catch (error) {
-      console.error('Error loading conversation:', error);
+    } catch (err) {
+      console.error("Error loading conversation:", err);
+      toast.error("Failed to load conversation history");
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
   // Create a new conversation
-  const createConversation = async (firstMessage: string): Promise<string> => {
+  const createConversation = async (firstMessage: string) => {
+    if (!user) {
+      toast.error("You must be logged in to start a conversation");
+      return null;
+    }
+
     try {
-      // Get school_id from user profile
-      let schoolId = '';
-      if (user?.id) {
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('school_id')
-          .eq('id', user.id)
-          .single();
-          
-        if (profileData) {
-          schoolId = profileData.school_id;
-        }
+      // Get school ID if not provided
+      const userSchoolId = profile?.school_id || '';
+      
+      if (!userSchoolId) {
+        toast.error("No school association found");
+        return null;
       }
-  
+      
       // Create conversation
       const { data: conversationData, error: conversationError } = await supabase
         .from('conversations')
         .insert({
-          user_id: user?.id,
-          title: firstMessage.substring(0, 50) + (firstMessage.length > 50 ? '...' : ''),
-          topic: topic || 'General',
-          school_id: schoolId
+          user_id: user.id,
+          school_id: userSchoolId,
+          title: topic || "New conversation",
+          topic: topic || null
         })
         .select('id')
         .single();
 
       if (conversationError) throw conversationError;
 
-      const newConversationId = conversationData.id;
-      setCurrentConversationId(newConversationId);
+      // Save first message
+      const { error: messageError } = await supabase
+        .from('messages')
+        .insert({
+          conversation_id: conversationData.id,
+          sender: 'user',
+          content: firstMessage
+        });
 
-      // Notify parent component about the new conversation
+      if (messageError) throw messageError;
+
       if (onConversationCreated) {
-        onConversationCreated(newConversationId);
+        onConversationCreated(conversationData.id);
       }
 
-      return newConversationId;
-    } catch (error) {
-      console.error('Error creating conversation:', error);
-      throw error;
-    }
-  };
-
-  // Save message to database
-  const saveMessage = async (message: Omit<Message, 'id'>, conversationId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('messages')
-        .insert([
-          {
-            conversation_id: conversationId,
-            sender: message.role === 'user' ? 'user' : 'assistant',
-            content: message.content,
-            timestamp: message.timestamp,
-          },
-        ])
-        .select('id')
-        .single();
-
-      if (error) throw error;
-      return data.id;
-    } catch (error) {
-      console.error('Error saving message:', error);
+      return conversationData.id;
+    } catch (err) {
+      console.error("Error creating conversation:", err);
+      toast.error("Failed to save conversation");
       return null;
     }
   };
 
-  // Handle sending a message
-  const handleSendMessage = async () => {
-    if (!input.trim()) return;
+  // Save message to existing conversation
+  const saveMessage = async (message: Message, conversationId: string) => {
+    try {
+      const { error } = await supabase
+        .from('messages')
+        .insert({
+          conversation_id: conversationId,
+          sender: message.role,
+          content: message.content
+        });
 
-    const userMessage: Omit<Message, 'id'> = {
-      role: 'user',
-      content: input,
-      timestamp: new Date().toISOString(),
-    };
+      if (error) throw error;
+      return true;
+    } catch (err) {
+      console.error("Error saving message:", err);
+      return false;
+    }
+  };
 
-    // Update UI immediately
-    setMessages((prev) => [
-      ...prev,
-      { ...userMessage, id: 'temp-' + Date.now() },
-    ]);
-    setInput('');
-    setIsTyping(true);
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!input.trim() || isTyping) return;
 
     try {
-      // Create conversation if needed
-      let msgConversationId = currentConversationId;
-      if (!msgConversationId) {
-        msgConversationId = await createConversation(input);
+      // Increment query count if session is active
+      if (sessionId) {
+        try {
+          await sessionLogger.incrementQueryCount(sessionId);
+        } catch (error) {
+          console.error("Failed to increment query count:", error);
+        }
       }
 
-      // Save user message
-      const userMessageId = await saveMessage(userMessage, msgConversationId);
+      // Prepare user message
+      const userMessage: Message = {
+        id: crypto.randomUUID(),
+        role: 'user',
+        content: input,
+        timestamp: new Date().toISOString()
+      };
 
-      // Increment query count in session log
-      if (activeSessionId) {
-        await sessionLogger.updateSessionTopic(activeSessionId, input);
+      setMessages(prevMessages => [...prevMessages, userMessage]);
+      setInput('');
+      setIsTyping(true);
+
+      // Save to database or create new conversation
+      let currentConvId = conversationId;
+      if (!currentConvId) {
+        currentConvId = await createConversation(input);
+      } else {
+        await saveMessage(userMessage, currentConvId);
       }
 
-      // Call AI API
-      const response = await fetch('/api/chat', {
+      // Call the proxy function
+      const apiKey = process.env.NEXT_PUBLIC_OPENAI_API_KEY;
+      const apiUrl = '/api/proxy-openai';
+        
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          message: input,
-          conversationId: msgConversationId,
-        }),
+        body: JSON.stringify({ prompt: input, apiKey }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to get response');
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const data = await response.json();
-
-      // Create AI response message
-      const aiMessage: Omit<Message, 'id'> = {
-        role: 'assistant',
-        content: data.message,
-        timestamp: new Date().toISOString(),
-      };
-
-      // Save AI message
-      const aiMessageId = await saveMessage(aiMessage, msgConversationId);
-
-      // Update UI with final messages
-      setMessages((prev) => [
-        ...prev.filter((msg) => !msg.id.startsWith('temp-')),
-        { ...userMessage, id: userMessageId || 'user-' + Date.now() },
-        { ...aiMessage, id: aiMessageId || 'ai-' + Date.now() },
-      ]);
-    } catch (error) {
-      console.error('Error sending message:', error);
-      setMessages((prev) => [
-        ...prev.filter((msg) => !msg.id.startsWith('temp-')),
-        {
-          id: 'error-' + Date.now(),
+      const responseData = await response.json();
+      if (responseData && responseData.result) {
+        const assistantMessage: Message = {
+          id: crypto.randomUUID(),
           role: 'assistant',
-          content: 'Sorry, I encountered an error. Please try again.',
-          timestamp: new Date().toISOString(),
-        },
-      ]);
+          content: responseData.result,
+          timestamp: new Date().toISOString()
+        };
+
+        setMessages(prevMessages => [...prevMessages, assistantMessage]);
+        setLastAssistantMessage(assistantMessage.content);
+        if (currentConvId) {
+          await saveMessage(assistantMessage, currentConvId);
+        }
+      } else {
+        toast.error("Failed to get response from AI.");
+      }
+    } catch (error) {
+      console.error("Error in conversation:", error);
+      setIsTyping(false);
+      toast.error("Failed to get response. Please try again.");
     } finally {
       setIsTyping(false);
     }
   };
 
-  // Handle voice recording
-  const handleVoiceInput = (transcript: string) => {
-    setInput(transcript);
-    if (transcript) {
-      handleSendMessage();
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      handleSubmit(e);
     }
   };
 
+  const handleTranscript = (transcript: string) => {
+    setInput(transcript);
+  };
+
   return (
-    <div className="flex flex-col h-[calc(100vh-12rem)] max-h-[calc(100vh-12rem)] bg-background rounded-lg border">
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {isLoading ? (
+    <div className="flex flex-col h-full">
+      <div className="flex-grow overflow-y-auto p-4">
+        {loading ? (
           <div className="flex justify-center items-center h-full">
-            <Loader2 className="h-8 w-8 animate-spin" />
+            Loading...
           </div>
         ) : (
-          <>
-            {messages.map((message) => (
-              <ChatMessage key={message.id} message={message} />
-            ))}
-            {isTyping && <TypingIndicator />}
-            <div ref={messagesEndRef} />
-          </>
+          messages.map((message) => (
+            <ChatMessage key={message.id} message={message} />
+          ))
         )}
+        {isTyping && <TypingIndicator />}
       </div>
 
-      <Separator />
-
-      <div className="p-4">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleSendMessage();
-          }}
-          className="flex items-center space-x-2"
-        >
+      <form onSubmit={handleSubmit} className="p-4 border-t">
+        <div className="flex items-center space-x-2">
           <Input
+            type="text"
+            placeholder="Type your message..."
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Type your message..."
-            className="flex-1"
-            disabled={isLoading || isTyping}
+            onKeyDown={handleKeyDown}
+            className="flex-grow"
+            disabled={isTyping}
           />
-          <VoiceRecorder
+          <Button 
+            type="button" 
+            variant="ghost" 
+            onClick={() => setShowVoiceRecorder(!showVoiceRecorder)}
+            disabled={isTyping}
+          >
+            {showVoiceRecorder ? <X className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+          </Button>
+          <Button 
+            type="submit" 
+            disabled={isTyping || !input.trim()}
+          >
+            <Send className="h-5 w-5" />
+          </Button>
+        </div>
+      </form>
+      
+      {showVoiceRecorder && (
+        <div className="mb-4">
+          <VoiceRecorder 
+            onTranscript={handleTranscript} 
             isRecording={isRecording}
             setIsRecording={setIsRecording}
-            onTranscript={handleVoiceInput}
           />
-          <Button
-            type="submit"
-            size="icon"
-            disabled={!input.trim() || isLoading || isTyping}
-          >
-            <Send className="h-4 w-4" />
-          </Button>
-          <TextToSpeech messages={messages} />
-        </form>
-      </div>
+        </div>
+      )}
+      
+      {textToSpeechEnabled && lastAssistantMessage && (
+        <div className="mb-4">
+          <TextToSpeech message={lastAssistantMessage} />
+        </div>
+      )}
     </div>
   );
-}
+};
 
 export default AIChatInterface;

@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -10,12 +9,16 @@ interface AuthContextType {
   userRole: string | null;
   organization: { id: string; name: string } | null;
   isLoading: boolean;
-  schoolId: string | null; // Add missing schoolId property
-  dbError: boolean | null; // Add missing dbError property
+  schoolId: string | null;
+  dbError: boolean | null;
+  isSupervisor: boolean; // Add missing property
   signIn: (email: string, password: string) => Promise<{ error: any; data?: any }>;
   signUp: (email: string, password: string, metadata: any) => Promise<{ error: any; data: any }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: any }>;
+  refreshProfile: () => Promise<void>; // Add missing method
+  setTestUser: (userData: any) => Promise<void>; // Add missing method
+  refreshSession: () => Promise<void>; // Add missing method
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -29,6 +32,34 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [isLoading, setIsLoading] = useState(true);
   const [schoolId, setSchoolId] = useState<string | null>(null);
   const [dbError, setDbError] = useState<boolean | null>(null);
+  const [isSupervisor, setIsSupervisor] = useState(false);
+
+  // Function to refresh user profile data
+  const refreshProfile = async () => {
+    if (session?.user) {
+      await loadUserProfile(session.user.id);
+    }
+  };
+
+  // Function to refresh session data
+  const refreshSession = async () => {
+    const { data: { session: currentSession } } = await supabase.auth.getSession();
+    setSession(currentSession);
+    setUser(currentSession?.user ?? null);
+    
+    if (currentSession?.user) {
+      await loadUserProfile(currentSession.user.id);
+    }
+  };
+
+  // Function to set test user for development
+  const setTestUser = async (userData: any) => {
+    if (userData && userData.user) {
+      setUser(userData.user);
+      setSession(userData);
+      await loadUserProfile(userData.user.id);
+    }
+  };
 
   useEffect(() => {
     // Set up auth state listener
@@ -44,6 +75,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setUserRole(null);
           setOrganization(null);
           setSchoolId(null);
+          setIsSupervisor(false);
         }
         
         setIsLoading(false);
@@ -86,11 +118,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         
         // If organization data is available in the profile, use it
         if (profileData.organization && typeof profileData.organization === 'object') {
-          const orgData = profileData.organization as { [key: string]: any };
-          organizationData = {
-            id: orgData.id || '',
-            name: orgData.name || ''
-          };
+          const orgData = profileData.organization as Record<string, any>;
+          if (orgData && orgData.id && orgData.name) {
+            organizationData = {
+              id: orgData.id,
+              name: orgData.name
+            };
+          }
         }
         // Otherwise, try to construct from school_id if available
         else if (profileData.school_id) {
@@ -106,6 +140,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               name: schoolData.name
             };
           }
+        }
+
+        // Check if user is supervisor
+        if (profileData.user_type === 'teacher') {
+          const { data: teacherData } = await supabase
+            .from('teachers')
+            .select('is_supervisor')
+            .eq('id', userId)
+            .single();
+          
+          setIsSupervisor(teacherData?.is_supervisor || false);
+        } else {
+          setIsSupervisor(profileData.user_type === 'school_admin');
         }
 
         // Update the profile
@@ -178,10 +225,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     isLoading,
     schoolId,
     dbError,
+    isSupervisor,
     signIn,
     signUp,
     signOut,
     resetPassword,
+    refreshProfile,
+    setTestUser,
+    refreshSession,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
