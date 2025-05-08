@@ -10,6 +10,15 @@ export interface Settings {
   showSources?: boolean;
 }
 
+// User settings from database
+interface UserSettings {
+  user_id: string;
+  max_tokens: number;
+  temperature: number;
+  model: string;
+  show_sources: boolean;
+}
+
 // Define context type
 interface SettingsContextType {
   settings: Settings;
@@ -53,21 +62,30 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         // Then try to get from database if user is authenticated
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
-          const { data, error } = await supabase
-            .from('user_settings')
-            .select('*')
-            .eq('user_id', session.user.id)
-            .single();
-            
-          if (data && !error) {
-            const dbSettings = {
-              maxTokens: data.max_tokens,
-              temperature: data.temperature,
-              model: data.model,
-              showSources: data.show_sources,
-            };
-            setSettings(dbSettings);
-            localStorage.setItem('user-settings', JSON.stringify(dbSettings));
+          // We're not checking if user_settings table exists yet,
+          // so we'll handle it with try/catch and fallback to localStorage settings
+          try {
+            // Check if the settings feature is currently available
+            const { data, error } = await supabase
+              .from('user_settings')
+              .select('*')
+              .eq('user_id', session.user.id)
+              .limit(1)
+              .maybeSingle();
+              
+            if (data && !error) {
+              const dbSettings = {
+                maxTokens: data.max_tokens,
+                temperature: data.temperature,
+                model: data.model,
+                showSources: data.show_sources,
+              };
+              setSettings(dbSettings);
+              localStorage.setItem('user-settings', JSON.stringify(dbSettings));
+            }
+          } catch (dbError) {
+            console.warn('User settings table might not exist yet:', dbError);
+            // Just continue with localStorage settings
           }
         }
       } catch (error) {
@@ -92,15 +110,20 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
-        await supabase
-          .from('user_settings')
-          .upsert({
-            user_id: session.user.id,
-            max_tokens: updatedSettings.maxTokens,
-            temperature: updatedSettings.temperature,
-            model: updatedSettings.model,
-            show_sources: updatedSettings.showSources,
-          }, { onConflict: 'user_id' });
+        try {
+          await supabase
+            .from('user_settings')
+            .upsert({
+              user_id: session.user.id,
+              max_tokens: updatedSettings.maxTokens,
+              temperature: updatedSettings.temperature,
+              model: updatedSettings.model,
+              show_sources: updatedSettings.showSources,
+            }, { onConflict: 'user_id' });
+        } catch (dbError) {
+          console.warn('Failed to save settings to database:', dbError);
+          // Continue normally - localStorage is our source of truth
+        }
       }
     } catch (error) {
       console.error('Error saving settings:', error);
