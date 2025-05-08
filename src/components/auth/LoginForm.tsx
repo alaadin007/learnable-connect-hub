@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -70,8 +71,10 @@ const LoginForm = () => {
   const getUserRedirectPath = (role: string): string => {
     switch (role) {
       case "school":
+      case "school_admin": // Handle legacy role name
         return "/admin";
       case "teacher":
+      case "teacher_supervisor": // Handle legacy role name
         return "/teacher/analytics";
       case "student":
         return "/dashboard";
@@ -199,6 +202,10 @@ const LoginForm = () => {
         // First try to get from user metadata
         if (data.user.user_metadata) {
           userType = data.user.user_metadata.user_type;
+          // Normalize the user role
+          if (userType === "school_admin") {
+            userType = "school";
+          }
           userName = data.user.user_metadata.full_name;
         }
         // If not in metadata, try to get from profile
@@ -212,6 +219,10 @@ const LoginForm = () => {
             fetchedProfile = profile;
             if (!profileError && profile) {
               userType = profile.user_type;
+              // Normalize the user role if needed
+              if (userType === "school_admin") {
+                userType = "school";
+              }
               userName = profile.full_name || userName;
               console.log("Fetched user type from profile:", userType);
               console.log("Fetched profile:", profile);
@@ -222,6 +233,7 @@ const LoginForm = () => {
         } else {
           console.log("User type from metadata:", userType);
         }
+        
         // Check user_roles table as well for definitive role assignment
         try {
           const { data: userRole, error: roleError } = await supabase
@@ -232,14 +244,15 @@ const LoginForm = () => {
           if (!roleError && userRole) {
             console.log("Found user role in user_roles table:", userRole.role);
             userType = userRole.role;
+            // Normalize the user role
+            if (userType === "school_admin") {
+              userType = "school";
+            }
           }
         } catch (roleError) {
           console.error("Error checking user_roles table:", roleError);
         }
-        // Normalize the user role to handle both "school" and "school_admin" formats
-        if (userType === "school_admin") {
-          userType = "school";
-        }
+        
         // Error handling for missing userType or missing organization for school admin
         if (!userType) {
           setLoginError("Your account is missing a user type. Please contact support.");
@@ -251,6 +264,7 @@ const LoginForm = () => {
           setIsLoading(false);
           return;
         }
+        
         // Default to dashboard if we still can't determine the role
         const redirectPath = userType ? getUserRedirectPath(userType) : "/dashboard";
         console.log(`User type: ${userType}, redirecting to: ${redirectPath}`);

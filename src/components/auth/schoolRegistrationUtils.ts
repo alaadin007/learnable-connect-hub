@@ -87,7 +87,7 @@ export async function checkEmailExistingRole(email: string): Promise<string | nu
 function formatRoleForDisplay(role: string | null): string | null {
   if (!role) return null;
   
-  // Map legacy role names to our simplified set
+  // Map all legacy role names to our simplified set
   if (role === "school_admin") return "School Administrator";
   
   switch (role) {
