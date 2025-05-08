@@ -14,12 +14,11 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 const LoginForm = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [activeTestAccount, setActiveTestAccount] = useState<string | null>(null);
   const { signIn, setTestUser, userRole, signOut } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [loginError, setLoginError] = useState<string | null>(null);
-  const [activeTestAccount, setActiveTestAccount] = useState<string | null>(null);
   
   // Show success toast for registration and email verification
   useEffect(() => {
