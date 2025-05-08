@@ -1,4 +1,3 @@
-
 import React, { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -27,30 +26,23 @@ const Dashboard = () => {
     }
   }, [user, navigate, location.state]);
 
-  // More targeted approach to role-based redirection
+  // Immediately redirect school admins to the admin dashboard
   useEffect(() => {
-    // Only redirect on specific conditions
-    const isDirectDashboardAccess = !location.state?.fromNavigation && 
-                                   !location.state?.fromTestAccounts &&
-                                   !location.state?.preserveContext &&
-                                   !location.state?.fromDashboard;
-    
-    // Only redirect if we know the role and it's a direct access
-    if (userRole && isDirectDashboardAccess) {
-      console.log("Dashboard: Redirecting based on role", {
-        userRole,
-        isDirectDashboardAccess,
-        locationState: location.state
-      });
-      
-      if (userRole === "school" && profile?.organization?.id) {
-        navigate("/admin", { replace: true, state: { fromDashboard: true, preserveContext: true } });
-      } else if (userRole === "teacher") {
-        navigate("/teacher/analytics", { replace: true, state: { fromDashboard: true, preserveContext: true } });
+    if (userRole === "school" && profile?.organization?.id) {
+      // Only redirect if coming directly to dashboard, not from navigation
+      const isDirectAccess = !location.state?.fromNavigation && 
+                            !location.state?.fromTestAccounts &&
+                            !location.state?.preserveContext;
+                            
+      if (isDirectAccess) {
+        console.log("Dashboard: Redirecting school admin to admin panel");
+        navigate("/admin", { 
+          replace: true, 
+          state: { fromDashboard: true, preserveContext: true }
+        });
       }
-      // Student stays on dashboard
     }
-  }, [userRole, navigate, location.state, profile]);
+  }, [userRole, profile, navigate, location.state]);
 
   // Show loading state if user or profile data is not ready
   if (!user && !location.state?.fromTestAccounts) {
