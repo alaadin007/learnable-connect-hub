@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +8,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { Clock, AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const LoginForm = () => {
@@ -82,28 +83,25 @@ const LoginForm = () => {
     }
   };
 
-  // Special handling for test accounts - improved for reliability
+  // Fast test account login - no delays or spinners
   const handleQuickLogin = async (
     type: "school" | "teacher" | "student"
   ) => {
-    setLoginError(null);
-    setIsLoading(true);
-
     try {
-      console.log(`LoginForm: Instant login as ${type}`);
+      console.log(`LoginForm: Fast login as ${type}`);
       
-      // Sign out first if there's any active session to prevent conflicts
+      // Clean up any existing session
       await signOut();
       
-      // Clean any existing test account state first
+      // Reset state flags
       localStorage.removeItem('usingTestAccount');
       localStorage.removeItem('testAccountType');
       
-      // Set test account flags
+      // Set new test account flags
       localStorage.setItem('usingTestAccount', 'true');
       localStorage.setItem('testAccountType', type);
       
-      // Direct login for test accounts
+      // Direct instant login for test accounts
       const mockUser = await setTestUser(type);
       if (!mockUser) {
         throw new Error(`Failed to set up ${type} test account`);
@@ -123,6 +121,7 @@ const LoginForm = () => {
         }`
       );
 
+      // Immediate navigation without delays
       navigate(redirectPath, { 
         replace: true,
         state: { 
@@ -137,12 +136,10 @@ const LoginForm = () => {
       setLoginError(`Failed to log in with test account: ${error.message}`);
       toast.error("Failed to log in with test account");
       
-      // Clear any partial test account state on error
+      // Clean any partial test account state on error
       localStorage.removeItem('usingTestAccount');
       localStorage.removeItem('testAccountType');
       setActiveTestAccount(null);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -155,7 +152,6 @@ const LoginForm = () => {
       return;
     }
     
-    setIsLoading(true);
     console.log(`LoginForm: Attempting login for ${email}`);
 
     try {
@@ -167,7 +163,7 @@ const LoginForm = () => {
         setActiveTestAccount(null);
       }
       
-      // Special handling for test accounts
+      // Special handling for test accounts - instant login
       if (email.includes(".test@learnable.edu")) {
         let type: "school" | "teacher" | "student" = "student";
         if (email.startsWith("school")) type = "school";
@@ -177,7 +173,7 @@ const LoginForm = () => {
         return;
       }
       
-      // Handle normal login with credentials
+      // Handle normal login with credentials - no loading state to avoid delays
       const { data, error } = await signIn(email, password);
       
       if (error) {
@@ -252,13 +248,11 @@ const LoginForm = () => {
         // Error handling for missing userType or missing organization for school admin
         if (!userType) {
           setLoginError("Your account is missing a user type. Please contact support.");
-          setIsLoading(false);
           return;
         }
         
         if (userType === "school" && (!fetchedProfile || !fetchedProfile.organization || !fetchedProfile.organization.id)) {
           setLoginError("Your school admin account is missing an associated school. Please contact support.");
-          setIsLoading(false);
           return;
         }
         
@@ -269,6 +263,7 @@ const LoginForm = () => {
           description: `Welcome back, ${userName || email}!`,
         });
         
+        // Immediate navigation without delays
         navigate(redirectPath, {
           replace: true,
           state: {
@@ -297,8 +292,6 @@ const LoginForm = () => {
       } else {
         toast.error(`Login failed: ${error.message}`);
       }
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -308,7 +301,6 @@ const LoginForm = () => {
       return;
     }
     
-    setIsLoading(true);
     try {
       // Direct call to Supabase to resend verification email
       const { error } = await supabase.auth.resend({
@@ -325,8 +317,6 @@ const LoginForm = () => {
       }
     } catch (error: any) {
       toast.error("An error occurred: " + error.message);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -335,7 +325,6 @@ const LoginForm = () => {
       toast.error("Please enter your email address");
       return;
     }
-    setIsLoading(true);
 
     try {
       // Direct call to Supabase to reset password
@@ -352,8 +341,6 @@ const LoginForm = () => {
       }
     } catch (error: any) {
       toast.error("An error occurred: " + error.message);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -399,7 +386,7 @@ const LoginForm = () => {
 
           <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-md">
             <div className="flex">
-              <Clock className="h-5 w-5 text-blue-700 mr-2 flex-shrink-0 mt-0.5" />
+              <AlertCircle className="h-5 w-5 text-blue-700 mr-2 flex-shrink-0 mt-0.5" />
               <div>
                 <p className="text-blue-800 font-medium">Need quick access?</p>
                 <p className="mt-1 text-sm text-blue-700">
@@ -412,7 +399,6 @@ const LoginForm = () => {
                     className={`text-sm text-blue-800 font-semibold hover:text-blue-900 bg-blue-100 px-3 py-1 rounded-full transition-colors duration-200 ${
                       activeTestAccount === "school" ? "ring-2 ring-blue-500" : ""
                     }`}
-                    disabled={isLoading}
                   >
                     {activeTestAccount === "school" ? "Active Admin" : "Admin Login"}
                   </button>
@@ -422,7 +408,6 @@ const LoginForm = () => {
                     className={`text-sm text-green-800 font-semibold hover:text-green-900 bg-green-100 px-3 py-1 rounded-full transition-colors duration-200 ${
                       activeTestAccount === "teacher" ? "ring-2 ring-green-500" : ""
                     }`}
-                    disabled={isLoading}
                   >
                     {activeTestAccount === "teacher" ? "Active Teacher" : "Teacher Login"}
                   </button>
@@ -432,7 +417,6 @@ const LoginForm = () => {
                     className={`text-sm text-purple-800 font-semibold hover:text-purple-900 bg-purple-100 px-3 py-1 rounded-full transition-colors duration-200 ${
                       activeTestAccount === "student" ? "ring-2 ring-purple-500" : ""
                     }`}
-                    disabled={isLoading}
                   >
                     {activeTestAccount === "student" ? "Active Student" : "Student Login"}
                   </button>
@@ -458,7 +442,6 @@ const LoginForm = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 autoComplete="email"
-                disabled={isLoading}
               />
             </div>
             <div className="space-y-2">
@@ -468,7 +451,6 @@ const LoginForm = () => {
                   type="button"
                   onClick={handleResetPassword}
                   className="text-sm text-learnable-blue hover:underline"
-                  disabled={isLoading}
                 >
                   Forgot password?
                 </button>
@@ -480,25 +462,13 @@ const LoginForm = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 autoComplete="current-password"
-                disabled={isLoading}
               />
             </div>
             <Button
               type="submit"
               className="w-full gradient-bg transition-all duration-300 relative overflow-hidden"
-              disabled={isLoading}
-              aria-busy={isLoading}
             >
-              {isLoading ? (
-                <>
-                  <span className="inline-flex items-center">
-                    <Loader2 className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" />
-                    Logging in...
-                  </span>
-                </>
-              ) : (
-                "Log in"
-              )}
+              Log in
             </Button>
           </form>
         </CardContent>
