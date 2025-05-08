@@ -187,37 +187,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUserRole(normalizedUserType);
       setSchoolId(profileData.school_id || null);
 
-      // If user is school admin, get school details
-      if (normalizedUserType === 'school' && profileData.school_id) {
-        const { data: schoolData, error: schoolError } = await supabase
-          .from('schools')
-          .select('id, name')
-          .eq('id', profileData.school_id)
-          .single();
-
-        if (!schoolError && schoolData) {
-          setProfile({
-            ...profileData,
-            user_type: normalizedUserType,
-            organization: {
-              id: schoolData.id,
-              name: schoolData.name
-            }
-          });
-        } else {
-          setProfile({
-            ...profileData,
-            user_type: normalizedUserType
-          });
-          
-          if (schoolError) {
-            console.error("Error fetching school data:", schoolError);
-            setDbError(true);
+      // If user is school admin, use organization data if available
+      if (normalizedUserType === 'school' && (profileData.school_id || profileData.organization)) {
+        setProfile({
+          id: profileData.id,
+          full_name: profileData.full_name,
+          user_type: normalizedUserType,
+          organization: profileData.organization || {
+            id: profileData.school_id as string,
+            name: profileData.school_name || "School"
           }
-        }
+        });
         
         // Set supervisor status for school admin
         setIsSupervisor(true);
+        setDbError(false);
       } else if (normalizedUserType === 'teacher' && profileData.school_id) {
         // Check if teacher is a supervisor
         const { data: teacherData, error: teacherError } = await supabase
@@ -235,13 +219,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
         
         setProfile({
-          ...profileData,
-          user_type: normalizedUserType
+          id: profileData.id,
+          full_name: profileData.full_name,
+          user_type: normalizedUserType,
+          school_id: profileData.school_id,
+          organization: profileData.organization
         });
       } else {
         setProfile({
-          ...profileData,
-          user_type: normalizedUserType
+          id: profileData.id,
+          full_name: profileData.full_name,
+          user_type: normalizedUserType,
+          school_id: profileData.school_id,
+          organization: profileData.organization
         });
         
         // Non-school users are not supervisors by default

@@ -13,9 +13,8 @@ export async function getUserProfile(userId: string) {
         email,
         school_id,
         school_code,
-        avatar_url,
         is_active,
-        organization:schools(id, name)
+        organization
       `)
       .eq('id', userId)
       .single();
@@ -40,11 +39,17 @@ export async function getUserProfile(userId: string) {
 // Teacher invitation function - leverages database function
 export async function inviteTeacherDirect(email: string) {
   try {
+    // Get the current user's ID
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return { success: false, message: 'User not authenticated' };
+    }
+    
     // Get the school ID for the current user
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('school_id, organization(id)')
-      .eq('id', supabase.auth.getUser().then(res => res.data.user?.id))
+      .select('school_id, organization')
+      .eq('id', user.id)
       .single();
 
     if (profileError) throw profileError;
@@ -80,11 +85,17 @@ export async function inviteStudentDirect(
   email?: string
 ) {
   try {
+    // Get the current user's ID
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return { success: false, message: 'User not authenticated' };
+    }
+    
     // Get the school ID for the current user
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('school_id, organization(id)')
-      .eq('id', supabase.auth.getUser().then(res => res.data.user?.id))
+      .select('school_id, organization')
+      .eq('id', user.id)
       .single();
 
     if (profileError) throw profileError;
@@ -132,7 +143,7 @@ export async function inviteStudentDirect(
   }
 }
 
-// Student approval function
+// Fix other utility functions:
 export async function approveStudentDirect(studentId: string) {
   try {
     // Call RPC function
@@ -165,5 +176,3 @@ export async function revokeStudentAccessDirect(studentId: string) {
     return false;
   }
 }
-
-// Other utility functions can be added here

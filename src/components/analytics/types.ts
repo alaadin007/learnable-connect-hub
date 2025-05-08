@@ -1,141 +1,33 @@
 
-export interface AnalyticsSummary {
-  activeStudents: number;
-  totalSessions: number;
-  totalQueries: number;
-  avgSessionMinutes: number;
-  active_students?: number;
-  total_sessions?: number;
-  total_queries?: number;
-  avg_session_minutes?: number;
-  school_id?: string;
-  school_name?: string;
-  latest_session_start?: string;
-}
-
-export interface SessionData {
-  id: string;
-  userId: string;
-  userName: string;
-  startTime: string;
-  endTime: string | null;
-  duration: number;
-  topicOrContent: string;
-  numQueries: number;
-  queries?: number;
-  student_name?: string;
-  student_id?: string;
-  session_start?: string;
-  session_end?: string;
-  topic_or_content_used?: string;
-  content_type?: string;
-  topics?: string[];
-  questions_asked?: number;
-  questions_answered?: number;
-  duration_minutes?: number;
-  session_date?: string;
-  student?: string;
-  topic?: string;
-}
-
-export interface TopicData {
-  topic: string;
-  count: number;
-  topic_or_content_used?: string;
-  count_of_sessions?: number;
-  topic_rank?: number;
-  name?: string;
-  value?: number;
-}
-
-export interface StudyTimeData {
-  week: number;
-  hours: number;
-  week_number?: number;
-  study_hours?: number;
-  user_id?: string;
-  student_name?: string;
-  studentName?: string;
-  year?: number;
-  name?: string;
-  total_minutes?: number;
-  student_id?: string;
-  session_week?: number;
-  session_year?: number;
-}
-
-export interface AnalyticsData {
-  summary: AnalyticsSummary;
-  sessions: SessionData[];
-  topics: TopicData[];
-  studyTime: StudyTimeData[];
-}
-
+// Ensure our DateRange type is properly defined
 export interface DateRange {
-  from: Date | undefined;
-  to: Date | undefined;
+  from: Date;
+  to: Date; // Making to required to fix type issues
 }
 
-export interface AnalyticsFilters {
+export interface SessionLog {
+  id: string;
+  user_id: string;
+  topic_or_content_used: string;
+  session_start: string;
+  session_end: string;
+  num_queries: number;
+  profiles: {
+    full_name: string;
+  };
+}
+
+export interface TeacherAnalyticsData {
+  id: string;
+  name: string;
+  assessmentsCount: number;
+  averageScore: number;
+  completionRate: number;
+  studentsAssessed: number;
+}
+
+export interface StudentAnalyticsFilterProps {
+  schoolId: string;
+  selectedStudentId: string;
   dateRange: DateRange;
-  selectedTeacherId?: string | null;
-  selectedStudentId?: string | null;
-  teacherId?: string | null;
-  studentId?: string | null;
-  schoolId?: string;
-}
-
-export interface Student {
-  id: string;
-  name: string;
-  email?: string;
-  status?: string;
-  full_name?: string;
-}
-
-export interface StudentPerformanceData {
-  id: string;
-  name: string;
-  avg_score?: number;
-  average_score?: number;
-  assessments_taken?: number;
-  completion_rate?: number;
-  last_active?: string;
-}
-
-export interface SchoolPerformanceSummary {
-  school_id: string;
-  school_name: string;
-  total_assessments: number; 
-  students_with_submissions: number;
-  total_students: number;
-  avg_submissions_per_assessment: number;
-  avg_score: number;
-  completion_rate: number;
-  student_participation_rate: number;
-}
-
-export interface SchoolPerformanceData {
-  id?: string;
-  school_id?: string;
-  school_name?: string;
-  total_assessments?: number;
-  students_with_submissions?: number; 
-  total_students?: number;
-  avg_submissions_per_assessment?: number;
-  avg_score?: number;
-  completion_rate?: number;
-  student_participation_rate?: number;
-}
-
-export interface TeacherPerformanceData {
-  teacher_id?: string;
-  teacher_name?: string;
-  assessments_created?: number;
-  students_assessed?: number;
-  avg_submissions_per_assessment?: number;
-  avg_student_score?: number;
-  completion_rate?: number;
-  id?: string;
-  name?: string;
 }

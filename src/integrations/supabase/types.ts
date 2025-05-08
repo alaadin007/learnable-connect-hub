@@ -389,6 +389,7 @@ export type Database = {
           full_name: string | null
           id: string
           is_active: boolean | null
+          organization: Json | null
           school_code: string | null
           school_id: string | null
           school_name: string | null
@@ -401,6 +402,7 @@ export type Database = {
           full_name?: string | null
           id: string
           is_active?: boolean | null
+          organization?: Json | null
           school_code?: string | null
           school_id?: string | null
           school_name?: string | null
@@ -413,6 +415,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           is_active?: boolean | null
+          organization?: Json | null
           school_code?: string | null
           school_id?: string | null
           school_name?: string | null
@@ -1360,6 +1363,10 @@ export type Database = {
           school_code: string
           contact_email: string
         }[]
+      }
+      get_profile_with_organization: {
+        Args: { user_id_param?: string }
+        Returns: Json
       }
       get_school_by_code: {
         Args: { input_code: string }

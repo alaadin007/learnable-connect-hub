@@ -1,45 +1,37 @@
-// This file contains utility functions for working with analytics data
-import { DateRange } from "@/components/analytics/types";
+import { supabase } from '@/integrations/supabase/client';
+import { DateRange, TeacherAnalyticsData } from '@/components/analytics/types';
 
-// Function to format a date range for display
-export function formatDateRange(range: DateRange): string {
-  if (!range.from) return "All time";
-  
-  const fromDate = range.from.toLocaleDateString();
-  const toDate = range.to ? range.to.toLocaleDateString() : "present";
-  
-  return `${fromDate} to ${toDate}`;
+// Add the missing fetchTeacherAnalytics function
+export async function fetchTeacherAnalytics(schoolId: string, dateRange?: DateRange) {
+  try {
+    const startDate = dateRange?.from ? new Date(dateRange.from).toISOString() : undefined;
+    const endDate = dateRange?.to ? new Date(dateRange.to).toISOString() : undefined;
+    
+    const { data, error } = await supabase.rpc(
+      'get_teacher_performance_metrics',
+      { 
+        p_school_id: schoolId,
+        p_start_date: startDate,
+        p_end_date: endDate 
+      }
+    );
+    
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching teacher analytics:', error);
+    return [];
+  }
 }
 
-// Function to get mock analytics data for testing
-export function getMockAnalyticsData() {
-  return {
-    totalStudents: 120,
-    activeStudents: 85,
-    avgScore: 78.5,
-    completionRate: 72.3,
-    topPerformers: [
-      { id: "1", name: "Emma Johnson", score: 95.2 },
-      { id: "2", name: "David Chen", score: 93.7 },
-      { id: "3", name: "Maria Garcia", score: 91.5 },
-    ],
-    studyTimeByDay: [
-      { date: "2023-04-01", hours: 2.5 },
-      { date: "2023-04-02", hours: 3.2 },
-      { date: "2023-04-03", hours: 4.1 },
-      { date: "2023-04-04", hours: 2.8 },
-      { date: "2023-04-05", hours: 3.5 },
-      { date: "2023-04-06", hours: 5.0 },
-      { date: "2023-04-07", hours: 4.2 },
-    ],
-    subjectPerformance: [
-      { subject: "Math", score: 82.3 },
-      { subject: "Science", score: 76.9 },
-      { subject: "English", score: 88.1 },
-      { subject: "History", score: 71.5 },
-      { subject: "Art", score: 92.7 },
-    ]
-  };
+// Add the missing adaptTeacherAnalyticsData function
+export function adaptTeacherAnalyticsData(data: any[]): TeacherAnalyticsData[] {
+  return data.map(item => ({
+    id: item.teacher_id,
+    name: item.teacher_name || 'Unknown',
+    assessmentsCount: item.assessments_created || 0,
+    averageScore: item.avg_student_score || 0,
+    completionRate: item.completion_rate || 0,
+    studentsAssessed: item.students_assessed || 0
+  }));
 }
-
-// Add more utility functions as needed
