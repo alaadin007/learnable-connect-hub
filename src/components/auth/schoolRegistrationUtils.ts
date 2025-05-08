@@ -31,7 +31,7 @@ export async function checkIfEmailExists(email: string): Promise<boolean> {
   try {
     // Use rpc function that's available in the database
     const { data, error } = await supabase.rpc('check_if_email_exists', {
-      p_email: email
+      input_email: email  // Changed from p_email to input_email to match the function parameter
     });
 
     if (error) {
