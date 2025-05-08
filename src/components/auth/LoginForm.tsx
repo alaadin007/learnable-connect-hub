@@ -283,6 +283,7 @@ const LoginForm = () => {
       console.error("Login error:", error);
       setLoginError(error.message);
 
+      // Improved error messages
       if (error.message?.includes("Email not confirmed")) {
         toast.error("Email not verified", {
           description: "Please check your inbox and spam folder for the verification email.",
