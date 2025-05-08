@@ -287,6 +287,7 @@ export type Database = {
           filename: string
           id: string
           processing_status: string
+          school_id: string | null
           storage_path: string
           user_id: string
         }
@@ -297,6 +298,7 @@ export type Database = {
           filename: string
           id?: string
           processing_status?: string
+          school_id?: string | null
           storage_path: string
           user_id: string
         }
@@ -307,10 +309,40 @@ export type Database = {
           filename?: string
           id?: string
           processing_status?: string
+          school_id?: string | null
           storage_path?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "documents_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_analytics_summary"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "documents_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_improvement_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "documents_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_performance_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "documents_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       messages: {
         Row: {
@@ -1495,6 +1527,12 @@ export type Database = {
         | "teacher"
         | "student"
         | "system_admin"
+      user_role:
+        | "school_admin"
+        | "teacher_supervisor"
+        | "teacher"
+        | "student"
+        | "system_admin"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1611,6 +1649,13 @@ export const Constants = {
   public: {
     Enums: {
       app_role: [
+        "school_admin",
+        "teacher_supervisor",
+        "teacher",
+        "student",
+        "system_admin",
+      ],
+      user_role: [
         "school_admin",
         "teacher_supervisor",
         "teacher",

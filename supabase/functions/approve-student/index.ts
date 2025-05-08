@@ -1,131 +1,97 @@
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.42.0'
 
-// Set up CORS headers
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-interface ApproveStudentBody {
+interface ApproveStudentRequest {
   studentId: string;
 }
 
-serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === "OPTIONS") {
-    return new Response(null, {
-      headers: corsHeaders,
-      status: 204,
-    });
-  }
-
+serve(async (req: Request) => {
   try {
-    // Create a Supabase client with the Auth context of the logged in user
-    const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-      {
-        global: {
-          headers: { Authorization: req.headers.get("Authorization")! },
-        },
-      }
-    );
-
-    // Verify the user is logged in and is a teacher
-    const {
-      data: { user },
-      error: userError,
-    } = await supabaseClient.auth.getUser();
-
-    if (userError || !user) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        {
-          status: 401,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        }
-      );
-    }
-
-    // Get the school_id of the logged in teacher
-    const { data: schoolId, error: schoolIdError } = await supabaseClient
-      .rpc("get_user_school_id");
-
-    if (schoolIdError || !schoolId) {
-      return new Response(
-        JSON.stringify({ error: "Could not determine school ID" }),
-        { 
-          status: 400,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        }
-      );
-    }
-
-    // Parse the request body
-    const { studentId }: ApproveStudentBody = await req.json();
-
+    // Get request body
+    const { studentId } = await req.json() as ApproveStudentRequest;
+    
     if (!studentId) {
-      return new Response(
-        JSON.stringify({ error: "Student ID is required" }),
-        { 
-          status: 400,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        }
-      );
+      throw new Error('Student ID is required');
     }
-
-    // Check if student exists and belongs to the same school
-    const { data: studentData, error: studentError } = await supabaseClient
-      .from("students")
-      .select("*")
-      .eq("id", studentId)
-      .eq("school_id", schoolId)
+    
+    // Create Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') as string;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') as string;
+    const supabaseClient = createClient(supabaseUrl, supabaseKey);
+    
+    // Get auth user from request
+    const authHeader = req.headers.get('Authorization')?.replace('Bearer ', '');
+    if (!authHeader) {
+      throw new Error('Missing auth token');
+    }
+    
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(authHeader);
+    if (userError || !user) {
+      throw new Error('Unauthorized');
+    }
+    
+    // Check if the requester is a teacher or school admin
+    // First check if the requester is a teacher
+    const { data: teacherData, error: teacherError } = await supabaseClient
+      .from('teachers')
+      .select('school_id')
+      .eq('id', user.id)
       .single();
-
+      
+    if (teacherError) {
+      throw new Error('Only teachers or school administrators can approve students');
+    }
+    
+    // Get the student's school and make sure it matches the teacher's school
+    const { data: studentData, error: studentError } = await supabaseClient
+      .from('students')
+      .select('school_id, status')
+      .eq('id', studentId)
+      .single();
+      
     if (studentError || !studentData) {
-      return new Response(
-        JSON.stringify({ error: "Student not found or not in your school" }),
-        { 
-          status: 404,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        }
-      );
+      throw new Error('Student not found');
     }
-
-    // Update student status to "active"
-    const { data, error: updateError } = await supabaseClient
-      .from("students")
-      .update({ status: "active" })
-      .eq("id", studentId)
-      .eq("school_id", schoolId);
-
+    
+    // Make sure the student belongs to the same school as the teacher
+    if (studentData.school_id !== teacherData.school_id) {
+      throw new Error('You can only approve students from your own school');
+    }
+    
+    // Update the student status to active
+    const { error: updateError } = await supabaseClient
+      .from('students')
+      .update({
+        status: 'active',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', studentId);
+      
     if (updateError) {
-      console.error("Error updating student status:", updateError);
-      return new Response(
-        JSON.stringify({ error: "Failed to approve student" }),
-        { 
-          status: 500,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        }
-      );
+      throw new Error('Failed to approve student: ' + updateError.message);
     }
-
+    
+    // Return success
     return new Response(
-      JSON.stringify({ message: "Student approved successfully" }),
-      { 
+      JSON.stringify({
+        success: true,
+        message: 'Student approved successfully',
+        student_id: studentId
+      }),
+      {
+        headers: { 'Content-Type': 'application/json' },
         status: 200,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
       }
     );
   } catch (error) {
-    console.error("Error processing request:", error);
     return new Response(
-      JSON.stringify({ error: "Internal server error" }),
-      { 
-        status: 500,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
+      JSON.stringify({
+        error: error.message
+      }),
+      {
+        headers: { 'Content-Type': 'application/json' },
+        status: 400,
       }
     );
   }

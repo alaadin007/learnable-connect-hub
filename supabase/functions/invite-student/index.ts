@@ -1,195 +1,122 @@
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.42.0'
 
-// Set up CORS headers
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-interface InviteStudentBody {
-  method: "code" | "email";
+interface InviteStudentRequest {
+  inviteType: 'code' | 'email';
   email?: string;
 }
 
-serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === "OPTIONS") {
-    return new Response(null, {
-      headers: corsHeaders,
-      status: 204,
-    });
-  }
-
+serve(async (req: Request) => {
   try {
-    // Create a Supabase client with the Auth context of the logged in user
-    const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-      {
-        global: {
-          headers: { Authorization: req.headers.get("Authorization")! },
-        },
-      }
-    );
-
-    // Verify the user is logged in and is a teacher
-    const {
-      data: { user },
-      error: userError,
-    } = await supabaseClient.auth.getUser();
-
+    // Get request body
+    const { inviteType, email } = await req.json() as InviteStudentRequest;
+    
+    // Create Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') as string;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') as string;
+    const supabaseClient = createClient(supabaseUrl, supabaseKey);
+    
+    // Get auth user from request
+    const authHeader = req.headers.get('Authorization')?.replace('Bearer ', '');
+    if (!authHeader) {
+      throw new Error('Missing auth token');
+    }
+    
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(authHeader);
     if (userError || !user) {
+      throw new Error('Unauthorized');
+    }
+    
+    // Get the school for this user (either teacher or school admin)
+    const { data: schoolId } = await supabaseClient.rpc('get_user_school_id');
+    
+    if (!schoolId) {
+      throw new Error('Could not find your school information');
+    }
+    
+    // Generate invitation code or send email invitation
+    if (inviteType === 'code') {
+      // Create student invitation with code
+      const { data, error } = await supabaseClient.rpc(
+        'create_student_invitation',
+        { school_id_param: schoolId }
+      );
+      
+      if (error) {
+        throw new Error('Failed to create invitation: ' + error.message);
+      }
+      
       return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
+        JSON.stringify({
+          success: true,
+          code: data[0].code,
+          invite_id: data[0].invite_id,
+          expires_at: data[0].expires_at
+        }),
         {
-          status: 401,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        }
-      );
-    }
-
-    // Get the school_id of the logged in teacher
-    const { data: schoolId, error: schoolIdError } = await supabaseClient
-      .rpc("get_user_school_id");
-
-    if (schoolIdError || !schoolId) {
-      return new Response(
-        JSON.stringify({ error: "Could not determine school ID" }),
-        { 
-          status: 400,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        }
-      );
-    }
-
-    // Parse the request body
-    const { method, email }: InviteStudentBody = await req.json();
-
-    // Handle invite by code
-    if (method === "code") {
-      // Generate a unique invite code using the database function
-      const { data: inviteCode, error: codeError } = await supabaseClient
-        .rpc("generate_student_invite_code");
-
-      if (codeError) {
-        console.error("Error generating invite code:", codeError);
-        return new Response(
-          JSON.stringify({ error: "Failed to generate invite code" }),
-          { 
-            status: 500,
-            headers: { "Content-Type": "application/json", ...corsHeaders },
-          }
-        );
-      }
-
-      // Create an invitation record
-      const { data: inviteData, error: inviteError } = await supabaseClient
-        .from("student_invites")
-        .insert({
-          code: inviteCode,
-          school_id: schoolId,
-          teacher_id: user.id,
-        })
-        .select()
-        .single();
-
-      if (inviteError) {
-        console.error("Error creating invitation:", inviteError);
-        return new Response(
-          JSON.stringify({ error: "Failed to create invitation" }),
-          { 
-            status: 500,
-            headers: { "Content-Type": "application/json", ...corsHeaders },
-          }
-        );
-      }
-
-      return new Response(
-        JSON.stringify({ 
-          message: "Student invite code generated successfully",
-          data: { code: inviteCode }
-        }),
-        { 
+          headers: { 'Content-Type': 'application/json' },
           status: 200,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
         }
       );
-    }
-    // Handle invite by email
-    else if (method === "email" && email) {
-      // Generate a unique invite code
-      const { data: inviteCode, error: codeError } = await supabaseClient
-        .rpc("generate_student_invite_code");
-
-      if (codeError) {
-        console.error("Error generating invite code:", codeError);
-        return new Response(
-          JSON.stringify({ error: "Failed to generate invite code" }),
-          { 
-            status: 500,
-            headers: { "Content-Type": "application/json", ...corsHeaders },
-          }
-        );
+    } else if (inviteType === 'email' && email) {
+      // Check if email already exists
+      const { data: existingUser, error: existingUserError } = await supabaseClient.rpc(
+        'check_if_email_exists',
+        { input_email: email }
+      );
+      
+      if (existingUserError) {
+        throw new Error('Error checking email: ' + existingUserError.message);
       }
-
-      // Create an invitation record
-      const { data: inviteData, error: inviteError } = await supabaseClient
-        .from("student_invites")
-        .insert({
-          code: inviteCode,
+      
+      if (existingUser) {
+        throw new Error('A user with this email already exists');
+      }
+      
+      // Create student invitation with code
+      const { data, error } = await supabaseClient.rpc(
+        'create_student_invitation',
+        { school_id_param: schoolId }
+      );
+      
+      if (error) {
+        throw new Error('Failed to create invitation: ' + error.message);
+      }
+      
+      // Save email with the invitation
+      await supabaseClient
+        .from('student_invites')
+        .update({ email })
+        .eq('id', data[0].invite_id);
+      
+      // TODO: Send email to the invited student with the invitation code
+      // This would typically be done with a separate service like SendGrid or AWS SES
+      
+      return new Response(
+        JSON.stringify({
+          success: true,
+          code: data[0].code,
+          invite_id: data[0].invite_id,
           email: email,
-          school_id: schoolId,
-          teacher_id: user.id,
-        })
-        .select()
-        .single();
-
-      if (inviteError) {
-        console.error("Error creating invitation:", inviteError);
-        return new Response(
-          JSON.stringify({ error: "Failed to create invitation" }),
-          { 
-            status: 500,
-            headers: { "Content-Type": "application/json", ...corsHeaders },
-          }
-        );
-      }
-
-      // In a production app, you would send an email here with the invite code
-      // For now, we'll just return the code in the response
-      console.log(`Invite code ${inviteCode} created for email ${email}`);
-
-      return new Response(
-        JSON.stringify({ 
-          message: "Student invitation created successfully",
-          data: { 
-            code: inviteCode,
-            email: email
-          }
+          expires_at: data[0].expires_at
         }),
-        { 
+        {
+          headers: { 'Content-Type': 'application/json' },
           status: 200,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
         }
       );
     } else {
-      return new Response(
-        JSON.stringify({ error: "Invalid request parameters" }),
-        { 
-          status: 400,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        }
-      );
+      throw new Error('Invalid request parameters');
     }
   } catch (error) {
-    console.error("Error processing request:", error);
     return new Response(
-      JSON.stringify({ error: "Internal server error" }),
-      { 
-        status: 500,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
+      JSON.stringify({
+        error: error.message
+      }),
+      {
+        headers: { 'Content-Type': 'application/json' },
+        status: 400,
       }
     );
   }
