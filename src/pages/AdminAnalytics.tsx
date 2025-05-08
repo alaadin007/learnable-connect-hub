@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -5,10 +6,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { DateRangePicker } from '@/components/ui/date-range-picker';
+import { DatePickerWithRange } from '@/components/ui/date-range-picker'; // Fixed import
 import { format } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { getMockAnalyticsData } from '@/utils/sessionLogger';
+import { DateRange } from '@/components/analytics/types';
 
 // Define types for analytics data
 interface SessionData {
@@ -58,7 +60,7 @@ const AdminAnalytics: React.FC = () => {
   const { user, schoolId, userRole } = useAuth();
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>({
+  const [dateRange, setDateRange] = useState<DateRange>({
     from: new Date(new Date().setDate(new Date().getDate() - 30)),
     to: new Date()
   });
@@ -85,7 +87,7 @@ const AdminAnalytics: React.FC = () => {
           setSelectedSchoolId(schoolId || (data.length > 0 ? data[0].id : null));
         }
       } catch (error) {
-        console.error('Error fetching schools:', error);
+        console.error('Fetching schools error:', error);
       }
     };
 
@@ -101,8 +103,8 @@ const AdminAnalytics: React.FC = () => {
         // For demo/development, use mock data
         if (process.env.NODE_ENV === 'development' || !selectedSchoolId) {
           const mockData = getMockAnalyticsData(selectedSchoolId || 'mock-school-id', {
-            startDate: format(dateRange.from, 'yyyy-MM-dd'),
-            endDate: format(dateRange.to, 'yyyy-MM-dd')
+            startDate: format(dateRange.from || new Date(), 'yyyy-MM-dd'),
+            endDate: format(dateRange.to || new Date(), 'yyyy-MM-dd')
           });
           setAnalyticsData(mockData);
           setIsLoading(false);
@@ -110,56 +112,99 @@ const AdminAnalytics: React.FC = () => {
         }
 
         // In production, fetch real data from Supabase
-        const startDate = format(dateRange.from, 'yyyy-MM-dd');
-        const endDate = format(dateRange.to, 'yyyy-MM-dd');
+        const startDate = format(dateRange.from || new Date(), 'yyyy-MM-dd');
+        const endDate = format(dateRange.to || new Date(), 'yyyy-MM-dd');
 
-        // Fetch summary data
-        const { data: summaryData, error: summaryError } = await supabase.rpc('get_analytics_summary', {
-          school_id_param: selectedSchoolId,
-          start_date_param: startDate,
-          end_date_param: endDate
-        });
+        // Fetch summary data - using a direct query rather than rpc
+        const { data: summaryData, error: summaryError } = await supabase
+          .from('school_analytics_summary')
+          .select('*')
+          .eq('school_id', selectedSchoolId)
+          .single();
 
         if (summaryError) throw summaryError;
 
-        // Fetch session data
-        const { data: sessionsData, error: sessionsError } = await supabase.rpc('get_session_analytics', {
-          school_id_param: selectedSchoolId,
-          start_date_param: startDate,
-          end_date_param: endDate
-        });
+        // Fetch session data - using a direct query rather than rpc
+        const { data: sessionsData, error: sessionsError } = await supabase
+          .from('session_logs')
+          .select(`
+            id, 
+            user_id,
+            topic_or_content_used,
+            session_start,
+            session_end,
+            num_queries,
+            profiles:user_id (full_name)
+          `)
+          .eq('school_id', selectedSchoolId)
+          .gte('session_start', startDate)
+          .lte('session_start', endDate)
+          .order('session_start', { ascending: false });
 
         if (sessionsError) throw sessionsError;
 
-        // Fetch topic data
-        const { data: topicsData, error: topicsError } = await supabase.rpc('get_topic_analytics', {
-          school_id_param: selectedSchoolId,
-          start_date_param: startDate,
-          end_date_param: endDate
-        });
+        // Format session data to match our interface
+        const formattedSessions: SessionData[] = sessionsData ? sessionsData.map((session: any) => ({
+          id: session.id,
+          userId: session.user_id,
+          userName: session.profiles?.full_name || 'Unknown',
+          startTime: session.session_start,
+          endTime: session.session_end,
+          duration: session.session_end ? 
+            Math.round((new Date(session.session_end).getTime() - new Date(session.session_start).getTime()) / 60000) : 
+            0,
+          topicOrContent: session.topic_or_content_used || 'General',
+          numQueries: session.num_queries
+        })) : [];
+
+        // Fetch topic data - using a direct query rather than rpc
+        const { data: topicsData, error: topicsError } = await supabase
+          .from('most_studied_topics')
+          .select('*')
+          .eq('school_id', selectedSchoolId)
+          .order('count_of_sessions', { ascending: false })
+          .limit(10);
 
         if (topicsError) throw topicsError;
 
-        // Fetch study time data
-        const { data: studyTimeData, error: studyTimeError } = await supabase.rpc('get_study_time_analytics', {
-          school_id_param: selectedSchoolId,
-          start_date_param: startDate,
-          end_date_param: endDate
-        });
+        // Format topic data to match our interface
+        const formattedTopics: TopicData[] = topicsData ? topicsData.map((topic: any) => ({
+          topic: topic.topic_or_content_used || 'Unknown',
+          name: topic.topic_or_content_used || 'Unknown',
+          count: topic.count_of_sessions || 0,
+          value: topic.count_of_sessions || 0
+        })) : [];
+
+        // Fetch study time data - using a direct query rather than rpc
+        const { data: studyTimeData, error: studyTimeError } = await supabase
+          .from('student_weekly_study_time')
+          .select('*')
+          .eq('school_id', selectedSchoolId)
+          .order('study_hours', { ascending: false })
+          .limit(10);
 
         if (studyTimeError) throw studyTimeError;
 
+        // Format study time data to match our interface
+        const formattedStudyTime: StudyTimeData[] = studyTimeData ? studyTimeData.map((item: any) => ({
+          studentName: item.student_name || 'Unknown',
+          name: item.student_name || 'Unknown',
+          hours: item.study_hours || 0,
+          week: item.week_number || 0,
+          year: item.year || new Date().getFullYear()
+        })) : [];
+
         // Combine all data
         setAnalyticsData({
-          summary: summaryData[0] || {
+          summary: summaryData || {
             activeStudents: 0,
             totalSessions: 0,
             totalQueries: 0,
             avgSessionMinutes: 0
           },
-          sessions: sessionsData || [],
-          topics: topicsData || [],
-          studyTime: studyTimeData || []
+          sessions: formattedSessions,
+          topics: formattedTopics,
+          studyTime: formattedStudyTime
         });
       } catch (error) {
         console.error('Error fetching analytics data:', error);
@@ -179,7 +224,7 @@ const AdminAnalytics: React.FC = () => {
   };
 
   // Handle date range change
-  const handleDateRangeChange = (range: { from: Date; to: Date }) => {
+  const handleDateRangeChange = (range: DateRange) => {
     setDateRange(range);
   };
 
@@ -216,9 +261,9 @@ const AdminAnalytics: React.FC = () => {
         )}
         
         <div className="w-full md:w-2/3">
-          <DateRangePicker
-            value={dateRange}
-            onChange={handleDateRangeChange}
+          <DatePickerWithRange
+            date={dateRange}
+            onDateChange={handleDateRangeChange}
           />
         </div>
       </div>
