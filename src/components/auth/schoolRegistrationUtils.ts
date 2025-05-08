@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 
 /**
@@ -17,40 +18,42 @@ export async function checkEmailExistingRole(email: string): Promise<string | nu
       
       // Fallback: try to get the profile directly if the RPC fails
       try {
-        // Use the listUsers API correctly without filters
+        // Use the auth admin API to get users
         const { data: userData, error: userError } = await supabase.auth.admin.listUsers();
         
         // Filter users manually - make sure to check for undefined users field
-        const matchingUser = userData?.users?.find((user: any) => {
-          return user && typeof user === 'object' && 'email' in user && user.email === email;
-        });
-        
-        if (!userError && matchingUser) {
-          // Check user metadata first
-          if (matchingUser.user_metadata && matchingUser.user_metadata.user_type) {
-            return formatRoleForDisplay(matchingUser.user_metadata.user_type);
-          }
+        if (userData && userData.users && Array.isArray(userData.users)) {
+          const matchingUser = userData.users.find((user) => {
+            return user && typeof user === 'object' && user.email === email;
+          });
           
-          // If not in metadata, check the profiles table
-          const { data: profileData } = await supabase
-            .from('profiles')
-            .select('user_type')
-            .eq('id', matchingUser.id)
-            .single();
+          if (!userError && matchingUser) {
+            // Check user metadata first
+            if (matchingUser.user_metadata && matchingUser.user_metadata.user_type) {
+              return formatRoleForDisplay(matchingUser.user_metadata.user_type);
+            }
             
-          if (profileData && profileData.user_type) {
-            return formatRoleForDisplay(profileData.user_type);
-          }
-          
-          // Last resort, check the user_roles table
-          const { data: roleData } = await supabase
-            .from('user_roles')
-            .select('role')
-            .eq('user_id', matchingUser.id)
-            .single();
+            // If not in metadata, check the profiles table
+            const { data: profileData } = await supabase
+              .from('profiles')
+              .select('user_type')
+              .eq('id', matchingUser.id)
+              .single();
+              
+            if (profileData && profileData.user_type) {
+              return formatRoleForDisplay(profileData.user_type);
+            }
             
-          if (roleData && roleData.role) {
-            return formatRoleForDisplay(roleData.role);
+            // Last resort, check the user_roles table
+            const { data: roleData } = await supabase
+              .from('user_roles')
+              .select('role')
+              .eq('user_id', matchingUser.id)
+              .single();
+              
+            if (roleData && roleData.role) {
+              return formatRoleForDisplay(roleData.role);
+            }
           }
         }
       } catch (fallbackError) {

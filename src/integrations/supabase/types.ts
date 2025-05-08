@@ -356,6 +356,7 @@ export type Database = {
           full_name: string | null
           id: string
           school_code: string | null
+          school_id: string | null
           school_name: string | null
           updated_at: string
           user_type: string
@@ -365,6 +366,7 @@ export type Database = {
           full_name?: string | null
           id: string
           school_code?: string | null
+          school_id?: string | null
           school_name?: string | null
           updated_at?: string
           user_type: string
@@ -374,11 +376,41 @@ export type Database = {
           full_name?: string | null
           id?: string
           school_code?: string | null
+          school_id?: string | null
           school_name?: string | null
           updated_at?: string
           user_type?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_analytics_summary"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "profiles_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_improvement_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "profiles_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_performance_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "profiles_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       school_codes: {
         Row: {
