@@ -385,6 +385,7 @@ export type Database = {
       profiles: {
         Row: {
           created_at: string
+          email: string | null
           full_name: string | null
           id: string
           is_active: boolean | null
@@ -396,6 +397,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          email?: string | null
           full_name?: string | null
           id: string
           is_active?: boolean | null
@@ -407,6 +409,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          email?: string | null
           full_name?: string | null
           id?: string
           is_active?: boolean | null
@@ -1302,6 +1305,10 @@ export type Database = {
         Args: { token: string; user_id?: string }
         Returns: boolean
       }
+      approve_student_direct: {
+        Args: { student_id_param: string }
+        Returns: boolean
+      }
       assign_role: {
         Args: {
           user_id_param: string
@@ -1457,8 +1464,20 @@ export type Database = {
         Args: { log_id: string }
         Returns: undefined
       }
+      invite_student_direct: {
+        Args: { school_id_param: string }
+        Returns: {
+          code: string
+          expires_at: string
+          invite_id: string
+        }[]
+      }
       invite_teacher: {
         Args: { teacher_email: string; inviter_id?: string }
+        Returns: string
+      }
+      invite_teacher_direct: {
+        Args: { teacher_email: string; school_id: string }
         Returns: string
       }
       is_supervisor: {
@@ -1499,6 +1518,10 @@ export type Database = {
           user_id_param: string
           role_param: Database["public"]["Enums"]["app_role"]
         }
+        Returns: boolean
+      }
+      revoke_student_access_direct: {
+        Args: { student_id_param: string }
         Returns: boolean
       }
       set_api_key: {

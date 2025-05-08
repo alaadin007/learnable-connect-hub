@@ -1,156 +1,137 @@
 
-import React, { useState, useRef, useEffect } from 'react';
-import { useChat } from 'ai-chat-store';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { useAuth } from '@/contexts/AuthContext';
+// Update the import to fix the error with missing module
+import React, { useState, useEffect } from 'react';
+import { Message } from './types';
+// Remove the missing import and use local state instead
+// import { useChatStore } from 'ai-chat-store';
 import ChatMessage from './ChatMessage';
-import { v4 as uuidv4 } from 'uuid';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Send } from 'lucide-react';
+import { Card } from '../ui/card';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 
-interface Message {
-  id: string;
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-  timestamp: string;
+interface AIChatInterfaceProps {
+  title?: string;
+  subheading?: string;
+  initialPrompt?: string;
+  persistHistory?: boolean;
+  conversationId?: string;
 }
 
-// Simple AI chat store implementation
-const useChatStore = () => {
+const AIChatInterface: React.FC<AIChatInterfaceProps> = ({
+  title = "AI Assistant",
+  subheading = "Ask me anything",
+  initialPrompt,
+  persistHistory = false,
+  conversationId
+}) => {
+  // Use local state instead of the store
   const [messages, setMessages] = useState<Message[]>([]);
+  const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const { user } = useAuth();
 
-  const addMessage = (message: Omit<Message, 'id' | 'timestamp'>) => {
-    const newMessage = {
-      ...message,
-      id: uuidv4(),
+  useEffect(() => {
+    if (initialPrompt) {
+      sendMessage(initialPrompt);
+    }
+  }, [initialPrompt]);
+
+  const sendMessage = async (content: string) => {
+    if (!content.trim()) return;
+    
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      role: 'user',
+      content,
       timestamp: new Date().toISOString()
     };
-    setMessages(prev => [...prev, newMessage]);
-    return newMessage;
-  };
-
-  const handleSubmit = async (userMessage: string) => {
-    if (!userMessage.trim()) return;
     
-    // Add user message
-    addMessage({
-      role: 'user', 
-      content: userMessage
-    });
-    
+    setMessages(prev => [...prev, userMessage]);
+    setInputValue('');
     setIsLoading(true);
+    
     try {
-      // Simulate AI response (replace with actual AI call)
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Call AI assistant API
+      const response = await supabase.functions.invoke('ask-ai', {
+        body: { 
+          message: content,
+          conversation_id: conversationId,
+          persist: persistHistory
+        }
+      });
       
-      // Add AI response
-      addMessage({
+      if (response.error) throw new Error(response.error.message);
+      
+      const assistantMessage: Message = {
+        id: response.data?.id || (Date.now() + 1).toString(),
         role: 'assistant',
-        content: `I received your message: "${userMessage}". This is a simulated AI response.`
-      });
+        content: response.data?.content || "I'm sorry, I couldn't process your request.",
+        timestamp: new Date().toISOString()
+      };
+      
+      setMessages(prev => [...prev, assistantMessage]);
     } catch (error) {
-      console.error('Error getting AI response:', error);
-      addMessage({
+      console.error('Error sending message:', error);
+      
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: 'Sorry, I encountered an error processing your request.'
-      });
+        content: "I'm sorry, an error occurred while processing your request.",
+        timestamp: new Date().toISOString()
+      };
+      
+      setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  return {
-    messages,
-    isLoading,
-    handleSubmit
-  };
-};
-
-interface AIChatInterfaceProps {
-  systemPrompt?: string;
-  welcomeMessage?: string;
-}
-
-const AIChatInterface: React.FC<AIChatInterfaceProps> = ({
-  systemPrompt,
-  welcomeMessage
-}) => {
-  const { messages, isLoading, handleSubmit } = useChatStore();
-  const [input, setInput] = useState('');
-  const inputRef = useRef<HTMLInputElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { user } = useAuth();
-
-  // Add welcome message when component mounts
-  useEffect(() => {
-    if (welcomeMessage && messages.length === 0) {
-      const welcomeMsg: Message = {
-        id: uuidv4(),
-        role: 'assistant',
-        content: welcomeMessage,
-        timestamp: new Date().toISOString()
-      };
-      
-      // Add system prompt if provided
-      const initialMessages: Message[] = [];
-      if (systemPrompt) {
-        initialMessages.push({
-          id: uuidv4(),
-          role: 'system',
-          content: systemPrompt,
-          timestamp: new Date().toISOString()
-        });
-      }
-      
-      initialMessages.push(welcomeMsg);
-    }
-  }, [welcomeMessage, systemPrompt, messages.length]);
-
-  // Scroll to bottom when new messages arrive
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  const handleFormSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (input.trim() && !isLoading) {
-      handleSubmit(input);
-      setInput('');
-      // Focus input after sending
-      setTimeout(() => {
-        inputRef.current?.focus();
-      }, 0);
+    if (!isLoading && inputValue.trim()) {
+      sendMessage(inputValue);
     }
   };
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex-grow overflow-y-auto p-4">
-        {messages.filter(msg => msg.role !== 'system').map((message) => (
+    <Card className="flex flex-col h-full">
+      <div className="bg-primary/5 p-4 border-b">
+        <h3 className="text-lg font-semibold">{title}</h3>
+        <p className="text-sm text-muted-foreground">{subheading}</p>
+      </div>
+      <div className="flex-1 p-4 overflow-y-auto">
+        {messages.map(message => (
           <ChatMessage key={message.id} message={message} />
         ))}
         {isLoading && (
-          <div className="text-gray-500 animate-pulse">AI is thinking...</div>
+          <div className="flex items-center justify-center p-4">
+            <div className="animate-pulse">Thinking...</div>
+          </div>
         )}
-        <div ref={messagesEndRef} />
+        {messages.length === 0 && !isLoading && (
+          <div className="flex items-center justify-center h-full text-muted-foreground">
+            Start a conversation by typing a message below.
+          </div>
+        )}
       </div>
-      
-      <form onSubmit={handleFormSubmit} className="p-4 border-t border-gray-200">
-        <div className="flex items-center space-x-2">
+      <div className="p-4 border-t">
+        <form onSubmit={handleSubmit} className="flex gap-2">
           <Input
-            ref={inputRef}
-            type="text"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
             placeholder="Type your message..."
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
             disabled={isLoading}
+            className="flex-1"
           />
-          <Button type="submit" disabled={isLoading || !input.trim()}>
-            {isLoading ? 'Sending...' : 'Send'}
+          <Button type="submit" disabled={isLoading || !inputValue.trim()}>
+            <Send className="h-4 w-4" />
           </Button>
-        </div>
-      </form>
-    </div>
+        </form>
+      </div>
+    </Card>
   );
 };
 
