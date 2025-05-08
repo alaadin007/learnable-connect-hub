@@ -76,28 +76,25 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           // Check if the user_settings table exists using a safer approach
           try {
             // Use the new function that returns properly typed data
-            const { data, error } = await supabase.rpc('get_user_settings', {
-              user_id_param: session.user.id
-            });
+            const { data, error } = await supabase
+              .from('user_api_keys')
+              .select('provider, api_key')
+              .eq('user_id', session.user.id);
             
             if (data && !error) {
-              // Handle both array and single object responses
-              const settingsData = Array.isArray(data) ? data[0] : data;
+              // Create settings object from user API keys
+              const openaiKey = data.find(key => key.provider === 'openai')?.api_key || '';
+              const geminiKey = data.find(key => key.provider === 'gemini')?.api_key || '';
               
-              // Make sure data exists before trying to access properties
-              if (settingsData) {
-                const dbSettings = {
-                  maxTokens: settingsData.max_tokens,
-                  temperature: settingsData.temperature,
-                  model: settingsData.model,
-                  showSources: settingsData.show_sources,
-                  aiProvider: settingsData.ai_provider || 'openai',
-                  openAiKey: settingsData.openai_key || '',
-                  geminiKey: settingsData.gemini_key || '',
-                };
-                setSettings(dbSettings);
-                localStorage.setItem('user-settings', JSON.stringify(dbSettings));
-              }
+              const dbSettings = {
+                ...settings,
+                aiProvider: openaiKey ? 'openai' : geminiKey ? 'gemini' : 'openai',
+                openAiKey: openaiKey,
+                geminiKey: geminiKey,
+              };
+              
+              setSettings(dbSettings);
+              localStorage.setItem('user-settings', JSON.stringify(dbSettings));
             }
           } catch (dbError) {
             console.warn('User settings error:', dbError);
@@ -126,21 +123,29 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
-        try {
-          // Use the new RPC function for updating settings
-          await supabase.rpc('update_user_settings', {
-            user_id_param: session.user.id,
-            max_tokens_param: updatedSettings.maxTokens,
-            temperature_param: updatedSettings.temperature,
-            model_param: updatedSettings.model,
-            show_sources_param: updatedSettings.showSources,
-            ai_provider_param: updatedSettings.aiProvider,
-            openai_key_param: updatedSettings.openAiKey,
-            gemini_key_param: updatedSettings.geminiKey
-          });
-        } catch (dbError) {
-          console.warn('Failed to save settings to database:', dbError);
-          // Continue normally - localStorage is our source of truth
+        // If updating AI provider or API keys, save to user_api_keys table
+        if (newSettings.aiProvider === 'openai' && newSettings.openAiKey) {
+          await supabase
+            .from('user_api_keys')
+            .upsert({
+              user_id: session.user.id,
+              provider: 'openai',
+              api_key: newSettings.openAiKey
+            }, {
+              onConflict: 'user_id,provider'
+            });
+        }
+        
+        if (newSettings.aiProvider === 'gemini' && newSettings.geminiKey) {
+          await supabase
+            .from('user_api_keys')
+            .upsert({
+              user_id: session.user.id,
+              provider: 'gemini',
+              api_key: newSettings.geminiKey
+            }, {
+              onConflict: 'user_id,provider'
+            });
         }
       }
     } catch (error) {

@@ -68,7 +68,8 @@ const AIChatInterface = () => {
     stop,
   } = useCompletion({
     api: "/api/completion",
-    maxTokens: settings?.maxTokens || 400, // Correct property name for UseCompletionOptions
+    // Use 'max' prefix here instead of 'maxTokens' which isn't recognized
+    max: settings?.maxTokens || 400,
     temperature: settings?.temperature || 0.5,
     // Track session and usage
     onFinish: () => {
@@ -392,7 +393,7 @@ const AIChatInterface = () => {
                     <FormLabel>API Key</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder={field.value === 'openai' ? "sk-..." : "AI..."}
+                        placeholder={apiKeyForm.watch("provider") === 'openai' ? "sk-..." : "AI..."}
                         {...field}
                         type="password"
                       />
@@ -427,3 +428,4 @@ const AIChatInterface = () => {
 };
 
 export default AIChatInterface;
+
