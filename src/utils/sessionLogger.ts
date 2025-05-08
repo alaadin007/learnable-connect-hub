@@ -37,8 +37,12 @@ const logSessionStart = async (topic?: string, userId?: string): Promise<string 
       
     let schoolIdToUse = profileData?.school_id;
     
-    if (!schoolIdToUse && profileData?.organization?.id) {
-      schoolIdToUse = profileData.organization.id;
+    if (!schoolIdToUse && profileData?.organization) {
+      // Ensure organization is treated as an object with proper typing
+      const organization = profileData.organization as { id?: string };
+      if (organization && typeof organization === 'object' && 'id' in organization) {
+        schoolIdToUse = organization.id;
+      }
     }
     
     // If still no school found, check students table
@@ -92,7 +96,9 @@ const logSessionStart = async (topic?: string, userId?: string): Promise<string 
       return null;
     }
 
-    return logData?.id || null;
+    // Safely access id with proper type checking
+    return logData && typeof logData === 'object' && 'id' in logData ? 
+      logData.id as string : null;
   } catch (error) {
     console.error("Error starting session:", error);
     return null;
