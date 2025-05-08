@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,7 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { asDbId, FileItem, DocumentContent } from '@/utils/supabaseTypeHelpers';
 
 interface FileListProps {
-  refreshTrigger: boolean;
+  refreshTrigger?: boolean;
 }
 
 const FileList: React.FC<FileListProps> = ({ refreshTrigger }) => {
@@ -53,26 +52,17 @@ const FileList: React.FC<FileListProps> = ({ refreshTrigger }) => {
       }
 
       // Convert data to FileItem array, ensuring all required properties exist
-      const parsedFiles: FileItem[] = data
-        .filter((item): item is FileItem => {
-          return Boolean(
-            item && 
-            typeof item === 'object' && 
-            'id' in item &&
-            'filename' in item && 
-            'file_type' in item && 
-            'file_size' in item
-          );
-        })
-        .map(item => ({
-          id: item.id,
-          filename: item.filename,
-          file_type: item.file_type,
-          file_size: item.file_size,
-          storage_path: item.storage_path,
-          processing_status: item.processing_status,
-          user_id: item.user_id
-        }));
+      const parsedFiles: FileItem[] = data.map(item => ({
+        id: item.id,
+        filename: item.filename,
+        file_type: item.file_type,
+        file_size: item.file_size,
+        storage_path: item.storage_path,
+        processing_status: item.processing_status,
+        user_id: item.user_id,
+        created_at: item.created_at,
+        school_id: item.school_id
+      }));
       
       setFiles(parsedFiles);
       
@@ -127,23 +117,15 @@ const FileList: React.FC<FileListProps> = ({ refreshTrigger }) => {
         return;
       }
 
-      const parsedContents: DocumentContent[] = data
-        .filter((item): item is DocumentContent => {
-          return Boolean(
-            item && 
-            typeof item === 'object' && 
-            'id' in item && 
-            'document_id' in item && 
-            'content' in item
-          );
-        })
-        .map(item => ({
-          id: item.id,
-          document_id: item.document_id,
-          content: item.content || '',
-          section_number: item.section_number,
-          processing_status: item.processing_status
-        }));
+      const parsedContents: DocumentContent[] = data.map(item => ({
+        id: item.id,
+        document_id: item.document_id,
+        content: item.content || '',
+        section_number: item.section_number,
+        processing_status: item.processing_status,
+        created_at: item.created_at,
+        updated_at: item.updated_at
+      }));
       
       setFileContents(prev => ({ ...prev, [fileId]: parsedContents }));
     } catch (err) {

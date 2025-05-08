@@ -15,6 +15,13 @@ const Documents: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('upload');
+  const [refreshTrigger, setRefreshTrigger] = useState(false);
+
+  // Handler for when upload is complete
+  const handleUploadComplete = () => {
+    setRefreshTrigger(prev => !prev); // Toggle to trigger re-fetch in FileList
+    setActiveTab('list'); // Switch to the list tab to show the newly uploaded file
+  };
 
   // Immediate conditional rendering instead of waiting
   if (!user) {
@@ -55,10 +62,10 @@ const Documents: React.FC = () => {
                   <TabsTrigger value="list" role="tab" aria-selected={activeTab === 'list'}>My Files</TabsTrigger>
                 </TabsList>
                 <TabsContent value="upload" role="tabpanel" tabIndex={0}>
-                  <FileUpload />
+                  <FileUpload onUploadComplete={handleUploadComplete} />
                 </TabsContent>
                 <TabsContent value="list" role="tabpanel" tabIndex={0}>
-                  <FileList />
+                  <FileList refreshTrigger={refreshTrigger} />
                 </TabsContent>
               </Tabs>
             </CardContent>

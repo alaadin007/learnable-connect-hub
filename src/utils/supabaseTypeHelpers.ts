@@ -3,6 +3,9 @@
  * Utility functions for handling Supabase types and query results
  */
 
+import { PostgrestError } from '@supabase/supabase-js';
+import { Json } from '@/integrations/supabase/types';
+
 /**
  * Type guard to check if a value is a Supabase error
  * @param value Any value to check
@@ -75,7 +78,8 @@ export function asColumnValue<T>(value: any): T {
   return value as T;
 }
 
-export type FileItem = {
+// Updated type definitions with all required fields
+export interface FileItem {
   id: string;
   filename: string;
   file_type: string;
@@ -83,17 +87,21 @@ export type FileItem = {
   storage_path: string;
   processing_status: string;
   user_id: string;
-};
+  created_at: string;
+  school_id: string | null;
+}
 
-export type DocumentContent = {
+export interface DocumentContent {
   id: string;
   document_id: string;
   content: string;
   section_number: number;
   processing_status: string;
-};
+  created_at: string;
+  updated_at: string;
+}
 
-export type TeacherInvitation = {
+export interface TeacherInvitation {
   id: string;
   email: string;
   status: string;
@@ -102,4 +110,16 @@ export type TeacherInvitation = {
   expires_at: string;
   school_id: string;
   created_by: string;
-};
+}
+
+// Type definition for teacher invites
+export interface TeacherInvite {
+  id: string;
+  email: string;
+  status: string;
+  expires_at: string;
+  created_at: string;
+  school_id: string;
+  invitation_token: string;
+  created_by: string;
+}
