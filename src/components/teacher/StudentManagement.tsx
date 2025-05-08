@@ -28,6 +28,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Loader2, Mail, UserPlus } from 'lucide-react'
+import { asDbId } from '@/utils/supabaseTypeHelpers';
 
 interface Student {
   id: string;
@@ -57,11 +58,11 @@ const StudentManagement = () => {
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('school_id')
-        .eq('id', user.id)
+        .eq('id', asDbId(user.id))
         .single();
 
       if (profileError) throw profileError;
-      if (!profile?.school_id) throw new Error('No school associated');
+      if (!profile || !profile.school_id) throw new Error('No school associated');
 
       // Query for students directly from the students table with a join to profiles
       const { data: studentData, error: studentError } = await supabase
@@ -75,7 +76,7 @@ const StudentManagement = () => {
             email
           )
         `)
-        .eq('school_id', profile.school_id);
+        .eq('school_id', asDbId(profile.school_id));
 
       if (studentError) throw studentError;
 
@@ -322,3 +323,4 @@ const StudentManagement = () => {
 };
 
 export default StudentManagement;
+

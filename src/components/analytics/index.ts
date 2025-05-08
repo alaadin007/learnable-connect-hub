@@ -7,4 +7,5 @@ export { AnalyticsFilters } from './AnalyticsFilters';
 export { AnalyticsExport } from './AnalyticsExport';
 export { AnalyticsSummaryCards } from './AnalyticsSummaryCards';
 export { DateRangePicker } from './DateRangePicker';
-export { StudentSelector } from './StudentSelector';
+export { default as StudentSelector } from './StudentSelector';
+

@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from "@/integrations/supabase/client";
+import { asDbId } from '@/utils/supabaseTypeHelpers';
 
 interface Teacher {
   id: string;
@@ -31,7 +32,7 @@ export const TeacherSelector = ({ schoolId, selectedTeacherId, onTeacherChange }
       const { data, error } = await supabase
         .from('teacher_performance_metrics')
         .select('teacher_id, teacher_name')
-        .eq('school_id', schoolId);
+        .eq('school_id', asDbId(schoolId));
 
       if (error) {
         console.error('Error fetching teachers:', error);
@@ -70,3 +71,4 @@ export const TeacherSelector = ({ schoolId, selectedTeacherId, onTeacherChange }
     </div>
   );
 };
+

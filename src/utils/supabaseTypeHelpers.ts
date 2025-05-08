@@ -86,3 +86,4 @@ export interface TeacherInvite {
   invitation_token: string;
   created_by: string;
 }
+

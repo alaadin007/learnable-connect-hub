@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, Navigate, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -18,7 +19,7 @@ interface InvitationDetails {
 export default function AcceptInvitation() {
   const { token } = useParams();
   const navigate = useNavigate();
-  const { user, refreshProfile } = useAuth();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [verifying, setVerifying] = useState(false);
   const [invitationDetails, setInvitationDetails] = useState<InvitationDetails>({});
@@ -76,9 +77,6 @@ export default function AcceptInvitation() {
       
       setAccepted(true);
       toast.success(`You've joined ${invitationDetails.school_name} as a teacher`);
-      
-      // Refresh user profile to get updated roles
-      await refreshProfile();
       
       // Redirect to dashboard after a short delay
       setTimeout(() => {
@@ -186,3 +184,4 @@ export default function AcceptInvitation() {
     </div>
   );
 }
+

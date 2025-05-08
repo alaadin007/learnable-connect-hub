@@ -39,19 +39,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
-
-// Define TeacherInvitation type if not imported
-export interface TeacherInvitation {
-  id: string;
-  email: string;
-  status: string;
-  invitation_token: string;
-  school_id: string;
-  created_at: string;
-  expires_at: string;
-  created_by: string;
-  role?: string;
-}
+import { TeacherInvitation, asDbId } from "@/utils/supabaseTypeHelpers";
 
 // Update component to use TeacherInvitation type
 const TeacherManagement = () => {
@@ -85,14 +73,27 @@ const TeacherManagement = () => {
       const { data, error } = await supabase
         .from("teacher_invitations")
         .select("*")
-        .eq("school_id", schoolId)
+        .eq("school_id", asDbId(schoolId))
         .order("created_at", { ascending: false });
 
       if (error) {
         throw error;
       }
 
-      setInvitations(data as TeacherInvitation[]);
+      // Type cast the data safely
+      const typedInvitations = (data || []).map(invitation => ({
+        id: invitation.id,
+        email: invitation.email,
+        status: invitation.status,
+        invitation_token: invitation.invitation_token,
+        school_id: invitation.school_id,
+        created_at: invitation.created_at,
+        expires_at: invitation.expires_at,
+        created_by: invitation.created_by,
+        role: invitation.role
+      })) as TeacherInvitation[];
+
+      setInvitations(typedInvitations);
     } catch (error: any) {
       toast.error(error.message || "Failed to load invitations");
     } finally {
@@ -191,15 +192,18 @@ const TeacherManagement = () => {
 
     setIsLoading(true);
     try {
-      const { error } = await supabase
-        .from("teacher_invitations")
-        .delete()
-        .in("id", selectedInvitations);
-
-      if (error) {
-        throw error;
+      // Handle deletion of multiple invitations one by one to avoid type issues
+      for (const id of selectedInvitations) {
+        const { error } = await supabase
+          .from("teacher_invitations")
+          .delete()
+          .eq("id", asDbId(id));
+          
+        if (error) {
+          throw error;
+        }
       }
-
+      
       toast.success("Selected invitations deleted successfully!");
       loadInvitations();
       setSelectedInvitations([]);
@@ -376,3 +380,4 @@ const TeacherManagement = () => {
 };
 
 export default TeacherManagement;
+

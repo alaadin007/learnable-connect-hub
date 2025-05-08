@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from 'sonner';
 import { supabase, TEST_SCHOOL_CODE } from '@/integrations/supabase/client';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { asDbId } from '@/utils/supabaseTypeHelpers';
 
 interface SchoolCodeData {
   id: string;
@@ -29,7 +30,7 @@ export const RegisterForm: React.FC = () => {
   const [schoolCodeLoading, setSchoolCodeLoading] = useState(false);
   const [schoolCodeError, setSchoolCodeError] = useState<string | null>(null);
   const navigate = useNavigate();
-  const { signUp } = useAuth();
+  const { login } = useAuth();
 
   useEffect(() => {
     // Check if the school code is the test school code
@@ -54,7 +55,7 @@ export const RegisterForm: React.FC = () => {
         const { data, error } = await supabase
           .from('schools')
           .select('*')
-          .eq('code', schoolCode)
+          .eq('code', asDbId(schoolCode))
           .single();
 
         if (error) {
@@ -101,22 +102,25 @@ export const RegisterForm: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      // Fixed: Update this call to match the signUp implementation in AuthContext
-      // Pass the data in the format expected by the signUp method
-      const userData = {
-        fullName,
-        userType,
-        schoolCode
-      };
-      
-      const result = await signUp(email, password, userData);
+      // Create the user with Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: fullName,
+            user_type: userType,
+            school_code: schoolCode
+          }
+        }
+      });
 
-      if (!result) {
-        toast.error("Registration failed. Please try again.");
-      } else {
-        toast.success("Registration successful! Please check your email to verify your account.");
-        navigate('/login?registered=true');
+      if (authError) {
+        throw authError;
       }
+
+      toast.success("Registration successful! Please check your email to verify your account.");
+      navigate('/login?registered=true');
     } catch (err: any) {
       console.error("Error during registration:", err);
       toast.error("An unexpected error occurred during registration.");
@@ -205,3 +209,4 @@ export const RegisterForm: React.FC = () => {
     </form>
   );
 };
+
