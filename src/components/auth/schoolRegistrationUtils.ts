@@ -1,76 +1,116 @@
 import { supabase } from "@/integrations/supabase/client";
 
-export const checkEmailExistingRole = async (email: string): Promise<string | null> => {
+/**
+ * Check if an email is associated with a particular user role
+ * @param email The email to check
+ * @returns The user role if found, null otherwise
+ */
+export async function checkEmailExistingRole(email: string): Promise<string | null> {
   try {
-    // 1. Get user by email from auth.users
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('id')
-      .eq('email', email)
-      .limit(1);
+    // Use our new RPC function that handles the lookup server-side
+    const { data, error } = await supabase.rpc('get_user_role_by_email', { 
+      input_email: email 
+    });
 
-    if (userError || !userData || userData.length === 0) {
-      // handle error or user not found
-      return null;
-    }
-
-    // 2. Get profile by user id
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('user_type')
-      .eq('id', userData[0].id)
-      .limit(1);
-    
     if (error) {
-      console.error("Error checking user role:", error);
-      return null;
-    }
-    
-    if (data && data.length > 0 && data[0].user_type) {
-      // Return the role name with proper capitalization for display
-      const role = data[0].user_type;
-      switch (role) {
-        case 'school':
-        case 'school_admin':
-          return 'School Administrator';
-        case 'teacher':
-        case 'teacher_supervisor':
-          return 'Teacher';
-        case 'student':
-          return 'Student';
-        default:
-          return role.charAt(0).toUpperCase() + role.slice(1);
+      console.error('Error checking email role:', error);
+      
+      // Fallback: try to get the profile directly if the RPC fails
+      try {
+        // Use the listUsers API correctly without filters
+        const { data: userData, error: userError } = await supabase.auth.admin.listUsers();
+        
+        // Filter users manually - make sure to check for undefined users field
+        const matchingUser = userData?.users?.find((user: any) => {
+          return user && typeof user === 'object' && 'email' in user && user.email === email;
+        });
+        
+        if (!userError && matchingUser) {
+          // Check user metadata first
+          if (matchingUser.user_metadata && matchingUser.user_metadata.user_type) {
+            return formatRoleForDisplay(matchingUser.user_metadata.user_type);
+          }
+          
+          // If not in metadata, check the profiles table
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('user_type')
+            .eq('id', matchingUser.id)
+            .single();
+            
+          if (profileData && profileData.user_type) {
+            return formatRoleForDisplay(profileData.user_type);
+          }
+          
+          // Last resort, check the user_roles table
+          const { data: roleData } = await supabase
+            .from('user_roles')
+            .select('role')
+            .eq('user_id', matchingUser.id)
+            .single();
+            
+          if (roleData && roleData.role) {
+            return formatRoleForDisplay(roleData.role);
+          }
+        }
+      } catch (fallbackError) {
+        console.error('Fallback email role check failed:', fallbackError);
       }
+      
+      return null;
     }
-    
-    return null;
-  } catch (error) {
-    console.error("Error checking email role:", error);
+
+    // Format the role for display if needed
+    return formatRoleForDisplay(data);
+  } catch (e) {
+    console.error('Exception checking email role:', e);
     return null;
   }
-};
+}
 
-export const checkIfEmailExists = async (email: string): Promise<boolean> => {
+/**
+ * Format a role value for display
+ * @param role The raw role value
+ * @returns Formatted role for display
+ */
+function formatRoleForDisplay(role: string | null): string | null {
+  if (!role) return null;
+  
+  switch (role) {
+    case 'school':
+    case 'school_admin':
+      return 'School Administrator';
+    case 'teacher':
+    case 'teacher_supervisor':
+      return 'Teacher';
+    case 'student':
+      return 'Student';
+    default:
+      return role.charAt(0).toUpperCase() + role.slice(1);
+  }
+}
+
+/**
+ * Check if an email already exists in the system
+ * @param email The email to check
+ * @returns Boolean indicating if the email exists
+ */
+export async function checkIfEmailExists(email: string): Promise<boolean> {
   try {
-    // Check if the email exists directly using supabase auth
-    const { data, error } = await supabase.rpc('check_if_email_exists', { input_email: email });
-    
-    if (error) {
-      console.error("Error checking email existence:", error);
-      // Fallback to trying a sign-in attempt to check if the email exists
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: email,
-        password: "dummy-password-for-check-only",
-      });
+    // Use rpc function that's available in the database
+    const { data, error } = await supabase.rpc('check_if_email_exists', {
+      input_email: email  // Parameter name matches the function parameter in database
+    });
 
-      // If there's no error or the error is not about invalid credentials, email might exist
-      return !signInError || (signInError && !signInError.message.includes("Invalid login credentials"));
+    if (error) {
+      console.error('Error checking if email exists:', error);
+      return false;
     }
-    
-    return !!data;
-  } catch (error) {
-    console.error("Error checking email existence:", error);
-    // In case of error, safer to assume it might exist
-    return true;
+
+    // Explicitly cast the result to boolean to ensure type safety
+    return Boolean(data);
+  } catch (e) {
+    console.error('Exception checking if email exists:', e);
+    return false;
   }
-};
+}

@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
@@ -8,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { Users, BarChart2, ChevronDown, Settings, User } from "lucide-react";
+import { Users, BarChart2, ChevronDown, Settings, User, School } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -34,21 +33,86 @@ const SchoolAdmin = () => {
   const { profile, userRole } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [activeTab, setActiveTab] = useState("teachers");
+  const [activeTab, setActiveTab] = useState("overview");
+  const [stats, setStats] = useState({
+    totalTeachers: 0,
+    totalStudents: 0,
+    activeClasses: 0,
+    pendingInvitations: 0
+  });
+  const [loading, setLoading] = useState(true);
   
-  // Use optional chaining for organization properties
-  const schoolId = profile?.organization?.id || null;
-  
-  // Verify correct user role, but only if not coming from test accounts
+  // Verify correct user role
   useEffect(() => {
-    const fromTestAccounts = location.state?.fromTestAccounts === true;
-    
-    if (userRole && userRole !== "school" && !fromTestAccounts) {
+    if (userRole && userRole !== "school") {
       navigate("/dashboard");
     }
-  }, [userRole, navigate, location.state]);
+  }, [userRole, navigate]);
 
-  // Fixed Quick actions dropdown handler to prevent navigation issues
+  // Fetch school stats
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        setLoading(true);
+        const schoolId = profile?.organization?.id;
+
+        if (!schoolId) {
+          toast.error("School ID not found");
+          return;
+        }
+
+        // Fetch total teachers
+        const { count: teacherCount, error: teacherError } = await supabase
+          .from('profiles')
+          .select('*', { count: 'exact', head: true })
+          .eq('school_id', schoolId)
+          .eq('user_type', 'teacher');
+
+        if (teacherError) throw teacherError;
+
+        // Fetch total students
+        const { count: studentCount, error: studentError } = await supabase
+          .from('profiles')
+          .select('*', { count: 'exact', head: true })
+          .eq('school_id', schoolId)
+          .eq('user_type', 'student');
+
+        if (studentError) throw studentError;
+
+        // Fetch pending invitations
+        const { count: invitationCount, error: invitationError } = await supabase
+          .from('teacher_invitations')
+          .select('*', { count: 'exact', head: true })
+          .eq('school_id', schoolId)
+          .eq('is_accepted', false);
+
+        if (invitationError) throw invitationError;
+
+        setStats({
+          totalTeachers: teacherCount || 0,
+          totalStudents: studentCount || 0,
+          activeClasses: 0,
+          pendingInvitations: invitationCount || 0
+        });
+      } catch (error) {
+        console.error('Error fetching stats:', error);
+        toast.error('Failed to load dashboard statistics');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (profile?.organization?.id) {
+      fetchStats();
+    }
+  }, [profile?.organization?.id]);
+
+  // Handle tab selections
+  const handleTabClick = (value: string) => {
+    setActiveTab(value);
+  };
+
+  // Handle quick actions
   const handleQuickActionSelect = (action: string) => {
     switch (action) {
       case "manage-teachers":
@@ -63,63 +127,32 @@ const SchoolAdmin = () => {
       case "student-management":
         navigate("/admin/students");
         break;
-      case "dashboard":
-        // Clear any previous state and set new state to prevent redirect loops
-        navigate("/dashboard", { 
-          state: { fromNavigation: true },
-          replace: true
-        });
-        break;
       default:
         break;
     }
   };
 
-  // Handle tab selections with consistency
-  const handleTabClick = (value: string) => {
-    setActiveTab(value);
-    
-    if (value === "students") {
-      navigate("/admin/students");
-    } else if (value === "settings") {
-      navigate("/admin/settings");
-    }
-  };
+  if (loading) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <p className="text-xl">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
       <main className="flex-grow bg-learnable-super-light py-8">
         <div className="container mx-auto px-4">
-          <div className="mb-6">
-            <h1 className="text-3xl font-bold gradient-text mb-2">School Admin Panel</h1>
-            <p className="text-learnable-gray">
-              Manage your school settings, teachers, and students
-            </p>
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold mb-2">School Admin Dashboard</h1>
+            <p className="text-gray-600">Welcome back, {profile?.full_name || 'Admin'}</p>
           </div>
-          
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>School Information</CardTitle>
-              <CardDescription>Your school details</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <div className="flex flex-col sm:flex-row sm:items-center">
-                  <span className="font-medium min-w-32">School Name:</span>
-                  <span>{profile?.organization?.name || "Not available"}</span>
-                </div>
-                <div className="flex flex-col sm:flex-row sm:items-center">
-                  <span className="font-medium min-w-32">School Code:</span>
-                  <span className="font-mono">{profile?.organization?.code || "Not available"}</span>
-                </div>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Your school code is used to invite teachers and students to join your school.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-          
+
+          {/* Quick Actions */}
           <div className="mb-6 flex flex-wrap gap-3 justify-between items-center">
             <h2 className="text-xl font-semibold">Quick Actions</h2>
             <div className="flex flex-wrap gap-3">
@@ -131,10 +164,6 @@ const SchoolAdmin = () => {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-56 bg-white">
-                  <DropdownMenuItem onClick={() => handleQuickActionSelect("dashboard")}>
-                    <User className="mr-2 h-4 w-4" />
-                    <span>Dashboard</span>
-                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleQuickActionSelect("manage-teachers")}>
                     <Users className="mr-2 h-4 w-4" />
                     <span>Manage Teachers</span>
@@ -155,39 +184,115 @@ const SchoolAdmin = () => {
               </DropdownMenu>
             </div>
           </div>
-          
-          <Tabs defaultValue="teachers" value={activeTab} onValueChange={handleTabClick} className="space-y-4">
-            <TabsList className="w-full border-b">
-              <TabsTrigger value="teachers" className="flex-1">
-                Teachers
-              </TabsTrigger>
-              <TabsTrigger value="students" className="flex-1">
-                Students
-              </TabsTrigger>
-              <TabsTrigger value="settings" className="flex-1">
-                School Settings
-              </TabsTrigger>
+
+          {/* Stats Overview */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Teachers</CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.totalTeachers}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Students</CardTitle>
+                <User className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.totalStudents}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Active Classes</CardTitle>
+                <School className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.activeClasses}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Pending Invitations</CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.pendingInvitations}</div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Main Content Tabs */}
+          <Tabs value={activeTab} onValueChange={handleTabClick} className="space-y-4">
+            <TabsList>
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="teachers">Teachers</TabsTrigger>
+              <TabsTrigger value="students">Students</TabsTrigger>
+              <TabsTrigger value="settings">Settings</TabsTrigger>
             </TabsList>
             
-            <TabsContent value="teachers" className="space-y-4">
-              <TeacherManagement />
+            <TabsContent value="overview" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>School Overview</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <p>Welcome to your school's dashboard. Here you can manage teachers, students, and school settings.</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="p-4 bg-gray-50 rounded-lg">
+                        <h3 className="font-semibold mb-2">School Information</h3>
+                        <p className="text-sm text-gray-600">Name: {profile?.organization?.name || 'Not set'}</p>
+                        <p className="text-sm text-gray-600">Code: {profile?.organization?.code || 'Not set'}</p>
+                      </div>
+                      <div className="p-4 bg-gray-50 rounded-lg">
+                        <h3 className="font-semibold mb-2">Quick Links</h3>
+                        <div className="space-y-2">
+                          <Button variant="outline" className="w-full justify-start" onClick={() => handleQuickActionSelect("manage-teachers")}>
+                            <Users className="mr-2 h-4 w-4" />
+                            Manage Teachers
+                          </Button>
+                          <Button variant="outline" className="w-full justify-start" onClick={() => handleQuickActionSelect("student-management")}>
+                            <User className="mr-2 h-4 w-4" />
+                            Manage Students
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </TabsContent>
-            
-            <TabsContent value="students" className="space-y-4">
+
+            <TabsContent value="teachers">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Teacher Management</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <p>Manage your school's teachers and their permissions.</p>
+                    <Button onClick={() => handleQuickActionSelect("manage-teachers")} className="w-full sm:w-auto">
+                      <Users className="mr-2 h-4 w-4" />
+                      Go to Teacher Management
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="students">
               <Card>
                 <CardHeader>
                   <CardTitle>Student Management</CardTitle>
-                  <CardDescription>Manage students at your school</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex flex-col gap-4">
-                    <p className="text-muted-foreground mb-4">
-                      Manage your school's students, including enrollment and class assignments.
-                    </p>
-                    <Button 
-                      onClick={() => navigate('/admin/students')} 
-                      className="w-full sm:w-auto gradient-bg"
-                    >
+                  <div className="space-y-4">
+                    <p>View and manage student records and progress.</p>
+                    <Button onClick={() => handleQuickActionSelect("student-management")} className="w-full sm:w-auto">
                       <User className="mr-2 h-4 w-4" />
                       Go to Student Management
                     </Button>
@@ -195,22 +300,16 @@ const SchoolAdmin = () => {
                 </CardContent>
               </Card>
             </TabsContent>
-            
-            <TabsContent value="settings" className="space-y-4">
+
+            <TabsContent value="settings">
               <Card>
                 <CardHeader>
                   <CardTitle>School Settings</CardTitle>
-                  <CardDescription>Configure school-wide settings</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex flex-col gap-4">
-                    <p className="text-muted-foreground mb-4">
-                      Configure your school settings, including notification preferences and school details.
-                    </p>
-                    <Button 
-                      onClick={() => navigate('/admin/settings')} 
-                      className="w-full sm:w-auto gradient-bg"
-                    >
+                  <div className="space-y-4">
+                    <p>Configure your school's settings and preferences.</p>
+                    <Button onClick={() => handleQuickActionSelect("school-settings")} className="w-full sm:w-auto">
                       <Settings className="mr-2 h-4 w-4" />
                       Go to School Settings
                     </Button>

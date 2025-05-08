@@ -1,4 +1,3 @@
-
 import React, { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -27,33 +26,8 @@ const Dashboard = () => {
     }
   }, [user, navigate, location.state]);
 
-  // More targeted approach to role-based redirection
-  useEffect(() => {
-    // Only redirect on specific conditions
-    const isDirectDashboardAccess = !location.state?.fromNavigation && 
-                                   !location.state?.fromTestAccounts &&
-                                   !location.state?.preserveContext &&
-                                   !location.state?.fromDashboard;
-    
-    // Only redirect if we know the role and it's a direct access
-    if (userRole && isDirectDashboardAccess) {
-      console.log("Dashboard: Redirecting based on role", {
-        userRole,
-        isDirectDashboardAccess,
-        locationState: location.state
-      });
-      
-      if (userRole === "school" && profile?.organization?.id) {
-        navigate("/admin", { replace: true, state: { fromDashboard: true, preserveContext: true } });
-      } else if (userRole === "teacher") {
-        navigate("/teacher/analytics", { replace: true, state: { fromDashboard: true, preserveContext: true } });
-      }
-      // Student stays on dashboard
-    }
-  }, [userRole, navigate, location.state, profile]);
-
-  // Show loading state if user or profile data is not ready
-  if (!user && !location.state?.fromTestAccounts) {
+  // Show loading state if user, userRole, or profile data is not ready
+  if (!user || !userRole || !profile) {
     return (
       <>
         <Navbar />
@@ -63,6 +37,17 @@ const Dashboard = () => {
       </>
     );
   }
+
+  // Always redirect school admins to the admin dashboard
+  useEffect(() => {
+    if (userRole === "school" && profile.organization?.id) {
+      console.log("Dashboard: Redirecting school admin to admin panel");
+      navigate("/admin", {
+        replace: true,
+        state: { fromDashboard: true, preserveContext: true }
+      });
+    }
+  }, [userRole, profile, navigate]);
 
   const renderUserDashboard = () => {
     const userType = profile?.user_type;

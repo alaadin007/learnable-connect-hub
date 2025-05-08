@@ -1,4 +1,3 @@
-
 import React, {
   createContext,
   useState,
@@ -95,16 +94,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           .select("*, organization:schools(id, name, code)")
           .eq("id", userId)
           .single();
-
         if (error) {
           console.error("Error fetching profile:", error);
-
           // Fallback to user metadata if possible
           if (user && user.user_metadata) {
             const userType = user.user_metadata.user_type || null;
             const fullName = user.user_metadata.full_name || null;
             const schoolCode = user.user_metadata.school_code || null;
-
             const fallbackProfile: UserProfile = {
               id: userId,
               user_type: userType as UserRole | null,
@@ -112,19 +108,44 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               school_code: schoolCode,
               organization: null,
             };
-
             if (userType) {
               setUserRole(userType as UserRole);
               setIsSupervisor(userType === "school");
             }
-
             setProfile(fallbackProfile);
             return fallbackProfile;
           }
-
+          toast.error("Failed to fetch your profile. Please contact support.");
+          setProfile(null);
+          setUserRole(null);
+          setIsSupervisor(false);
+          setSchoolId(null);
           return null;
         }
-
+        // Error handling for missing user_type or missing organization for school admin
+        if (!profileData.user_type) {
+          toast.error("Your account is missing a user type.", { description: "Please contact support." });
+          setProfile(null);
+          setUserRole(null);
+          setIsSupervisor(false);
+          setSchoolId(null);
+          return null;
+        }
+        if (
+          profileData.user_type === "school" &&
+          (
+            !profileData.organization ||
+            typeof profileData.organization !== "object" ||
+            !(profileData.organization && "id" in profileData.organization && (profileData.organization as any).id)
+          )
+        ) {
+          toast.error("Your school admin account is missing an associated school.", { description: "Please contact support." });
+          setProfile(null);
+          setUserRole(null);
+          setIsSupervisor(false);
+          setSchoolId(null);
+          return null;
+        }
         // Ensure profileData.user_type is properly typed
         const userType = profileData.user_type as unknown;
         
@@ -138,8 +159,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           organization: null,
         };
 
-        if (profileData.organization && typeof profileData.organization === "object") {
-          const orgData = profileData.organization as Record<string, unknown>;
+        let orgData: Record<string, unknown> | null = null;
+        if (
+          profileData.organization !== null &&
+          typeof profileData.organization === "object" &&
+          (profileData.organization as any).id
+        ) {
+          orgData = profileData.organization as Record<string, unknown>;
           const orgId = orgData.id ? String(orgData.id) : "";
           const orgName = orgData.name ? String(orgData.name) : "";
           const orgCode = orgData.code ? String(orgData.code) : "";

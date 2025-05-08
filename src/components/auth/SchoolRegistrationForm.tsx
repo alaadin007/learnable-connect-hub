@@ -1,3 +1,4 @@
+
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -62,6 +63,7 @@ const SchoolRegistrationForm: React.FC = () => {
           adminEmail: data.adminEmail,
           adminPassword: data.adminPassword,
           adminFullName: data.adminFullName,
+          userType: "school_admin", // Explicitly set the user type to school_admin
         },
       });
 

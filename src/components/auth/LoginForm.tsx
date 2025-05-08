@@ -7,7 +7,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { Clock, AlertCircle } from "lucide-react";
+import { Clock, AlertCircle, Loader2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const LoginForm = () => {
@@ -79,6 +79,20 @@ const LoginForm = () => {
         return "/dashboard";
     }
   };
+
+  // Add a timeout fallback for login loading
+  useEffect(() => {
+    let timeout: NodeJS.Timeout | null = null;
+    if (isLoading) {
+      timeout = setTimeout(() => {
+        setIsLoading(false);
+        setLoginError("Login is taking too long. Please check your connection or try again.");
+      }, 15000); // 15 seconds
+    }
+    return () => {
+      if (timeout) clearTimeout(timeout);
+    };
+  }, [isLoading]);
   
   // Special handling for test accounts - much faster now
   const handleQuickLogin = async (
@@ -178,45 +192,74 @@ const LoginForm = () => {
 
       if (data?.user) {
         console.log("Login successful:", data.user.id);
-        
         // Determine user type and redirect accordingly
         let userType: string | null = null;
         let userName: string | null = null;
-        
+        let fetchedProfile: any = null;
         // First try to get from user metadata
         if (data.user.user_metadata) {
           userType = data.user.user_metadata.user_type;
           userName = data.user.user_metadata.full_name;
         }
-        
         // If not in metadata, try to get from profile
         if (!userType) {
           try {
             const { data: profile, error: profileError } = await supabase
               .from("profiles")
-              .select("user_type, full_name")
+              .select("user_type, full_name, organization:school_id(*)")
               .eq("id", data.user.id)
               .single();
-
+            fetchedProfile = profile;
             if (!profileError && profile) {
               userType = profile.user_type;
               userName = profile.full_name || userName;
+              console.log("Fetched user type from profile:", userType);
+              console.log("Fetched profile:", profile);
             }
           } catch (profileError) {
             console.error("Error fetching user profile:", profileError);
           }
+        } else {
+          console.log("User type from metadata:", userType);
         }
-        
+        // Check user_roles table as well for definitive role assignment
+        try {
+          const { data: userRole, error: roleError } = await supabase
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", data.user.id)
+            .single();
+          if (!roleError && userRole) {
+            console.log("Found user role in user_roles table:", userRole.role);
+            userType = userRole.role;
+          }
+        } catch (roleError) {
+          console.error("Error checking user_roles table:", roleError);
+        }
+        // Normalize the user role to handle both "school" and "school_admin" formats
+        if (userType === "school_admin") {
+          userType = "school";
+        }
+        // Error handling for missing userType or missing organization for school admin
+        if (!userType) {
+          setLoginError("Your account is missing a user type. Please contact support.");
+          setIsLoading(false);
+          return;
+        }
+        if (userType === "school" && (!fetchedProfile || !fetchedProfile.organization || !fetchedProfile.organization.id)) {
+          setLoginError("Your school admin account is missing an associated school. Please contact support.");
+          setIsLoading(false);
+          return;
+        }
         // Default to dashboard if we still can't determine the role
         const redirectPath = userType ? getUserRedirectPath(userType) : "/dashboard";
-          
+        console.log(`User type: ${userType}, redirecting to: ${redirectPath}`);
         toast.success("Login successful", {
           description: `Welcome back, ${userName || email}!`,
         });
-        
-        navigate(redirectPath, { 
+        navigate(redirectPath, {
           replace: true,
-          state: { 
+          state: {
             fromNavigation: true,
             preserveContext: true
           }
@@ -323,10 +366,30 @@ const LoginForm = () => {
 
           <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-md">
             <div className="flex">
-              <Clock className="h-5 w-5 text-amber-700 mr-2 flex-shrink-0 mt-0.5" />
+              <AlertCircle className="h-5 w-5 text-amber-700 mr-2 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-amber-800 font-medium">Need quick access?</p>
+                <p className="text-amber-800 font-medium">Testing the application?</p>
                 <p className="mt-1 text-sm text-amber-700">
+                  You can quickly create test accounts for all user roles (school admin, teacher, student) on our dedicated test page.
+                </p>
+                <div className="mt-2">
+                  <Link 
+                    to="/test-accounts" 
+                    className="text-sm text-amber-800 font-semibold hover:text-amber-900 bg-amber-200 px-3 py-1 rounded-full transition-colors duration-200"
+                  >
+                    Access Test Accounts →
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-md">
+            <div className="flex">
+              <Clock className="h-5 w-5 text-blue-700 mr-2 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-blue-800 font-medium">Need quick access?</p>
+                <p className="mt-1 text-sm text-blue-700">
                   Use our pre-configured test accounts for instant login without email verification.
                 </p>
                 <div className="mt-2 flex flex-wrap gap-2">
@@ -416,10 +479,7 @@ const LoginForm = () => {
               {isLoading ? (
                 <>
                   <span className="inline-flex items-center">
-                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
+                    <Loader2 className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" />
                     Logging in...
                   </span>
                 </>

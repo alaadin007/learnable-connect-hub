@@ -1366,6 +1366,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      get_user_role_by_email: {
+        Args: { input_email: string }
+        Returns: string
+      }
       get_user_roles: {
         Args: Record<PropertyKey, never>
         Returns: Database["public"]["Enums"]["app_role"][]
@@ -1409,6 +1413,19 @@ export type Database = {
       proxy_openai_request: {
         Args: { prompt: string; model?: string }
         Returns: Json
+      }
+      register_school: {
+        Args: {
+          p_school_name: string
+          p_admin_email: string
+          p_admin_full_name: string
+          p_contact_email?: string
+        }
+        Returns: {
+          school_id: string
+          school_code: string
+          admin_id: string
+        }[]
       }
       remove_role: {
         Args: {
