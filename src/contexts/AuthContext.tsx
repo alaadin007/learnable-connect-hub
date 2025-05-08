@@ -1,4 +1,3 @@
-
 import { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -35,7 +34,7 @@ interface AuthContextType {
   signup: (email: string, password: string, fullName: string, userType: UserType, schoolCode?: string, inviteCode?: string) => Promise<boolean>;
   logout: () => Promise<void>;
   setTestUser: (type: UserType) => void;
-  signUp?: (email: string, password: string, userData: any) => Promise<boolean>; // Added missing method
+  signUp: (email: string, password: string, userData: any) => Promise<boolean>; // Match the signature defined elsewhere
   signOut?: () => Promise<void>; // Added missing method
   refreshProfile?: () => Promise<void>; // Added missing method
 }
@@ -65,7 +64,7 @@ const createCustomAuthError = (message: string, status: number = 400): AuthError
   } as unknown as AuthError; // Use type assertion to handle protected property
 };
 
-export const AuthProvider = ({ children }: AuthProviderProps) => {
+export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [userType, setUserType] = useState<UserType | null>(null);
@@ -173,6 +172,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     };
   }, []);
 
+  // Update the signup implementation to match the expected signature in the interface
   const signup = async (
     email: string,
     password: string,
@@ -223,8 +223,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   };
 
-  // Add signUp alias for compatibility
-  const signUp = signup;
+  // Add signUp implementation that matches the expected signature
+  const signUp = async (email: string, password: string, userData: any): Promise<boolean> => {
+    // Extract the data from userData to call our existing signup method
+    const { fullName, userType, schoolCode, inviteCode } = userData;
+    return signup(email, password, fullName, userType as UserType, schoolCode, inviteCode);
+  };
 
   const login = async (email: string, password: string): Promise<boolean> => {
     setLoading(true);
@@ -324,7 +328,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       signup,
       logout,
       signUp,
-      signOut,
+      signOut: logout, // Ensure signOut is defined
       refreshProfile,
       setTestUser,
       isTestAccount

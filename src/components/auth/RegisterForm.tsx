@@ -101,10 +101,18 @@ export const RegisterForm: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      const result = await signUp(email, password, fullName, userType, schoolCode, schoolName || undefined);
+      // Fixed: Update this call to match the signUp implementation in AuthContext
+      // Pass the data in the format expected by the signUp method
+      const userData = {
+        fullName,
+        userType,
+        schoolCode
+      };
+      
+      const result = await signUp(email, password, userData);
 
-      if (result?.error) {
-        toast.error(result.error.message);
+      if (!result) {
+        toast.error("Registration failed. Please try again.");
       } else {
         toast.success("Registration successful! Please check your email to verify your account.");
         navigate('/login?registered=true');
