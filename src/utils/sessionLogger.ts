@@ -1,6 +1,6 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { invokeEdgeFunction } from "./apiHelpers";
 
 // Log session start in Supabase
 const logSessionStart = async (topic?: string, userId?: string): Promise<string | null> => {
@@ -12,49 +12,52 @@ const logSessionStart = async (topic?: string, userId?: string): Promise<string 
       return null;
     }
     
-    // If not testing with a mock userId, use the edge function
-    if (!userId) {
-      const { data, error } = await supabase.functions.invoke("create-session-log", {
-        body: { topic: topic || "General Chat" }
+    try {
+      // Use invokeEdgeFunction for proper authentication
+      const result = await invokeEdgeFunction<{ logId: string; success: boolean }>("create-session-log", {
+        topic: topic || "General Chat"
       });
-
-      if (error) {
-        console.error("Error starting session:", error);
-        return null;
-      }
-
-      return data?.logId || null;
-    } else {
-      // For test accounts, we need special handling
-      // First get the school ID for this user
-      const { data: userData } = await supabase
-        .from('students')
-        .select('school_id')
-        .eq('id', userId)
-        .single();
-        
-      if (!userData?.school_id) {
-        console.error("No school ID found for test user");
-        return null;
-      }
       
-      // Then create the session log directly
-      const { data: sessionData, error: sessionError } = await supabase
-        .from('session_logs')
-        .insert({
-          user_id: userId,
-          school_id: userData.school_id,
-          topic_or_content_used: topic || "General Chat"
-        })
-        .select('id')
-        .single();
-        
-      if (sessionError) {
-        console.error("Error creating test session:", sessionError);
-        return null;
+      if (result?.success && result?.logId) {
+        return result.logId;
       }
-      
-      return sessionData?.id || null;
+      return null;
+    } catch (error) {
+      console.error("Error creating session:", error);
+      // For test account fallback, keep existing implementation
+      if (userId) {
+        console.log("Falling back to direct DB access for test account");
+        // First get the school ID for this user
+        const { data: userData } = await supabase
+          .from('students')
+          .select('school_id')
+          .eq('id', userId)
+          .single();
+          
+        if (!userData?.school_id) {
+          console.error("No school ID found for test user");
+          return null;
+        }
+        
+        // Then create the session log directly
+        const { data: sessionData, error: sessionError } = await supabase
+          .from('session_logs')
+          .insert({
+            user_id: userId,
+            school_id: userData.school_id,
+            topic_or_content_used: topic || "General Chat"
+          })
+          .select('id')
+          .single();
+          
+        if (sessionError) {
+          console.error("Error creating test session:", sessionError);
+          return null;
+        }
+        
+        return sessionData?.id || null;
+      }
+      return null;
     }
   } catch (error) {
     console.error("Error starting session:", error);

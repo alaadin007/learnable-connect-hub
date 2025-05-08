@@ -9,12 +9,12 @@ import { supabase } from "@/integrations/supabase/client";
  */
 export async function invokeEdgeFunction<T = any>(functionName: string, payload?: any): Promise<T> {
   try {
-    // Check if we have an active session
+    // Get the current session
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
     
     if (sessionError) {
       console.error("Error getting session:", sessionError);
-      throw new Error("Authentication error");
+      throw new Error("Authentication error: " + sessionError.message);
     }
     
     // If no session, try silent refresh before giving up
@@ -28,14 +28,18 @@ export async function invokeEdgeFunction<T = any>(functionName: string, payload?
       }
     }
     
-    // Get the latest session after potential refresh
+    // Always get the latest session after potential refresh
     const { data: { session: currentSession } } = await supabase.auth.getSession();
+    
+    if (!currentSession) {
+      throw new Error("No active session");
+    }
     
     // Invoke the function with explicit authorization header
     const { data, error } = await supabase.functions.invoke(functionName, {
       body: payload,
       headers: {
-        Authorization: `Bearer ${currentSession?.access_token}`
+        Authorization: `Bearer ${currentSession.access_token}`
       }
     });
     
