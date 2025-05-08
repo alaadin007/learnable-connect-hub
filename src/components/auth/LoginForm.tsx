@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +16,7 @@ const LoginForm = () => {
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState<string | null>(null);
   const [activeTestAccount, setActiveTestAccount] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { signIn, setTestUser, userRole, session, signOut } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -135,9 +137,11 @@ const LoginForm = () => {
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
     setLoginError(null);
+    setIsSubmitting(true);
 
     if (!email || !password) {
       toast.error("Please enter both email and password");
+      setIsSubmitting(false);
       return;
     }
     
@@ -159,11 +163,13 @@ const LoginForm = () => {
         else if (email.startsWith("teacher")) type = "teacher";
         
         await handleQuickLogin(type);
+        setIsSubmitting(false);
         return;
       }
       
       // Handle normal login with credentials
       const result = await signIn(email, password);
+      setIsSubmitting(false);
       
       if (result?.error) {
         throw result.error;
@@ -185,6 +191,7 @@ const LoginForm = () => {
     } catch (error: any) {
       console.error("Login error:", error);
       setLoginError(error.message);
+      setIsSubmitting(false);
 
       // Improved error messages
       if (error.message?.includes("Email not confirmed")) {
@@ -332,6 +339,7 @@ const LoginForm = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 autoComplete="email"
+                disabled={isSubmitting}
               />
             </div>
             <div className="space-y-2">
@@ -341,6 +349,7 @@ const LoginForm = () => {
                   type="button"
                   onClick={handleResetPassword}
                   className="text-sm text-learnable-blue hover:underline"
+                  disabled={isSubmitting}
                 >
                   Forgot password?
                 </button>
@@ -352,13 +361,25 @@ const LoginForm = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 autoComplete="current-password"
+                disabled={isSubmitting}
               />
             </div>
             <Button
               type="submit"
               className="w-full gradient-bg transition-all duration-300 relative overflow-hidden"
+              disabled={isSubmitting}
             >
-              Log in
+              {isSubmitting ? (
+                <span className="flex items-center justify-center">
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Logging in...
+                </span>
+              ) : (
+                "Log in"
+              )}
             </Button>
           </form>
         </CardContent>
