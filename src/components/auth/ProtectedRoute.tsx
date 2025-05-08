@@ -13,18 +13,22 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children,
   requiredUserType
 }) => {
-  const { user, userRole, isLoading } = useAuth();
+  const { user, userRole, isLoading, session } = useAuth();
   const location = useLocation();
 
   useEffect(() => {
-    if (!isLoading && !user) {
-      toast.error("You must be logged in to access this page");
-    } else if (!isLoading && user && requiredUserType && userRole !== requiredUserType) {
-      toast.error(`Only ${requiredUserType}s can access this page`);
+    // Only show toast notifications if we're not initially loading
+    // This prevents flashing error messages during auth state initialization
+    if (!isLoading) {
+      if (!user || !session) {
+        toast.error("You must be logged in to access this page");
+      } else if (requiredUserType && userRole !== requiredUserType) {
+        toast.error(`Only ${requiredUserType}s can access this page`);
+      }
     }
-  }, [isLoading, user, userRole, requiredUserType]);
+  }, [isLoading, user, session, userRole, requiredUserType]);
 
-  // Show loading state
+  // Show loading state - but only briefly to prevent long waits
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -34,7 +38,8 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   // Redirect if not authenticated
-  if (!user) {
+  if (!user || !session) {
+    // Pass the intended location in state so we can redirect back after login
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 

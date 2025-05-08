@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +16,8 @@ const LoginForm = () => {
   const [loginError, setLoginError] = useState<string | null>(null);
   const [activeTestAccount, setActiveTestAccount] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const { signIn, setTestUser, userRole, signOut } = useAuth();
+  const [isRedirecting, setIsRedirecting] = useState(false);
+  const { signIn, setTestUser, userRole, session, signOut } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   
@@ -58,14 +58,19 @@ const LoginForm = () => {
     };
   }, []);
 
-  // Redirect if user role already set
+  // Redirect if user role already set - with debounce to prevent redirect loops
   useEffect(() => {
-    if (userRole) {
+    if (userRole && session && !isRedirecting) {
       console.log("LoginForm: User role already set, redirecting to appropriate dashboard:", userRole);
-      const redirectPath = getUserRedirectPath(userRole);
-      navigate(redirectPath, { replace: true });
+      setIsRedirecting(true);
+      
+      // Small timeout to prevent potential redirect loops
+      setTimeout(() => {
+        const redirectPath = getUserRedirectPath(userRole);
+        navigate(redirectPath, { replace: true });
+      }, 100);
     }
-  }, [userRole, navigate]);
+  }, [userRole, session, navigate]);
 
   // Helper function to determine redirect path based on user role
   const getUserRedirectPath = (role: string): string => {
@@ -186,96 +191,15 @@ const LoginForm = () => {
 
       if (data?.user) {
         console.log("Login successful:", data.user.id);
-        // Get user type from metadata or profile
-        let userType: string | null = null;
-        let userName: string | null = null;
-        let fetchedProfile: any = null;
         
-        if (data.user.user_metadata) {
-          userType = data.user.user_metadata.user_type;
-          // Normalize the user role
-          if (userType === "school_admin") {
-            userType = "school";
-          }
-          userName = data.user.user_metadata.full_name;
-        }
+        // We don't need to determine the user type here anymore
+        // The AuthContext's onAuthStateChange will handle that
         
-        // If not in metadata, try to get from profile
-        if (!userType) {
-          try {
-            const { data: profile, error: profileError } = await supabase
-              .from("profiles")
-              .select("user_type, full_name, organization:school_id(*)")
-              .eq("id", data.user.id)
-              .single();
-              
-            fetchedProfile = profile;
-            
-            if (!profileError && profile) {
-              userType = profile.user_type;
-              // Normalize the user role if needed
-              if (userType === "school_admin") {
-                userType = "school";
-              }
-              userName = profile.full_name || userName;
-              console.log("Fetched user type from profile:", userType);
-              console.log("Fetched profile:", profile);
-            }
-          } catch (profileError) {
-            console.error("Error fetching user profile:", profileError);
-          }
-        } else {
-          console.log("User type from metadata:", userType);
-        }
-        
-        // Check user_roles table as well for definitive role assignment
-        try {
-          const { data: userRole, error: roleError } = await supabase
-            .from("user_roles")
-            .select("role")
-            .eq("user_id", data.user.id)
-            .single();
-            
-          if (!roleError && userRole) {
-            console.log("Found user role in user_roles table:", userRole.role);
-            userType = userRole.role;
-            // Normalize the user role
-            if (userType === "school_admin") {
-              userType = "school";
-            }
-          }
-        } catch (roleError) {
-          console.error("Error checking user_roles table:", roleError);
-        }
-        
-        // Error handling for missing userType or missing organization for school admin
-        if (!userType) {
-          setLoginError("Your account is missing a user type. Please contact support.");
-          setIsLoading(false);
-          return;
-        }
-        
-        if (userType === "school" && (!fetchedProfile || !fetchedProfile.organization || !fetchedProfile.organization.id)) {
-          setLoginError("Your school admin account is missing an associated school. Please contact support.");
-          setIsLoading(false);
-          return;
-        }
-        
-        // Default to dashboard if we still can't determine the role
-        const redirectPath = userType ? getUserRedirectPath(userType) : "/dashboard";
-        console.log(`User type: ${userType}, redirecting to: ${redirectPath}`);
         toast.success("Login successful", {
-          description: `Welcome back, ${userName || email}!`,
+          description: "Welcome back!",
         });
         
-        // Immediate navigation without delays
-        navigate(redirectPath, {
-          replace: true,
-          state: {
-            fromNavigation: true,
-            preserveContext: true
-          }
-        });
+        // Let the useEffect handle the redirection based on userRole
       }
     } catch (error: any) {
       console.error("Login error:", error);

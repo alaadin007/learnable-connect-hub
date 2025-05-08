@@ -9,12 +9,31 @@ const logSessionStart = async (topic?: string, userId?: string): Promise<string 
     // Don't log sessions on specific pages
     if (window.location.pathname === '/test-accounts' || 
         window.location.pathname === '/admin' ||
+        window.location.pathname === '/login' ||
         window.location.pathname.includes('/dashboard')) {
       return null;
     }
     
+    // If userId is not provided, try to get the current user
+    let currentUserId = userId;
+    
+    if (!currentUserId) {
+      try {
+        // Get the current user safely
+        const { data } = await supabase.auth.getUser();
+        currentUserId = data.user?.id;
+      } catch (error) {
+        console.error("Error getting current user:", error);
+      }
+    }
+    
+    if (!currentUserId) {
+      console.warn("No user ID available to log session");
+      return null;
+    }
+    
     // If not testing with a mock userId, use the database function
-    if (!userId) {
+    if (!userId?.startsWith('test-')) {
       return await createSessionLog(topic || "General Chat");
     } else {
       // For test accounts, we need special handling
@@ -118,8 +137,9 @@ const hasActiveSession = (): boolean => {
 const sessionLogger = {
   startSession: async (topic?: string, userId?: string): Promise<string | null> => {
     try {
-      // Don't start sessions on admin pages or dashboard
-      if (window.location.pathname === '/test-accounts' || 
+      // Don't start sessions on login page or admin pages or dashboard
+      if (window.location.pathname === '/login' ||
+          window.location.pathname === '/test-accounts' || 
           window.location.pathname === '/admin' ||
           window.location.pathname.startsWith('/admin/') ||
           window.location.pathname === '/dashboard' ||
@@ -139,8 +159,9 @@ const sessionLogger = {
     }
   },
   endSession: async (reason?: string, performanceData?: any): Promise<void> => {
-    // Don't process session events on the test-accounts page
-    if (window.location.pathname === '/test-accounts') {
+    // Don't process session events on the test-accounts page or login page
+    if (window.location.pathname === '/test-accounts' || 
+        window.location.pathname === '/login') {
       return;
     }
     
@@ -172,7 +193,15 @@ export const getMockAnalyticsData = (schoolId: string, options?: { startDate?: s
     duration: Math.floor(Math.random() * 45) + 10,
     topicOrContent: ['Algebra equations', 'World War II', 'Chemical reactions', 'Shakespeare', 'Programming'][i % 5],
     numQueries: Math.floor(Math.random() * 10) + 3,
-    queries: Math.floor(Math.random() * 10) + 3
+    queries: Math.floor(Math.random() * 10) + 3,
+    // Add fields to match SessionData interface
+    student_name: `Student ${i % NUM_STUDENTS + 1}`,
+    student_id: `student-${i % NUM_STUDENTS + 1}`,
+    session_date: new Date(Date.now() - i * 86400000).toISOString(),
+    duration_minutes: Math.floor(Math.random() * 45) + 10,
+    topic: ['Algebra equations', 'World War II', 'Chemical reactions', 'Shakespeare', 'Programming'][i % 5],
+    queries_count: Math.floor(Math.random() * 10) + 3,
+    content_type: "subject"
   }));
   
   // Generate mock topics
@@ -190,16 +219,30 @@ export const getMockAnalyticsData = (schoolId: string, options?: { startDate?: s
     name: `Student ${i + 1}`,
     hours: Math.floor(Math.random() * 5) + 1,
     week: 1,
-    year: new Date().getFullYear()
+    year: new Date().getFullYear(),
+    // Add fields to match StudyTimeData interface
+    student_name: `Student ${i + 1}`,
+    student_id: `student-${i + 1}`,
+    total_minutes: (Math.floor(Math.random() * 5) + 1) * 60,
+    session_week: 1,
+    session_year: new Date().getFullYear()
   }));
   
-  // Return mock data object
+  // Return mock data object that conforms to expected interfaces
   return {
     summary: {
       activeStudents: NUM_STUDENTS,
       totalSessions: NUM_SESSIONS,
       totalQueries: NUM_QUERIES,
-      avgSessionMinutes: AVG_MINUTES
+      avgSessionMinutes: AVG_MINUTES,
+      // Add fields from school_analytics_summary table
+      active_students: NUM_STUDENTS,
+      total_sessions: NUM_SESSIONS,
+      total_queries: NUM_QUERIES,
+      avg_session_minutes: AVG_MINUTES,
+      school_id: schoolId,
+      school_name: "Test School",
+      latest_session_start: new Date().toISOString()
     },
     sessions,
     topics,

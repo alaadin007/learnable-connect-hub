@@ -25,12 +25,12 @@ interface AuthContextProps {
   profile: ProfileData | null;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<any>;
-  signUp: (email: string, password: string, userData?: any) => Promise<any>; // Added signUp function
+  signUp: (email: string, password: string, userData?: any) => Promise<any>;
   signOut: () => Promise<void>;
   setTestUser: (userType: 'school' | 'teacher' | 'student') => Promise<User | null>;
   refreshSession: () => Promise<void>;
-  refreshProfile: () => Promise<void>; // Added refreshProfile function
-  isSupervisor: boolean; // Added isSupervisor property
+  refreshProfile: () => Promise<void>;
+  isSupervisor: boolean;
 }
 
 const AuthContext = createContext<AuthContextProps | undefined>(undefined);
@@ -61,30 +61,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const initAuth = async () => {
       setIsLoading(true);
       try {
-        // Set up auth state listener first
+        // First set up auth state listener to prevent missing events
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
-          async (_event, newSession) => {
-            console.log("Auth state changed, event:", _event);
-            
-            // Update session state immediately
+          (_event, newSession) => {
+            // Update session state immediately - critical for synchronization
             setSession(newSession);
             setUser(newSession?.user || null);
             
-            // Check if we're using test accounts - but don't update profile immediately
+            // Check if we're using test accounts
             const usingTestAccount = localStorage.getItem('usingTestAccount') === 'true';
             const testAccountType = localStorage.getItem('testAccountType') as UserRole;
             
-            // Defer profile fetching to prevent potential deadlocks
-            setTimeout(async () => {
-              if (newSession?.user) {
+            // Use setTimeout to defer profile fetching to prevent deadlocks
+            // This breaks the recursive chain of auth state updates
+            if (newSession?.user) {
+              setTimeout(async () => {
                 if (usingTestAccount && testAccountType) {
                   console.log("Using test account type:", testAccountType);
                   setUserRole(testAccountType);
-                  
-                  // Set a mock school ID for test accounts
                   setSchoolId('00000000-0000-0000-0000-000000000000');
-                  
-                  // Set a mock profile for test accounts
                   setProfile({
                     id: newSession.user.id,
                     full_name: `Test ${testAccountType.charAt(0).toUpperCase() + testAccountType.slice(1)}`,
@@ -94,28 +89,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                       name: 'Test School'
                     } : null
                   });
-                  
-                  // Set supervisor status for test school accounts
                   setIsSupervisor(testAccountType === 'school');
                 } else {
-                  // Get user profile data
                   await fetchUserProfile(newSession.user.id);
                 }
-              } else {
-                // Reset state when user is signed out
-                setUserRole(null);
-                setSchoolId(null);
-                setProfile(null);
-                setIsSupervisor(false);
-              }
-              
-              // Only mark as not loading after profile is processed
+                setIsLoading(false);
+              }, 0);
+            } else {
+              // Reset state when user is signed out
+              setUserRole(null);
+              setSchoolId(null);
+              setProfile(null);
+              setIsSupervisor(false);
               setIsLoading(false);
-            }, 0);
+            }
           }
         );
 
-        // THEN check for existing session
+        // After setting up the listener, check for existing session
         const { data: { session: currentSession } } = await supabase.auth.getSession();
         
         // Update session state immediately
@@ -130,11 +121,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           if (usingTestAccount && testAccountType) {
             console.log("Init: Using test account type:", testAccountType);
             setUserRole(testAccountType);
-            
-            // Set a mock school ID for test accounts
             setSchoolId('00000000-0000-0000-0000-000000000000');
-            
-            // Set a mock profile for test accounts
             setProfile({
               id: currentSession.user.id,
               full_name: `Test ${testAccountType.charAt(0).toUpperCase() + testAccountType.slice(1)}`,
@@ -144,11 +131,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 name: 'Test School'
               } : null
             });
-            
-            // Set supervisor status for test school accounts
             setIsSupervisor(testAccountType === 'school');
           } else {
-            // Get user profile data
             await fetchUserProfile(currentSession.user.id);
           }
         }
@@ -157,15 +141,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       } finally {
         setIsLoading(false);
       }
+
+      // Return unsubscribe function
+      return () => {
+        subscription?.unsubscribe();
+      };
     };
 
     initAuth();
   }, []);
 
-  // Fetch user profile data
+  // Fetch user profile data with improved error handling
   const fetchUserProfile = async (userId: string) => {
     try {
       console.log("Fetching profile for user:", userId);
+      
       // Fetch profile from the profiles table
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
@@ -180,67 +170,47 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       if (profileError) {
         console.error("Error fetching profile:", profileError);
+        toast.error("Could not fetch your profile data");
         return;
       }
 
-      if (profileData) {
-        console.log("Fetched profile:", profileData);
-        // Normalize user_type from older values
-        let normalizedUserType: UserRole = null;
-        if (profileData.user_type === 'school_admin') {
-          normalizedUserType = 'school';
-        } else if (profileData.user_type === 'teacher_supervisor') {
-          normalizedUserType = 'teacher';
-        } else if (['school', 'teacher', 'student'].includes(profileData.user_type)) {
-          normalizedUserType = profileData.user_type as UserRole;
-        }
+      if (!profileData) {
+        console.error("No profile found for user:", userId);
+        toast.error("Your profile data was not found");
+        return;
+      }
 
-        setUserRole(normalizedUserType);
-        
-        // Set school ID from profile
-        setSchoolId(profileData.school_id);
+      console.log("Fetched profile:", profileData);
+      
+      // Normalize user_type from older values
+      let normalizedUserType: UserRole = null;
+      if (profileData.user_type === 'school_admin') {
+        normalizedUserType = 'school';
+      } else if (profileData.user_type === 'teacher_supervisor') {
+        normalizedUserType = 'teacher';
+      } else if (['school', 'teacher', 'student'].includes(profileData.user_type)) {
+        normalizedUserType = profileData.user_type as UserRole;
+      }
 
-        // If user is school admin, get school details
-        if (normalizedUserType === 'school' && profileData.school_id) {
-          const { data: schoolData, error: schoolError } = await supabase
-            .from('schools')
-            .select('id, name')
-            .eq('id', profileData.school_id)
-            .single();
+      setUserRole(normalizedUserType);
+      setSchoolId(profileData.school_id || null);
 
-          if (!schoolError && schoolData) {
-            setProfile({
-              ...profileData,
-              user_type: normalizedUserType,
-              organization: {
-                id: schoolData.id,
-                name: schoolData.name
-              }
-            });
-          } else {
-            setProfile({
-              ...profileData,
-              user_type: normalizedUserType
-            });
-          }
-          
-          // Set supervisor status for school admin
-          setIsSupervisor(true);
-        } else if (normalizedUserType === 'teacher' && profileData.school_id) {
-          // Check if teacher is a supervisor
-          const { data: teacherData, error: teacherError } = await supabase
-            .from('teachers')
-            .select('is_supervisor')
-            .eq('id', userId)
-            .single();
-            
-          if (!teacherError && teacherData) {
-            setIsSupervisor(teacherData.is_supervisor || false);
-          }
-          
+      // If user is school admin, get school details
+      if (normalizedUserType === 'school' && profileData.school_id) {
+        const { data: schoolData, error: schoolError } = await supabase
+          .from('schools')
+          .select('id, name')
+          .eq('id', profileData.school_id)
+          .single();
+
+        if (!schoolError && schoolData) {
           setProfile({
             ...profileData,
-            user_type: normalizedUserType
+            user_type: normalizedUserType,
+            organization: {
+              id: schoolData.id,
+              name: schoolData.name
+            }
           });
         } else {
           setProfile({
@@ -248,12 +218,43 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             user_type: normalizedUserType
           });
           
-          // Non-school users are not supervisors by default
-          setIsSupervisor(false);
+          if (schoolError) {
+            console.error("Error fetching school data:", schoolError);
+          }
         }
+        
+        // Set supervisor status for school admin
+        setIsSupervisor(true);
+      } else if (normalizedUserType === 'teacher' && profileData.school_id) {
+        // Check if teacher is a supervisor
+        const { data: teacherData, error: teacherError } = await supabase
+          .from('teachers')
+          .select('is_supervisor')
+          .eq('id', userId)
+          .single();
+          
+        if (!teacherError && teacherData) {
+          setIsSupervisor(teacherData.is_supervisor || false);
+        } else if (teacherError) {
+          console.error("Error checking if teacher is supervisor:", teacherError);
+        }
+        
+        setProfile({
+          ...profileData,
+          user_type: normalizedUserType
+        });
+      } else {
+        setProfile({
+          ...profileData,
+          user_type: normalizedUserType
+        });
+        
+        // Non-school users are not supervisors by default
+        setIsSupervisor(false);
       }
     } catch (error) {
       console.error("Error in fetchUserProfile:", error);
+      toast.error("Failed to load profile data");
     }
   };
 
@@ -264,20 +265,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  // Sign in a user with email and password
+  // Sign in a user with email and password - improved error handling
   const signIn = async (email: string, password: string) => {
     try {
+      console.log("Signing in with email:", email);
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
       });
 
       if (error) {
+        console.error("Sign in error:", error);
         throw error;
       }
 
+      // Check if email is verified
+      if (data.user?.confirmed_at === null) {
+        toast.warning("Your email is not verified. Please check your inbox.");
+      }
+
       return data;
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Sign in error:", error);
       throw error;
     }
   };
@@ -310,15 +320,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       localStorage.removeItem('usingTestAccount');
       localStorage.removeItem('testAccountType');
       
-      await supabase.auth.signOut();
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        console.error("Error signing out:", error);
+        toast.error("Failed to sign out");
+        throw error;
+      }
+      
+      // Reset state when user signs out
       setUser(null);
       setSession(null);
       setUserRole(null);
       setSchoolId(null);
       setProfile(null);
       setIsSupervisor(false);
+      
     } catch (error) {
       console.error("Error signing out:", error);
+      toast.error("Failed to sign out");
     }
   };
 
@@ -339,7 +359,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.log("Test user login failed, attempting anonymous session");
         
         // For demo purposes, create a mock session if auth fails
-        // Cast to User type using 'as User'
         const mockUser = {
           id: `test-${userType}-${Date.now()}`,
           email: mockEmail,
@@ -347,7 +366,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             full_name: mockName,
             user_type: userType
           }
-        } as unknown as User; // Cast to unknown first, then to User
+        } as unknown as User; 
 
         setUser(mockUser);
         setUserRole(userType);
@@ -393,6 +412,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       const { data, error } = await supabase.auth.refreshSession();
       if (error) {
+        console.error("Error refreshing session:", error);
+        toast.error("Failed to refresh session");
         throw error;
       }
 
@@ -431,6 +452,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     } catch (error) {
       console.error("Error refreshing session:", error);
+      toast.error("Failed to refresh session");
     }
   };
 
