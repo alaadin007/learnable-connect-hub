@@ -8,23 +8,34 @@ import { supabase } from '@/integrations/supabase/client';
  */
 export async function checkEmailExistingRole(email: string): Promise<string | null> {
   try {
-    // Explicitly define the return type to prevent deep type instantiation
-    interface ProfileResponse {
-      user_type: string | null;
-    }
-    
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('user_type')
-      .eq('email', email)
-      .maybeSingle<ProfileResponse>();
+    // Use our new RPC function that handles the lookup server-side
+    const { data, error } = await supabase.rpc('get_user_role_by_email', { 
+      input_email: email 
+    });
 
     if (error) {
       console.error('Error checking email role:', error);
       return null;
     }
 
-    return data?.user_type || null;
+    // Format the role for display if needed
+    const role = data;
+    if (role) {
+      switch (role) {
+        case 'school':
+        case 'school_admin':
+          return 'School Administrator';
+        case 'teacher':
+        case 'teacher_supervisor':
+          return 'Teacher';
+        case 'student':
+          return 'Student';
+        default:
+          return role.charAt(0).toUpperCase() + role.slice(1);
+      }
+    }
+    
+    return null;
   } catch (e) {
     console.error('Exception checking email role:', e);
     return null;
