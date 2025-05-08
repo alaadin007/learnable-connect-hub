@@ -15,7 +15,7 @@ interface StatsCardProps {
   loading?: boolean;
 }
 
-export const StatsCard: React.FC<StatsCardProps> = ({
+const StatsCard = ({
   title,
   value,
   description,
@@ -25,7 +25,7 @@ export const StatsCard: React.FC<StatsCardProps> = ({
   className = '',
   valueClassName = '',
   loading = false,
-}) => {
+}: StatsCardProps) => {
   const trendColorClass = trend && trend > 0 
     ? 'text-green-600' 
     : trend && trend < 0 

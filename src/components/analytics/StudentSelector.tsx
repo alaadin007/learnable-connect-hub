@@ -20,7 +20,8 @@ import { Student } from "./types";
 interface StudentSelectorProps {
   students: Student[];
   selectedStudentId: string | undefined;
-  onStudentChange: (studentId: string | undefined) => void;
+  onStudentChange?: (studentId: string | undefined) => void;
+  onSelectStudent?: (studentId: string | undefined) => void;
   className?: string;
   placeholder?: string;
 }
@@ -29,12 +30,23 @@ export const StudentSelector: React.FC<StudentSelectorProps> = ({
   students,
   selectedStudentId,
   onStudentChange,
+  onSelectStudent,
   className,
   placeholder = "Select student..."
 }) => {
   const [open, setOpen] = React.useState(false);
   
   const selectedStudent = students.find(s => s.id === selectedStudentId);
+  
+  const handleSelectStudent = (studentId: string | undefined) => {
+    if (onSelectStudent) {
+      onSelectStudent(studentId);
+    }
+    if (onStudentChange) {
+      onStudentChange(studentId);
+    }
+    setOpen(false);
+  };
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -55,10 +67,7 @@ export const StudentSelector: React.FC<StudentSelectorProps> = ({
           <CommandEmpty>No student found.</CommandEmpty>
           <CommandGroup>
             <CommandItem
-              onSelect={() => {
-                onStudentChange(undefined);
-                setOpen(false);
-              }}
+              onSelect={() => handleSelectStudent(undefined)}
               className="text-muted-foreground"
             >
               {!selectedStudentId && <Check className="mr-2 h-4 w-4" />}
@@ -67,10 +76,7 @@ export const StudentSelector: React.FC<StudentSelectorProps> = ({
             {students.map((student) => (
               <CommandItem
                 key={student.id}
-                onSelect={() => {
-                  onStudentChange(student.id);
-                  setOpen(false);
-                }}
+                onSelect={() => handleSelectStudent(student.id)}
               >
                 {student.id === selectedStudentId && (
                   <Check className="mr-2 h-4 w-4" />
@@ -84,3 +90,5 @@ export const StudentSelector: React.FC<StudentSelectorProps> = ({
     </Popover>
   );
 };
+
+export default StudentSelector;

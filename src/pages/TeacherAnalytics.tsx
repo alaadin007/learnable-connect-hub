@@ -9,6 +9,7 @@ import { StudentSelector } from "@/components/analytics/StudentSelector";
 import { StatsCard } from "@/components/analytics/StatsCard";
 import { getMockAnalyticsData } from "@/utils/sessionLogging";
 import { Skeleton } from "@/components/ui/skeleton";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function TeacherAnalytics() {
   const { user, userRole, profile } = useAuth();
@@ -111,7 +112,7 @@ export default function TeacherAnalytics() {
     <StudentSelector
       students={students}
       selectedStudentId={selectedStudentId}
-      onSelectStudent={setSelectedStudentId}
+      onStudentChange={setSelectedStudentId}
     />
   );
 
@@ -143,22 +144,22 @@ export default function TeacherAnalytics() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatsCard
                   title="Active Students"
-                  value={isLoading ? <Skeleton width={50} /> : summary.activeStudents.toString()}
+                  value={isLoading ? "Loading..." : summary.activeStudents.toString()}
                   description="Number of students actively using the platform"
                 />
                 <StatsCard
                   title="Total Sessions"
-                  value={isLoading ? <Skeleton width={50} /> : summary.totalSessions.toString()}
+                  value={isLoading ? "Loading..." : summary.totalSessions.toString()}
                   description="Total number of learning sessions"
                 />
                 <StatsCard
                   title="Total Queries"
-                  value={isLoading ? <Skeleton width={50} /> : summary.totalQueries.toString()}
+                  value={isLoading ? "Loading..." : summary.totalQueries.toString()}
                   description="Total number of queries made by students"
                 />
                 <StatsCard
                   title="Avg. Session Minutes"
-                  value={isLoading ? <Skeleton width={50} /> : summary.avgSessionMinutes.toString()}
+                  value={isLoading ? "Loading..." : summary.avgSessionMinutes.toString()}
                   description="Average duration of learning sessions"
                 />
               </div>
@@ -188,6 +189,7 @@ export default function TeacherAnalytics() {
                 )}
               </div>
             </TabsContent>
+            
             <TabsContent value="students" className="space-y-4">
               <div>
                 <h3 className="text-lg font-semibold mb-2">Student Performance</h3>

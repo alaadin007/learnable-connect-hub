@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { AIChatInterface } from '@/components/chat/AIChatInterface';
 import { ConversationList } from '@/components/chat/ConversationList';
@@ -37,7 +38,7 @@ const ChatWithAI: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [user, supabase]);
+  }, [user]);
 
   useEffect(() => {
     fetchConversations();
@@ -88,9 +89,9 @@ const ChatWithAI: React.FC = () => {
         <h2 className="text-lg font-semibold mb-4">Your Conversations</h2>
         <ConversationList
           conversations={conversations}
-          activeConversationId={activeConversationId}
+          selectedId={activeConversationId}
           onSelectConversation={(id) => setActiveConversationId(id)}
-          fetchConversations={fetchConversations}
+          onRefresh={fetchConversations}
         />
       </div>
 

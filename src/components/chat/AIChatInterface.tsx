@@ -1,28 +1,21 @@
-// Add the missing onConversationCreated prop
-// Only updating the Props interface, keeping the rest of the file the same
+// Only updating the problematic parts, not the entire file
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Send, Mic, Stop, Loader2 } from 'lucide-react';
-import { ChatMessage } from './ChatMessage';
-import { TypingIndicator } from './TypingIndicator';
-import { VoiceRecorder } from './VoiceRecorder';
-import { TextToSpeech } from './TextToSpeech';
+import { Send, Mic, Loader2 } from 'lucide-react';
+import ChatMessage from './ChatMessage';
+import TypingIndicator from './TypingIndicator';
+import VoiceRecorder from './VoiceRecorder';
+import TextToSpeech from './TextToSpeech';
 import { Separator } from '@/components/ui/separator';
 import { useTheme } from '@/contexts/ThemeContext';
 import sessionLogger from '@/utils/sessionLogger';
+import { Message } from './types';
 
 // Define conversation and message types
-export type Message = {
-  id: string;
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-  timestamp: string;
-};
-
 export type Conversation = {
   id: string;
   title: string;
@@ -73,7 +66,7 @@ export function AIChatInterface({ conversationId, topic, onConversationCreated }
   // Start session logging
   useEffect(() => {
     const startSession = async () => {
-      const sessionId = await sessionLogger.startSession(topic);
+      const sessionId = await sessionLogger.startSessionLog(topic || '');
       setActiveSessionId(sessionId);
     };
 
@@ -81,7 +74,7 @@ export function AIChatInterface({ conversationId, topic, onConversationCreated }
 
     return () => {
       if (activeSessionId) {
-        sessionLogger.endSession('User left chat');
+        sessionLogger.endSessionLog(activeSessionId, {});
       }
     };
   }, [topic]);
@@ -108,7 +101,7 @@ export function AIChatInterface({ conversationId, topic, onConversationCreated }
       if (data) {
         const formattedMessages = data.map((msg) => ({
           id: msg.id,
-          role: msg.sender === 'user' ? 'user' : 'assistant',
+          role: msg.sender === 'user' ? 'user' : 'assistant' as 'user' | 'assistant' | 'system',
           content: msg.content,
           timestamp: msg.timestamp,
         }));
@@ -124,16 +117,29 @@ export function AIChatInterface({ conversationId, topic, onConversationCreated }
   // Create a new conversation
   const createConversation = async (firstMessage: string): Promise<string> => {
     try {
+      // Get school_id from user profile
+      let schoolId = '';
+      if (user?.id) {
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('school_id')
+          .eq('id', user.id)
+          .single();
+          
+        if (profileData) {
+          schoolId = profileData.school_id;
+        }
+      }
+  
       // Create conversation
       const { data: conversationData, error: conversationError } = await supabase
         .from('conversations')
-        .insert([
-          {
-            user_id: user?.id,
-            title: firstMessage.substring(0, 50) + (firstMessage.length > 50 ? '...' : ''),
-            topic: topic || 'General',
-          },
-        ])
+        .insert({
+          user_id: user?.id,
+          title: firstMessage.substring(0, 50) + (firstMessage.length > 50 ? '...' : ''),
+          topic: topic || 'General',
+          school_id: schoolId
+        })
         .select('id')
         .single();
 
@@ -208,7 +214,7 @@ export function AIChatInterface({ conversationId, topic, onConversationCreated }
 
       // Increment query count in session log
       if (activeSessionId) {
-        sessionLogger.incrementQueryCount(activeSessionId);
+        await sessionLogger.updateSessionTopic(activeSessionId, input);
       }
 
       // Call AI API
@@ -322,3 +328,5 @@ export function AIChatInterface({ conversationId, topic, onConversationCreated }
     </div>
   );
 }
+
+export default AIChatInterface;
