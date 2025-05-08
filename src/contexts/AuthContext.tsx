@@ -19,7 +19,7 @@ import { toast } from "sonner";
 import { User, Session, AuthError } from "@supabase/supabase-js";
 
 // Define UserRole type
-export type UserRole = "school" | "teacher" | "student";
+export type UserRole = "school" | "school_admin" | "teacher" | "student";
 
 type Organization = {
   id: string;

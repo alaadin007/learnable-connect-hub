@@ -18,19 +18,26 @@ export async function checkEmailExistingRole(email: string): Promise<string | nu
       
       // Fallback: try to get the profile directly if the RPC fails
       try {
-        // Use the auth admin API to get users
+        // Use the auth admin API to get users - no filters in this version of the API
         const { data: userData, error: userError } = await supabase.auth.admin.listUsers();
         
         // Filter users manually - make sure to check for undefined users field
         if (userData && userData.users && Array.isArray(userData.users)) {
           const matchingUser = userData.users.find((user) => {
-            return user && typeof user === 'object' && user.email === email;
+            // Type-guard to ensure user is an object with an email property
+            return user && 
+                  typeof user === 'object' && 
+                  'email' in user && 
+                  typeof user.email === 'string' && 
+                  user.email === email;
           });
           
           if (!userError && matchingUser) {
             // Check user metadata first
-            if (matchingUser.user_metadata && matchingUser.user_metadata.user_type) {
-              return formatRoleForDisplay(matchingUser.user_metadata.user_type);
+            if (matchingUser.user_metadata && 
+                typeof matchingUser.user_metadata === 'object' &&
+                'user_type' in matchingUser.user_metadata) {
+              return formatRoleForDisplay(matchingUser.user_metadata.user_type as string);
             }
             
             // If not in metadata, check the profiles table
