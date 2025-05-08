@@ -69,7 +69,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
             });
             
             if (data && !error) {
-              // The data is now a single object with the settings
+              // The data is a single object, not an array
               const dbSettings = {
                 maxTokens: data.max_tokens,
                 temperature: data.temperature,
