@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -45,105 +46,105 @@ const Dashboard = () => {
 
   // Handle redirections with improved error handling
   useEffect(() => {
-    try {
-      setIsLoading(true);
-      
-      if (!user) {
-        // Allow test accounts/navigation with preserved context to bypass this check
-        if (location.state?.fromTestAccounts || location.state?.preserveContext) {
-          console.log("Dashboard: Bypassing login check due to navigation context");
-          setIsLoading(false);
+    const checkUserRoleAndNavigate = async () => {
+      try {
+        setIsLoading(true);
+        
+        if (!user) {
+          // Allow test accounts/navigation with preserved context to bypass this check
+          if (location.state?.fromTestAccounts || location.state?.preserveContext) {
+            console.log("Dashboard: Bypassing login check due to navigation context");
+            setIsLoading(false);
+            return;
+          }
+          
+          console.log("Dashboard: No user found, redirecting to login");
+          navigate("/login");
           return;
         }
         
-        console.log("Dashboard: No user found, redirecting to login");
-        navigate("/login");
-        return;
-      }
-      
-      // Check for school admin indicators in user metadata if role is not yet determined
-      let isSchoolAdmin = userRole === "school" || userRole === "school_admin";
+        // Check for school admin indicators in user metadata if role is not yet determined
+        let isSchoolAdmin = userRole === "school" || userRole === "school_admin";
 
-      // If userRole is null but we have user_metadata, check there
-      if (!userRole && user.user_metadata) {
-        const metadataRole = user.user_metadata.user_type;
-        if (metadataRole === "school" || metadataRole === "school_admin") {
-          console.log("Dashboard: School admin detected from user metadata");
-          isSchoolAdmin = true;
+        // If userRole is null but we have user_metadata, check there
+        if (!userRole && user.user_metadata) {
+          const metadataRole = user.user_metadata.user_type;
+          if (metadataRole === "school" || metadataRole === "school_admin") {
+            console.log("Dashboard: School admin detected from user metadata");
+            isSchoolAdmin = true;
+          }
         }
-      }
-      
-      // If we still have no determination, check email pattern
-      if (!isSchoolAdmin && user.email) {
-        if (user.email.startsWith('school') || user.email.startsWith('admin')) {
-          console.log("Dashboard: School admin detected from email pattern");
-          isSchoolAdmin = true;
-        }
-      }
-      
-      console.log("Dashboard: User role detected:", userRole || "unknown");
-
-      // Special case: If we determined this is a school admin but haven't set userRole yet
-      if (isSchoolAdmin) {
-        console.log("Dashboard: School admin detected, redirecting to admin dashboard");
-        navigate("/admin", { 
-          state: { fromNavigation: true, preserveContext: true },
-          replace: true 
-        });
-        return;
-      }
-
-      // Handle redirection logic with improved handling for school admin roles
-      if (userRole === "school" || userRole === "school_admin") {
-        console.log("Dashboard: School admin detected, redirecting to admin dashboard");
-        navigate("/admin", { 
-          state: { fromNavigation: true, preserveContext: true },
-          replace: true 
-        });
-        return;
-      }
-
-      if (userRole === "teacher") {
-        console.log("Dashboard: Teacher detected, redirecting to teacher analytics");
-        navigate("/teacher/analytics", { 
-          state: { fromNavigation: true, preserveContext: true },
-          replace: true 
-        });
-        return;
-      }
-
-      // Handle test account (might have different role mapping) as a fallback
-      const isTestAccount = user.email?.includes(".test@learnable.edu") || 
-                          user.id?.startsWith("test-");
-                            
-      if (isTestAccount) {
-        console.log("Dashboard: Test account detected, checking role from user metadata");
-        const metadataRole = user.user_metadata?.user_type;
         
-        if (metadataRole === "school" || metadataRole === "school_admin") {
-          console.log("Dashboard: Test school admin detected from metadata, redirecting");
+        // If we still have no determination, check email pattern
+        if (!isSchoolAdmin && user.email) {
+          if (user.email.startsWith('school') || user.email.startsWith('admin')) {
+            console.log("Dashboard: School admin detected from email pattern");
+            isSchoolAdmin = true;
+          }
+        }
+        
+        console.log("Dashboard: User role detected:", userRole || "unknown");
+
+        // Special case: If we determined this is a school admin but haven't set userRole yet
+        if (isSchoolAdmin) {
+          console.log("Dashboard: School admin detected, redirecting to admin dashboard");
           navigate("/admin", { 
-            state: { fromTestAccounts: true, preserveContext: true },
-            replace: true 
-          });
-          return;
-        } else if (metadataRole === "teacher") {
-          console.log("Dashboard: Test teacher detected from metadata, redirecting");
-          navigate("/teacher/analytics", { 
-            state: { fromTestAccounts: true, preserveContext: true },
+            state: { fromNavigation: true, preserveContext: true },
             replace: true 
           });
           return;
         }
-      }
-      
-      // If we've reached this point and still don't know the user role 
-      // but they might be a school admin based on DB records, check teachers table
-      if (!userRole && user.id) {
-        console.log("Dashboard: Checking database for user role");
+
+        // Handle redirection logic with improved handling for school admin roles
+        if (userRole === "school" || userRole === "school_admin") {
+          console.log("Dashboard: School admin detected, redirecting to admin dashboard");
+          navigate("/admin", { 
+            state: { fromNavigation: true, preserveContext: true },
+            replace: true 
+          });
+          return;
+        }
+
+        if (userRole === "teacher") {
+          console.log("Dashboard: Teacher detected, redirecting to teacher analytics");
+          navigate("/teacher/analytics", { 
+            state: { fromNavigation: true, preserveContext: true },
+            replace: true 
+          });
+          return;
+        }
+
+        // Handle test account (might have different role mapping) as a fallback
+        const isTestAccount = user.email?.includes(".test@learnable.edu") || 
+                            user.id?.startsWith("test-");
+                              
+        if (isTestAccount) {
+          console.log("Dashboard: Test account detected, checking role from user metadata");
+          const metadataRole = user.user_metadata?.user_type;
+          
+          if (metadataRole === "school" || metadataRole === "school_admin") {
+            console.log("Dashboard: Test school admin detected from metadata, redirecting");
+            navigate("/admin", { 
+              state: { fromTestAccounts: true, preserveContext: true },
+              replace: true 
+            });
+            return;
+          } else if (metadataRole === "teacher") {
+            console.log("Dashboard: Test teacher detected from metadata, redirecting");
+            navigate("/teacher/analytics", { 
+              state: { fromTestAccounts: true, preserveContext: true },
+              replace: true 
+            });
+            return;
+          }
+        }
         
-        // Use async/await within a properly defined async function to handle the Promise
-        const checkTeacherRole = async () => {
+        // If we've reached this point and still don't know the user role 
+        // but they might be a school admin based on DB records, check teachers table
+        if (!userRole && user.id) {
+          console.log("Dashboard: Checking database for user role");
+          
+          // Use async/await in a try-catch block
           try {
             const { data } = await supabase.from("teachers")
               .select("is_supervisor")
@@ -156,28 +157,29 @@ const Dashboard = () => {
                 state: { fromNavigation: true, preserveContext: true },
                 replace: true 
               });
+              return;
             } else {
               console.log("Dashboard: User is not a supervisor in teachers table");
             }
           } catch (error) {
             console.log("Dashboard: Error checking teachers table:", error);
+            // Continue with student dashboard as fallback
           }
-        };
-        
-        // Execute the async function
-        checkTeacherRole();
-      }
+        }
 
-      console.log("Dashboard: User remaining on student dashboard");
-      setIsLoading(false);
-    } catch (error) {
-      console.error("Dashboard: Error during redirection:", error);
-      setHasError(true);
-      setIsLoading(false);
-      toast.error("Something went wrong. Please try refreshing the page.", {
-        duration: 5000,
-      });
-    }
+        console.log("Dashboard: User remaining on student dashboard");
+        setIsLoading(false);
+      } catch (error) {
+        console.error("Dashboard: Error during redirection:", error);
+        setHasError(true);
+        setIsLoading(false);
+        toast.error("Something went wrong. Please try refreshing the page.", {
+          duration: 5000,
+        });
+      }
+    };
+    
+    checkUserRoleAndNavigate();
   }, [user, navigate, location.state, userRole, refreshProfile]);
 
   // If there are issues with profile loading, show a more helpful message

@@ -541,13 +541,15 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
           name: testOrgName,
           code: testOrgCode,
         },
+        school_name: testOrgName,
+        school_code: testOrgCode
       };
 
       // Set state variables synchronously for test accounts
       setUser(mockUser);
       setProfile(mockProfile);
       setUserRole(type);
-      setIsSuperviser(false);
+      setIsSuperviser(type === 'school');
       setSchoolId(mockProfile.organization?.id || null);
       
       // Keep session null for test users - no authentication needed
@@ -555,29 +557,10 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
 
       console.log(`AuthContext: Test user set up successfully. User role: ${type}`);
       console.log(`AuthContext: Test user profile:`, mockProfile);
-
-      // Create mock sessions and data for different user types
-      // We'll handle this async, but not block the function completion on it
-      if (type === "student") {
-        setTimeout(async () => {
-          try {
-            console.log(`AuthContext: Creating student test session for ${mockId}`);
-            await sessionLogger.startSession("Test Login Session", mockId);
-          } catch (e) {
-            console.error("Error starting test session:", e);
-          }
-        }, 0);
-      } else if (type === "teacher") {
-        setTimeout(async () => {
-          try {
-            console.log(`AuthContext: Creating teacher test sessions for ${mockId} with organization ID ${testOrgId}`);
-            await populateTestAccountWithSessions(mockId, testOrgId, 5);
-            console.log(`AuthContext: Successfully populated test data for teacher ${mockId}`);
-          } catch (e) {
-            console.error("Error creating teacher test sessions:", e);
-          }
-        }, 0);
-      }
+      
+      // Clear any temporary error states
+      localStorage.removeItem('auth_error_state');
+      
     } catch (error) {
       console.error("Error setting test user:", error);
       throw new Error("Failed to set up test account");

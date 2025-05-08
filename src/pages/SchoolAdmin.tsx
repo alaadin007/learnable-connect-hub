@@ -1,6 +1,6 @@
 
-import React, { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,27 +11,91 @@ import Footer from "@/components/layout/Footer";
 const SchoolAdmin = () => {
   const { user, profile, userRole, refreshProfile } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [isLoading, setIsLoading] = useState(true);
+  
+  useEffect(() => {
+    console.log("SchoolAdmin: Component mounting with user data:", {
+      userId: user?.id,
+      email: user?.email,
+      role: userRole,
+      profile,
+      fromTestAccounts: location.state?.fromTestAccounts
+    });
+    
+    // Set a maximum loading time
+    const loadingTimeout = setTimeout(() => {
+      setIsLoading(false);
+    }, 2000);
+    
+    return () => clearTimeout(loadingTimeout);
+  }, []);
   
   // Verify this user should be on this page
   useEffect(() => {
-    // If we can't determine user role, try to refresh profile data
-    if (user && !userRole) {
-      console.log("SchoolAdmin: No user role detected, refreshing profile");
-      refreshProfile();
-    }
-    
-    // If we know the user isn't a school admin, redirect
-    if (userRole && userRole !== "school" && userRole !== "school_admin") {
-      console.log(`SchoolAdmin: User role ${userRole} is not admin, redirecting`);
-      
-      // Redirect based on role
-      if (userRole === "teacher") {
-        navigate("/teacher/analytics");
-      } else {
-        navigate("/dashboard");
+    const checkAccess = async () => {
+      // Special case: If coming from test accounts, we always allow
+      if (location.state?.fromTestAccounts && location.state?.accountType === "school") {
+        console.log("SchoolAdmin: Access granted via test accounts");
+        setIsLoading(false);
+        return;
       }
-    }
-  }, [user, userRole, navigate, refreshProfile]);
+      
+      // If we can't determine user role, try to refresh profile data
+      if (user && !userRole) {
+        console.log("SchoolAdmin: No user role detected, refreshing profile");
+        try {
+          await refreshProfile();
+        } catch (e) {
+          console.error("SchoolAdmin: Error refreshing profile:", e);
+        }
+      }
+      
+      // Check if user exists
+      if (!user) {
+        console.log("SchoolAdmin: No authenticated user, redirecting to login");
+        navigate("/login");
+        return;
+      }
+      
+      // Test account logic - if email is a test school account, allow access
+      if (user.email?.includes("school.test@") || user.id?.startsWith("test-school")) {
+        console.log("SchoolAdmin: Test school account detected, granting access");
+        setIsLoading(false);
+        return;
+      }
+      
+      // If we know the user isn't a school admin, redirect
+      if (userRole && userRole !== "school" && userRole !== "school_admin") {
+        console.log(`SchoolAdmin: User role ${userRole} is not admin, redirecting`);
+        
+        // Redirect based on role
+        if (userRole === "teacher") {
+          navigate("/teacher/analytics");
+        } else {
+          navigate("/dashboard");
+        }
+      }
+      
+      setIsLoading(false);
+    };
+    
+    checkAccess();
+  }, [user, userRole, navigate, refreshProfile, location.state]);
+  
+  if (isLoading) {
+    return (
+      <>
+        <Navbar />
+        <main className="container mx-auto px-4 py-8 min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-xl mb-4">Loading admin dashboard...</p>
+            <div className="w-16 h-1 bg-blue-600 animate-pulse mx-auto"></div>
+          </div>
+        </main>
+      </>
+    );
+  }
 
   return (
     <>

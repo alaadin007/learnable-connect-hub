@@ -9,7 +9,6 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Clock, Loader2, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import sessionLogger from "@/utils/sessionLogger";
 import { checkSessionStatus } from "@/utils/apiHelpers";
 
 const LoginForm = () => {
@@ -155,89 +154,22 @@ const LoginForm = () => {
           isSchoolAdmin = true;
         }
       }
+
+      // Ensure we have the latest profile data
+      await refreshProfile();
       
-      // Use a fallback approach - try to determine role from database
-      try {
-        const { data: teacherData } = await supabase
-          .from("teachers")
-          .select("id")
-          .eq("id", data.user.id)
-          .single();
-          
-        if (teacherData) {
-          console.log("User found in teachers table");
-          
-          // Redirect to teacher path
-          toast.success("Login successful", {
-            description: `Welcome back, ${data.user.user_metadata?.full_name || email}!`,
-          });
-          
-          navigate("/teacher/analytics", { 
-            state: { preserveContext: true }
-          });
-          return;
-        }
-        
-        // Check if user is in students table
-        const { data: studentData } = await supabase
-          .from("students")
-          .select("id")
-          .eq("id", data.user.id)
-          .single();
-          
-        if (studentData) {
-          console.log("User found in students table");
-          
-          // Redirect to student dashboard
-          toast.success("Login successful", {
-            description: `Welcome back, ${data.user.user_metadata?.full_name || email}!`,
-          });
-          
-          navigate("/dashboard", { 
-            state: { preserveContext: true }
-          });
-          return;
-        }
-      } catch (dbError) {
-        // If there's an error checking the tables, we'll continue with metadata-based approach
-        console.error("Error checking user tables:", dbError);
-      }
-
-      // Final fallback for school admin - if we can't determine from DB
-      if (isSchoolAdmin) {
-        // If we've determined this is likely a school admin, redirect to admin page
-        console.log("User appears to be a school admin based on metadata/email");
-        
-        // Ensure we have the necessary profile data
-        await refreshProfile();
-        
-        toast.success("Login successful", {
-          description: `Welcome back, ${data.user.user_metadata?.full_name || email}!`,
-        });
-        
-        // Redirect to admin dashboard
-        navigate("/admin", { 
-          state: { preserveContext: true }
-        });
-        return;
-      }
-
-      // Default fallback - send to dashboard if we couldn't determine the role
       toast.success("Login successful", {
         description: `Welcome back, ${data.user.user_metadata?.full_name || email}!`,
       });
 
-      // Start session logging in background without affecting login flow
-      try {
-        sessionLogger.startSession("User login", data.user.id);
-      } catch (sessionError) {
-        console.error("Session logging error:", sessionError);
-        // Ignore session errors, don't affect login experience
+      // Redirect based on user type
+      if (isSchoolAdmin) {
+        navigate("/admin", { state: { preserveContext: true } });
+      } else if (userType === "teacher") {
+        navigate("/teacher/analytics", { state: { preserveContext: true } });
+      } else {
+        navigate("/dashboard", { state: { preserveContext: true } });
       }
-
-      navigate("/dashboard", { 
-        state: { preserveContext: true }
-      });
     } catch (error: any) {
       console.error("Login error:", error);
       console.error("Login error details:", {

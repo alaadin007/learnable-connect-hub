@@ -85,6 +85,9 @@ const TestAccounts = () => {
       // Check if create-test-accounts function is available in Supabase config
       const response = await supabase.functions.invoke("create-test-accounts", {
         body: { createAccounts: true },
+      }).catch(error => {
+        console.error("Error invoking create-test-accounts function:", error);
+        return { error };
       });
 
       if (response.error) {
@@ -139,7 +142,7 @@ const TestAccounts = () => {
 
         console.log(`TestAccounts: Navigating to ${redirectPath} for ${accountType}`);
         
-        // Don't add a delay here - navigate right away with proper state parameters
+        // Navigate with proper state parameters
         navigate(redirectPath, {
           replace: true,
           state: { 
@@ -154,7 +157,7 @@ const TestAccounts = () => {
         setErrorMessage(`Setup failed: ${error.message || "Unknown error"}`);
         toast.error(`Account setup failed: ${error.message || "Unknown error"}`);
         
-        // Make sure to reset loading state on error
+        // Reset loading state on error
         setLoadingAccount(null);
       }
     },
