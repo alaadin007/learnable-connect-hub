@@ -110,8 +110,8 @@ const LoginForm = () => {
       localStorage.setItem('testAccountType', type);
       
       // Direct instant login for test accounts
-      const mockUser = await setTestUser(type);
-      if (!mockUser) {
+      const success = await setTestUser(type);
+      if (!success) {
         throw new Error(`Failed to set up ${type} test account`);
       }
       

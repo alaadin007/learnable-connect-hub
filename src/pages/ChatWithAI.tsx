@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
-import { AIChatInterface } from '@/components/chat/AIChatInterface';
+import AIChatInterface from '@/components/chat/AIChatInterface';
 import { ConversationList } from '@/components/chat/ConversationList';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';

@@ -133,8 +133,8 @@ const TestAccounts = () => {
         localStorage.setItem('testAccountType', accountType);
         
         // Set test user in auth context - this bypasses authentication
-        const mockUser = await setTestUser(accountType);
-        if (!mockUser) {
+        const success = await setTestUser(accountType);
+        if (!success) {
           throw new Error(`Failed to set up ${accountType} test account`);
         }
 

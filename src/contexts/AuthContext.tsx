@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -11,14 +12,14 @@ interface AuthContextType {
   isLoading: boolean;
   schoolId: string | null;
   dbError: boolean | null;
-  isSupervisor: boolean; // Add missing property
+  isSupervisor: boolean; 
   signIn: (email: string, password: string) => Promise<{ error: any; data?: any }>;
   signUp: (email: string, password: string, metadata: any) => Promise<{ error: any; data: any }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: any }>;
-  refreshProfile: () => Promise<void>; // Add missing method
-  setTestUser: (userData: any) => Promise<void>; // Add missing method
-  refreshSession: () => Promise<void>; // Add missing method
+  refreshProfile: () => Promise<void>; 
+  setTestUser: (userType: string) => Promise<boolean>; // Updated return type
+  refreshSession: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -53,11 +54,64 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   // Function to set test user for development
-  const setTestUser = async (userData: any) => {
-    if (userData && userData.user) {
-      setUser(userData.user);
-      setSession(userData);
-      await loadUserProfile(userData.user.id);
+  const setTestUser = async (userType: string): Promise<boolean> => {
+    try {
+      // Create a mock user based on the userType
+      const mockUser = {
+        id: `test-${userType}-${Date.now()}`,
+        email: `${userType}.test@learnable.edu`,
+        user_metadata: { 
+          user_type: userType,
+          full_name: `Test ${userType.charAt(0).toUpperCase() + userType.slice(1)} User`,
+        }
+      };
+      
+      // Create a mock session
+      const mockSession = {
+        user: mockUser,
+        access_token: `mock-token-${Date.now()}`,
+        refresh_token: `mock-refresh-${Date.now()}`
+      } as Session;
+      
+      // Set the user and session in the context
+      setUser(mockUser as User);
+      setSession(mockSession);
+      
+      // Create a mock profile based on the user type
+      const mockProfile = {
+        id: mockUser.id,
+        user_type: userType,
+        full_name: mockUser.user_metadata.full_name,
+        email: mockUser.email,
+        school_id: userType === 'student' ? 'test-school-id' : null,
+      };
+      
+      // Set up organization data based on user type
+      if (userType === 'school') {
+        mockProfile.user_type = 'school_admin';
+        setIsSupervisor(true);
+      } else if (userType === 'teacher') {
+        setIsSupervisor(userType === 'teacher');
+      }
+      
+      // Set mock organization
+      const mockOrganization = {
+        id: 'test-school-id',
+        name: 'Test School'
+      };
+      
+      // Update state with mock data
+      setProfile(mockProfile);
+      setUserRole(mockProfile.user_type);
+      setOrganization(mockOrganization);
+      setSchoolId('test-school-id');
+      
+      console.log(`AuthContext: Set up test user for ${userType}`);
+      
+      return true;
+    } catch (error) {
+      console.error("Error setting up test user:", error);
+      return false;
     }
   };
 
