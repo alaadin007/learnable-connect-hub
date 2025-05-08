@@ -1,3 +1,4 @@
+
 import React, {
   createContext,
   useState,
@@ -12,6 +13,7 @@ import {
 } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { toast } from 'sonner'; // Add missing toast import
 
 // Define the types for the context
 export type ProfileWithRole = {
@@ -35,12 +37,15 @@ type AuthContextType = {
   schoolId: string | null;
   loading: boolean;
   error: string | null;
+  userRole: 'student' | 'teacher' | 'school' | null; // Add userRole
+  session: Session | null; // Add session
   signIn: (email: string) => Promise<{ error: AuthError | null }>;
   signUp: (email: string, full_name: string, school_code: string, user_type: 'student' | 'teacher') => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
   checkAuthStatus: () => Promise<boolean>;
   updateProfile: (updates: { full_name: string }) => Promise<{ error: AuthError | null }>;
   setTestUser: (type: 'student' | 'teacher' | 'school') => void;
+  refreshProfile: () => Promise<void>; // Add refreshProfile method
 };
 
 interface AuthProviderProps {
@@ -53,12 +58,15 @@ export const AuthContext = createContext<AuthContextType>({
   schoolId: null,
   loading: true,
   error: null,
+  userRole: null, // Add userRole
+  session: null, // Add session
   signIn: async () => ({ error: null }),
   signUp: async () => ({ error: null }),
   signOut: async () => {},
   checkAuthStatus: async () => false,
   updateProfile: async () => ({ error: null }),
   setTestUser: () => {},
+  refreshProfile: async () => {}, // Add refreshProfile
 });
 
 const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
@@ -67,8 +75,14 @@ const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [schoolId, setSchoolId] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [session, setSession] = useState<Session | null>(null); // Add session state
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Compute userRole from profile
+  const userRole = useMemo(() => {
+    return profile?.user_type || null;
+  }, [profile]);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -78,16 +92,22 @@ const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     checkAuth();
 
     // Set up listener for supabase auth events
-    supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session?.user) {
         setUser(session.user);
+        setSession(session);
         await loadUserProfile(session.user.id);
       } else {
         setUser(null);
         setProfile(null);
         setSchoolId(null);
+        setSession(null);
       }
     });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   // Helper function to load user profile
@@ -136,6 +156,19 @@ const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (e) {
       console.error('Error in getUserSchoolId:', e);
       return null;
+    }
+  };
+
+  // Add refreshProfile method
+  const refreshProfile = async (): Promise<void> => {
+    if (!user?.id) return;
+    setLoading(true);
+    try {
+      await loadUserProfile(user.id);
+    } catch (e) {
+      console.error('Error refreshing profile:', e);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -191,7 +224,12 @@ const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const signUp = async (email: string, full_name: string, school_code: string, user_type: 'student' | 'teacher'): Promise<{ error: AuthError | null }> => {
+  const signUp = async (
+    email: string, 
+    full_name: string, 
+    school_code: string, 
+    user_type: 'student' | 'teacher'
+  ): Promise<{ error: AuthError | null }> => {
     setLoading(true);
     setError(null);
     try {
@@ -224,7 +262,13 @@ const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       if (profileError) {
         setError(profileError.message);
-        return { error: profileError };
+        // Convert PostgrestError to AuthError
+        const authError: AuthError = {
+          message: profileError.message,
+          status: 400,
+          __isAuthError: true,
+        };
+        return { error: authError };
       }
 
       // Finally, insert the user into the appropriate table
@@ -238,14 +282,26 @@ const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       if (tableError) {
         setError(tableError.message);
-        return { error: tableError };
+        // Convert PostgrestError to AuthError
+        const authError: AuthError = {
+          message: tableError.message,
+          status: 400,
+          __isAuthError: true,
+        };
+        return { error: authError };
       }
 
       toast.success(`Check your email (${email}) for the magic link to verify your account.`);
       return { error: null };
     } catch (e: any) {
       setError(e.message);
-      return { error: e };
+      // Create an AuthError from the caught error
+      const authError: AuthError = {
+        message: e.message,
+        status: 400,
+        __isAuthError: true,
+      };
+      return { error: authError };
     } finally {
       setLoading(false);
     }
@@ -259,6 +315,7 @@ const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(null);
       setProfile(null);
       setSchoolId(null);
+      setSession(null);
       navigate('/login'); // Redirect to login page after sign out
     } catch (e: any) {
       setError(e.message);
@@ -280,6 +337,7 @@ const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       if (session?.user) {
         setUser(session.user);
+        setSession(session);
         await loadUserProfile(session.user.id);
         return true;
       } else {
@@ -312,7 +370,13 @@ const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       if (error) {
         setError(error.message);
-        return { error };
+        // Convert PostgrestError to AuthError
+        const authError: AuthError = {
+          message: error.message,
+          status: 400,
+          __isAuthError: true,
+        };
+        return { error: authError };
       }
 
       // Optimistically update the local profile state
@@ -324,7 +388,13 @@ const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       return { error: null };
     } catch (e: any) {
       setError(e.message);
-      return { error: e };
+      // Create an AuthError from the caught error
+      const authError: AuthError = {
+        message: e.message,
+        status: 400,
+        __isAuthError: true,
+      };
+      return { error: authError };
     } finally {
       setLoading(false);
     }
@@ -337,14 +407,17 @@ const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       schoolId,
       loading,
       error,
+      userRole,
+      session,
       signIn,
       signUp,
       signOut,
       checkAuthStatus,
       updateProfile,
       setTestUser,
+      refreshProfile,
     }),
-    [user, profile, schoolId, loading, error]
+    [user, profile, schoolId, loading, error, userRole, session]
   );
 
   return <AuthContext.Provider value={authContextValue}>{children}</AuthContext.Provider>;
