@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import ChatInterface from "./ChatInterface";
 import { useAuth } from "@/contexts/AuthContext";
@@ -14,48 +13,67 @@ interface Message {
   timestamp?: string;
 }
 
-interface Conversation {
-  id: string;
-  title: string;
+interface ChatState {
   messages: Message[];
+  isLoading: boolean;
+  error: string | null;
+  activeConversationId: string | null;
 }
 
-const PersistentChatInterface = () => {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+const PersistentChatInterface: React.FC = () => {
+  const [state, setState] = useState<ChatState>({
+    messages: [],
+    isLoading: false,
+    error: null,
+    activeConversationId: null
+  });
+  
   const { user } = useAuth();
   const messageEndRef = useRef<HTMLDivElement>(null);
+  const isMounted = useRef(true);
 
+  // Cleanup on unmount
   useEffect(() => {
-    if (user && !activeConversationId) {
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+
+  // Initialize conversation
+  useEffect(() => {
+    if (user && !state.activeConversationId) {
       createNewConversation();
     }
-  }, [user]);
+  }, [user, state.activeConversationId]);
 
+  // Load chat history
   useEffect(() => {
-    if (activeConversationId) {
+    if (state.activeConversationId) {
       loadChatHistory();
     }
-  }, [activeConversationId]);
+  }, [state.activeConversationId]);
 
+  // Auto-scroll
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [state.messages]);
 
-  const scrollToBottom = () => {
+  const scrollToBottom = useCallback(() => {
     messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  }, []);
 
   const loadChatHistory = useCallback(async () => {
-    if (!activeConversationId) return;
+    if (!state.activeConversationId) return;
 
     try {
-      setIsLoading(true);
+      setState(prev => ({ ...prev, isLoading: true, error: null }));
       
-      const chatHistory = await getChatHistory(activeConversationId);
+      const chatHistory = await getChatHistory(state.activeConversationId);
+      
+      if (!isMounted.current) return;
+
       if (!chatHistory || chatHistory.length === 0) {
-        setMessages([]);
+        setState(prev => ({ ...prev, messages: [], isLoading: false }));
         return;
       }
       
@@ -66,42 +84,45 @@ const PersistentChatInterface = () => {
         timestamp: msg.timestamp
       }));
       
-      setMessages(formattedMessages);
+      setState(prev => ({ ...prev, messages: formattedMessages, isLoading: false }));
     } catch (error) {
       console.error("Error loading chat history:", error);
-      toast.error("Failed to load chat history");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [activeConversationId]);
-
-  const createNewConversation = async () => {
-    try {
-      if (!user) {
-        toast.error("You must be logged in to create a conversation");
-        return;
+      if (isMounted.current) {
+        setState(prev => ({ 
+          ...prev, 
+          error: "Failed to load chat history",
+          isLoading: false 
+        }));
+        toast.error("Failed to load chat history");
       }
+    }
+  }, [state.activeConversationId]);
 
-      // Get the user's school ID
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData?.user) {
-        toast.error("User data not available");
-        return;
+  const createNewConversation = useCallback(async () => {
+    if (!user) {
+      toast.error("You must be logged in to create a conversation");
+      return;
+    }
+
+    try {
+      setState(prev => ({ ...prev, isLoading: true, error: null }));
+
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData?.user) {
+        throw new Error("User data not available");
       }
       
-      const { data: profileData } = await supabase
+      const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('school_id')
         .eq('id', userData.user.id)
         .single();
         
-      if (!profileData?.school_id) {
-        toast.error("School data not available");
-        return;
+      if (profileError || !profileData?.school_id) {
+        throw new Error("School data not available");
       }
 
-      // Create a new conversation
-      const { data: newConversation, error } = await supabase
+      const { data: newConversation, error: conversationError } = await supabase
         .from("conversations")
         .insert({
           user_id: userData.user.id,
@@ -114,87 +135,109 @@ const PersistentChatInterface = () => {
         .select()
         .single();
 
-      if (error) {
-        console.error("Error creating conversation:", error);
-        toast.error("Failed to create new conversation");
-        return;
+      if (conversationError || !newConversation) {
+        throw new Error("Failed to create new conversation");
       }
 
-      setActiveConversationId(newConversation.id);
-      setMessages([]);
+      if (isMounted.current) {
+        setState(prev => ({
+          ...prev,
+          activeConversationId: newConversation.id,
+          messages: [],
+          isLoading: false
+        }));
+      }
     } catch (error) {
       console.error("Error creating new conversation:", error);
-      toast.error("Failed to create new conversation");
+      if (isMounted.current) {
+        setState(prev => ({
+          ...prev,
+          error: error instanceof Error ? error.message : "Failed to create new conversation",
+          isLoading: false
+        }));
+        toast.error("Failed to create new conversation");
+      }
     }
-  };
+  }, [user]);
 
-  const handleSendMessage = async (userMessage: string) => {
-    if (!activeConversationId) {
+  const handleSendMessage = useCallback(async (userMessage: string) => {
+    if (!state.activeConversationId) {
       toast.error("No active conversation");
       return;
     }
 
-    // Display user message immediately
-    const userMessageObj: Message = {
-      id: uuidv4(),
-      role: "user",
-      content: userMessage,
-      timestamp: new Date().toISOString()
-    };
+    try {
+      // Display user message immediately
+      const userMessageObj: Message = {
+        id: uuidv4(),
+        role: "user",
+        content: userMessage,
+        timestamp: new Date().toISOString()
+      };
 
-    setMessages((prevMessages) => [...prevMessages, userMessageObj]);
+      setState(prev => ({
+        ...prev,
+        messages: [...prev.messages, userMessageObj],
+        isLoading: true
+      }));
 
-    // Save user message to database
-    const savedMessage = await saveChatMessage(
-      activeConversationId,
-      userMessage,
-      "user",
-      false
-    );
-    
-    if (!savedMessage) {
-      toast.error("Failed to save message");
-      return;
-    }
+      // Save user message
+      const savedMessage = await saveChatMessage(
+        state.activeConversationId,
+        userMessage,
+        "user",
+        false
+      );
+      
+      if (!savedMessage) {
+        throw new Error("Failed to save message");
+      }
 
-    // In a real app, you would send the message to an API and get a response
-    // For demo purposes, we'll simulate a response
-    setIsLoading(true);
-    setTimeout(async () => {
+      // Simulate AI response (replace with actual API call)
       const aiResponseText = `Thanks for your message: "${userMessage}". This is a placeholder response.`;
       
-      // Save AI response to database
       const savedAiMessage = await saveChatMessage(
-        activeConversationId,
+        state.activeConversationId,
         aiResponseText,
         "assistant",
         false
       );
       
       if (!savedAiMessage) {
-        toast.error("Failed to save AI response");
-        setIsLoading(false);
-        return;
+        throw new Error("Failed to save AI response");
       }
 
-      // Display AI response
-      const aiMessageObj: Message = {
-        id: savedAiMessage.id,
-        role: "assistant",
-        content: aiResponseText,
-        timestamp: savedAiMessage.timestamp
-      };
+      if (isMounted.current) {
+        const aiMessageObj: Message = {
+          id: savedAiMessage.id,
+          role: "assistant",
+          content: aiResponseText,
+          timestamp: savedAiMessage.timestamp
+        };
 
-      setMessages((prevMessages) => [...prevMessages, aiMessageObj]);
-      setIsLoading(false);
-    }, 1000);
-  };
+        setState(prev => ({
+          ...prev,
+          messages: [...prev.messages, aiMessageObj],
+          isLoading: false
+        }));
+      }
+    } catch (error) {
+      console.error("Error in handleSendMessage:", error);
+      if (isMounted.current) {
+        setState(prev => ({
+          ...prev,
+          error: error instanceof Error ? error.message : "Failed to process message",
+          isLoading: false
+        }));
+        toast.error("Failed to process message");
+      }
+    }
+  }, [state.activeConversationId]);
 
-  // Inner component to be rendered
   return (
     <div className="h-full flex flex-col">
       <div className="flex-grow overflow-y-auto p-4">
-        {messages.length === 0 && !isLoading ? (
+        {state.messages.length === 0 && !state.isLoading ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
               <h3 className="text-xl font-semibold mb-2">Start a conversation</h3>
@@ -205,7 +248,7 @@ const PersistentChatInterface = () => {
           </div>
         ) : (
           <div className="space-y-4">
-            {messages.map((message) => (
+            {state.messages.map((message) => (
               <div
                 key={message.id}
                 className={`p-4 rounded-lg ${
@@ -214,7 +257,7 @@ const PersistentChatInterface = () => {
                     : "bg-gray-100 mr-auto max-w-3xl"
                 }`}
               >
-                <p>{message.content}</p>
+                <p className="whitespace-pre-wrap">{message.content}</p>
                 {message.timestamp && (
                   <p className="text-xs text-gray-500 mt-1">
                     {new Date(message.timestamp).toLocaleString()}
@@ -222,6 +265,11 @@ const PersistentChatInterface = () => {
                 )}
               </div>
             ))}
+            {state.isLoading && (
+              <div className="flex justify-center">
+                <div className="animate-pulse">Thinking...</div>
+              </div>
+            )}
             <div ref={messageEndRef} />
           </div>
         )}
@@ -230,7 +278,7 @@ const PersistentChatInterface = () => {
       <div className="border-t p-4">
         <ChatInterface
           onSendMessage={handleSendMessage}
-          isLoading={isLoading}
+          isLoading={state.isLoading}
           placeholder="Type your message..."
         />
       </div>
