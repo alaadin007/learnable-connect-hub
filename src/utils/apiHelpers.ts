@@ -130,3 +130,104 @@ export async function checkSessionStatus(): Promise<{
     };
   }
 }
+
+/**
+ * Checks if a school admin account exists in the database for the specified user
+ * Used as a fallback when the profile table data is unavailable
+ * @param userId The user ID to check
+ * @returns Boolean indicating if user is a school admin
+ */
+export async function checkIfSchoolAdmin(userId: string): Promise<boolean> {
+  try {
+    // Check if user is in teachers table with is_supervisor flag
+    const { data, error } = await supabase
+      .from('teachers')
+      .select('is_supervisor')
+      .eq('id', userId)
+      .single();
+    
+    if (error) {
+      console.error("Error checking school admin status:", error);
+      return false;
+    }
+    
+    return data?.is_supervisor === true;
+  } catch (error) {
+    console.error("Exception checking school admin status:", error);
+    return false;
+  }
+}
+
+/**
+ * Helper function to safely get the user's role from metadata or database
+ * Provides fallbacks if the standard auth flow fails
+ */
+export async function getUserRoleWithFallback(user: any): Promise<string | null> {
+  if (!user) return null;
+  
+  try {
+    // First try getting from metadata
+    if (user.user_metadata?.user_type) {
+      const metaType = user.user_metadata.user_type;
+      
+      // Normalize school admin roles
+      if (metaType === "school_admin" || metaType === "school") {
+        return "school";
+      }
+      
+      return metaType;
+    }
+    
+    // Try fetching from profile
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("user_type")
+      .eq("id", user.id)
+      .single();
+      
+    if (profile?.user_type) {
+      // Normalize school admin roles
+      if (profile.user_type === "school_admin" || profile.user_type === "school") {
+        return "school";
+      }
+      
+      return profile.user_type;
+    }
+    
+    // Check if in teachers table
+    const { data: teacher } = await supabase
+      .from("teachers")
+      .select("id")
+      .eq("id", user.id)
+      .maybeSingle();
+      
+    if (teacher) {
+      return "teacher";
+    }
+    
+    // Check if in students table
+    const { data: student } = await supabase
+      .from("students")
+      .select("id")
+      .eq("id", user.id)
+      .maybeSingle();
+      
+    if (student) {
+      return "student";
+    }
+    
+    // Last resort - check email patterns
+    if (user.email) {
+      if (user.email.startsWith('school') || user.email.startsWith('admin')) {
+        return "school";
+      } else if (user.email.startsWith('teacher')) {
+        return "teacher";
+      }
+    }
+    
+    return "student"; // Default fallback
+  } catch (error) {
+    console.error("Error in getUserRoleWithFallback:", error);
+    return null;
+  }
+}

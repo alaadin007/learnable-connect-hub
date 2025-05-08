@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +16,7 @@ const LoginForm = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const { signIn, setTestUser, userRole } = useAuth();
+  const { signIn, setTestUser, userRole, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [loginError, setLoginError] = useState<string | null>(null);
@@ -146,37 +145,86 @@ const LoginForm = () => {
         await supabase.auth.refreshSession();
       }
 
-      // Get the user type from profiles table with minimal fields
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("user_type, organization")
-        .eq("id", data.user.id)
-        .single();
+      // Extract role information from user metadata
+      const userType = data.user.user_metadata?.user_type;
+      let isSchoolAdmin = userType === "school" || userType === "school_admin";
+      
+      // If not in metadata, try to identify from email patterns
+      if (!isSchoolAdmin && data.user.email) {
+        if (data.user.email.startsWith('school') || data.user.email.startsWith('admin')) {
+          isSchoolAdmin = true;
+        }
+      }
+      
+      // Use a fallback approach - try to determine role from database
+      try {
+        const { data: teacherData } = await supabase
+          .from("teachers")
+          .select("id")
+          .eq("id", data.user.id)
+          .single();
+          
+        if (teacherData) {
+          console.log("User found in teachers table");
+          
+          // Redirect to teacher path
+          toast.success("Login successful", {
+            description: `Welcome back, ${data.user.user_metadata?.full_name || email}!`,
+          });
+          
+          navigate("/teacher/analytics", { 
+            state: { preserveContext: true }
+          });
+          return;
+        }
+        
+        // Check if user is in students table
+        const { data: studentData } = await supabase
+          .from("students")
+          .select("id")
+          .eq("id", data.user.id)
+          .single();
+          
+        if (studentData) {
+          console.log("User found in students table");
+          
+          // Redirect to student dashboard
+          toast.success("Login successful", {
+            description: `Welcome back, ${data.user.user_metadata?.full_name || email}!`,
+          });
+          
+          navigate("/dashboard", { 
+            state: { preserveContext: true }
+          });
+          return;
+        }
+      } catch (dbError) {
+        // If there's an error checking the tables, we'll continue with metadata-based approach
+        console.error("Error checking user tables:", dbError);
+      }
 
-      if (profileError) {
-        // Continue with login even if profile fetch fails
-        console.error("Error fetching user profile:", profileError);
-        navigate("/dashboard");
-        toast.success("Login successful");
+      // Final fallback for school admin - if we can't determine from DB
+      if (isSchoolAdmin) {
+        // If we've determined this is likely a school admin, redirect to admin page
+        console.log("User appears to be a school admin based on metadata/email");
+        
+        // Ensure we have the necessary profile data
+        await refreshProfile();
+        
+        toast.success("Login successful", {
+          description: `Welcome back, ${data.user.user_metadata?.full_name || email}!`,
+        });
+        
+        // Redirect to admin dashboard
+        navigate("/admin", { 
+          state: { preserveContext: true }
+        });
         return;
       }
 
-      console.log("Fetched profile data:", profile);
-      
-      // Handle school_admin role properly with better handling for organization data
-      const userType = profile?.user_type;
-      const isSchoolAdmin = userType === "school" || userType === "school_admin";
-      
-      const redirectPath = isSchoolAdmin
-        ? "/admin"
-        : userType === "teacher"
-        ? "/teacher/analytics"
-        : "/dashboard";
-
+      // Default fallback - send to dashboard if we couldn't determine the role
       toast.success("Login successful", {
-        description: `Welcome back, ${
-          data.user.user_metadata?.full_name || email
-        }!`,
+        description: `Welcome back, ${data.user.user_metadata?.full_name || email}!`,
       });
 
       // Start session logging in background without affecting login flow
@@ -187,7 +235,7 @@ const LoginForm = () => {
         // Ignore session errors, don't affect login experience
       }
 
-      navigate(redirectPath, { 
+      navigate("/dashboard", { 
         state: { preserveContext: true }
       });
     } catch (error: any) {

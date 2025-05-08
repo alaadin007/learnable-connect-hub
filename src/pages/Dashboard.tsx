@@ -8,14 +8,15 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
 import Footer from "@/components/layout/Footer";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 const Dashboard = () => {
-  const { user, profile, userRole } = useAuth();
+  const { user, profile, userRole, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
-
+  
   // Enhanced debug logs to help understand what's happening
   useEffect(() => {
     console.log("Dashboard: User data:", { 
@@ -26,6 +27,12 @@ const Dashboard = () => {
       locationState: location.state
     });
     
+    // Attempt to refresh profile if it's missing or incomplete
+    if (user && (!profile || !userRole)) {
+      console.log("Dashboard: Profile or role missing, attempting refresh");
+      refreshProfile();
+    }
+    
     // Set a maximum loading time to prevent infinite loading state
     const loadingTimeout = setTimeout(() => {
       if (isLoading) {
@@ -35,7 +42,7 @@ const Dashboard = () => {
     }, 3000); // 3 seconds max loading time
     
     return () => clearTimeout(loadingTimeout);
-  }, [user, profile, userRole, location.state, isLoading]);
+  }, [user, profile, userRole, location.state, isLoading, refreshProfile]);
 
   // Handle redirections with improved error handling
   useEffect(() => {
@@ -54,8 +61,38 @@ const Dashboard = () => {
         navigate("/login");
         return;
       }
+      
+      // Check for school admin indicators in user metadata if role is not yet determined
+      let isSchoolAdmin = userRole === "school" || userRole === "school_admin";
 
-      console.log("Dashboard: User role detected:", userRole);
+      // If userRole is null but we have user_metadata, check there
+      if (!userRole && user.user_metadata) {
+        const metadataRole = user.user_metadata.user_type;
+        if (metadataRole === "school" || metadataRole === "school_admin") {
+          console.log("Dashboard: School admin detected from user metadata");
+          isSchoolAdmin = true;
+        }
+      }
+      
+      // If we still have no determination, check email pattern
+      if (!isSchoolAdmin && user.email) {
+        if (user.email.startsWith('school') || user.email.startsWith('admin')) {
+          console.log("Dashboard: School admin detected from email pattern");
+          isSchoolAdmin = true;
+        }
+      }
+      
+      console.log("Dashboard: User role detected:", userRole || "unknown");
+
+      // Special case: If we determined this is a school admin but haven't set userRole yet
+      if (isSchoolAdmin) {
+        console.log("Dashboard: School admin detected, redirecting to admin dashboard");
+        navigate("/admin", { 
+          state: { fromNavigation: true, preserveContext: true },
+          replace: true 
+        });
+        return;
+      }
 
       // Handle redirection logic with improved handling for school admin roles
       if (userRole === "school" || userRole === "school_admin") {
@@ -100,6 +137,30 @@ const Dashboard = () => {
           return;
         }
       }
+      
+      // If we've reached this point and still don't know the user role 
+      // but they might be a school admin based on DB records, check teachers table
+      if (!userRole && user.id) {
+        console.log("Dashboard: Checking database for user role");
+        supabase.from("teachers")
+          .select("is_supervisor")
+          .eq("id", user.id)
+          .single()
+          .then(({ data }) => {
+            if (data && data.is_supervisor) {
+              console.log("Dashboard: School admin found in teachers table");
+              navigate("/admin", { 
+                state: { fromNavigation: true, preserveContext: true },
+                replace: true 
+              });
+            } else {
+              console.log("Dashboard: User is not a supervisor in teachers table");
+            }
+          })
+          .catch(error => {
+            console.log("Dashboard: Error checking teachers table:", error);
+          });
+      }
 
       console.log("Dashboard: User remaining on student dashboard");
       setIsLoading(false);
@@ -111,7 +172,7 @@ const Dashboard = () => {
         duration: 5000,
       });
     }
-  }, [user, navigate, location.state, userRole]);
+  }, [user, navigate, location.state, userRole, refreshProfile]);
 
   // If there are issues with profile loading, show a more helpful message
   useEffect(() => {
