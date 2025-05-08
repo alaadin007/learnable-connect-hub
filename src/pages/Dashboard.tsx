@@ -9,11 +9,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import Footer from "@/components/layout/Footer";
 
 const Dashboard = () => {
-  const { user, profile } = useAuth();
+  const { user, profile, userRole } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Redirect if not logged in
+  // Redirect based on user role
   useEffect(() => {
     if (!user) {
       // Allow test accounts/navigation with preserved context to bypass this check
@@ -24,8 +24,29 @@ const Dashboard = () => {
       
       console.log("Dashboard: No user found, redirecting to login");
       navigate("/login");
+      return;
     }
-  }, [user, navigate, location.state]);
+
+    // Redirect school admins to their dashboard
+    if (userRole === "school") {
+      console.log("Dashboard: School admin detected, redirecting to admin dashboard");
+      navigate("/admin", { 
+        state: { fromNavigation: true, preserveContext: true },
+        replace: true 
+      });
+      return;
+    }
+
+    // Redirect teachers to their dashboard
+    if (userRole === "teacher") {
+      console.log("Dashboard: Teacher detected, redirecting to teacher analytics");
+      navigate("/teacher/analytics", { 
+        state: { fromNavigation: true, preserveContext: true },
+        replace: true 
+      });
+      return;
+    }
+  }, [user, navigate, location.state, userRole]);
 
   // Show loading state if user or profile data is not ready
   if (!user && !location.state?.fromTestAccounts) {
@@ -39,6 +60,7 @@ const Dashboard = () => {
     );
   }
 
+  // This is now primarily for student users
   return (
     <>
       <Navbar />
