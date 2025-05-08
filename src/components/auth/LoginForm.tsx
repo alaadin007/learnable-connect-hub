@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -95,8 +94,10 @@ const LoginForm = () => {
       }
 
       console.log(`Attempting to login with email: ${email}`);
+      console.log("Network status check:", navigator.onLine ? "Online" : "Offline");
       
       // Regular user login flow - using direct Supabase auth
+      console.log("Sending auth request to Supabase...");
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
@@ -104,6 +105,11 @@ const LoginForm = () => {
 
       if (error) {
         console.error("Supabase authentication error:", error);
+        console.error("Error details:", {
+          status: error.status,
+          name: error.name,
+          message: error.message
+        });
         throw error;
       }
 
@@ -158,21 +164,37 @@ const LoginForm = () => {
       navigate(redirectPath);
     } catch (error: any) {
       console.error("Login error:", error);
+      console.error("Login error details:", {
+        status: error.status,
+        name: error.name,
+        message: error.message,
+        code: error.code
+      });
       setLoginError(error.message);
 
-      if (error.message.includes("Email not confirmed")) {
-        toast.error("Email not verified", {
-          description:
-            "Please check your inbox and spam folder for the verification email.",
-        });
-      } else if (error.message.includes("Invalid login credentials")) {
-        console.log("Invalid credentials provided:", { email, passwordLength: password.length });
-        toast.error("Login failed", {
-          description: "Invalid email or password. Please try again.",
-        });
+      // More detailed logging
+      if (error.message) {
+        if (error.message.includes("Email not confirmed")) {
+          console.log("Email verification error detected");
+          toast.error("Email not verified", {
+            description:
+              "Please check your inbox and spam folder for the verification email.",
+          });
+        } else if (error.message.includes("Invalid login credentials")) {
+          console.log("Invalid credentials provided:", { email, passwordLength: password.length });
+          toast.error("Login failed", {
+            description: "Invalid email or password. Please try again.",
+          });
+        } else {
+          console.log("Unknown login error:", error.message);
+          toast.error(`Login failed: ${error.message}`);
+        }
       } else {
-        console.log("Login error details:", error.status, error.name);
-        toast.error(`Login failed: ${error.message}`);
+        // Network related errors
+        console.log("Network or unknown error during login", error);
+        toast.error("Login failed due to network issue", {
+          description: "Please check your connection and try again."
+        });
       }
     } finally {
       setIsLoading(false);

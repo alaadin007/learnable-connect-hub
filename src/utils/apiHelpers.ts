@@ -9,6 +9,8 @@ import { supabase } from "@/integrations/supabase/client";
  */
 export async function invokeEdgeFunction<T = any>(functionName: string, payload?: any): Promise<T> {
   try {
+    console.log(`Attempting to invoke edge function: ${functionName}`);
+    
     // Get the current session without waiting for refresh
     const { data: { session } } = await supabase.auth.getSession();
     
@@ -21,7 +23,17 @@ export async function invokeEdgeFunction<T = any>(functionName: string, payload?
     // If we have a session, add the authorization header
     if (session?.access_token) {
       headers.Authorization = `Bearer ${session.access_token}`;
+      console.log(`Found active session, using auth token for ${functionName}`);
+    } else {
+      console.log(`No active session found for ${functionName} invocation`);
     }
+    
+    // Log network request attempt
+    console.log(`Sending request to edge function: ${functionName}`, { 
+      hasHeaders: Object.keys(headers).length,
+      hasPayload: !!payload,
+      origin: window.location.origin
+    });
     
     // Invoke the function with explicit authorization header if available
     const { data, error } = await supabase.functions.invoke(functionName, {
@@ -34,9 +46,15 @@ export async function invokeEdgeFunction<T = any>(functionName: string, payload?
       throw error;
     }
     
+    console.log(`Successfully invoked ${functionName}`);
     return data as T;
   } catch (error) {
     console.error(`Failed to invoke ${functionName}:`, error);
+    // Log more details about the error
+    if (error instanceof Error) {
+      console.error(`Error details: ${error.name}, ${error.message}`);
+      console.error(`Error stack: ${error.stack}`);
+    }
     throw error; // Rethrow to allow proper error handling by caller
   }
 }
