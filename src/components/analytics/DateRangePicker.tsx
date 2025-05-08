@@ -1,66 +1,22 @@
+
 import React from "react";
-import { format } from "date-fns";
-import { Calendar as CalendarIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { DateRange } from "./types";
+import { DateRange } from "@/components/analytics/types";
+import { DatePickerWithRange } from "@/components/ui/date-range-picker";
 
-interface DateRangePickerProps {
-  dateRange: DateRange | undefined;
-  onDateRangeChange: (range: DateRange | undefined) => void;
+export interface DateRangePickerProps {
+  dateRange: DateRange;
+  onChange: (range: DateRange) => void;
 }
 
-export function DateRangePicker({ dateRange, onDateRangeChange }: DateRangePickerProps) {
+export const DateRangePicker: React.FC<DateRangePickerProps> = ({ 
+  dateRange,
+  onChange
+}) => {
   return (
-    <div className="grid gap-2">
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button
-            id="date"
-            variant="outline"
-            className={cn(
-              "w-full justify-start text-left font-normal",
-              !dateRange?.from && "text-muted-foreground"
-            )}
-            aria-label="Select date range"
-          >
-            <CalendarIcon className="mr-2 h-4 w-4" />
-            {dateRange?.from ? (
-              dateRange.to ? (
-                <>
-                  {format(dateRange.from, "LLL dd, y")} -{" "}
-                  {format(dateRange.to, "LLL dd, y")}
-                </>
-              ) : (
-                format(dateRange.from, "LLL dd, y")
-              )
-            ) : (
-              <span>Pick a date range</span>
-            )}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="start">
-          <Calendar
-            initialFocus
-            mode="range"
-            defaultMonth={dateRange?.from}
-            selected={
-              dateRange
-                ? { from: dateRange.from || undefined, to: dateRange.to }
-                : undefined
-            }
-            onSelect={onDateRangeChange}
-            numberOfMonths={2}
-            className={cn("p-3 pointer-events-auto")}
-          />
-        </PopoverContent>
-      </Popover>
-    </div>
+    <DatePickerWithRange
+      date={dateRange}
+      onDateChange={onChange}
+    />
   );
-}
+};

@@ -1,285 +1,157 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import ChatInterface from "./ChatInterface";
-import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
-import { saveChatMessage, getChatHistory } from "@/utils/databaseUtils";
-import { toast } from "sonner";
-import { v4 as uuidv4 } from "uuid";
+import React, { useState, useEffect } from 'react';
+import { useSupabaseClient } from '@supabase/auth-helpers-react';
+import { v4 as uuidv4 } from 'uuid';
+import { useAuth } from '@/contexts/AuthContext';
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { Message } from "@/components/chat/types"
+import { VoiceRecorder } from "@/components/chat/VoiceRecorder"
 
-interface Message {
-  id: string;
-  role: "user" | "assistant" | "system";
-  content: string;
-  timestamp?: string;
+interface Props {
+  conversationId?: string;
+  existingMessages?: any[];
 }
 
-interface ChatState {
-  messages: Message[];
-  isLoading: boolean;
-  error: string | null;
-  activeConversationId: string | null;
-}
-
-const PersistentChatInterface: React.FC = () => {
-  const [state, setState] = useState<ChatState>({
-    messages: [],
-    isLoading: false,
-    error: null,
-    activeConversationId: null
-  });
-  
+const PersistentChatInterface: React.FC<Props> = ({ conversationId, existingMessages }) => {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const supabase = useSupabaseClient();
   const { user } = useAuth();
-  const messageEndRef = useRef<HTMLDivElement>(null);
-  const isMounted = useRef(true);
 
-  // Cleanup on unmount
   useEffect(() => {
-    return () => {
-      isMounted.current = false;
-    };
-  }, []);
-
-  // Initialize conversation
-  useEffect(() => {
-    if (user && !state.activeConversationId) {
-      createNewConversation();
-    }
-  }, [user, state.activeConversationId]);
-
-  // Load chat history
-  useEffect(() => {
-    if (state.activeConversationId) {
-      loadChatHistory();
-    }
-  }, [state.activeConversationId]);
-
-  // Auto-scroll
-  useEffect(() => {
-    scrollToBottom();
-  }, [state.messages]);
-
-  const scrollToBottom = useCallback(() => {
-    messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, []);
-
-  const loadChatHistory = useCallback(async () => {
-    if (!state.activeConversationId) return;
-
-    try {
-      setState(prev => ({ ...prev, isLoading: true, error: null }));
-      
-      const chatHistory = await getChatHistory(state.activeConversationId);
-      
-      if (!isMounted.current) return;
-
-      if (!chatHistory || chatHistory.length === 0) {
-        setState(prev => ({ ...prev, messages: [], isLoading: false }));
-        return;
-      }
-      
-      const formattedMessages = chatHistory.map((msg: any) => ({
+    if (existingMessages?.length > 0) {
+      // Map existing messages to the correct format and ensure role is a valid enum value
+      const formattedMessages: Message[] = existingMessages.map(msg => ({
         id: msg.id,
-        role: msg.sender === "user" ? "user" : "assistant",
+        role: (msg.sender === 'user' ? 'user' : 'assistant') as 'user' | 'assistant' | 'system',
         content: msg.content,
         timestamp: msg.timestamp
       }));
-      
-      setState(prev => ({ ...prev, messages: formattedMessages, isLoading: false }));
-    } catch (error) {
-      console.error("Error loading chat history:", error);
-      if (isMounted.current) {
-        setState(prev => ({ 
-          ...prev, 
-          error: "Failed to load chat history",
-          isLoading: false 
-        }));
-        toast.error("Failed to load chat history");
-      }
+      setMessages(formattedMessages);
     }
-  }, [state.activeConversationId]);
+  }, [existingMessages]);
 
-  const createNewConversation = useCallback(async () => {
-    if (!user) {
-      toast.error("You must be logged in to create a conversation");
-      return;
-    }
+  const handleSendMessage = async (userMessage: string) => {
+    if (!userMessage.trim()) return;
+
+    setIsLoading(true);
+    const tempMessageId = uuidv4();
+
+    // Optimistically update the local state
+    const userMessageObject: Message = {
+      id: tempMessageId,
+      role: 'user',
+      content: userMessage,
+      timestamp: new Date().toISOString(),
+    };
+    setMessages(prevMessages => [...prevMessages, userMessageObject]);
+    setNewMessage('');
 
     try {
-      setState(prev => ({ ...prev, isLoading: true, error: null }));
-
-      const { data: userData, error: userError } = await supabase.auth.getUser();
-      if (userError || !userData?.user) {
-        throw new Error("User data not available");
-      }
-      
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('school_id')
-        .eq('id', userData.user.id)
-        .single();
-        
-      if (profileError || !profileData?.school_id) {
-        throw new Error("School data not available");
+      if (!conversationId) {
+        throw new Error("Conversation ID is missing.");
       }
 
-      const { data: newConversation, error: conversationError } = await supabase
-        .from("conversations")
+      // Send the message to the database
+      const { error } = await supabase
+        .from('messages')
         .insert({
-          user_id: userData.user.id,
-          school_id: profileData.school_id,
-          title: "New Conversation",
-          topic: "general",
-          starred: false,
-          tags: []
-        })
-        .select()
-        .single();
+          conversation_id: conversationId,
+          content: userMessage,
+          sender: 'user',
+          timestamp: new Date().toISOString(),
+          user_id: user?.id,
+        });
 
-      if (conversationError || !newConversation) {
-        throw new Error("Failed to create new conversation");
-      }
+      if (error) {
+        console.error("Error sending message:", error);
+        // Revert the optimistic update on error
+        setMessages(prevMessages => prevMessages.filter(msg => msg.id !== tempMessageId));
+      } else {
+        // Fetch the AI response
+        const aiResponse = await getAIResponse(userMessage);
 
-      if (isMounted.current) {
-        setState(prev => ({
-          ...prev,
-          activeConversationId: newConversation.id,
-          messages: [],
-          isLoading: false
-        }));
-      }
-    } catch (error) {
-      console.error("Error creating new conversation:", error);
-      if (isMounted.current) {
-        setState(prev => ({
-          ...prev,
-          error: error instanceof Error ? error.message : "Failed to create new conversation",
-          isLoading: false
-        }));
-        toast.error("Failed to create new conversation");
-      }
-    }
-  }, [user]);
-
-  const handleSendMessage = useCallback(async (userMessage: string) => {
-    if (!state.activeConversationId) {
-      toast.error("No active conversation");
-      return;
-    }
-
-    try {
-      // Display user message immediately
-      const userMessageObj: Message = {
-        id: uuidv4(),
-        role: "user",
-        content: userMessage,
-        timestamp: new Date().toISOString()
-      };
-
-      setState(prev => ({
-        ...prev,
-        messages: [...prev.messages, userMessageObj],
-        isLoading: true
-      }));
-
-      // Save user message
-      const savedMessage = await saveChatMessage(
-        state.activeConversationId,
-        userMessage,
-        "user",
-        false
-      );
-      
-      if (!savedMessage) {
-        throw new Error("Failed to save message");
-      }
-
-      // Simulate AI response (replace with actual API call)
-      const aiResponseText = `Thanks for your message: "${userMessage}". This is a placeholder response.`;
-      
-      const savedAiMessage = await saveChatMessage(
-        state.activeConversationId,
-        aiResponseText,
-        "assistant",
-        false
-      );
-      
-      if (!savedAiMessage) {
-        throw new Error("Failed to save AI response");
-      }
-
-      if (isMounted.current) {
-        const aiMessageObj: Message = {
-          id: savedAiMessage.id,
-          role: "assistant",
-          content: aiResponseText,
-          timestamp: savedAiMessage.timestamp
+        // Add the AI response to the local state
+        const aiMessageObject: Message = {
+          id: uuidv4(),
+          role: 'assistant',
+          content: aiResponse,
+          timestamp: new Date().toISOString(),
         };
+        setMessages(prevMessages => [...prevMessages, aiMessageObject]);
 
-        setState(prev => ({
-          ...prev,
-          messages: [...prev.messages, aiMessageObj],
-          isLoading: false
-        }));
+        // Send the AI response to the database
+        const { error: aiError } = await supabase
+          .from('messages')
+          .insert({
+            conversation_id: conversationId,
+            content: aiResponse,
+            sender: 'assistant',
+            timestamp: new Date().toISOString(),
+          });
+
+        if (aiError) {
+          console.error("Error sending AI message:", aiError);
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error in handleSendMessage:", error);
-      if (isMounted.current) {
-        setState(prev => ({
-          ...prev,
-          error: error instanceof Error ? error.message : "Failed to process message",
-          isLoading: false
-        }));
-        toast.error("Failed to process message");
-      }
+      // Revert the optimistic update on error
+      setMessages(prevMessages => prevMessages.filter(msg => msg.id !== tempMessageId));
+    } finally {
+      setIsLoading(false);
     }
-  }, [state.activeConversationId]);
+  };
+
+  const getAIResponse = async (userMessage: string): Promise<string> => {
+    // Mock AI response for now
+    await new Promise(resolve => setTimeout(resolve, 500));
+    return `AI Response: ${userMessage}`;
+  };
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="flex flex-col h-full">
       <div className="flex-grow overflow-y-auto p-4">
-        {state.messages.length === 0 && !state.isLoading ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center">
-              <h3 className="text-xl font-semibold mb-2">Start a conversation</h3>
-              <p className="text-gray-600">
-                Ask a question or start typing to begin
-              </p>
-            </div>
+        {messages.map((message) => (
+          <div
+            key={message.id}
+            className={`mb-2 p-2 rounded-md ${message.role === 'user' ? 'bg-blue-100 text-right ml-auto' : 'bg-gray-100 text-left mr-auto'}`}
+            style={{ maxWidth: '80%' }}
+          >
+            <div className="text-sm text-gray-600">{message.role}</div>
+            <div>{message.content}</div>
+            <div className="text-xs text-gray-500">{message.timestamp}</div>
           </div>
-        ) : (
-          <div className="space-y-4">
-            {state.messages.map((message) => (
-              <div
-                key={message.id}
-                className={`p-4 rounded-lg ${
-                  message.role === "user"
-                    ? "bg-blue-100 ml-auto max-w-3xl"
-                    : "bg-gray-100 mr-auto max-w-3xl"
-                }`}
-              >
-                <p className="whitespace-pre-wrap">{message.content}</p>
-                {message.timestamp && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    {new Date(message.timestamp).toLocaleString()}
-                  </p>
-                )}
-              </div>
-            ))}
-            {state.isLoading && (
-              <div className="flex justify-center">
-                <div className="animate-pulse">Thinking...</div>
-              </div>
-            )}
-            <div ref={messageEndRef} />
-          </div>
-        )}
+        ))}
+        {isLoading && <div className="text-gray-500">Loading...</div>}
       </div>
 
-      <div className="border-t p-4">
-        <ChatInterface
-          onSendMessage={handleSendMessage}
-          isLoading={state.isLoading}
-          placeholder="Type your message..."
+      <div className="p-4 border-t border-gray-200">
+        <div className="flex items-center space-x-2">
+          <Input
+            type="text"
+            placeholder="Enter your message..."
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                handleSendMessage(newMessage);
+                setNewMessage('');
+              }
+            }}
+          />
+          <Button onClick={() => {
+            handleSendMessage(newMessage);
+            setNewMessage('');
+          }} disabled={isLoading}>
+            Send
+          </Button>
+        </div>
+        <VoiceRecorder 
+          onSendMessage={(userMessage: string) => handleSendMessage(userMessage)}
+          isLoading={isLoading}
+          placeholder="Record a message..."
         />
       </div>
     </div>

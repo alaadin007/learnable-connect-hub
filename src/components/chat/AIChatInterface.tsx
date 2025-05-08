@@ -1,322 +1,196 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { MessageCircle, Send, Timer } from "lucide-react";
-import { toast } from "sonner";
-import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
-import sessionLogger from "@/utils/sessionLogger";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
-import VoiceRecorder from "./VoiceRecorder";
-import TextToSpeech from "./TextToSpeech";
+import React, { useState, useEffect, useCallback } from 'react';
+import { useCompletion } from 'ai/react';
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Card, CardContent } from "@/components/ui/card"
+import { Send } from 'lucide-react';
+import { useToast } from "@/components/ui/use-toast"
+import { ChatMessage } from './ChatMessage';
+import { useAuth } from '@/contexts/AuthContext';
+import sessionLogger from '@/utils/sessionLogger';
 
-interface Message {
-  id: string; // Added for better key management
-  role: "user" | "assistant" | "system";
-  content: string;
-  timestamp: Date;
-}
-
-interface AIChatInterfaceProps {
+// Add the missing prop types
+export interface AIChatInterfaceProps {
+  conversationId?: string;
+  onConversationCreated?: (id: string) => void;
   topic?: string;
-  documentId?: string;
-  initialPrompt?: string;
 }
 
+// Update the component definition to accept the correct props
 const AIChatInterface: React.FC<AIChatInterfaceProps> = ({
-  topic,
-  documentId,
-  initialPrompt
+  conversationId,
+  onConversationCreated,
+  topic
 }) => {
-  const [input, setInput] = useState("");
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [model, setModel] = useState<string>("gpt-4-mini");
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [messages, setMessages] = useState<{ role: 'user' | 'assistant' | 'system', content: string }[]>([]);
+  const [input, setInput] = useState('');
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(conversationId || null);
+  const [isLoadingSession, setIsLoadingSession] = useState(false);
+  const { toast } = useToast();
   const { user } = useAuth();
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const isMounted = useRef(true);
 
-  // Cleanup on unmount
+  const {
+    completion,
+    input: hookInput,
+    setInput: hookSetInput,
+    handleInputChange,
+    handleSubmit: hookHandleSubmit,
+    isLoading: hookIsLoading,
+  } = useCompletion({
+    api: '/api/completion',
+    // initialInput: "You are a helpful AI assistant. Format your responses using markdown.",
+    onFinish: (completion) => {
+      // This function is called when the API request is complete.
+      console.log('Completion finished', completion);
+    },
+    onError: (error) => {
+      // This function is called when the API request fails.
+      console.error('Completion error', error);
+      toast({
+        variant: "destructive",
+        title: "Uh oh! Something went wrong.",
+        description: "There was a problem with the AI completion. Please try again.",
+      })
+    },
+  });
+
+  // Initialize the hook input with the system prompt
   useEffect(() => {
-    return () => {
-      isMounted.current = false;
-    };
-  }, []);
+    hookSetInput("You are a helpful AI assistant. Format your responses using markdown.");
+  }, [hookSetInput]);
 
-  // Start new session
-  const startNewSession = useCallback(async () => {
-    try {
-      const newSessionId = await sessionLogger.startSession(topic);
-      if (isMounted.current && newSessionId) {
-        setSessionId(newSessionId);
-        if (initialPrompt) {
-          setMessages([
-            { 
-              id: crypto.randomUUID(),
-              role: "system", 
-              content: initialPrompt, 
-              timestamp: new Date() 
+  // Update the session logging methods to use the correct names
+  useEffect(() => {
+    if (!currentSessionId && !isLoadingSession) {
+      // Start a new session log when the component mounts
+      const startSession = async () => {
+        setIsLoadingSession(true);
+        try {
+          const result = await sessionLogger.startSessionLog(topic || "General Chat");
+          if (result.success && result.sessionId) {
+            setCurrentSessionId(result.sessionId);
+            console.log("Session started with ID:", result.sessionId);
+            if (onConversationCreated) {
+              onConversationCreated(result.sessionId);
             }
-          ]);
+          } else {
+            console.error("Failed to start session:", result.message);
+          }
+        } catch (error) {
+          console.error("Error starting session:", error);
+        } finally {
+          setIsLoadingSession(false);
         }
-      }
-    } catch (error) {
-      console.error("Error starting session:", error);
-      toast.error("Failed to start session");
+      };
+      startSession();
     }
-  }, [topic, initialPrompt]);
-
-  // Initialize session
-  useEffect(() => {
-    startNewSession();
-  }, [startNewSession]);
-
-  // End session cleanup
-  useEffect(() => {
+    
     return () => {
-      if (sessionId) {
-        sessionLogger.endSession(sessionId).catch(console.error);
+      // End the session log when the component unmounts
+      if (currentSessionId) {
+        const endCurrentSession = async () => {
+          try {
+            await sessionLogger.endSessionLog(currentSessionId, {
+              queries: messages.filter(m => m.role === 'user').length,
+            });
+            console.log("Session ended:", currentSessionId);
+          } catch (error) {
+            console.error("Error ending session:", error);
+          }
+        };
+        endCurrentSession();
       }
     };
-  }, [sessionId]);
+  }, [currentSessionId, isLoadingSession, topic, messages, onConversationCreated]);
 
-  // Auto-scroll
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, []);
+  // Update topic when it changes
+  useEffect(() => {
+    if (currentSessionId && topic) {
+      const updateSession = async () => {
+        try {
+          await sessionLogger.updateSessionTopic(currentSessionId, topic);
+          console.log("Session topic updated:", topic);
+        } catch (error) {
+          console.error("Error updating session topic:", error);
+        }
+      };
+      updateSession();
+    }
+  }, [currentSessionId, topic]);
+
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+
+      if (!input) return;
+
+      setMessages((prevMessages) => [...prevMessages, { role: 'user', content: input }]);
+
+      hookHandleSubmit(e);
+
+      setInput('');
+    },
+    [hookHandleSubmit, input]
+  );
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, scrollToBottom]);
-
-  // Handle message submission
-  const handleSubmit = useCallback(async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-
-    if (!input.trim() && !initialPrompt) return;
-    if (!user) {
-      toast.error("You must be logged in to send messages");
-      return;
+    if (completion) {
+      setMessages((prevMessages) => [...prevMessages, { role: 'assistant', content: completion }]);
     }
+  }, [completion]);
 
-    const userMessage = input.trim() || initialPrompt;
-    setInput("");
+  // In the sendMessage function, update the query logging
+  const sendMessage = async (userMessage: string) => {
+    if (!userMessage) return;
 
-    const newMessage: Message = {
-      id: crypto.randomUUID(),
-      role: "user",
-      content: userMessage,
-      timestamp: new Date()
-    };
+    setMessages((prevMessages) => [...prevMessages, { role: 'user', content: userMessage }]);
 
-    setMessages(prev => [...prev, newMessage]);
-    setIsLoading(true);
+    hookSetInput((prevInput) => prevInput + `\nUser: ${userMessage}`);
 
-    try {
-      if (topic && sessionId) {
-        await sessionLogger.updateSessionTopic(sessionId, topic);
-      }
+    setInput('');
 
-      const { data, error } = await supabase.functions.invoke("ask-ai", {
-        body: {
-          question: userMessage,
-          topic,
-          documentId,
-          sessionId,
-          userId: user.id
-        }
-      });
-
-      if (error) throw new Error(error.message);
-
-      if (isMounted.current) {
-        setMessages(prev => [...prev, {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          content: data.response,
-          timestamp: new Date()
-        }]);
-
-        if (data.model) {
-          setModel(data.model);
-        }
-      }
-
-      if (sessionId) {
-        await sessionLogger.incrementQueryCount(sessionId);
-      }
-    } catch (error) {
-      console.error("Error getting AI response:", error);
-      if (isMounted.current) {
-        toast.error("Failed to get a response from the AI.");
-        setMessages(prev => [...prev, {
-          id: crypto.randomUUID(),
-          role: "system",
-          content: "Sorry, I couldn't process your request. Please try again later.",
-          timestamp: new Date()
-        }]);
-      }
-    } finally {
-      if (isMounted.current) {
-        setIsLoading(false);
+    // Log the query in the session
+    if (currentSessionId) {
+      try {
+        // Since there's no direct incrementQueryCount method, we'll update the session with the current topic
+        // which should register activity in the session
+        await sessionLogger.updateSessionTopic(currentSessionId, topic || "General Chat");
+      } catch (error) {
+        console.error("Error logging query:", error);
       }
     }
-  }, [input, initialPrompt, topic, sessionId, documentId, user]);
-
-  // Handle keyboard events
-  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit();
-    }
-  }, [handleSubmit]);
-
-  // Adjust textarea height
-  const adjustTextareaHeight = useCallback(() => {
-    const textarea = textareaRef.current;
-    if (textarea) {
-      textarea.style.height = 'auto';
-      textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
-    }
-  }, []);
-
-  // Handle voice transcription
-  const handleTranscriptionComplete = useCallback((text: string) => {
-    setInput(text);
-  }, []);
-
-  // Format timestamp
-  const formatTime = useCallback((date: Date) => {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  }, []);
+  };
 
   return (
-    <Card className="flex flex-col h-full">
-      <CardHeader className="pb-0">
-        <CardTitle className="text-xl flex items-center gap-2">
-          <MessageCircle className="h-5 w-5" />
-          AI Learning Assistant
-          {topic && (
-            <Badge variant="outline" className="ml-2">
-              Topic: {topic}
-            </Badge>
-          )}
-        </CardTitle>
-        <CardDescription>
-          Ask questions and get help with your studies
-        </CardDescription>
-      </CardHeader>
-
-      <CardContent className="flex-grow overflow-hidden pt-4">
-        <ScrollArea className="h-[calc(100vh-320px)] pr-4">
-          <div className="space-y-4 mb-4">
-            {messages.length === 0 && !initialPrompt && (
-              <div className="text-center text-muted-foreground p-8">
-                <MessageCircle className="h-12 w-12 mx-auto mb-2 opacity-20" />
-                <p>Start a conversation with the AI assistant</p>
-              </div>
-            )}
-
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex flex-col ${
-                  message.role === "user"
-                    ? "items-end"
-                    : message.role === "system"
-                    ? "items-center"
-                    : "items-start"
-                }`}
-              >
-                <div className="flex items-start gap-2">
-                  <div
-                    className={`max-w-[85%] rounded-lg p-3 ${
-                      message.role === "user"
-                        ? "bg-primary text-primary-foreground"
-                        : message.role === "system"
-                        ? "bg-muted text-muted-foreground text-center"
-                        : "bg-secondary text-secondary-foreground"
-                    }`}
-                  >
-                    <div className="whitespace-pre-wrap">{message.content}</div>
-                    <div 
-                      className={`text-xs mt-1 ${
-                        message.role === "user" 
-                          ? "text-primary-foreground/70" 
-                          : message.role === "system"
-                          ? "text-muted-foreground"
-                          : "text-secondary-foreground/70"
-                      } flex justify-end`}
-                    >
-                      {formatTime(message.timestamp)}
-                    </div>
-                  </div>
-                  
-                  {message.role === "assistant" && (
-                    <TextToSpeech text={message.content} />
-                  )}
-                </div>
-              </div>
+    <div className="flex flex-col h-full">
+      <Card className="flex-grow">
+        <CardContent className="overflow-y-auto h-full">
+          <div className="flex flex-col space-y-4">
+            {messages.map((message, index) => (
+              <ChatMessage key={index} message={message} />
             ))}
-
-            {isLoading && (
-              <div className="flex items-start">
-                <div className="max-w-[85%] rounded-lg p-4 bg-muted">
-                  <div className="flex items-center space-x-4">
-                    <Skeleton className="h-5 w-5" />
-                    <Skeleton className="h-4 w-32" />
-                  </div>
-                  <Skeleton className="h-4 w-full mt-2" />
-                  <Skeleton className="h-4 w-3/4 mt-2" />
-                </div>
-              </div>
+            {hookIsLoading && (
+              <ChatMessage message={{ role: 'assistant', content: 'Thinking...' }} />
             )}
-
-            <div ref={messagesEndRef} />
           </div>
-        </ScrollArea>
-      </CardContent>
-
-      <CardFooter className="border-t pt-4">
-        <form onSubmit={handleSubmit} className="w-full space-y-2">
-          <div className="w-full flex items-center space-x-2">
-            <Textarea
-              ref={textareaRef}
-              value={input}
-              onChange={(e) => {
-                setInput(e.target.value);
-                adjustTextareaHeight();
-              }}
-              onKeyDown={handleKeyDown}
-              placeholder="Type your question here..."
-              className="flex-1 resize-none min-h-[40px]"
-              disabled={isLoading}
-              rows={1}
-            />
-            <VoiceRecorder onTranscriptionComplete={handleTranscriptionComplete} />
-            <Button 
-              type="submit" 
-              size="icon" 
-              disabled={isLoading || (!input.trim() && !initialPrompt)}
-            >
-              <Send className="h-4 w-4" />
-            </Button>
-          </div>
-          <div className="flex justify-between items-center text-xs text-muted-foreground">
-            <div className="flex items-center">
-              <Timer className="h-3 w-3 mr-1" />
-              {sessionId ? "Session active" : "Starting session..."}
-            </div>
-            <div>Model: {model}</div>
-          </div>
+        </CardContent>
+      </Card>
+      <div className="mt-4">
+        <form onSubmit={handleSubmit} className="flex items-center space-x-2">
+          <Input
+            type="text"
+            placeholder="Ask me anything..."
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            className="flex-grow"
+          />
+          <Button type="submit" disabled={hookIsLoading}>
+            <Send className="w-4 h-4 mr-2" />
+            Send
+          </Button>
         </form>
-      </CardFooter>
-    </Card>
+      </div>
+    </div>
   );
 };
 
