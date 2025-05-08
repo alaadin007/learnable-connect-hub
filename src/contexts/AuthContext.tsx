@@ -137,8 +137,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (profileData && !profileData.error) {
         console.log("Profile data fetched:", profileData);
         setProfile(profileData);
-        setUserRole(profileData.user_type || null);
-        setSchoolId(profileData.school_id || null);
+        
+        // Check if profileData is a SelectQueryError before trying to access properties
+        if (profileData && typeof profileData === 'object' && !('error' in profileData)) {
+          setUserRole(profileData.user_type || null);
+          setSchoolId(profileData.school_id || null);
+        }
+        
         return profileData;
       } else {
         console.error("Error fetching profile:", profileData?.error);

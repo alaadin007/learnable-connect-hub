@@ -1,278 +1,266 @@
-import React, { useState } from 'react';
+
+import React, { useState, useRef } from 'react';
+import { useDropzone } from 'react-dropzone';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Upload, FileCheck, AlertCircle } from 'lucide-react';
-import { Progress } from '@/components/ui/progress';
-import { Card, CardContent } from '@/components/ui/card';
-import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/contexts/AuthContext';
+import { UploadCloud, FileText, X, Loader } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { Progress } from '@/components/ui/progress';
+import { useAuth } from '@/contexts/AuthContext';
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-const ALLOWED_FILE_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
-const ALLOWED_FILE_EXTENSIONS = ['.pdf', '.jpg', '.jpeg', '.png'];
+interface FileUploadProps {
+  onUploadComplete: () => void;
+  allowedFileTypes?: string[];
+  maxFileSizeMb?: number;
+}
 
-const FileUpload: React.FC = () => {
-  const [file, setFile] = useState<File | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
+const FileUpload: React.FC<FileUploadProps> = ({
+  onUploadComplete,
+  allowedFileTypes = ['.pdf', '.txt', '.docx', '.doc', '.md'],
+  maxFileSizeMb = 10
+}) => {
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [processingStatus, setProcessingStatus] = useState<string | null>(null);
-  const [dragActive, setDragActive] = useState(false);
-  const { toast } = useToast();
-  const { user } = useAuth();
-
-  const validateFile = (file: File): { valid: boolean; message?: string } => {
-    if (!file) return { valid: false, message: 'No file selected.' };
-    
-    // Check file size
-    if (file.size > MAX_FILE_SIZE) {
-      return { 
-        valid: false, 
-        message: `File too large. Maximum size is ${MAX_FILE_SIZE / (1024 * 1024)}MB.` 
-      };
-    }
-    
-    // Check file type
-    const fileExt = '.' + file.name.split('.').pop()?.toLowerCase();
-    if (!ALLOWED_FILE_EXTENSIONS.includes(fileExt)) {
-      return { 
-        valid: false, 
-        message: `Invalid file type. Allowed types: ${ALLOWED_FILE_EXTENSIONS.join(', ')}` 
-      };
-    }
-    
-    return { valid: true };
-  };
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files && event.target.files[0]) {
-      const selectedFile = event.target.files[0];
-      const validation = validateFile(selectedFile);
-      
-      if (!validation.valid) {
-        toast({
-          title: 'Invalid File',
-          description: validation.message,
-          variant: 'destructive'
-        });
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const { profile, schoolId } = useAuth();
+  
+  const maxSizeBytes = maxFileSizeMb * 1024 * 1024; // Convert MB to bytes
+  
+  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
+    accept: allowedFileTypes.reduce((acc, type) => {
+      // Map file extensions to MIME types
+      const mimeType = getMimeType(type);
+      if (mimeType) {
+        if (!acc[mimeType]) acc[mimeType] = [];
+        acc[mimeType].push(type);
+      }
+      return acc;
+    }, {} as Record<string, string[]>),
+    maxSize: maxSizeBytes,
+    multiple: false,
+    noClick: true,
+    onDrop: (acceptedFiles, rejectedFiles) => {
+      if (rejectedFiles.length > 0) {
+        const rejection = rejectedFiles[0];
+        if (rejection.errors.some(e => e.code === 'file-too-large')) {
+          toast.error(`File is too large. Maximum size is ${maxFileSizeMb}MB`);
+        } else if (rejection.errors.some(e => e.code === 'file-invalid-type')) {
+          toast.error(`Invalid file type. Allowed: ${allowedFileTypes.join(', ')}`);
+        } else {
+          toast.error('Invalid file');
+        }
         return;
       }
       
-      setFile(selectedFile);
-    }
-  };
-
-  const handleDrag = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true);
-    } else if (e.type === 'dragleave') {
-      setDragActive(false);
-    }
-  };
-
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-    
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const selectedFile = e.dataTransfer.files[0];
-      const validation = validateFile(selectedFile);
-      
-      if (!validation.valid) {
-        toast({
-          title: 'Invalid File',
-          description: validation.message,
-          variant: 'destructive'
-        });
-        return;
+      if (acceptedFiles.length > 0) {
+        setSelectedFile(acceptedFiles[0]);
       }
-      
-      setFile(selectedFile);
-    }
+    },
+  });
+  
+  // Function to get MIME type from extension
+  const getMimeType = (extension: string): string => {
+    const mapping: Record<string, string> = {
+      '.pdf': 'application/pdf',
+      '.txt': 'text/plain',
+      '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      '.doc': 'application/msword',
+      '.md': 'text/markdown',
+    };
+    return mapping[extension.toLowerCase()] || '';
   };
   
-  // Function to trigger content processing after upload
-  const triggerContentProcessing = async (documentId: string) => {
-    try {
-      setProcessingStatus('processing');
-      
-      // Use non-blocking approach to improve perceived performance
-      supabase.functions.invoke('process-document', {
-        body: { document_id: documentId }
-      });
-      
-      // Immediately show success message for better UX
-      toast({
-        title: 'Upload Successful',
-        description: `${file?.name} has been uploaded and is being processed.`
-      });
-      
-    } catch (err) {
-      console.error('Error calling process-document function:', err);
-      // Don't show error to user since document was already uploaded successfully
+  const clearSelectedFile = () => {
+    setSelectedFile(null);
+    setUploadProgress(0);
+  };
+  
+  const cancelUpload = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setUploading(false);
+      setUploadProgress(0);
+      toast.info('Upload canceled');
     }
   };
 
   const handleUpload = async () => {
-    if (!file || !user) return;
-    
-    const validation = validateFile(file);
-    if (!validation.valid) {
-      toast({
-        title: 'Invalid File',
-        description: validation.message,
-        variant: 'destructive'
-      });
-      return;
-    }
-    
-    setIsUploading(true);
-    setUploadProgress(0);
-    setProcessingStatus(null);
+    if (!selectedFile || !profile?.id) return;
     
     try {
-      // Create a unique file path using user ID
-      const filePath = `${user.id}/${Date.now()}_${file.name}`;
-
-      // Show immediate progress feedback
-      setUploadProgress(30);
+      setUploading(true);
+      setUploadProgress(0);
       
-      // Upload to Supabase Storage
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('user-content')
-        .upload(filePath, file, {
-          cacheControl: '3600',
+      // Set up abort controller for the fetch request
+      abortControllerRef.current = new AbortController();
+      
+      // Create a unique filename in storage
+      const fileExt = selectedFile.name.split('.').pop();
+      const filePath = `${profile.id}/${Date.now()}-${selectedFile.name}`;
+      
+      // Upload file to storage
+      const { error: uploadError, data: uploadData } = await supabase.storage
+        .from('documents')
+        .upload(filePath, selectedFile, {
           upsert: false,
+          contentType: selectedFile.type,
+          cacheControl: '3600',
         });
-      
-      setUploadProgress(70);
-      
+
       if (uploadError) {
-        throw new Error(uploadError.message);
+        toast.error('Upload failed: ' + uploadError.message);
+        setUploading(false);
+        return;
       }
       
-      // Store metadata in documents table
-      const { data: metadataData, error: metadataError } = await supabase
+      // Now create a record in the documents table
+      const documentRecord = {
+        filename: selectedFile.name,
+        file_type: selectedFile.type,
+        file_size: selectedFile.size,
+        storage_path: filePath,
+        user_id: profile.id,
+        school_id: schoolId || null,
+        processing_status: 'pending'
+      };
+      
+      const { data: documentData, error: documentError } = await supabase
         .from('documents')
-        .insert({
-          user_id: user.id,
-          filename: file.name,
-          file_type: file.type,
-          file_size: file.size,
-          storage_path: filePath,
-          processing_status: 'pending'
-        } as any)
+        .insert(documentRecord)
         .select()
         .single();
-      
-      setUploadProgress(90);
-      
-      if (metadataError) {
-        // If metadata storage fails, attempt to delete the uploaded file
-        await supabase.storage.from('user-content').remove([filePath]);
-        throw new Error(metadataError.message);
+
+      if (documentError) {
+        toast.error('Failed to record document: ' + documentError.message);
+        // Try to clean up the storage
+        await supabase.storage.from('documents').remove([filePath]);
+        setUploading(false);
+        return;
       }
       
+      // Start processing the document via an edge function
+      if (documentData && 'id' in documentData) {
+        const { error: processError } = await supabase.functions.invoke('process-document', {
+          body: { document_id: documentData.id }
+        });
+        
+        if (processError) {
+          console.error('Error invoking document processing:', processError);
+          toast.error('Upload successful, but document processing failed to start');
+        } else {
+          toast.success('Document uploaded and processing started');
+        }
+      }
+      
+      // Reset UI state
+      setSelectedFile(null);
       setUploadProgress(100);
       
-      // Trigger content processing immediately
-      triggerContentProcessing(metadataData.id);
+      // Notify parent component
+      onUploadComplete();
       
-      setFile(null);
-      // Reset file input by clearing the form
-      const fileInput = document.getElementById('file-upload') as HTMLInputElement;
-      if (fileInput) fileInput.value = '';
-      
-    } catch (error) {
-      toast({
-        title: 'Upload Failed',
-        description: error instanceof Error ? error.message : 'An unknown error occurred',
-        variant: 'destructive'
-      });
-    } finally {
-      // Quickly reset upload state
+      // Reset progress after a brief delay
       setTimeout(() => {
-        setIsUploading(false);
         setUploadProgress(0);
-      }, 300);
+        setUploading(false);
+      }, 1000);
+      
+    } catch (err) {
+      console.error('Upload error:', err);
+      toast.error('An unexpected error occurred during upload');
+      setUploading(false);
     }
   };
 
   return (
-    <div className="space-y-6">
-      <div 
-        className={`
-          border-2 border-dashed rounded-lg p-8 text-center cursor-pointer
-          ${dragActive ? 'border-primary bg-primary/5' : 'border-gray-300 hover:border-primary'}
-          transition-colors
-        `} 
-        onDragEnter={handleDrag}
-        onDragLeave={handleDrag}
-        onDragOver={handleDrag}
-        onDrop={handleDrop}
-        onClick={() => document.getElementById('file-upload')?.click()}
+    <div className="mb-6">
+      <div
+        {...getRootProps()}
+        className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
+          isDragActive ? 'border-primary bg-primary/5' : 'border-muted-foreground/20'
+        }`}
       >
-        <Upload className="h-10 w-10 mx-auto mb-3 text-gray-400" />
-        <Label htmlFor="file-upload" className="block mb-2 font-medium">
-          {file ? file.name : 'Click or drag file to upload'}
-        </Label>
-        <p className="text-sm text-gray-500 mb-2">
-          PDF, JPG or PNG (max. {MAX_FILE_SIZE / (1024 * 1024)}MB)
-        </p>
-        {file && (
-          <div className="mt-2 flex items-center justify-center gap-2 text-sm font-medium text-green-600">
-            <FileCheck className="h-4 w-4" />
-            <span>File selected</span>
-          </div>
-        )}
-        <Input 
-          id="file-upload"
-          type="file" 
-          className="hidden" 
-          onChange={handleFileChange} 
-          accept={ALLOWED_FILE_TYPES.join(',')}
-        />
-      </div>
-
-      {file && (
-        <Card className="overflow-hidden">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="truncate pr-2">
-                <p className="font-medium truncate">{file.name}</p>
-                <p className="text-sm text-gray-500">
-                  {(file.size / 1024).toFixed(1)} KB
+        <input {...getInputProps()} />
+        
+        {selectedFile ? (
+          <div className="space-y-4">
+            <div className="flex items-center justify-center">
+              <FileText className="h-8 w-8 text-primary" />
+              <div className="ml-3 text-left flex-1 min-w-0">
+                <p className="font-medium truncate">{selectedFile.name}</p>
+                <p className="text-sm text-muted-foreground">
+                  {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
                 </p>
               </div>
               <Button
-                onClick={handleUpload}
-                disabled={isUploading}
-                className="ml-2 whitespace-nowrap"
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  clearSelectedFile();
+                }}
+                className="ml-2"
+                disabled={uploading}
               >
-                {isUploading ? 'Uploading...' : 'Upload File'}
+                <X className="h-4 w-4" />
               </Button>
             </div>
             
-            {isUploading && (
-              <div className="mt-4">
-                <Progress value={uploadProgress} className="h-2" />
-                <p className="text-xs text-gray-500 text-right mt-1">
-                  {Math.round(uploadProgress)}%
-                </p>
-              </div>
+            {uploadProgress > 0 && (
+              <Progress value={uploadProgress} className="h-2" />
             )}
-          </CardContent>
-        </Card>
-      )}
-
-      <div className="text-sm flex items-center text-gray-500 mt-2">
-        <AlertCircle className="h-4 w-4 mr-2" />
-        <span>Files are private and only visible to you</span>
+            
+            <div className="flex justify-end space-x-2">
+              {uploading ? (
+                <Button variant="outline" onClick={(e) => {
+                  e.stopPropagation();
+                  cancelUpload();
+                }}>
+                  Cancel
+                </Button>
+              ) : (
+                <Button onClick={(e) => {
+                  e.stopPropagation();
+                  handleUpload();
+                }} disabled={uploading}>
+                  {uploading ? (
+                    <>
+                      <Loader className="mr-2 h-4 w-4 animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <UploadCloud className="mr-2 h-4 w-4" />
+                      Upload
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <>
+            <UploadCloud className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <p className="text-lg font-medium">Drag and drop your file here</p>
+            <p className="text-sm text-muted-foreground mb-4">
+              or click the button below to select a file
+            </p>
+            <Button
+              variant="outline"
+              onClick={(e) => {
+                e.stopPropagation();
+                open();
+              }}
+            >
+              Select File
+            </Button>
+            <p className="text-xs text-muted-foreground mt-4">
+              Supported formats: {allowedFileTypes.join(', ')} (Max {maxFileSizeMb}MB)
+            </p>
+          </>
+        )}
       </div>
     </div>
   );

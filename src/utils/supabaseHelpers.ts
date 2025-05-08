@@ -2,6 +2,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { PostgrestError } from '@supabase/supabase-js';
 import { StudentPerformanceMetric } from '@/components/analytics/types';
+import { asDbId } from './supabaseTypeHelpers';
 
 /**
  * Helper function to safely handle Supabase queries with error handling
@@ -77,7 +78,7 @@ export async function getUserProfileSafely(userId?: string) {
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
-      .eq('id', userId)
+      .eq('id', asDbId(userId))
       .single();
     
     if (error) {
@@ -100,7 +101,7 @@ export async function getProfileById(userId: string) {
     supabase
       .from('profiles')
       .select('*')
-      .eq('id', userId)
+      .eq('id', asDbId(userId))
       .single()
   );
 }
@@ -111,7 +112,7 @@ export async function getProfileById(userId: string) {
 export async function getTeachersWithProfiles(schoolId: string) {
   try {
     const { data, error } = await supabase
-      .rpc('get_teachers_for_school', { school_id_param: schoolId });
+      .rpc('get_teachers_for_school', { school_id_param: asDbId(schoolId) });
     
     if (error) {
       console.error("Error getting teachers:", error);
@@ -137,7 +138,7 @@ export async function getTeachersWithProfiles(schoolId: string) {
 export async function getStudentsWithProfiles(schoolId: string) {
   try {
     const { data, error } = await supabase
-      .rpc('get_students_for_school', { school_id_param: schoolId });
+      .rpc('get_students_for_school', { school_id_param: asDbId(schoolId) });
     
     if (error) {
       console.error("Error getting students:", error);
@@ -164,7 +165,7 @@ export async function getStudentsWithProfiles(schoolId: string) {
 export async function getStudentPerformanceMetrics(schoolId: string): Promise<StudentPerformanceMetric[]> {
   try {
     const { data, error } = await supabase
-      .rpc('get_student_metrics_for_school', { school_id_param: schoolId });
+      .rpc('get_student_metrics_for_school', { school_id_param: asDbId(schoolId) });
     
     if (error) {
       console.error("Error getting student performance metrics:", error);

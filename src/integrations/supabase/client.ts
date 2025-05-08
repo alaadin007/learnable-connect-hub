@@ -20,11 +20,7 @@ export const supabase = createClient<Database>(
       flowType: 'pkce',
       persistSession: true,
       storage: localStorage,
-      debug: import.meta.env.DEV,
-      cookieOptions: {
-        sameSite: 'lax',
-        secure: true
-      }
+      debug: import.meta.env.DEV
     },
     global: {
       headers: {

@@ -54,7 +54,7 @@ export const RegisterForm: React.FC = () => {
         const { data, error } = await supabase
           .from('schools')
           .select('*')
-          .eq('code', schoolCode as any)
+          .eq('code', schoolCode)
           .single();
 
         if (error) {
