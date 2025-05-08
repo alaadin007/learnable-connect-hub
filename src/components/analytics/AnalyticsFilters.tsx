@@ -1,6 +1,7 @@
+
 import React from "react";
 import { DateRangePicker } from "./DateRangePicker";
-import { StudentSelector } from "./StudentSelector";
+import StudentSelector from "./StudentSelector";
 import { TeacherSelector } from "./TeacherSelector";
 import { Card, CardContent } from "@/components/ui/card";
 import { Filter } from "lucide-react";
@@ -28,10 +29,10 @@ export const AnalyticsFilters: React.FC<AnalyticsFiltersProps> = ({
     });
   };
 
-  const handleStudentChange = (studentId: string | undefined) => {
+  const handleStudentChange = (studentId: string | null) => {
     onFiltersChange({
       ...filters,
-      studentId,
+      studentId: studentId || undefined,
     });
   };
 
@@ -62,9 +63,12 @@ export const AnalyticsFilters: React.FC<AnalyticsFiltersProps> = ({
             {showStudentSelector && (
               <div>
                 <StudentSelector
-                  students={students}
-                  selectedStudentId={filters.studentId}
-                  onStudentChange={handleStudentChange}
+                  students={students.map(student => ({
+                    value: student.id,
+                    label: student.name
+                  }))}
+                  selectedStudent={filters.studentId || null}
+                  onSelectStudent={handleStudentChange}
                 />
               </div>
             )}
