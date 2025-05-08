@@ -27,8 +27,8 @@ export interface TeacherAnalyticsData {
 }
 
 export interface StudentAnalyticsFilterProps {
-  schoolId: string;
-  selectedStudentId: string;
+  schoolId?: string;
+  selectedStudentId?: string;
   dateRange: DateRange;
 }
 
@@ -49,6 +49,17 @@ export interface SessionData {
   duration: number;
   topicOrContent: string;
   numQueries: number;
+  // Add fields that match the database schema
+  student_name?: string;
+  student_id?: string;
+  student?: string;
+  session_date?: string;
+  duration_minutes?: number;
+  topic_or_content_used?: string;
+  questions_asked?: number;
+  queries?: number;
+  topics?: string[];
+  topic?: string;
 }
 
 export interface TopicData {
@@ -64,17 +75,24 @@ export interface StudyTimeData {
   hours: number;
   week: number;
   year: number;
+  // Add fields that match the database schema
+  student_name?: string;
+  student_id?: string;
+  week_number?: number;
+  total_minutes?: number;
 }
 
 export interface Student {
   id: string;
   name: string;
+  full_name?: string;
 }
 
 export interface AnalyticsFilters {
   dateRange: DateRange;
   selectedTeacherId?: string;
   selectedStudentId?: string;
+  schoolId?: string; // Add missing schoolId property
 }
 
 export interface StudentPerformanceTableProps {

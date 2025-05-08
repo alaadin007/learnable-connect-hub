@@ -73,7 +73,7 @@ export const AnalyticsFilters: React.FC<AnalyticsFiltersProps> = ({
             {showTeacherSelector && (
               <div>
                 <TeacherSelector
-                  schoolId={typeof filters.schoolId === "string" ? filters.schoolId : ""}
+                  schoolId={filters.schoolId || ""}
                   selectedTeacherId={filters.selectedTeacherId}
                   onTeacherChange={handleTeacherChange}
                 />

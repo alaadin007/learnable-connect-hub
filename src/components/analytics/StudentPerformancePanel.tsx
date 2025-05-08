@@ -1,11 +1,10 @@
 
-// This file has multiple type errors - we need to fix the table name and property references
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { StudentPerformanceTable } from "./StudentPerformanceTable";
+import StudentPerformanceTable from "./StudentPerformanceTable";
 import { Loader2 } from 'lucide-react';
 import { StudentPerformanceMetric } from './types';
 
