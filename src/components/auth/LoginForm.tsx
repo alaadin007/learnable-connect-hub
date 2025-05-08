@@ -16,6 +16,7 @@ const LoginForm = () => {
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState<string | null>(null);
   const [activeTestAccount, setActiveTestAccount] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const { signIn, setTestUser, userRole, signOut } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -62,7 +63,7 @@ const LoginForm = () => {
     if (userRole) {
       console.log("LoginForm: User role already set, redirecting to appropriate dashboard:", userRole);
       const redirectPath = getUserRedirectPath(userRole);
-      navigate(redirectPath);
+      navigate(redirectPath, { replace: true });
     }
   }, [userRole, navigate]);
 
@@ -83,10 +84,10 @@ const LoginForm = () => {
   };
 
   // Fast test account login - no delays or spinners
-  const handleQuickLogin = async (
-    type: "school" | "teacher" | "student"
-  ) => {
+  const handleQuickLogin = async (type: "school" | "teacher" | "student") => {
     try {
+      setIsLoading(true);
+      setLoginError(null);
       console.log(`LoginForm: Fast login as ${type}`);
       
       // Clean up any existing session
@@ -139,15 +140,19 @@ const LoginForm = () => {
       localStorage.removeItem('usingTestAccount');
       localStorage.removeItem('testAccountType');
       setActiveTestAccount(null);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
     setLoginError(null);
+    setIsLoading(true);
 
     if (!email || !password) {
       toast.error("Please enter both email and password");
+      setIsLoading(false);
       return;
     }
     
@@ -172,11 +177,10 @@ const LoginForm = () => {
         return;
       }
       
-      // Handle normal login with credentials - no loading state to avoid delays
+      // Handle normal login with credentials
       const { data, error } = await signIn(email, password);
       
       if (error) {
-        console.error("Login error:", error);
         throw error;
       }
 
@@ -247,11 +251,13 @@ const LoginForm = () => {
         // Error handling for missing userType or missing organization for school admin
         if (!userType) {
           setLoginError("Your account is missing a user type. Please contact support.");
+          setIsLoading(false);
           return;
         }
         
         if (userType === "school" && (!fetchedProfile || !fetchedProfile.organization || !fetchedProfile.organization.id)) {
           setLoginError("Your school admin account is missing an associated school. Please contact support.");
+          setIsLoading(false);
           return;
         }
         
@@ -291,6 +297,8 @@ const LoginForm = () => {
       } else {
         toast.error(`Login failed: ${error.message}`);
       }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -301,6 +309,7 @@ const LoginForm = () => {
     }
     
     try {
+      setIsLoading(true);
       // Direct call to Supabase to resend verification email
       const { error } = await supabase.auth.resend({
         type: 'signup',
@@ -316,6 +325,8 @@ const LoginForm = () => {
       }
     } catch (error: any) {
       toast.error("An error occurred: " + error.message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -326,6 +337,7 @@ const LoginForm = () => {
     }
 
     try {
+      setIsLoading(true);
       // Direct call to Supabase to reset password
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/login?email_confirmed=true`,
@@ -340,6 +352,8 @@ const LoginForm = () => {
       }
     } catch (error: any) {
       toast.error("An error occurred: " + error.message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -363,26 +377,6 @@ const LoginForm = () => {
             </Alert>
           )}
 
-          <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-md">
-            <div className="flex">
-              <AlertCircle className="h-5 w-5 text-amber-700 mr-2 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-amber-800 font-medium">Testing the application?</p>
-                <p className="mt-1 text-sm text-amber-700">
-                  You can quickly create test accounts for all user roles (school admin, teacher, student) on our dedicated test page.
-                </p>
-                <div className="mt-2">
-                  <Link 
-                    to="/test-accounts" 
-                    className="text-sm text-amber-800 font-semibold hover:text-amber-900 bg-amber-200 px-3 py-1 rounded-full transition-colors duration-200"
-                  >
-                    Access Test Accounts →
-                  </Link>
-                </div>
-              </div>
-            </div>
-          </div>
-
           <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-md">
             <div className="flex">
               <AlertCircle className="h-5 w-5 text-blue-700 mr-2 flex-shrink-0 mt-0.5" />
@@ -395,27 +389,30 @@ const LoginForm = () => {
                   <button
                     type="button"
                     onClick={() => handleQuickLogin("school")}
+                    disabled={isLoading}
                     className={`text-sm text-blue-800 font-semibold hover:text-blue-900 bg-blue-100 px-3 py-1 rounded-full transition-colors duration-200 ${
                       activeTestAccount === "school" ? "ring-2 ring-blue-500" : ""
-                    }`}
+                    } ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
                   >
                     {activeTestAccount === "school" ? "Active Admin" : "Admin Login"}
                   </button>
                   <button
                     type="button"
                     onClick={() => handleQuickLogin("teacher")}
+                    disabled={isLoading}
                     className={`text-sm text-green-800 font-semibold hover:text-green-900 bg-green-100 px-3 py-1 rounded-full transition-colors duration-200 ${
                       activeTestAccount === "teacher" ? "ring-2 ring-green-500" : ""
-                    }`}
+                    } ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
                   >
                     {activeTestAccount === "teacher" ? "Active Teacher" : "Teacher Login"}
                   </button>
                   <button
                     type="button"
                     onClick={() => handleQuickLogin("student")}
+                    disabled={isLoading}
                     className={`text-sm text-purple-800 font-semibold hover:text-purple-900 bg-purple-100 px-3 py-1 rounded-full transition-colors duration-200 ${
                       activeTestAccount === "student" ? "ring-2 ring-purple-500" : ""
-                    }`}
+                    } ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
                   >
                     {activeTestAccount === "student" ? "Active Student" : "Student Login"}
                   </button>
@@ -441,6 +438,7 @@ const LoginForm = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 autoComplete="email"
+                disabled={isLoading}
               />
             </div>
             <div className="space-y-2">
@@ -449,6 +447,7 @@ const LoginForm = () => {
                 <button
                   type="button"
                   onClick={handleResetPassword}
+                  disabled={isLoading}
                   className="text-sm text-learnable-blue hover:underline"
                 >
                   Forgot password?
@@ -461,13 +460,25 @@ const LoginForm = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 autoComplete="current-password"
+                disabled={isLoading}
               />
             </div>
             <Button
               type="submit"
               className="w-full gradient-bg transition-all duration-300 relative overflow-hidden"
+              disabled={isLoading}
             >
-              Log in
+              {isLoading ? (
+                <span className="flex items-center justify-center">
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Logging in...
+                </span>
+              ) : (
+                "Log in"
+              )}
             </Button>
           </form>
         </CardContent>

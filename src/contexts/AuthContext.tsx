@@ -61,10 +61,96 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const initAuth = async () => {
       setIsLoading(true);
       try {
-        // Get current session
+        // Set up auth state listener first
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+          async (_event, newSession) => {
+            console.log("Auth state changed, event:", _event);
+            
+            // Update session state immediately
+            setSession(newSession);
+            setUser(newSession?.user || null);
+            
+            // Check if we're using test accounts - but don't update profile immediately
+            const usingTestAccount = localStorage.getItem('usingTestAccount') === 'true';
+            const testAccountType = localStorage.getItem('testAccountType') as UserRole;
+            
+            // Defer profile fetching to prevent potential deadlocks
+            setTimeout(async () => {
+              if (newSession?.user) {
+                if (usingTestAccount && testAccountType) {
+                  console.log("Using test account type:", testAccountType);
+                  setUserRole(testAccountType);
+                  
+                  // Set a mock school ID for test accounts
+                  setSchoolId('00000000-0000-0000-0000-000000000000');
+                  
+                  // Set a mock profile for test accounts
+                  setProfile({
+                    id: newSession.user.id,
+                    full_name: `Test ${testAccountType.charAt(0).toUpperCase() + testAccountType.slice(1)}`,
+                    user_type: testAccountType,
+                    organization: testAccountType === 'school' ? {
+                      id: '00000000-0000-0000-0000-000000000000',
+                      name: 'Test School'
+                    } : null
+                  });
+                  
+                  // Set supervisor status for test school accounts
+                  setIsSupervisor(testAccountType === 'school');
+                } else {
+                  // Get user profile data
+                  await fetchUserProfile(newSession.user.id);
+                }
+              } else {
+                // Reset state when user is signed out
+                setUserRole(null);
+                setSchoolId(null);
+                setProfile(null);
+                setIsSupervisor(false);
+              }
+              
+              // Only mark as not loading after profile is processed
+              setIsLoading(false);
+            }, 0);
+          }
+        );
+
+        // THEN check for existing session
         const { data: { session: currentSession } } = await supabase.auth.getSession();
-        if (currentSession) {
-          await handleAuthChange(currentSession);
+        
+        // Update session state immediately
+        setSession(currentSession);
+        setUser(currentSession?.user || null);
+        
+        // Check if we're using test accounts
+        const usingTestAccount = localStorage.getItem('usingTestAccount') === 'true';
+        const testAccountType = localStorage.getItem('testAccountType') as UserRole;
+        
+        if (currentSession?.user) {
+          if (usingTestAccount && testAccountType) {
+            console.log("Init: Using test account type:", testAccountType);
+            setUserRole(testAccountType);
+            
+            // Set a mock school ID for test accounts
+            setSchoolId('00000000-0000-0000-0000-000000000000');
+            
+            // Set a mock profile for test accounts
+            setProfile({
+              id: currentSession.user.id,
+              full_name: `Test ${testAccountType.charAt(0).toUpperCase() + testAccountType.slice(1)}`,
+              user_type: testAccountType,
+              organization: testAccountType === 'school' ? {
+                id: '00000000-0000-0000-0000-000000000000',
+                name: 'Test School'
+              } : null
+            });
+            
+            // Set supervisor status for test school accounts
+            setIsSupervisor(testAccountType === 'school');
+          } else {
+            // Get user profile data
+            await fetchUserProfile(currentSession.user.id);
+          }
         }
       } catch (error) {
         console.error("Error initializing auth:", error);
@@ -74,69 +160,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     initAuth();
-
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        console.log("Auth state changed, event:", _event);
-        await handleAuthChange(session);
-      }
-    );
-
-    return () => {
-      subscription.unsubscribe();
-    };
   }, []);
-
-  // Handle auth changes
-  const handleAuthChange = async (session: Session | null) => {
-    setSession(session);
-    
-    if (session?.user) {
-      setUser(session.user);
-      console.log("User authenticated:", session.user.id);
-      
-      // Check if we're using test accounts
-      const usingTestAccount = localStorage.getItem('usingTestAccount') === 'true';
-      const testAccountType = localStorage.getItem('testAccountType') as UserRole;
-      
-      if (usingTestAccount && testAccountType) {
-        console.log("Using test account type:", testAccountType);
-        setUserRole(testAccountType);
-        
-        // Set a mock school ID for test accounts
-        setSchoolId('00000000-0000-0000-0000-000000000000');
-        
-        // Set a mock profile for test accounts
-        setProfile({
-          id: session.user.id,
-          full_name: `Test ${testAccountType.charAt(0).toUpperCase() + testAccountType.slice(1)}`,
-          user_type: testAccountType,
-          organization: testAccountType === 'school' ? {
-            id: '00000000-0000-0000-0000-000000000000',
-            name: 'Test School'
-          } : null
-        });
-        
-        // Set supervisor status for test school accounts
-        setIsSupervisor(testAccountType === 'school');
-      } else {
-        // Get user profile data
-        await fetchUserProfile(session.user.id);
-      }
-    } else {
-      // Reset state when user is signed out
-      setUser(null);
-      setUserRole(null);
-      setSchoolId(null);
-      setProfile(null);
-      setIsSupervisor(false);
-    }
-  };
 
   // Fetch user profile data
   const fetchUserProfile = async (userId: string) => {
     try {
+      console.log("Fetching profile for user:", userId);
       // Fetch profile from the profiles table
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
@@ -155,6 +184,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       if (profileData) {
+        console.log("Fetched profile:", profileData);
         // Normalize user_type from older values
         let normalizedUserType: UserRole = null;
         if (profileData.user_type === 'school_admin') {
@@ -367,7 +397,37 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       if (data.session) {
-        await handleAuthChange(data.session);
+        // Update session and user state immediately
+        setSession(data.session);
+        setUser(data.session.user);
+        
+        // Check if we're using test accounts
+        const usingTestAccount = localStorage.getItem('usingTestAccount') === 'true';
+        const testAccountType = localStorage.getItem('testAccountType') as UserRole;
+        
+        if (usingTestAccount && testAccountType) {
+          setUserRole(testAccountType);
+          
+          // Set a mock school ID for test accounts
+          setSchoolId('00000000-0000-0000-0000-000000000000');
+          
+          // Set a mock profile for test accounts
+          setProfile({
+            id: data.session.user.id,
+            full_name: `Test ${testAccountType.charAt(0).toUpperCase() + testAccountType.slice(1)}`,
+            user_type: testAccountType,
+            organization: testAccountType === 'school' ? {
+              id: '00000000-0000-0000-0000-000000000000',
+              name: 'Test School'
+            } : null
+          });
+          
+          // Set supervisor status for test school accounts
+          setIsSupervisor(testAccountType === 'school');
+        } else {
+          // Get user profile data
+          await fetchUserProfile(data.session.user.id);
+        }
       }
     } catch (error) {
       console.error("Error refreshing session:", error);
@@ -382,12 +442,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     profile,
     isLoading,
     signIn,
-    signUp, // Added signUp function
+    signUp,
     signOut,
     setTestUser,
     refreshSession,
-    refreshProfile, // Added refreshProfile function
-    isSupervisor // Added isSupervisor property
+    refreshProfile,
+    isSupervisor
   };
 
   return (
