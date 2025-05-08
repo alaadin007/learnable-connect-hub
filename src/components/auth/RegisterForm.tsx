@@ -100,13 +100,13 @@ export const RegisterForm: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      const result = await signUp(email, password, fullName, userType, schoolCode, schoolName);
+      const result = await signUp(email, password, fullName, userType, schoolCode, schoolName || undefined);
 
       if (result?.error) {
         toast.error(result.error.message);
       } else {
         toast.success("Registration successful! Please check your email to verify your account.");
-        navigate('/login');
+        navigate('/login?registered=true');
       }
     } catch (err: any) {
       console.error("Error during registration:", err);
@@ -180,7 +180,7 @@ export const RegisterForm: React.FC = () => {
       </div>
       <div>
         <Label htmlFor="userType">User Type</Label>
-        <Select onValueChange={handleUserTypeChange}>
+        <Select onValueChange={handleUserTypeChange} defaultValue="student">
           <SelectTrigger className="w-full">
             <SelectValue placeholder="Select user type" />
           </SelectTrigger>

@@ -10,7 +10,7 @@ interface AuthContextProps {
   userRole: string | null;
   schoolId: string | null;
   isLoading: boolean;
-  signIn: (email: string, password?: string) => Promise<{ data?: any, error?: any }>;
+  signIn: (email: string, password: string) => Promise<{ data?: any, error?: any }>;
   signOut: () => Promise<void>;
   signUp: (email: string, password: string, fullName: string, userType: string, schoolCode: string, schoolName?: string) => Promise<{ error?: any }>;
   updateProfile: (updates: any) => Promise<void>;
@@ -18,7 +18,7 @@ interface AuthContextProps {
   clearSession: () => void;
   refreshProfile: () => Promise<void>;
   refreshSession: () => Promise<void>;
-  isSupervisor?: boolean;
+  isSupervisor: boolean;
 }
 
 const AuthContext = createContext<AuthContextProps | undefined>(undefined);
@@ -79,7 +79,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     });
 
     return () => {
-      data?.subscription?.unsubscribe();
+      data.subscription?.unsubscribe();
     };
   }, []);
 
@@ -106,7 +106,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUserRole(profileData?.user_type || null);
       
       // Set supervisor status if applicable
-      if (profileData?.user_type === 'teacher_supervisor' || profileData?.user_type === 'teacher' && profileData?.is_supervisor) {
+      if (profileData?.user_type === 'teacher_supervisor' || 
+          (profileData?.user_type === 'teacher' && profileData?.is_supervisor === true)) {
         setIsSupervisor(true);
       } else {
         setIsSupervisor(false);
@@ -137,15 +138,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const signIn = async (email: string, password?: string) => {
+  const signIn = async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      let result;
-      if (password) {
-        result = await supabase.auth.signInWithPassword({ email, password });
-      } else {
-        result = await supabase.auth.signInWithOtp({ email });
-      }
+      const result = await supabase.auth.signInWithPassword({ email, password });
       
       if (result.error) {
         console.error("Sign in error:", result.error);
