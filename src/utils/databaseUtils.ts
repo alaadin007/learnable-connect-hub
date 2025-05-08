@@ -135,6 +135,22 @@ export async function endSessionLog(sessionId: string, performanceData?: any) {
   }
 }
 
+// Add the missing updateSessionTopic function
+export async function updateSessionTopic(sessionId: string, topic: string) {
+  try {
+    const { error } = await supabase.rpc('update_session_topic', {
+      log_id: sessionId,
+      topic
+    });
+    
+    if (error) throw error;
+    return true;
+  } catch (error: any) {
+    console.error('Error updating session topic:', error);
+    return false;
+  }
+}
+
 // Document management functions
 export async function uploadDocument(file: File, userId: string, schoolId: string) {
   try {
@@ -148,14 +164,14 @@ export async function uploadDocument(file: File, userId: string, schoolId: strin
       
     if (storageError) throw storageError;
     
-    // Create document record in the database
+    // Create document record in the database - fix property name filetype to file_type
     const { data: documentData, error: documentError } = await supabase
       .from('documents')
       .insert({
         user_id: userId,
         school_id: schoolId,
         filename: file.name,
-        filetype: file.type,
+        file_type: file.type, // Changed from filetype to file_type
         storage_path: filePath,
         file_size: file.size
       })

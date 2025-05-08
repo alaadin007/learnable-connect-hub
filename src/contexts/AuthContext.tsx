@@ -25,9 +25,12 @@ interface AuthContextProps {
   profile: ProfileData | null;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<any>;
+  signUp: (email: string, password: string, userData?: any) => Promise<any>; // Added signUp function
   signOut: () => Promise<void>;
   setTestUser: (userType: 'school' | 'teacher' | 'student') => Promise<User | null>;
   refreshSession: () => Promise<void>;
+  refreshProfile: () => Promise<void>; // Added refreshProfile function
+  isSupervisor: boolean; // Added isSupervisor property
 }
 
 const AuthContext = createContext<AuthContextProps | undefined>(undefined);
@@ -51,6 +54,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [schoolId, setSchoolId] = useState<string | null>(null);
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isSupervisor, setIsSupervisor] = useState<boolean>(false);
 
   // Initialize auth state from Supabase session
   useEffect(() => {
@@ -113,6 +117,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             name: 'Test School'
           } : null
         });
+        
+        // Set supervisor status for test school accounts
+        setIsSupervisor(testAccountType === 'school');
       } else {
         // Get user profile data
         await fetchUserProfile(session.user.id);
@@ -123,6 +130,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUserRole(null);
       setSchoolId(null);
       setProfile(null);
+      setIsSupervisor(false);
     }
   };
 
@@ -185,15 +193,44 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               user_type: normalizedUserType
             });
           }
+          
+          // Set supervisor status for school admin
+          setIsSupervisor(true);
+        } else if (normalizedUserType === 'teacher' && profileData.school_id) {
+          // Check if teacher is a supervisor
+          const { data: teacherData, error: teacherError } = await supabase
+            .from('teachers')
+            .select('is_supervisor')
+            .eq('id', userId)
+            .single();
+            
+          if (!teacherError && teacherData) {
+            setIsSupervisor(teacherData.is_supervisor || false);
+          }
+          
+          setProfile({
+            ...profileData,
+            user_type: normalizedUserType
+          });
         } else {
           setProfile({
             ...profileData,
             user_type: normalizedUserType
           });
+          
+          // Non-school users are not supervisors by default
+          setIsSupervisor(false);
         }
       }
     } catch (error) {
       console.error("Error in fetchUserProfile:", error);
+    }
+  };
+
+  // Refresh user profile data
+  const refreshProfile = async () => {
+    if (user) {
+      await fetchUserProfile(user.id);
     }
   };
 
@@ -203,6 +240,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      return data;
+    } catch (error) {
+      throw error;
+    }
+  };
+  
+  // Sign up a new user
+  const signUp = async (email: string, password: string, userData?: any) => {
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: userData
+        }
       });
 
       if (error) {
@@ -228,6 +286,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUserRole(null);
       setSchoolId(null);
       setProfile(null);
+      setIsSupervisor(false);
     } catch (error) {
       console.error("Error signing out:", error);
     }
@@ -250,6 +309,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.log("Test user login failed, attempting anonymous session");
         
         // For demo purposes, create a mock session if auth fails
+        // Cast to User type using 'as User'
         const mockUser = {
           id: `test-${userType}-${Date.now()}`,
           email: mockEmail,
@@ -257,7 +317,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             full_name: mockName,
             user_type: userType
           }
-        } as User;
+        } as unknown as User; // Cast to unknown first, then to User
 
         setUser(mockUser);
         setUserRole(userType);
@@ -279,6 +339,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         // Set mock school ID
         setSchoolId('00000000-0000-0000-0000-000000000000');
+        
+        // Set supervisor status for school accounts
+        setIsSupervisor(userType === 'school');
         
         return mockUser;
       }
@@ -319,9 +382,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     profile,
     isLoading,
     signIn,
+    signUp, // Added signUp function
     signOut,
     setTestUser,
-    refreshSession
+    refreshSession,
+    refreshProfile, // Added refreshProfile function
+    isSupervisor // Added isSupervisor property
   };
 
   return (
