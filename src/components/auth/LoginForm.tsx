@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -82,20 +83,6 @@ const LoginForm = () => {
     }
   };
 
-  // Add a timeout fallback for login loading
-  useEffect(() => {
-    let timeout: NodeJS.Timeout | null = null;
-    if (isLoading) {
-      timeout = setTimeout(() => {
-        setIsLoading(false);
-        setLoginError("Login is taking too long. Please check your connection or try again.");
-      }, 15000); // 15 seconds
-    }
-    return () => {
-      if (timeout) clearTimeout(timeout);
-    };
-  }, [isLoading]);
-  
   // Special handling for test accounts - much faster now
   const handleQuickLogin = async (
     type: "school" | "teacher" | "student"
