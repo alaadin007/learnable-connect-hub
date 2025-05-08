@@ -96,11 +96,16 @@ const incrementQueryCount = async (sessionId: string): Promise<void> => {
 
   // Silently try to increment count without causing UI errors
   try {
-    await supabase.rpc("increment_session_query_count", {
+    // The issue is here - supabase.rpc() returns a PostgrestFilterBuilder, not a Promise
+    // So we need to use the .then().catch() pattern on the actual promise
+    const { error } = await supabase.rpc("increment_session_query_count", {
       log_id: sessionId
-    }).catch(error => {
-      console.error("Silent error incrementing query count:", error);
     });
+    
+    // Check for errors without using .catch()
+    if (error) {
+      console.error("Silent error incrementing query count:", error);
+    }
   } catch (error) {
     console.error("Error incrementing query count:", error);
   }
