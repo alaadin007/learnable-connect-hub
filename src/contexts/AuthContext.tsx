@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useEffect, useContext, useCallback } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase, isTestAccount } from '@/integrations/supabase/client';
@@ -10,8 +11,8 @@ interface AuthContextType {
   schoolId: string | null;
   isCheckingSession: boolean;
   isTestAccount: boolean;
-  login: (email?: string) => Promise<void>;
-  register: (email?: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<boolean>;
+  register: (email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
   updateProfile: (updates: any) => Promise<void>;
   refreshSession: () => Promise<void>;
@@ -25,8 +26,8 @@ const AuthContext = createContext<AuthContextType>({
   schoolId: null,
   isCheckingSession: true,
   isTestAccount: false,
-  login: async () => {},
-  register: async () => {},
+  login: async () => false,
+  register: async () => false,
   logout: async () => {},
   updateProfile: async () => {},
   refreshSession: async () => {},
@@ -62,23 +63,33 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isCheckingSession, setIsCheckingSession] = useState(true);
   const [isTestAccount, setIsTestAccount] = useState(false);
 
-  const login = async (email?: string) => {
+  const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      const { error } = await supabase.auth.signInWithOtp({ email: email || '', options: { shouldCreateUser: false } });
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      
       if (error) throw error;
-      alert('Check your email for the login link!');
+      return true;
     } catch (error: any) {
-      alert(error.error_description || error.message);
+      console.error('Login error:', error.message);
+      return false;
     }
   };
 
-  const register = async (email?: string) => {
+  const register = async (email: string, password: string): Promise<boolean> => {
     try {
-      const { error } = await supabase.auth.signInWithOtp({ email: email || '', options: { shouldCreateUser: true } });
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+      
       if (error) throw error;
-      alert('Check your email to complete your registration!');
+      return true;
     } catch (error: any) {
-      alert(error.error_description || error.message);
+      console.error('Registration error:', error.message);
+      return false;
     }
   };
 
@@ -106,17 +117,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (error) throw error;
       setProfile({ ...profile, ...updates });
     } catch (error: any) {
-      alert(error.message);
+      console.error('Profile update error:', error.message);
     }
   };
 
   const refreshSession = async () => {
     try {
-      const { data, error } = await supabase.auth.refreshSession()
+      const { data, error } = await supabase.auth.refreshSession();
       if (error) throw error;
       setUser(data.session?.user || null);
     } catch (error: any) {
-      alert(error.message);
+      console.error('Session refresh error:', error.message);
     }
   };
   
@@ -166,12 +177,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     checkSession();
 
-    supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       console.log('Auth state change event:', event);
       if (event === 'SIGNED_IN' && session?.user) {
         setUser(session.user);
         setIsAuthenticated(true);
-        checkSession();
+        // Use setTimeout to prevent recursion issues
+        setTimeout(() => {
+          checkSession();
+        }, 0);
       } else if (event === 'SIGNED_OUT') {
         setIsAuthenticated(false);
         setUser(null);
@@ -181,6 +195,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setIsTestAccount(false);
       }
     });
+    
+    return () => {
+      subscription.unsubscribe();
+    };
   }, [checkSession]);
 
   const contextValue: AuthContextType = {

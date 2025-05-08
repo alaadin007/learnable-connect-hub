@@ -21,7 +21,7 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 
 const LoginForm: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
-  const { login, refreshProfile } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as any)?.from || '/dashboard';
@@ -47,38 +47,35 @@ const LoginForm: React.FC = () => {
         return;
       }
 
-      // For test accounts, we handle them differently
+      // For test accounts, handle them with special password
       if (values.email.includes('@testschool.edu') || values.email.includes('.test@learnable.edu')) {
-        // Use these test credentials directly
-        const success = await login(values.email, 'anypassword');
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: values.email, 
+          password: 'testpassword123'
+        });
         
-        if (success) {
-          toast.success('Successfully signed in with test account');
-          return; // The redirect will happen in the Login component
+        if (error) {
+          console.error('Test account login error:', error);
+          toast.error(`Login failed: ${error.message}`);
         } else {
-          toast.error('Test account login failed');
-          setIsLoading(false);
-          return;
+          toast.success('Successfully signed in with test account');
         }
+        
+        setIsLoading(false);
+        return;
       }
 
-      // Normal login process
-      const success = await login(values.email, values.password);
+      // Standard email/password login
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: values.email,
+        password: values.password
+      });
       
-      if (success) {
-        console.log('Login successful, refreshing profile...');
-        
-        // Refresh profile after login if the function exists
-        if (refreshProfile) {
-          await refreshProfile();
-        }
-        
-        toast.success('Successfully signed in');
-        
-        // Let the Login component handle the redirect
+      if (error) {
+        console.error('Login error:', error);
+        toast.error(`Login failed: ${error.message}`);
       } else {
-        console.error('Login function returned false');
-        toast.error('Login failed. Please check your credentials and try again.');
+        toast.success('Successfully signed in');
       }
     } catch (err: any) {
       console.error('Login error:', err);
@@ -92,7 +89,7 @@ const LoginForm: React.FC = () => {
   const loginWithTestAccount = (type: 'student' | 'teacher' | 'school') => {
     const email = `${type}@testschool.edu`;
     form.setValue('email', email);
-    form.setValue('password', 'anypassword');
+    form.setValue('password', 'testpassword123');
     form.handleSubmit(onSubmit)();
   };
 

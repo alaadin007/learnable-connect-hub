@@ -43,8 +43,10 @@ const Login = () => {
       const finalPath = shouldUseFromPath ? from : redirectPath;
       console.log('Redirecting to', finalPath);
       
-      // Direct redirect without delay since we've simplified the auth logic
-      navigate(finalPath, { replace: true });
+      // Add a small delay to ensure state has fully updated
+      setTimeout(() => {
+        navigate(finalPath, { replace: true });
+      }, 100);
     }
   }, [isAuthenticated, user, userType, navigate, from]);
 

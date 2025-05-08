@@ -13,21 +13,21 @@ const ProtectedRoute = ({
   children, 
   requiredUserType = 'any' 
 }: ProtectedRouteProps) => {
-  const { isAuthenticated, isLoading, userType, isTestAccount } = useAuth();
+  const { isAuthenticated, isCheckingSession, userType, isTestAccount } = useAuth();
   const location = useLocation();
 
   useEffect(() => {
     // Log for debugging purposes
     console.log('ProtectedRoute:', { 
       isAuthenticated, 
-      isLoading, 
+      isCheckingSession, 
       userType, 
       requiredUserType, 
       isTestAccount,
       fromTestAccounts: location.state?.fromTestAccounts,
       path: location.pathname
     });
-  }, [isAuthenticated, isLoading, userType, requiredUserType, isTestAccount, location]);
+  }, [isAuthenticated, isCheckingSession, userType, requiredUserType, isTestAccount, location]);
 
   // Always allow access if coming from test accounts
   if (isTestAccount || location.state?.fromTestAccounts) {
@@ -35,7 +35,7 @@ const ProtectedRoute = ({
     return <>{children}</>;
   }
 
-  if (isLoading) {
+  if (isCheckingSession) {
     return (
       <div className="flex items-center justify-center h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
