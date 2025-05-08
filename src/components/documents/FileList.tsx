@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -91,7 +90,12 @@ const FileList: React.FC = () => {
         throw new Error(error.message);
       }
       
-      setFiles(data || []);
+      // Safely cast data to FileItem[]
+      if (data) {
+        setFiles(data as FileItem[]);
+      } else {
+        setFiles([]);
+      }
     } catch (error) {
       toast({
         title: 'Error',
@@ -235,7 +239,8 @@ const FileList: React.FC = () => {
         }
         
         if (data && data.length > 0) {
-          setFileContent(data);
+          // Safely cast the data to DocumentContent[]
+          setFileContent(data as DocumentContent[]);
           setActiveSection(1);
           setShowContent(true);
         } else {

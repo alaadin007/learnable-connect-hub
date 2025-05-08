@@ -41,7 +41,7 @@ export async function checkEmailExistingRole(email: string): Promise<string | nu
                   user.email === email;
           });
           
-          if (!userError && matchingUser) {
+          if (!userError && matchingUser && matchingUser.id) {
             // Check user metadata first
             if (matchingUser.user_metadata && 
                 typeof matchingUser.user_metadata === 'object' &&
@@ -57,8 +57,8 @@ export async function checkEmailExistingRole(email: string): Promise<string | nu
               .eq('id', matchingUser.id)
               .single();
               
-            if (profileData && profileData.user_type) {
-              return formatRoleForDisplay(profileData.user_type);
+            if (profileData && typeof profileData === 'object' && 'user_type' in profileData) {
+              return formatRoleForDisplay(profileData.user_type as string);
             }
             
             // Last resort, check the user_roles table
@@ -68,8 +68,8 @@ export async function checkEmailExistingRole(email: string): Promise<string | nu
               .eq('user_id', matchingUser.id)
               .single();
               
-            if (roleData && roleData.role) {
-              return formatRoleForDisplay(roleData.role);
+            if (roleData && typeof roleData === 'object' && 'role' in roleData) {
+              return formatRoleForDisplay(roleData.role as string);
             }
           }
         }
@@ -81,7 +81,7 @@ export async function checkEmailExistingRole(email: string): Promise<string | nu
     }
 
     // Format the role for display if needed
-    return formatRoleForDisplay(data);
+    return formatRoleForDisplay(data as string);
   } catch (e) {
     console.error('Exception checking email role:', e);
     return null;

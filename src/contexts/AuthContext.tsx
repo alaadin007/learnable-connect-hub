@@ -13,6 +13,8 @@ type AuthContextType = {
   userRole: string | null;
   schoolId: string | null;
   signOut: () => Promise<void>;
+  signUp: (email: string, password: string, fullName: string, 
+          userType: string, schoolCode: string, schoolName?: string) => Promise<{error?: {message: string}}>;
   refreshProfile: () => Promise<void>;
 };
 
@@ -25,6 +27,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [schoolId, setSchoolId] = useState<string | null>(null);
+
+  // Function to sign up a new user
+  const signUp = async (
+    email: string,
+    password: string,
+    fullName: string,
+    userType: string,
+    schoolCode: string,
+    schoolName?: string
+  ) => {
+    try {
+      // Check if email already exists
+      const { data: emailExists } = await supabase.rpc('check_if_email_exists', {
+        input_email: email
+      });
+      
+      if (emailExists) {
+        return { error: { message: "Email already registered. Please log in." } };
+      }
+
+      // Register the user with Supabase Auth
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: fullName,
+            user_type: userType,
+            school_code: schoolCode,
+            school_name: schoolName
+          }
+        }
+      });
+
+      if (error) throw error;
+      
+      return { data };
+    } catch (error: any) {
+      console.error("Error in sign up:", error);
+      return { error: { message: error.message || "An error occurred during registration" } };
+    }
+  };
 
   // Function to fetch user profile with error handling
   const fetchProfile = async (userId: string) => {
@@ -142,6 +186,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     userRole,
     schoolId,
     signOut,
+    signUp,
     refreshProfile,
   };
 
