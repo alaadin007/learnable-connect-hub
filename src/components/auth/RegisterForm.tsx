@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import { toast } from 'sonner';
 import { supabase, TEST_SCHOOL_CODE } from '@/integrations/supabase/client';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface SchoolCodeData {
   id: string;
@@ -100,21 +100,15 @@ export const RegisterForm: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      const metadata = {
-        full_name: fullName,
-        user_type: userType,
-        school_code: schoolCode
-      };
+      const result = await signUp(email, password, fullName, userType, schoolCode, schoolName);
 
-      const { error } = await signUp(email, password, metadata);
-
-      if (error) {
-        toast.error(error.message);
+      if (result?.error) {
+        toast.error(result.error.message);
       } else {
         toast.success("Registration successful! Please check your email to verify your account.");
         navigate('/login');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error during registration:", err);
       toast.error("An unexpected error occurred during registration.");
     } finally {

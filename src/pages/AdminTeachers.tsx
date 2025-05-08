@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -35,7 +34,7 @@ type TeacherInvite = {
 };
 
 const AdminTeachers = () => {
-  const { user, profile, isSupervisor } = useAuth();
+  const { user, profile } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [invites, setInvites] = useState<TeacherInvite[]>([]);
 

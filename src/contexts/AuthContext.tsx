@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase, isTestAccount } from '@/integrations/supabase/client';
-import { User, Session } from '@supabase/supabase-js';
+import { User, Session, AuthChangeEvent } from '@supabase/supabase-js';
 import { useNavigate } from 'react-router-dom';
 
 interface AuthContextProps {
@@ -10,12 +10,15 @@ interface AuthContextProps {
   userRole: string | null;
   schoolId: string | null;
   isLoading: boolean;
-  signIn: (email: string) => Promise<void>;
+  signIn: (email: string, password?: string) => Promise<{ data?: any, error?: any }>;
   signOut: () => Promise<void>;
-  signUp: (email: string, password: string, fullName: string, userType: string, schoolCode: string, schoolName?: string) => Promise<void>;
+  signUp: (email: string, password: string, fullName: string, userType: string, schoolCode: string, schoolName?: string) => Promise<{ error?: any }>;
   updateProfile: (updates: any) => Promise<void>;
   setTestUser: (accountType: string) => Promise<boolean>;
   clearSession: () => void;
+  refreshProfile: () => Promise<void>;
+  refreshSession: () => Promise<void>;
+  isSupervisor?: boolean;
 }
 
 const AuthContext = createContext<AuthContextProps | undefined>(undefined);
@@ -35,6 +38,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [schoolId, setSchoolId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSupervisor, setIsSupervisor] = useState<boolean>(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -58,16 +62,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     loadSession();
 
     // Subscribe to auth state changes
-    const { subscription } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session) => {
       console.log(`AuthContext: Auth state change event: ${event}`);
       
-      if (event === 'signed_in') {
+      if (event === 'SIGNED_IN') {
         setUser(session?.user || null);
         setSession(session || null);
         await fetchUserProfile(session?.user?.id);
-      } else if (event === 'signed_out') {
+      } else if (event === 'SIGNED_OUT') {
         clearSession();
-      } else if (event === 'user_updated') {
+      } else if (event === 'USER_UPDATED') {
         setUser(session?.user || null);
         setSession(session || null);
         await fetchUserProfile(session?.user?.id);
@@ -75,7 +79,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     });
 
     return () => {
-      subscription?.unsubscribe();
+      data?.subscription?.unsubscribe();
     };
   }, []);
 
@@ -100,20 +104,57 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setProfile(profileData);
       setSchoolId(profileData?.school_id || null);
       setUserRole(profileData?.user_type || null);
+      
+      // Set supervisor status if applicable
+      if (profileData?.user_type === 'teacher_supervisor' || profileData?.user_type === 'teacher' && profileData?.is_supervisor) {
+        setIsSupervisor(true);
+      } else {
+        setIsSupervisor(false);
+      }
+      
       console.log("AuthContext: User profile loaded:", profileData);
     } catch (error) {
       console.error("Error fetching profile:", error);
     }
   };
 
-  const signIn = async (email: string) => {
+  const refreshProfile = async () => {
+    if (user?.id) {
+      await fetchUserProfile(user.id);
+    }
+  };
+
+  const refreshSession = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        setUser(session.user);
+        setSession(session);
+        await fetchUserProfile(session.user.id);
+      }
+    } catch (error) {
+      console.error("Error refreshing session:", error);
+    }
+  };
+
+  const signIn = async (email: string, password?: string) => {
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithOtp({ email });
-      if (error) throw error;
-      alert('Check your email for the magic link to sign in.');
+      let result;
+      if (password) {
+        result = await supabase.auth.signInWithPassword({ email, password });
+      } else {
+        result = await supabase.auth.signInWithOtp({ email });
+      }
+      
+      if (result.error) {
+        console.error("Sign in error:", result.error);
+      }
+      
+      return result;
     } catch (error: any) {
-      alert(error.error_description || error.message);
+      console.error("Error signing in:", error);
+      return { error };
     } finally {
       setIsLoading(false);
     }
@@ -150,13 +191,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (error) {
         console.error("Error signing up:", error);
-        throw error;
+        return { error };
       }
 
       console.log("AuthContext: User signed up:", data);
-      alert('Check your email to verify your account!');
+      return { data };
     } catch (error: any) {
-      alert(error.error_description || error.message);
+      console.error("Error in sign up:", error);
+      return { error };
     } finally {
       setIsLoading(false);
     }
@@ -264,7 +306,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     signUp,
     updateProfile,
     setTestUser,
-    clearSession
+    clearSession,
+    refreshProfile,
+    refreshSession,
+    isSupervisor
   };
 
   return (

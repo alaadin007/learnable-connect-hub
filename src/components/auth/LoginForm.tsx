@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -186,14 +187,14 @@ const LoginForm = () => {
       }
       
       // Handle normal login with credentials
-      const { data, error } = await signIn(email, password);
+      const result = await signIn(email, password);
       
-      if (error) {
-        throw error;
+      if (result?.error) {
+        throw result.error;
       }
 
-      if (data?.user) {
-        console.log("Login successful:", data.user.id);
+      if (result?.data?.user) {
+        console.log("Login successful:", result.data.user.id);
         
         // Force a session refresh to ensure we have the latest user data
         await refreshSession();
