@@ -30,11 +30,12 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   // Check if user has required role
   if (requiredUserType && userRole !== requiredUserType) {
     // Map similar role types for compatibility
-    const normalizedUserRole = userRole === 'school_admin' ? 'school' : 
-                              (userRole === 'teacher_supervisor' ? 'teacher' : userRole);
-    const normalizedRequiredRole = requiredUserType === 'school_admin' ? 'school' : 
-                                  (requiredUserType === 'teacher_supervisor' ? 'teacher' : requiredUserType);
-                                  
+    let normalizedUserRole = userRole;
+    if (userRole === 'school_admin') normalizedUserRole = 'school';
+    if (userRole === 'teacher_supervisor') normalizedUserRole = 'teacher';
+    
+    let normalizedRequiredRole = requiredUserType;
+    
     if (normalizedUserRole !== normalizedRequiredRole) {
       toast.error(`Only ${requiredUserType}s can access this page`);
       
