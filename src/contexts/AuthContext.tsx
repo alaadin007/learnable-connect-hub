@@ -18,8 +18,8 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { User, Session, AuthError } from "@supabase/supabase-js";
 
-// Define UserRole type
-export type UserRole = "school" | "school_admin" | "teacher" | "student";
+// Define UserRole type - simplified to only three core roles
+export type UserRole = "school" | "teacher" | "student";
 
 type Organization = {
   id: string;
@@ -98,7 +98,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           console.error("Error fetching profile:", error);
           // Fallback to user metadata if possible
           if (user && user.user_metadata) {
-            const userType = user.user_metadata.user_type || null;
+            // Map any legacy role types to our simplified roles
+            let userType = user.user_metadata.user_type || null;
+            
+            // Map legacy role names to our simplified set
+            if (userType === "school_admin") userType = "school";
+            if (userType === "teacher_supervisor") userType = "teacher";
+            
             const fullName = user.user_metadata.full_name || null;
             const schoolCode = user.user_metadata.school_code || null;
             const fallbackProfile: UserProfile = {
@@ -131,8 +137,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setSchoolId(null);
           return null;
         }
+        
+        // Map legacy role names to our simplified set
+        let userType = profileData.user_type;
+        if (userType === "school_admin") userType = "school";
+        if (userType === "teacher_supervisor") userType = "teacher";
+        
         if (
-          profileData.user_type === "school" &&
+          userType === "school" &&
           (
             !profileData.organization ||
             typeof profileData.organization !== "object" ||
@@ -146,8 +158,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setSchoolId(null);
           return null;
         }
-        // Ensure profileData.user_type is properly typed
-        const userType = profileData.user_type as unknown;
         
         // Assemble safe profile data with appropriate type casting
         const safeProfileData: UserProfile = {
@@ -181,16 +191,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         setProfile(safeProfileData);
 
-        if (profileData.user_type) {
+        if (userType) {
           // Cast to UserRole type to ensure type safety
-          const typedUserRole = profileData.user_type as UserRole;
-          setUserRole(typedUserRole);
-          setIsSupervisor(typedUserRole === "school" && !!safeProfileData.organization?.id);
+          setUserRole(userType as UserRole);
+          setIsSupervisor(userType === "school");
         }
 
         if (safeProfileData.organization?.id) {
           setSchoolId(safeProfileData.organization.id);
-        } else if (profileData.user_type === "school") {
+        } else if (userType === "school") {
           const { data: schoolData } = await supabase
             .from("schools")
             .select("id")
@@ -211,10 +220,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.error("Error in fetchProfile:", err);
 
         if (user && user.user_metadata) {
+          // Map legacy role names to our simplified set
+          let userType = user.user_metadata.user_type;
+          if (userType === "school_admin") userType = "school";
+          if (userType === "teacher_supervisor") userType = "teacher";
+          
           const fallbackProfile: UserProfile = {
             id: user.id,
             // Ensure proper typing for user_type
-            user_type: user.user_metadata.user_type as UserRole | null,
+            user_type: userType as UserRole | null,
             full_name: user.user_metadata.full_name || null,
             school_code: user.user_metadata.school_code || null,
           };

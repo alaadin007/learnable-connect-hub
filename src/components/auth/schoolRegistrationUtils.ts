@@ -37,7 +37,8 @@ export async function checkEmailExistingRole(email: string): Promise<string | nu
             if (matchingUser.user_metadata && 
                 typeof matchingUser.user_metadata === 'object' &&
                 'user_type' in matchingUser.user_metadata) {
-              return formatRoleForDisplay(matchingUser.user_metadata.user_type as string);
+              const roleValue = matchingUser.user_metadata.user_type as string;
+              return formatRoleForDisplay(roleValue);
             }
             
             // If not in metadata, check the profiles table
@@ -86,15 +87,17 @@ export async function checkEmailExistingRole(email: string): Promise<string | nu
 function formatRoleForDisplay(role: string | null): string | null {
   if (!role) return null;
   
+  // Map legacy role names to our simplified set
+  if (role === "school_admin") return "School Administrator";
+  
   switch (role) {
-    case 'school':
-    case 'school_admin':
-      return 'School Administrator';
-    case 'teacher':
-    case 'teacher_supervisor':
-      return 'Teacher';
-    case 'student':
-      return 'Student';
+    case "school":
+      return "School Administrator";
+    case "teacher":
+    case "teacher_supervisor":
+      return "Teacher";
+    case "student":
+      return "Student";
     default:
       return role.charAt(0).toUpperCase() + role.slice(1);
   }

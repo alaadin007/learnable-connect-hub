@@ -41,7 +41,7 @@ const Dashboard = () => {
 
   // Always redirect school admins to the admin dashboard
   useEffect(() => {
-    if ((userRole === "school" || userRole === "school_admin") && profile.organization?.id) {
+    if (userRole === "school" && profile.organization?.id) {
       console.log("Dashboard: Redirecting school admin to admin panel");
       navigate("/admin", {
         replace: true,
@@ -53,7 +53,7 @@ const Dashboard = () => {
   const renderUserDashboard = () => {
     const userType = profile?.user_type;
 
-    if (userType === "school" || userType === "school_admin") {
+    if (userType === "school") {
       return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <DashboardCard
@@ -84,7 +84,7 @@ const Dashboard = () => {
       );
     }
 
-    if (userType === "teacher" || userType === "teacher_supervisor") {
+    if (userType === "teacher") {
       return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <DashboardCard
@@ -147,9 +147,9 @@ const Dashboard = () => {
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">Welcome, {profile?.full_name || "User"}</h1>
           <p className="text-gray-600">
-            {(profile?.user_type === "school" || profile?.user_type === "school_admin")
+            {profile?.user_type === "school"
               ? "Manage your school, teachers, and view analytics"
-              : profile?.user_type === "teacher" || profile?.user_type === "teacher_supervisor"
+              : profile?.user_type === "teacher"
               ? "Manage your students and view their progress"
               : "Access your learning resources and complete your assessments"}
           </p>
