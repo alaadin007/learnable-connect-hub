@@ -46,15 +46,17 @@ const logSessionEnd = async (sessionId?: string, performanceData?: any): Promise
     }
 
     try {
-      // Call the endpoint to end the session
-      const { error } = await supabase.functions.invoke("end-session", {
+      // Silently try to end session without causing UI errors
+      await supabase.functions.invoke("end-session", {
         body: { logId: sessionId, performanceData }
+      }).then(() => {
+        // Success - no need to do anything
+      }).catch(error => {
+        // Just log the error silently without disrupting the UI
+        console.error("Silent error ending session:", error);
       });
-      
-      if (error) {
-        console.error("Error ending session:", error);
-      }
     } catch (error) {
+      // Fallback error handling - also silent
       console.error("Error ending session:", error);
     }
 
@@ -73,15 +75,17 @@ const updateSessionTopic = async (sessionId: string, topic: string): Promise<voi
   if (!sessionId) return;
 
   try {
-    // Call the endpoint to update the session topic
-    const { error } = await supabase.functions.invoke("update-session", {
+    // Silently try to update session without causing UI errors
+    await supabase.functions.invoke("update-session", {
       body: { logId: sessionId, topic }
+    }).then(() => {
+      // Success - no need to do anything
+    }).catch(error => {
+      // Just log the error silently without disrupting the UI
+      console.error("Silent error updating session topic:", error);
     });
-    
-    if (error) {
-      console.error("Error updating session topic:", error);
-    }
   } catch (error) {
+    // Fallback error handling - also silent
     console.error("Error updating session topic:", error);
   }
 };
@@ -90,12 +94,13 @@ const updateSessionTopic = async (sessionId: string, topic: string): Promise<voi
 const incrementQueryCount = async (sessionId: string): Promise<void> => {
   if (!sessionId) return;
 
-  // Use async/await with try/catch instead of .catch() for consistency
+  // Silently try to increment count without causing UI errors
   try {
     await supabase.rpc("increment_session_query_count", {
       log_id: sessionId
+    }).catch(error => {
+      console.error("Silent error incrementing query count:", error);
     });
-    // Optional: Process the response if needed
   } catch (error) {
     console.error("Error incrementing query count:", error);
   }
@@ -122,11 +127,16 @@ const sessionLogger = {
     if (window.location.pathname === '/login') {
       // Start session logging in the background without awaiting
       try {
-        logSessionStart(topic, userId).then(sessionId => {
-          if (sessionId) {
-            localStorage.setItem("activeSessionId", sessionId);
-          }
-        });
+        // Use promise without awaiting but with proper error handling
+        logSessionStart(topic, userId)
+          .then(sessionId => {
+            if (sessionId) {
+              localStorage.setItem("activeSessionId", sessionId);
+            }
+          })
+          .catch(error => {
+            console.error("Login page session start error:", error);
+          });
       } catch (error) {
         console.error("Login page session start error:", error);
       }
@@ -154,7 +164,10 @@ const sessionLogger = {
     
     const sessionId = localStorage.getItem("activeSessionId");
     if (sessionId) {
-      await logSessionEnd(sessionId, performanceData);
+      // Call without awaiting to avoid blocking UI
+      logSessionEnd(sessionId, performanceData).catch(error => {
+        console.error("Silent error in endSession:", error);
+      });
     }
   },
   
