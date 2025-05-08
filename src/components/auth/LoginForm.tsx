@@ -4,7 +4,6 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { supabase } from '@/integrations/supabase/client';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -21,7 +20,7 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 
 const LoginForm: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
-  const { refreshProfile } = useAuth();
+  const { login, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as any)?.from?.pathname || '/dashboard';
@@ -39,26 +38,21 @@ const LoginForm: React.FC = () => {
     console.log('LoginForm: Attempting login for', values.email);
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: values.email,
-        password: values.password,
-      });
-
-      if (error) {
-        console.error('Login error:', error);
-        toast.error(error.message || 'Failed to sign in');
-        return;
-      }
-
-      if (data?.user) {
+      const success = await login(values.email, values.password);
+      
+      if (success) {
         // Refresh the profile after login to ensure we have latest data
-        await refreshProfile();
+        if (refreshProfile) {
+          await refreshProfile();
+        }
         
         // Show success message and redirect
         toast.success('Successfully signed in');
         
         // Redirect to the page they were trying to access, or the default dashboard
         navigate(from, { replace: true });
+      } else {
+        toast.error('Login failed. Please check your credentials and try again.');
       }
     } catch (err: any) {
       console.error('Unexpected login error:', err);
