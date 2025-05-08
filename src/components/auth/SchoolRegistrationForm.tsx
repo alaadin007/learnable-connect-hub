@@ -20,7 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
-// Define form schema with validations
+// Define form schema with validations - Fix excessive type instantiation by simplifying
 const schoolRegistrationSchema = z.object({
   schoolName: z.string().min(3, "School name must be at least 3 characters"),
   adminFullName: z.string().min(3, "Full name must be at least 3 characters"),
@@ -33,12 +33,22 @@ const schoolRegistrationSchema = z.object({
       "Password must contain at least one letter and one number"
     ),
   confirmPassword: z.string(),
-}).refine(data => data.adminPassword === data.confirmPassword, {
-  message: "Passwords don't match",
-  path: ["confirmPassword"], 
-});
+}).refine(
+  (data) => data.adminPassword === data.confirmPassword,
+  {
+    message: "Passwords don't match",
+    path: ["confirmPassword"],
+  }
+);
 
-type SchoolRegistrationFormValues = z.infer<typeof schoolRegistrationSchema>;
+// Define the form values type explicitly without referring to the schema
+type SchoolRegistrationFormValues = {
+  schoolName: string;
+  adminFullName: string;
+  adminEmail: string;
+  adminPassword: string;
+  confirmPassword: string;
+};
 
 const SchoolRegistrationForm: React.FC = () => {
   const navigate = useNavigate();
