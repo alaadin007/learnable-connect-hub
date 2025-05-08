@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,9 +63,7 @@ const LoginForm = () => {
         if (email.startsWith("school")) type = "school";
         else if (email.startsWith("teacher")) type = "teacher";
 
-        console.log(`LoginForm: Setting up test user of type ${type}`);
         await setTestUser(type);
-        console.log(`LoginForm: Successfully set up test user of type ${type}`);
 
         const redirectPath = type === "school"
           ? "/admin"
@@ -84,7 +81,6 @@ const LoginForm = () => {
           }!`,
         });
 
-        console.log(`LoginForm: Redirecting test user to ${redirectPath}`);
         navigate(redirectPath, { 
           replace: true, 
           state: { 
@@ -96,16 +92,14 @@ const LoginForm = () => {
         return;
       }
 
-      // Regular user login flow
+      // Regular user login flow - simplified for better performance
       await signIn(email, password);
-
+      
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+        const { data: { user } } = await supabase.auth.getUser();
 
         if (user) {
-          // Get the user type from profiles table
+          // Get the user type from profiles table with minimal fields
           const { data: profile, error: profileError } = await supabase
             .from("profiles")
             .select("user_type")
@@ -113,8 +107,11 @@ const LoginForm = () => {
             .single();
 
           if (profileError) {
+            // Continue with login even if profile fetch fails
             console.error("Error fetching user profile:", profileError);
-            toast.error("Could not fetch user profile");
+            navigate("/dashboard");
+            toast.success("Login successful");
+            return;
           }
 
           const redirectPath =
@@ -137,8 +134,9 @@ const LoginForm = () => {
           navigate("/dashboard");
         }
       } catch (profileError) {
+        // Continue with login even if profile fetch fails
         console.error("Error fetching user profile:", profileError);
-        toast.success("Login successful, but profile information couldn't be loaded");
+        toast.success("Login successful");
         navigate("/dashboard");
       }
     } catch (error: any) {
@@ -170,11 +168,8 @@ const LoginForm = () => {
     setLoginError(null);
 
     try {
-      console.log(`LoginForm: Quick login as ${type}`);
-      
       // Direct login for test accounts
       await setTestUser(type, schoolIndex);
-      console.log(`LoginForm: Successfully set up quick login for ${type}`);
 
       // Define redirect paths
       let redirectPath = "/dashboard";
@@ -184,7 +179,6 @@ const LoginForm = () => {
         redirectPath = "/teacher/analytics";
       }
 
-      console.log(`LoginForm: Redirecting quick login user to ${redirectPath}`);
       toast.success(
         `Logged in as ${
           type === "school"

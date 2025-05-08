@@ -9,13 +9,8 @@ import { supabase } from "@/integrations/supabase/client";
  */
 export async function invokeEdgeFunction<T = any>(functionName: string, payload?: any): Promise<T> {
   try {
-    // Get the current session
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    
-    if (sessionError) {
-      console.error("Error getting session:", sessionError);
-      throw new Error("Authentication error: " + sessionError.message);
-    }
+    // Get the current session without waiting for refresh
+    const { data: { session } } = await supabase.auth.getSession();
     
     // Define headers - will add authorization if available
     const headers: Record<string, string> = {};
@@ -23,9 +18,6 @@ export async function invokeEdgeFunction<T = any>(functionName: string, payload?
     // If we have a session, add the authorization header
     if (session?.access_token) {
       headers.Authorization = `Bearer ${session.access_token}`;
-    } else {
-      // If this is a test user or special case, we can continue without auth
-      console.warn("No active session found, continuing without authentication");
     }
     
     // Invoke the function with explicit authorization header if available
@@ -67,12 +59,7 @@ export async function isAuthenticated(): Promise<boolean> {
 export async function getAuthToken(): Promise<string | null> {
   try {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) {
-      // Try to refresh the token if not present
-      const { data: refreshData } = await supabase.auth.refreshSession();
-      return refreshData.session?.access_token || null;
-    }
-    return session.access_token;
+    return session?.access_token || null;
   } catch (error) {
     console.error("Error getting auth token:", error);
     return null;
