@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,9 +24,23 @@ interface AnalyticsSummary {
   avgSessionMinutes: number;
 }
 
+interface AnalyticsData {
+  summary: AnalyticsSummary;
+  sessions: SessionData[];
+  topics: TopicData[];
+  studyTime: StudyTimeData[];
+}
+
+interface ApiStudent {
+  id: string;
+  full_name: string;
+  email: string;
+  status: string;
+}
+
 const TeacherAnalytics: React.FC = () => {
   const { user, profile, schoolId } = useAuth();
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -49,24 +62,24 @@ const TeacherAnalytics: React.FC = () => {
   const [studyTime, setStudyTime] = useState<StudyTimeData[]>([]);
   
   // Export functionality
-  const [showExport, setShowExport] = useState(false);
+  const [showExport, setShowExport] = useState<boolean>(false);
   
   // Fetch teacher analytics data on component mount
   useEffect(() => {
     if (user && schoolId) {
-      fetchAnalyticsData();
-      fetchStudents();
+      void fetchAnalyticsData();
+      void fetchStudents();
     }
   }, [user, schoolId]);
   
   // Refetch when filters change
   useEffect(() => {
     if (user && schoolId) {
-      fetchAnalyticsData();
+      void fetchAnalyticsData();
     }
   }, [dateRange, selectedStudent?.id]);
   
-  const fetchAnalyticsData = async () => {
+  const fetchAnalyticsData = async (): Promise<void> => {
     if (!user || !schoolId) {
       return;
     }
@@ -75,19 +88,15 @@ const TeacherAnalytics: React.FC = () => {
     setError(null);
     
     try {
-      // Normalize session data from the API format to our application format
       const filters: AnalyticsFilters = {
         dateRange,
         studentId: selectedStudent?.id,
-        schoolId: schoolId
+        schoolId
       };
       
       const analyticsData = await fetchTeacherAnalytics(filters);
-      
-      // Process the data for our components
       const adaptedData = adaptTeacherAnalyticsData(analyticsData);
       
-      // Update state with fetched data
       setSummary({
         activeStudents: adaptedData.summary.activeStudents,
         totalSessions: adaptedData.summary.totalSessions,
@@ -95,51 +104,48 @@ const TeacherAnalytics: React.FC = () => {
         avgSessionMinutes: adaptedData.summary.avgSessionMinutes
       });
       
-      // Convert the sessions data to match our SessionData type
       const convertedSessions: SessionData[] = adaptedData.sessions.map(session => ({
         id: session.id,
         userId: session.student_id,
         userName: session.student_name,
         startTime: session.session_date,
-        endTime: null,  // This might need to be calculated from duration
-        duration: session.duration_minutes * 60, // Convert minutes to seconds
+        endTime: null,
+        duration: session.duration_minutes * 60,
         topicOrContent: Array.isArray(session.topics) && session.topics.length > 0 
           ? session.topics.join(", ") 
           : session.topic || "General",
         numQueries: session.questions_asked || session.queries || 0,
         topic: session.topic || "",
-        topics: session.topics,
-        questions_asked: session.questions_asked,
-        questions_answered: session.questions_answered,
-        duration_minutes: session.duration_minutes,
-        student_name: session.student_name
+        topics: session.topics || [],
+        questions_asked: session.questions_asked || 0,
+        questions_answered: session.questions_answered || 0,
+        duration_minutes: session.duration_minutes || 0,
+        student_name: session.student_name || ""
       }));
       
       setSessions(convertedSessions);
       setTopics(adaptedData.topics);
       setStudyTime(adaptedData.studyTime);
       
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error fetching analytics:", error);
-      setError(error.message || "Failed to load analytics data");
+      setError(error instanceof Error ? error.message : "Failed to load analytics data");
       toast.error("Failed to load analytics data");
     } finally {
       setIsLoading(false);
     }
   };
   
-  // Fetch list of students for the filter
-  const fetchStudents = async () => {
+  const fetchStudents = async (): Promise<void> => {
     if (!schoolId) return;
     
     try {
-      const { data, error } = await fetch(`/api/students?school_id=${schoolId}`)
-        .then(res => res.json());
+      const response = await fetch(`/api/students?school_id=${schoolId}`);
+      const { data, error }: { data: ApiStudent[], error?: { message: string } } = await response.json();
       
       if (error) throw new Error(error.message);
       
-      // Transform the data to match the Student type
-      const studentList: Student[] = data.map((student: any) => ({
+      const studentList: Student[] = data.map((student: ApiStudent) => ({
         id: student.id,
         name: student.full_name,
         email: student.email,
@@ -147,35 +153,31 @@ const TeacherAnalytics: React.FC = () => {
       }));
       
       setStudents(studentList);
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error fetching students:", error);
       toast.error("Failed to load student list");
     }
   };
   
-  // Handle date range changes
-  const handleDateRangeChange = (range: DateRange) => {
+  const handleDateRangeChange = (range: DateRange): void => {
     setDateRange({
       from: range.from,
       to: range.to
     });
   };
   
-  // Handle student selection
-  const handleStudentSelect = (student: Student | null) => {
+  const handleStudentSelect = (student: Student | null): void => {
     setSelectedStudent(student);
   };
   
-  // Formatted date range for display
-  const dateRangeText = useMemo(() => {
+  const dateRangeText = useMemo<string>(() => {
     if (dateRange.from && dateRange.to) {
       return `${format(dateRange.from, 'MMM d, yyyy')} - ${format(dateRange.to, 'MMM d, yyyy')}`;
     }
     return "All time";
   }, [dateRange]);
   
-  // Handle export
-  const handleExport = () => {
+  const handleExport = (): void => {
     setShowExport(true);
   };
   
@@ -194,7 +196,7 @@ const TeacherAnalytics: React.FC = () => {
         <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
           <DateRangePicker
             dateRange={dateRange}
-            onChange={(newRange) => handleDateRangeChange(newRange)}
+            onChange={handleDateRangeChange}
           />
           
           <div className="w-full sm:w-64">
@@ -216,14 +218,8 @@ const TeacherAnalytics: React.FC = () => {
         </div>
       </div>
       
-      {/* Analytics Summary */}
       <AnalyticsSummaryCards
-        summary={{
-          activeStudents: summary.activeStudents,
-          totalSessions: summary.totalSessions,
-          totalQueries: summary.totalQueries,
-          avgSessionMinutes: summary.avgSessionMinutes
-        }}
+        summary={summary}
         isLoading={isLoading}
       />
       
@@ -234,7 +230,6 @@ const TeacherAnalytics: React.FC = () => {
         </TabsList>
         
         <TabsContent value="overview" className="space-y-6">
-          {/* Study Time Chart */}
           <Card>
             <CardHeader>
               <CardTitle className="text-xl">Study Time by Week</CardTitle>
@@ -244,9 +239,7 @@ const TeacherAnalytics: React.FC = () => {
             </CardContent>
           </Card>
           
-          {/* Topics and Sessions Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Most Popular Topics */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-xl">Most Popular Topics</CardTitle>
@@ -256,7 +249,6 @@ const TeacherAnalytics: React.FC = () => {
               </CardContent>
             </Card>
             
-            {/* Recent Sessions */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-xl">Recent Sessions</CardTitle>
@@ -277,7 +269,6 @@ const TeacherAnalytics: React.FC = () => {
         </TabsContent>
       </Tabs>
       
-      {/* Export Dialog */}
       {showExport && (
         <AnalyticsExport
           data={{
