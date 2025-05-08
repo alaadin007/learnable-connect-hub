@@ -24,14 +24,14 @@ export async function checkEmailExistingRole(email: string): Promise<string | nu
         // Filter users manually - make sure to check for undefined users field
         if (userData && userData.users && Array.isArray(userData.users)) {
           // Define a proper type for users array elements
-          type SupabaseUser = {
+          interface SupabaseUser {
             id: string;
             email?: string;
             user_metadata?: Record<string, any>;
-          };
+          }
           
-          // Use type assertion to avoid the 'never' type issue
-          const users = userData.users as unknown as SupabaseUser[];
+          // Safely cast the users array to our defined type
+          const users = userData.users as SupabaseUser[];
           
           const matchingUser = users.find(user => {
             return user && 
