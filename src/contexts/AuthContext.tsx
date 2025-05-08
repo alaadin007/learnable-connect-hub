@@ -118,50 +118,67 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
 
   const fetchProfile = async (userId: string) => {
     try {
-      // First, try to fetch just the basic profile data without the organization join
-      // This avoids the 400 error when the organization relation doesn't exist
+      console.log("AuthContext: Fetching profile for user ID:", userId);
+      
+      // Use a simpler query to avoid complex joins that might cause errors
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
-        .select("id, user_type, full_name, school_id, school_code")
+        .select("*") // Select all columns directly
         .eq("id", userId)
         .single();
 
       if (profileError) {
-        console.error("Error fetching basic profile:", profileError);
+        console.error("Error fetching profile:", profileError);
         throw profileError;
       }
       
-      console.log("AuthContext: Basic profile data:", profileData);
+      console.log("AuthContext: Raw profile data:", profileData);
 
-      // Initialize the profile with basic data
+      // Initialize the profile with available data
       let safeProfileData: UserProfile = {
         id: profileData.id,
         user_type: profileData.user_type,
         full_name: profileData.full_name,
         organization: null,
+        school_code: profileData.school_code
       };
+      
+      // Process organization data if it exists in the profile
+      if (profileData.organization && typeof profileData.organization === 'object') {
+        safeProfileData.organization = profileData.organization;
+      }
+      // Or fetch school data separately if we have a school_id
+      else if (profileData.school_id) {
+        try {
+          const { data: schoolData, error: schoolError } = await supabase
+            .from("schools")
+            .select("id, name, code")
+            .eq("id", profileData.school_id)
+            .single();
 
-      // If school_id exists, try to fetch the school data separately
-      if (profileData.school_id) {
-        const { data: schoolData, error: schoolError } = await supabase
-          .from("schools")
-          .select("id, name, code")
-          .eq("id", profileData.school_id)
-          .single();
-
-        if (!schoolError && schoolData) {
-          safeProfileData.organization = {
-            id: schoolData.id,
-            name: schoolData.name,
-            code: schoolData.code
-          };
+          if (!schoolError && schoolData) {
+            safeProfileData.organization = {
+              id: schoolData.id,
+              name: schoolData.name,
+              code: schoolData.code
+            };
+          } else {
+            console.log("AuthContext: No school data found or error:", schoolError);
+          }
+        } catch (schoolFetchError) {
+          console.error("Error fetching school data:", schoolFetchError);
         }
       }
 
+      console.log("AuthContext: Processed profile data:", safeProfileData);
+
       setProfile(safeProfileData);
       setUserRole(profileData.user_type || null);
-      setIsSuperviser(profileData.user_type === "superviser");
+      setIsSuperviser(profileData.is_supervisor || profileData.user_type === "superviser");
       setSchoolId(profileData.school_id || safeProfileData.organization?.id || null);
+      
+      console.log("AuthContext: Set user role to:", profileData.user_type);
+      console.log("AuthContext: Set school ID to:", profileData.school_id || safeProfileData.organization?.id);
 
       if (user && isTestAccount(user.email || '')) {
         console.log("AuthContext: Test account detected, ensuring organization data is complete");

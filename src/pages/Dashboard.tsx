@@ -41,24 +41,7 @@ const Dashboard = () => {
 
     console.log("Dashboard: User role detected:", userRole);
 
-    // Handle test account (might have different role mapping)
-    const isTestAccount = user.email?.includes(".test@learnable.edu") || 
-                          user.id?.startsWith("test-");
-                          
-    if (isTestAccount) {
-      console.log("Dashboard: Test account detected, checking role from user metadata");
-      const metadataRole = user.user_metadata?.user_type;
-      if (metadataRole === "school" || metadataRole === "school_admin") {
-        console.log("Dashboard: Test school admin detected from metadata, redirecting");
-        navigate("/admin", { 
-          state: { fromTestAccounts: true, preserveContext: true },
-          replace: true 
-        });
-        return;
-      }
-    }
-
-    // Handle school admin redirection with higher priority
+    // Handle redirection logic with fallbacks
     if (userRole === "school" || userRole === "school_admin") {
       console.log("Dashboard: School admin detected, redirecting to admin dashboard");
       // Use replace: true to prevent back navigation to this intermediate page
@@ -69,7 +52,6 @@ const Dashboard = () => {
       return;
     }
 
-    // Handle teacher redirection
     if (userRole === "teacher") {
       console.log("Dashboard: Teacher detected, redirecting to teacher analytics");
       navigate("/teacher/analytics", { 
@@ -77,6 +59,31 @@ const Dashboard = () => {
         replace: true 
       });
       return;
+    }
+
+    // Handle test account (might have different role mapping) as a fallback
+    const isTestAccount = user.email?.includes(".test@learnable.edu") || 
+                         user.id?.startsWith("test-");
+                          
+    if (isTestAccount) {
+      console.log("Dashboard: Test account detected, checking role from user metadata");
+      const metadataRole = user.user_metadata?.user_type;
+      
+      if (metadataRole === "school" || metadataRole === "school_admin") {
+        console.log("Dashboard: Test school admin detected from metadata, redirecting");
+        navigate("/admin", { 
+          state: { fromTestAccounts: true, preserveContext: true },
+          replace: true 
+        });
+        return;
+      } else if (metadataRole === "teacher") {
+        console.log("Dashboard: Test teacher detected from metadata, redirecting");
+        navigate("/teacher/analytics", { 
+          state: { fromTestAccounts: true, preserveContext: true },
+          replace: true 
+        });
+        return;
+      }
     }
 
     console.log("Dashboard: User remaining on student dashboard");
