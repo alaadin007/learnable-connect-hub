@@ -68,8 +68,7 @@ const AIChatInterface = () => {
     stop,
   } = useCompletion({
     api: "/api/completion",
-    // Use 'max' prefix here instead of 'maxTokens' which isn't recognized
-    max: settings?.maxTokens || 400,
+    maxTokens: settings?.maxTokens || 400,
     temperature: settings?.temperature || 0.5,
     // Track session and usage
     onFinish: () => {
@@ -428,4 +427,3 @@ const AIChatInterface = () => {
 };
 
 export default AIChatInterface;
-

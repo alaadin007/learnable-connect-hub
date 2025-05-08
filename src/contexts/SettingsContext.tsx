@@ -13,17 +13,6 @@ export interface Settings {
   geminiKey?: string;
 }
 
-// User settings from database - define the exact structure to match DB
-interface UserSettings {
-  max_tokens: number;
-  temperature: number;
-  model: string;
-  show_sources: boolean;
-  ai_provider: 'openai' | 'gemini';
-  openai_key: string;
-  gemini_key: string;
-}
-
 // Define context type
 interface SettingsContextType {
   settings: Settings;
@@ -86,7 +75,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
               const openaiKey = data.find(key => key.provider === 'openai')?.api_key || '';
               const geminiKey = data.find(key => key.provider === 'gemini')?.api_key || '';
               
-              const dbSettings = {
+              const dbSettings: Settings = {
                 ...settings,
                 aiProvider: openaiKey ? 'openai' : geminiKey ? 'gemini' : 'openai',
                 openAiKey: openaiKey,
