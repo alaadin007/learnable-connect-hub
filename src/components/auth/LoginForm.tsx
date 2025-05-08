@@ -17,7 +17,7 @@ const LoginForm = () => {
   const [activeTestAccount, setActiveTestAccount] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
-  const { signIn, setTestUser, userRole, session, signOut } = useAuth();
+  const { signIn, setTestUser, userRole, session, signOut, refreshSession } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const location = useLocation();
@@ -194,6 +194,9 @@ const LoginForm = () => {
 
       if (data?.user) {
         console.log("Login successful:", data.user.id);
+        
+        // Force a session refresh to ensure we have the latest user data
+        await refreshSession();
         
         toast.success("Login successful", {
           description: "Welcome back!",

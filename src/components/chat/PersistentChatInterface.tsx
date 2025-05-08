@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useSupabaseClient } from '@supabase/auth-helpers-react';
 import { v4 as uuidv4 } from 'uuid';
@@ -5,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Message } from "@/components/chat/types"
-import { VoiceRecorder } from "@/components/chat/VoiceRecorder"
+import VoiceRecorder from "@/components/chat/VoiceRecorder"
 
 interface Props {
   conversationId?: string;

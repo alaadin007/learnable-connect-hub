@@ -1,195 +1,155 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useCompletion } from 'ai/react';
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Card, CardContent } from "@/components/ui/card"
-import { Send } from 'lucide-react';
-import { useToast } from "@/components/ui/use-toast"
-import { ChatMessage } from './ChatMessage';
-import { useAuth } from '@/contexts/AuthContext';
-import sessionLogger from '@/utils/sessionLogger';
 
-// Add the missing prop types
-export interface AIChatInterfaceProps {
-  conversationId?: string;
-  onConversationCreated?: (id: string) => void;
-  topic?: string;
+import React, { useState, useRef, useEffect } from 'react';
+import { useChat } from 'ai-chat-store';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useAuth } from '@/contexts/AuthContext';
+import ChatMessage from './ChatMessage';
+import { v4 as uuidv4 } from 'uuid';
+
+interface Message {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: string;
 }
 
-// Update the component definition to accept the correct props
+// Simple AI chat store implementation
+const useChatStore = () => {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const addMessage = (message: Omit<Message, 'id' | 'timestamp'>) => {
+    const newMessage = {
+      ...message,
+      id: uuidv4(),
+      timestamp: new Date().toISOString()
+    };
+    setMessages(prev => [...prev, newMessage]);
+    return newMessage;
+  };
+
+  const handleSubmit = async (userMessage: string) => {
+    if (!userMessage.trim()) return;
+    
+    // Add user message
+    addMessage({
+      role: 'user', 
+      content: userMessage
+    });
+    
+    setIsLoading(true);
+    try {
+      // Simulate AI response (replace with actual AI call)
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Add AI response
+      addMessage({
+        role: 'assistant',
+        content: `I received your message: "${userMessage}". This is a simulated AI response.`
+      });
+    } catch (error) {
+      console.error('Error getting AI response:', error);
+      addMessage({
+        role: 'assistant',
+        content: 'Sorry, I encountered an error processing your request.'
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return {
+    messages,
+    isLoading,
+    handleSubmit
+  };
+};
+
+interface AIChatInterfaceProps {
+  systemPrompt?: string;
+  welcomeMessage?: string;
+}
+
 const AIChatInterface: React.FC<AIChatInterfaceProps> = ({
-  conversationId,
-  onConversationCreated,
-  topic
+  systemPrompt,
+  welcomeMessage
 }) => {
-  const [messages, setMessages] = useState<{ role: 'user' | 'assistant' | 'system', content: string }[]>([]);
+  const { messages, isLoading, handleSubmit } = useChatStore();
   const [input, setInput] = useState('');
-  const [currentSessionId, setCurrentSessionId] = useState<string | null>(conversationId || null);
-  const [isLoadingSession, setIsLoadingSession] = useState(false);
-  const { toast } = useToast();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
 
-  const {
-    completion,
-    input: hookInput,
-    setInput: hookSetInput,
-    handleInputChange,
-    handleSubmit: hookHandleSubmit,
-    isLoading: hookIsLoading,
-  } = useCompletion({
-    api: '/api/completion',
-    // initialInput: "You are a helpful AI assistant. Format your responses using markdown.",
-    onFinish: (completion) => {
-      // This function is called when the API request is complete.
-      console.log('Completion finished', completion);
-    },
-    onError: (error) => {
-      // This function is called when the API request fails.
-      console.error('Completion error', error);
-      toast({
-        variant: "destructive",
-        title: "Uh oh! Something went wrong.",
-        description: "There was a problem with the AI completion. Please try again.",
-      })
-    },
-  });
-
-  // Initialize the hook input with the system prompt
+  // Add welcome message when component mounts
   useEffect(() => {
-    hookSetInput("You are a helpful AI assistant. Format your responses using markdown.");
-  }, [hookSetInput]);
-
-  // Update the session logging methods to use the correct names
-  useEffect(() => {
-    if (!currentSessionId && !isLoadingSession) {
-      // Start a new session log when the component mounts
-      const startSession = async () => {
-        setIsLoadingSession(true);
-        try {
-          const result = await sessionLogger.startSessionLog(topic || "General Chat");
-          if (result.success && result.sessionId) {
-            setCurrentSessionId(result.sessionId);
-            console.log("Session started with ID:", result.sessionId);
-            if (onConversationCreated) {
-              onConversationCreated(result.sessionId);
-            }
-          } else {
-            console.error("Failed to start session:", result.message);
-          }
-        } catch (error) {
-          console.error("Error starting session:", error);
-        } finally {
-          setIsLoadingSession(false);
-        }
+    if (welcomeMessage && messages.length === 0) {
+      const welcomeMsg: Message = {
+        id: uuidv4(),
+        role: 'assistant',
+        content: welcomeMessage,
+        timestamp: new Date().toISOString()
       };
-      startSession();
-    }
-    
-    return () => {
-      // End the session log when the component unmounts
-      if (currentSessionId) {
-        const endCurrentSession = async () => {
-          try {
-            await sessionLogger.endSessionLog(currentSessionId, {
-              queries: messages.filter(m => m.role === 'user').length,
-            });
-            console.log("Session ended:", currentSessionId);
-          } catch (error) {
-            console.error("Error ending session:", error);
-          }
-        };
-        endCurrentSession();
+      
+      // Add system prompt if provided
+      const initialMessages: Message[] = [];
+      if (systemPrompt) {
+        initialMessages.push({
+          id: uuidv4(),
+          role: 'system',
+          content: systemPrompt,
+          timestamp: new Date().toISOString()
+        });
       }
-    };
-  }, [currentSessionId, isLoadingSession, topic, messages, onConversationCreated]);
-
-  // Update topic when it changes
-  useEffect(() => {
-    if (currentSessionId && topic) {
-      const updateSession = async () => {
-        try {
-          await sessionLogger.updateSessionTopic(currentSessionId, topic);
-          console.log("Session topic updated:", topic);
-        } catch (error) {
-          console.error("Error updating session topic:", error);
-        }
-      };
-      updateSession();
+      
+      initialMessages.push(welcomeMsg);
     }
-  }, [currentSessionId, topic]);
+  }, [welcomeMessage, systemPrompt, messages.length]);
 
-  const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault();
+  // Scroll to bottom when new messages arrive
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
-      if (!input) return;
-
-      setMessages((prevMessages) => [...prevMessages, { role: 'user', content: input }]);
-
-      hookHandleSubmit(e);
-
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (input.trim() && !isLoading) {
+      handleSubmit(input);
       setInput('');
-    },
-    [hookHandleSubmit, input]
-  );
-
-  useEffect(() => {
-    if (completion) {
-      setMessages((prevMessages) => [...prevMessages, { role: 'assistant', content: completion }]);
-    }
-  }, [completion]);
-
-  // In the sendMessage function, update the query logging
-  const sendMessage = async (userMessage: string) => {
-    if (!userMessage) return;
-
-    setMessages((prevMessages) => [...prevMessages, { role: 'user', content: userMessage }]);
-
-    hookSetInput((prevInput) => prevInput + `\nUser: ${userMessage}`);
-
-    setInput('');
-
-    // Log the query in the session
-    if (currentSessionId) {
-      try {
-        // Since there's no direct incrementQueryCount method, we'll update the session with the current topic
-        // which should register activity in the session
-        await sessionLogger.updateSessionTopic(currentSessionId, topic || "General Chat");
-      } catch (error) {
-        console.error("Error logging query:", error);
-      }
+      // Focus input after sending
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 0);
     }
   };
 
   return (
     <div className="flex flex-col h-full">
-      <Card className="flex-grow">
-        <CardContent className="overflow-y-auto h-full">
-          <div className="flex flex-col space-y-4">
-            {messages.map((message, index) => (
-              <ChatMessage key={index} message={message} />
-            ))}
-            {hookIsLoading && (
-              <ChatMessage message={{ role: 'assistant', content: 'Thinking...' }} />
-            )}
-          </div>
-        </CardContent>
-      </Card>
-      <div className="mt-4">
-        <form onSubmit={handleSubmit} className="flex items-center space-x-2">
+      <div className="flex-grow overflow-y-auto p-4">
+        {messages.filter(msg => msg.role !== 'system').map((message) => (
+          <ChatMessage key={message.id} message={message} />
+        ))}
+        {isLoading && (
+          <div className="text-gray-500 animate-pulse">AI is thinking...</div>
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+      
+      <form onSubmit={handleFormSubmit} className="p-4 border-t border-gray-200">
+        <div className="flex items-center space-x-2">
           <Input
+            ref={inputRef}
             type="text"
-            placeholder="Ask me anything..."
+            placeholder="Type your message..."
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            className="flex-grow"
+            disabled={isLoading}
           />
-          <Button type="submit" disabled={hookIsLoading}>
-            <Send className="w-4 h-4 mr-2" />
-            Send
+          <Button type="submit" disabled={isLoading || !input.trim()}>
+            {isLoading ? 'Sending...' : 'Send'}
           </Button>
-        </form>
-      </div>
+        </div>
+      </form>
     </div>
   );
 };
