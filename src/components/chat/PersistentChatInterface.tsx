@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -13,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import sessionLogger from '@/utils/sessionLogger';
 import VoiceRecorder from './VoiceRecorder';
 import TextToSpeech from './TextToSpeech';
+import { saveChatMessage, getChatHistory } from '@/utils/databaseUtils';
 
 interface ChatMessage {
   id: string;
@@ -84,22 +84,14 @@ const PersistentChatInterface: React.FC<PersistentChatInterfaceProps> = ({
   const loadChatHistory = async (convoId: string) => {
     setLoadingHistory(true);
     try {
-      // Fix: Change from params to queryKey for proper URL parameter handling
-      const { data, error } = await supabase.functions.invoke('get-chat-history', {
-        body: { conversationId: convoId }
-      });
-      
-      if (error) throw error;
-      
+      const data = await getChatHistory(convoId);
       if (data?.messages) {
-        // Convert database messages to the format used by this component
         const chatMessages = data.messages.map((msg: any) => ({
           id: msg.id,
           role: msg.sender === 'user' ? 'user' : 'assistant',
           content: msg.content,
           timestamp: msg.timestamp
         }));
-        
         setMessages(chatMessages);
       }
     } catch (error) {
@@ -112,77 +104,27 @@ const PersistentChatInterface: React.FC<PersistentChatInterfaceProps> = ({
 
   const handleSubmit = async () => {
     if (!input.trim() || isLoading) return;
-    
     setIsLoading(true);
-    
-    // Create a temporary message ID
     const messageId = uuidv4();
-    
-    // Add user message to UI
     const userMessage = {
       id: messageId,
       role: 'user' as const,
       content: input.trim(),
       timestamp: new Date().toISOString()
     };
-    
     setMessages(prev => [...prev, userMessage]);
     setInput('');
-    
     try {
-      // Save user message to database
-      const { data: saveData, error: saveError } = await supabase.functions.invoke('save-chat-message', {
-        body: {
-          message: userMessage,
-          conversationId,
-          sessionId
+      const saveResult = await saveChatMessage(userMessage, conversationId, sessionId);
+      if (saveResult.success) {
+        if (saveResult.conversationId && !conversationId && onConversationCreated) {
+          onConversationCreated(saveResult.conversationId);
         }
-      });
-      
-      if (saveError) throw saveError;
-      
-      // If this is a new conversation, notify the parent component
-      if (saveData.conversationId && !conversationId && onConversationCreated) {
-        onConversationCreated(saveData.conversationId);
+        // TODO: Integrate AI response here (call your backend or OpenAI API directly)
       }
-      
-      // Get AI response
-      const { data: aiData, error: aiError } = await supabase.functions.invoke('ask-ai', {
-        body: {
-          question: input.trim(),
-          conversationId: saveData.conversationId || conversationId,
-          sessionId,
-          topic
-        }
-      });
-      
-      if (aiError) throw aiError;
-      
-      // Create AI response message
-      const aiMessage = {
-        id: uuidv4(),
-        role: 'assistant' as const,
-        content: aiData.response,
-        timestamp: new Date().toISOString()
-      };
-      
-      // Add AI message to UI
-      setMessages(prev => [...prev, aiMessage]);
-      
-      // Save AI message to database
-      await supabase.functions.invoke('save-chat-message', {
-        body: {
-          message: aiMessage,
-          conversationId: saveData.conversationId || conversationId,
-          sessionId
-        }
-      });
-      
     } catch (error: any) {
       console.error("Error in chat:", error);
       toast.error("There was an error processing your message");
-      
-      // Add system error message
       setMessages(prev => [
         ...prev,
         {
@@ -211,79 +153,49 @@ const PersistentChatInterface: React.FC<PersistentChatInterfaceProps> = ({
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || files.length === 0 || isLoading) return;
-    
     const file = files[0];
-    
-    // Check file size (max 10MB)
     if (file.size > 10 * 1024 * 1024) {
       toast.error("File too large. Please upload a file smaller than 10MB");
       return;
     }
-    
-    // Check file type
     const fileExt = file.name.split('.').pop()?.toLowerCase();
     if (!['pdf', 'jpg', 'jpeg', 'png'].includes(fileExt || '')) {
       toast.error("Unsupported file type. Please upload a PDF, JPG or PNG file");
       return;
     }
-    
     setIsLoading(true);
-    
     try {
-      // Create a unique file path using user ID
       const filePath = `${user?.id}/${Date.now()}_${file.name}`;
-      
-      // Upload file to Supabase Storage
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('user-content')
         .upload(filePath, file, {
           cacheControl: '3600',
           upsert: false,
         });
-      
       if (uploadError) throw uploadError;
-      
-      // Get public URL for the file
       const { data: urlData } = await supabase.storage
         .from('user-content')
         .getPublicUrl(filePath);
-      
       const publicUrl = urlData.publicUrl;
-      
-      // Add file message to UI
       const fileMessage = {
         id: uuidv4(),
         role: 'user' as const,
         content: `📎 [${file.name}](${publicUrl})`,
         timestamp: new Date().toISOString()
       };
-      
       setMessages(prev => [...prev, fileMessage]);
-      
-      // Save file message to database
-      const { data: saveData, error: saveError } = await supabase.functions.invoke('save-chat-message', {
-        body: {
-          message: fileMessage,
-          conversationId,
-          sessionId
+      const saveResult = await saveChatMessage(fileMessage, conversationId, sessionId);
+      if (saveResult.success) {
+        if (saveResult.conversationId && !conversationId && onConversationCreated) {
+          onConversationCreated(saveResult.conversationId);
         }
-      });
-      
-      if (saveError) throw saveError;
-      
-      // If this is a new conversation, notify the parent component
-      if (saveData.conversationId && !conversationId && onConversationCreated) {
-        onConversationCreated(saveData.conversationId);
       }
-      
       toast.success(`File ${file.name} uploaded successfully`);
-      
     } catch (error) {
       console.error("Error uploading file:", error);
       toast.error("Failed to upload file");
     } finally {
       setIsLoading(false);
-      // Reset file input
       if (event.target) event.target.value = '';
     }
   };

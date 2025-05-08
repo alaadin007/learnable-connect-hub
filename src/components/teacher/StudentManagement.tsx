@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,78 +7,114 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { approveStudentDirect, inviteStudentDirect, revokeStudentAccessDirect } from '@/utils/databaseUtils';
+import { useToast } from '@/components/ui/use-toast';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
+import { useSupabaseClient } from '@supabase/auth-helpers-react'
+import { Loader2, Mail, UserPlus } from 'lucide-react'
 
 type Student = {
   id: string;
   full_name: string | null;
   email: string;
   status: string;
+  created_at: string;
+  last_active: string | null;
+  total_sessions: number;
+  total_hours: number;
 };
 
 const StudentManagement = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
-  const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteMethod, setInviteMethod] = useState<'code' | 'email'>('code');
-  const { user } = useAuth();
-
-  useEffect(() => {
-    fetchStudents();
-  }, []);
+  const [inviting, setInviting] = useState(false);
+  const { toast } = useToast();
+  const supabase = useSupabaseClient();
 
   const fetchStudents = async () => {
-    setLoading(true);
     try {
-      // Get the school ID for the current teacher
-      const { data: schoolId, error: schoolIdError } = await supabase.rpc('get_user_school_id');
-      
-      if (schoolIdError) {
-        toast.error("Could not get school information");
-        console.error("Error fetching school ID:", schoolIdError);
-        setLoading(false);
-        return;
-      }
-      
-      // Get all students from the same school
-      const { data: studentsData, error: studentsError } = await supabase
-        .from('students')
-        .select(`
-          id,
-          status,
-          profiles:id (
-            full_name,
-            email
-          )
-        `)
-        .eq('school_id', schoolId);
-      
-      if (studentsError) {
-        toast.error("Could not load students");
-        console.error("Error fetching students:", studentsError);
-        setLoading(false);
-        return;
-      }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
 
-      // Format the student data
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('school_id')
+        .eq('id', user.id)
+        .single();
+
+      if (!profile?.school_id) throw new Error('No school associated');
+
+      const { data: studentsData, error } = await supabase
+        .from('student_activity_summary')
+        .select('*')
+        .eq('school_id', profile.school_id);
+
+      if (error) throw error;
+
       const formattedStudents: Student[] = studentsData.map((student: any) => ({
         id: student.id,
-        full_name: student.profiles?.full_name || "No name",
-        email: student.profiles?.email || "No email",
-        status: student.status || "pending"
+        full_name: student.full_name || "No name",
+        email: student.email || "No email",
+        status: student.status || "pending",
+        created_at: student.created_at,
+        last_active: student.last_active,
+        total_sessions: student.total_sessions,
+        total_hours: student.total_hours
       }));
 
       setStudents(formattedStudents);
     } catch (error) {
-      console.error("Error in fetchStudents:", error);
-      toast.error("An error occurred while loading students");
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch students',
+        variant: 'destructive',
+      });
     } finally {
       setLoading(false);
     }
   };
 
   const handleInviteStudent = async () => {
+    if (!inviteEmail) return;
+
+    setInviting(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('school_id')
+        .eq('id', user.id)
+        .single();
+
+      if (!profile?.school_id) throw new Error('No school associated');
+
+      // Generate a unique code for the student
+      const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+
+      const { error } = await supabase
+        .from('school_codes')
+        .insert({
+          school_id: profile.school_id,
+          code,
+          created_by: user.id
+        });
+
       if (inviteMethod === 'email' && !inviteEmail) {
         toast.error("Please enter an email address");
         return;

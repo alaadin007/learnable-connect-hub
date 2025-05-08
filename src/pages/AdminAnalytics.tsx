@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -126,8 +125,8 @@ const AdminAnalytics: React.FC = () => {
             Math.round((new Date(session.session_end).getTime() - new Date(session.session_start).getTime()) / 60000) : 
             0,
           topics: [session.topic_or_content_used || 'General'],
-          questions_asked: session.num_queries,
-          questions_answered: session.num_queries,
+          questions_asked: session.num_queries ?? 0,
+          questions_answered: session.num_queries ?? 0,
           // Compatibility fields
           userId: session.user_id,
           userName: session.profiles?.full_name || 'Unknown',
@@ -137,7 +136,9 @@ const AdminAnalytics: React.FC = () => {
             Math.round((new Date(session.session_end).getTime() - new Date(session.session_start).getTime()) / 60000) : 
             0,
           topicOrContent: session.topic_or_content_used || 'General',
-          numQueries: session.num_queries
+          numQueries: session.num_queries ?? 0,
+          queries: session.num_queries ?? 0,
+          // Add any other required fields from SessionData here
         })) : [];
 
         // Fetch topic data from most_studied_topics view

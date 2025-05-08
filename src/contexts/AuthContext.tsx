@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Session, User } from '@supabase/supabase-js';
@@ -58,54 +57,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Initialize auth state from Supabase session
   useEffect(() => {
+    let subscription: any;
+    const handleAuthChange = async (session: Session | null) => {
+      setSession(session);
+      // ... rest of handleAuthChange logic ...
+    };
+    const { data } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        console.log("Auth state changed, event:", _event);
+        await handleAuthChange(session);
+      }
+    );
+    subscription = data?.subscription;
+
     const initAuth = async () => {
       setIsLoading(true);
       try {
-        // First set up auth state listener to prevent missing events
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(
-          (_event, newSession) => {
-            // Update session state immediately - critical for synchronization
-            setSession(newSession);
-            setUser(newSession?.user || null);
-            
-            // Check if we're using test accounts
-            const usingTestAccount = localStorage.getItem('usingTestAccount') === 'true';
-            const testAccountType = localStorage.getItem('testAccountType') as UserRole;
-            
-            // Use setTimeout to defer profile fetching to prevent deadlocks
-            // This breaks the recursive chain of auth state updates
-            if (newSession?.user) {
-              setTimeout(async () => {
-                if (usingTestAccount && testAccountType) {
-                  console.log("Using test account type:", testAccountType);
-                  setUserRole(testAccountType);
-                  setSchoolId('00000000-0000-0000-0000-000000000000');
-                  setProfile({
-                    id: newSession.user.id,
-                    full_name: `Test ${testAccountType.charAt(0).toUpperCase() + testAccountType.slice(1)}`,
-                    user_type: testAccountType,
-                    organization: testAccountType === 'school' ? {
-                      id: '00000000-0000-0000-0000-000000000000',
-                      name: 'Test School'
-                    } : null
-                  });
-                  setIsSupervisor(testAccountType === 'school');
-                } else {
-                  await fetchUserProfile(newSession.user.id);
-                }
-                setIsLoading(false);
-              }, 0);
-            } else {
-              // Reset state when user is signed out
-              setUserRole(null);
-              setSchoolId(null);
-              setProfile(null);
-              setIsSupervisor(false);
-              setIsLoading(false);
-            }
-          }
-        );
-
         // After setting up the listener, check for existing session
         const { data: { session: currentSession } } = await supabase.auth.getSession();
         
@@ -141,14 +108,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       } finally {
         setIsLoading(false);
       }
-
-      // Return unsubscribe function
-      return () => {
-        subscription?.unsubscribe();
-      };
     };
 
     initAuth();
+
+    return () => {
+      if (subscription) subscription.unsubscribe();
+    };
   }, []);
 
   // Fetch user profile data with improved error handling
