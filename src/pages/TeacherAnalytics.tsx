@@ -15,18 +15,7 @@ import TopicsChart from '@/components/analytics/TopicsChart';
 import StudyTimeChart from '@/components/analytics/StudyTimeChart';
 import { Student, AnalyticsSummary, SessionData, TopicData } from '@/components/analytics/types';
 import { supabase } from '@/integrations/supabase/client';
-
-// Define proper props interfaces
-interface StudentSelectorProps {
-  students: Student[];
-  selectedStudentId: string;
-  onStudentChange: (id: string) => void;
-}
-
-interface AnalyticsFiltersProps {
-  dateRange: DateRange;
-  onDateRangeChange: (range: DateRange) => void;
-}
+import { toast } from "sonner";
 
 const TeacherAnalytics = () => {
   const { schoolId } = useAuth();
@@ -68,23 +57,36 @@ const TeacherAnalytics = () => {
 
   const fetchStudents = async () => {
     try {
-      const { data, error } = await supabase
-        .from('students')
-        .select('id, profiles:id(full_name)')
-        .eq('school_id', schoolId);
+      const { data: userSchoolId } = await supabase.rpc("get_user_school_id");
+      
+      if (!userSchoolId) {
+        console.error('Error: Could not determine school ID');
+        toast.error("Could not load students - school ID not found");
+        return;
+      }
+      
+      // Use the Edge Function to get students with their profile data
+      const { data, error } = await supabase.functions.invoke("get-students", {
+        body: { school_id: userSchoolId }
+      });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching students:', error);
+        toast.error("Could not load students");
+        return;
+      }
 
       if (data) {
-        const formattedStudents = data.map(student => ({
+        const formattedStudents: Student[] = data.map((student: any) => ({
           id: student.id,
-          name: student.profiles?.full_name || 'Unknown'
+          name: student.full_name || 'Unknown Student'
         }));
         
         setStudents(formattedStudents);
       }
     } catch (error) {
       console.error('Error fetching students:', error);
+      toast.error("Failed to load students");
     }
   };
 
@@ -144,7 +146,7 @@ const TeacherAnalytics = () => {
         
         <AnalyticsFilters
           dateRange={dateRange}
-          onDateRangeChange={setDateRange}
+          onDateRangeChange={(range) => setDateRange(range as DateRange)}
         />
 
         <AnalyticsSummaryCards summary={summary} isLoading={isLoading} />

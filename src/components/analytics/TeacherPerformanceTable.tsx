@@ -1,84 +1,69 @@
-
-import React from "react";
+import React from 'react';
+import { DateRange } from 'react-day-picker';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
   TableBody,
   TableCaption,
   TableCell,
+  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
+} from "@/components/ui/table"
 
-export interface TeacherPerformanceData {
-  teacher_id: string;
-  teacher_name: string;
-  assessments_created: number;
-  students_assessed: number;
-  avg_submissions_per_assessment: number;
-  avg_student_score: number;
-  completion_rate: number;
+export interface TeacherPerformanceTableProps {
+  schoolId: string;
+  teacherId: string;
+  dateRange: DateRange;
 }
 
-interface TeacherPerformanceTableProps {
-  data: TeacherPerformanceData[];
-  isLoading: boolean;
-}
-
-export function TeacherPerformanceTable({ data, isLoading }: TeacherPerformanceTableProps) {
+const TeacherPerformanceTable: React.FC<TeacherPerformanceTableProps> = ({
+  schoolId,
+  teacherId,
+  dateRange
+}) => {
   return (
     <Card>
       <CardHeader>
         <CardTitle>Teacher Performance</CardTitle>
         <CardDescription>
-          Assessment creation and student performance metrics by teacher
+          Summary of teacher performance metrics.
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <div className="space-y-2">
-            <Skeleton className="h-8 w-full" />
-            <Skeleton className="h-8 w-full" />
-            <Skeleton className="h-8 w-full" />
-          </div>
-        ) : (
+      <CardContent className="p-0">
+        <div className="overflow-auto">
           <Table>
-            <TableCaption>Teacher performance metrics</TableCaption>
             <TableHeader>
               <TableRow>
-                <TableHead>Teacher</TableHead>
-                <TableHead className="text-right">Assessments Created</TableHead>
-                <TableHead className="text-right">Students Assessed</TableHead>
-                <TableHead className="text-right">Avg. Submissions</TableHead>
-                <TableHead className="text-right">Avg. Score</TableHead>
-                <TableHead className="text-right">Completion Rate</TableHead>
+                <TableHead className="text-left">Teacher</TableHead>
+                <TableHead>Assessments Created</TableHead>
+                <TableHead>Students Assessed</TableHead>
+                <TableHead>Avg. Student Score</TableHead>
+                <TableHead>Completion Rate</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.length > 0 ? (
-                data.map((teacher) => (
-                  <TableRow key={teacher.teacher_id}>
-                    <TableCell className="font-medium">{teacher.teacher_name}</TableCell>
-                    <TableCell className="text-right">{teacher.assessments_created}</TableCell>
-                    <TableCell className="text-right">{teacher.students_assessed}</TableCell>
-                    <TableCell className="text-right">{teacher.avg_submissions_per_assessment.toFixed(1)}</TableCell>
-                    <TableCell className="text-right">{teacher.avg_student_score.toFixed(1)}</TableCell>
-                    <TableCell className="text-right">{teacher.completion_rate.toFixed(1)}%</TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-4 text-muted-foreground">
-                    No teacher performance data available
-                  </TableCell>
-                </TableRow>
-              )}
+              <TableRow>
+                <TableCell className="font-medium">John Doe</TableCell>
+                <TableCell>15</TableCell>
+                <TableCell>120</TableCell>
+                <TableCell>85%</TableCell>
+                <TableCell>92%</TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell className="font-medium">Jane Smith</TableCell>
+                <TableCell>12</TableCell>
+                <TableCell>110</TableCell>
+                <TableCell>88%</TableCell>
+                <TableCell>95%</TableCell>
+              </TableRow>
             </TableBody>
           </Table>
-        )}
+        </div>
       </CardContent>
     </Card>
   );
-}
+};
+
+export default TeacherPerformanceTable;

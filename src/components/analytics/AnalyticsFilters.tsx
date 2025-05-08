@@ -1,87 +1,59 @@
+import React from 'react';
+import { DateRange } from 'react-day-picker';
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { cn } from "@/lib/utils"
+import { format } from 'date-fns';
 
-import React from "react";
-import { DateRangePicker } from "./DateRangePicker";
-import { StudentSelector } from "./StudentSelector";
-import { TeacherSelector } from "./TeacherSelector";
-import { Card, CardContent } from "@/components/ui/card";
-import { Filter } from "lucide-react";
-import { AnalyticsFilters as FiltersType, DateRange } from "./types";
-
-interface AnalyticsFiltersProps {
-  filters: FiltersType;
-  onFiltersChange: (filters: FiltersType) => void;
-  showStudentSelector?: boolean;
-  showTeacherSelector?: boolean;
-  students?: { id: string; name: string }[];
+export interface AnalyticsFiltersProps {
+  dateRange: DateRange;
+  onDateRangeChange: (range: DateRange) => void;
+  selectedTeacherId?: string;
+  selectedStudentId?: string;
 }
 
 export const AnalyticsFilters: React.FC<AnalyticsFiltersProps> = ({
-  filters,
-  onFiltersChange,
-  showStudentSelector = false,
-  showTeacherSelector = false,
-  students = []
+  dateRange,
+  onDateRangeChange,
+  selectedTeacherId,
+  selectedStudentId
 }) => {
-  const handleDateRangeChange = (range: DateRange | undefined) => {
-    onFiltersChange({
-      ...filters,
-      dateRange: range,
-    });
-  };
-
-  const handleStudentChange = (studentId: string | undefined) => {
-    onFiltersChange({
-      ...filters,
-      selectedStudentId: studentId,
-    });
-  };
-
-  const handleTeacherChange = (teacherId: string | undefined) => {
-    onFiltersChange({
-      ...filters,
-      selectedTeacherId: teacherId,
-    });
-  };
-
   return (
-    <Card className="mb-6">
-      <CardContent className="pt-6">
-        <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
-          <div className="flex items-center text-muted-foreground mb-2 md:mb-0">
-            <Filter className="w-4 h-4 mr-2" />
-            <span>Filter Analytics:</span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full">
-            <div>
-              <DateRangePicker
-                dateRange={filters.dateRange}
-                onDateRangeChange={handleDateRangeChange}
-              />
-            </div>
-
-            {showStudentSelector && (
-              <div>
-                <StudentSelector
-                  students={students}
-                  selectedStudentId={filters.selectedStudentId}
-                  onStudentChange={handleStudentChange}
-                />
-              </div>
+    <div className="flex items-center space-x-4">
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            id="date"
+            variant={"outline"}
+            className={cn(
+              "w-[300px] justify-start text-left font-normal",
+              !dateRange.from ? "text-muted-foreground" : ""
             )}
-
-            {showTeacherSelector && (
-              <div>
-                <TeacherSelector
-                  schoolId={filters.schoolId || ""}
-                  selectedTeacherId={filters.selectedTeacherId}
-                  onTeacherChange={handleTeacherChange}
-                />
-              </div>
+          >
+            <Calendar className="mr-2 h-4 w-4" />
+            {dateRange.from ? (
+              dateRange.to ? (
+                `${format(dateRange.from, "PPP")} - ${format(dateRange.to, "PPP")}`
+              ) : (
+                format(dateRange.from, "PPP")
+              )
+            ) : (
+              <span>Pick a date</span>
             )}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start">
+          <Calendar
+            mode="range"
+            defaultMonth={dateRange?.from}
+            selected={dateRange}
+            onSelect={onDateRangeChange}
+            numberOfMonths={2}
+          />
+        </PopoverContent>
+      </Popover>
+      {selectedTeacherId && <p>Selected Teacher: {selectedTeacherId}</p>}
+      {selectedStudentId && <p>Selected Student: {selectedStudentId}</p>}
+    </div>
   );
 };

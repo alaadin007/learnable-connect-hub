@@ -1,83 +1,89 @@
+import { supabase } from "@/integrations/supabase/client";
 
-import { supabase } from '@/integrations/supabase/client';
-import { SessionLogResult, PerformanceData } from '@/components/chat/types';
+export interface PerformanceData {
+  accuracy?: number;
+  speed?: number;
+  engagement?: number;
+  comprehension?: number;
+  feedback?: string;
+  [key: string]: any; // Add index signature to make it compatible with Json type
+}
 
-export const sessionLogger = {
-  startSessionLog: async (topic: string): Promise<SessionLogResult> => {
-    try {
-      // Call the create_session_log RPC function
-      const { data, error } = await supabase.rpc('create_session_log', {
-        topic
-      });
+export const startSession = async (topic?: string): Promise<string | null> => {
+  try {
+    const { data, error } = await supabase.rpc("create_session_log", {
+      topic: topic || null,
+    });
 
-      if (error) {
-        console.error("Error starting session log:", error);
-        return { id: '', success: false, error: error.message };
-      }
-
-      return { id: data, success: true };
-    } catch (err: any) {
-      console.error("Failed to create session log:", err);
-      return { id: '', success: false, error: err.message };
+    if (error) {
+      console.error("Error starting session:", error);
+      return null;
     }
-  },
 
-  endSessionLog: async (sessionId: string, performanceData?: PerformanceData): Promise<{ success: boolean }> => {
-    try {
-      // Call the end_session_log RPC function
-      const { error } = await supabase.rpc('end_session_log', {
-        log_id: sessionId,
-        performance_data: performanceData ? performanceData : null
-      });
+    return data;
+  } catch (error) {
+    console.error("Error starting session:", error);
+    return null;
+  }
+};
 
-      if (error) {
-        console.error("Error ending session log:", error);
-        return { success: false };
-      }
+export const incrementQueryCount = async (sessionId: string): Promise<boolean> => {
+  try {
+    const { error } = await supabase.rpc("increment_session_query_count", {
+      log_id: sessionId,
+    });
 
-      return { success: true };
-    } catch (err) {
-      console.error("Failed to end session log:", err);
-      return { success: false };
+    if (error) {
+      console.error("Error incrementing query count:", error);
+      return false;
     }
-  },
 
-  updateSessionTopic: async (sessionId: string, topic: string): Promise<{ success: boolean }> => {
-    try {
-      // Call the update_session_topic RPC function
-      const { error } = await supabase.rpc('update_session_topic', {
-        log_id: sessionId,
-        topic
-      });
+    return true;
+  } catch (error) {
+    console.error("Error incrementing query count:", error);
+    return false;
+  }
+};
 
-      if (error) {
-        console.error("Error updating session topic:", error);
-        return { success: false };
-      }
+export const updateSessionTopic = async (sessionId: string, topic: string): Promise<boolean> => {
+  try {
+    const { error } = await supabase.rpc("update_session_topic", {
+      log_id: sessionId,
+      topic: topic,
+    });
 
-      return { success: true };
-    } catch (err) {
-      console.error("Failed to update session topic:", err);
-      return { success: false };
+    if (error) {
+      console.error("Error updating session topic:", error);
+      return false;
     }
-  },
 
-  incrementQueryCount: async (sessionId: string): Promise<{ success: boolean }> => {
-    try {
-      // Call the increment_session_query_count RPC function
-      const { error } = await supabase.rpc('increment_session_query_count', {
-        log_id: sessionId
-      });
+    return true;
+  } catch (error) {
+    console.error("Error updating session topic:", error);
+    return false;
+  }
+};
 
-      if (error) {
-        console.error("Error incrementing query count:", error);
-        return { success: false };
-      }
+export const endSession = async (
+  sessionId: string,
+  performanceMetrics?: PerformanceData
+) => {
+  try {
+    const performanceData = performanceMetrics ? performanceMetrics : null;
 
-      return { success: true };
-    } catch (err) {
-      console.error("Failed to increment query count:", err);
-      return { success: false };
+    const { error } = await supabase.rpc("end_session_log", {
+      log_id: sessionId,
+      performance_data: performanceData
+    });
+
+    if (error) {
+      console.error("Error ending session:", error);
+      return false;
     }
+
+    return true;
+  } catch (error) {
+    console.error("Error ending session:", error);
+    return false;
   }
 };

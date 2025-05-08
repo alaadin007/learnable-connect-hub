@@ -1,337 +1,345 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
-import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
-import { Send, Mic, X, MessageSquare, Stop } from "lucide-react";
-import ChatMessage from "./ChatMessage";
-import TypingIndicator from "./TypingIndicator";
-import VoiceRecorder from "./VoiceRecorder";
-import TextToSpeech from "./TextToSpeech";
-import { Message, SessionLogResult, PerformanceData } from "./types";
-import { sessionLogger } from '@/utils/sessionLogger';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Send, PauseCircle, Trash2, Mic, Square, Volume2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Card, CardContent } from '@/components/ui/card';
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
+import { createSessionLog, incrementSessionQueryCount, endSession, updateSessionTopic } from '@/utils/sessionLogger';
+import { VoiceRecorder } from './VoiceRecorder';
+import { TextToSpeech } from './TextToSpeech';
 
 interface AIChatInterfaceProps {
   conversationId?: string;
-  topic?: string;
-  onConversationCreated?: (id: string) => void;
+  topic?: string | null;
+  onConversationCreated: (id: string) => void;
 }
 
-const AIChatInterface: React.FC<AIChatInterfaceProps> = ({ conversationId, topic: initialTopic, onConversationCreated }) => {
-  const { user, profile } = useAuth();
+interface Message {
+  id: string;
+  sender: 'user' | 'ai';
+  content: string;
+  timestamp: string;
+}
+
+const AIChatInterface: React.FC<AIChatInterfaceProps> = ({ conversationId: initialConversationId, topic: initialTopic, onConversationCreated }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
-  const [textToSpeechEnabled, setTextToSpeechEnabled] = useState(true);
-  const [lastAssistantMessage, setLastAssistantMessage] = useState<string | null>(null);
+  const [isThinking, setIsThinking] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [topic, setTopic] = useState<string | null>(initialTopic || null);
+  const [topic, setTopic] = useState<string | null>(initialTopic || '');
+  const [conversationId, setConversationId] = useState<string | null>(initialConversationId || null);
+  const [isRecording, setIsRecording] = useState(false);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
+  const { user, profile } = useAuth();
+  const { toast } = useToast();
 
-  // Session handling
+  // Load existing messages when conversationId changes
   useEffect(() => {
-    if (topic && !sessionId) {
-      startSession();
-    }
-    
-    return () => {
-      if (sessionId) {
-        endSession();
+    const loadMessages = async () => {
+      if (!conversationId) return;
+
+      try {
+        const response = await fetch(`/api/chat/getMessages?conversationId=${conversationId}`);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch messages: ${response.status}`);
+        }
+        const data = await response.json();
+
+        // Map the data to the Message interface
+        const formattedMessages: Message[] = data.messages.map((msg: any) => ({
+          id: msg.id,
+          sender: msg.sender,
+          content: msg.content,
+          timestamp: msg.timestamp,
+        }));
+
+        setMessages(formattedMessages);
+      } catch (error) {
+        console.error("Error loading messages:", error);
+        toast({
+          variant: "destructive",
+          title: "Uh oh! Something went wrong.",
+          description: "Failed to load previous messages.",
+        });
       }
     };
-  }, [topic]);
 
-  const startSession = async () => {
-    if (!topic) return;
-    
-    try {
-      const result = await sessionLogger.startSessionLog(topic);
-      if (result && result.id) {
-        setSessionId(result.id);
-      }
-    } catch (error) {
-      console.error("Failed to start session:", error);
-    }
-  };
+    loadMessages();
+  }, [conversationId, toast]);
 
-  const endSession = async () => {
-    if (!sessionId) return;
-    
-    try {
-      await sessionLogger.endSessionLog(sessionId);
-    } catch (error) {
-      console.error("Failed to end session:", error);
-    }
-  };
-
-  // Handle conversation loading
+  // Initialize session and conversation on component mount
   useEffect(() => {
-    if (conversationId) {
-      loadConversation();
-    }
-  }, [conversationId]);
+    const initializeSession = async () => {
+      if (!user || !profile) return;
 
-  const loadConversation = async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('messages')
-        .select('*')
-        .eq('conversation_id', conversationId)
-        .order('timestamp', { ascending: true });
+      try {
+        // If a conversation ID already exists, use it; otherwise, create a new session and conversation
+        if (conversationId) {
+          console.log(`Resuming existing conversation with ID: ${conversationId}`);
+          return;
+        }
 
-      if (error) throw error;
+        // Start a new session and get the session ID
+        const newSessionId = await createSessionLog(topic || "General Chat");
+        if (newSessionId) {
+          setSessionId(newSessionId);
 
-      if (data) {
-        const formattedMessages = data.map(msg => ({
-          id: msg.id,
-          role: msg.sender as "user" | "assistant" | "system",
-          content: msg.content,
-          timestamp: msg.timestamp
-        }));
-        
-        setMessages(formattedMessages);
-        
-        // Set the topic from conversation if not provided
-        if (!topic) {
-          const { data: convData } = await supabase
-            .from('conversations')
-            .select('topic, title')
-            .eq('id', conversationId)
-            .single();
-            
-          if (convData) {
-            setTopic(convData.topic || convData.title || null);
+          // Create a new conversation
+          const response = await fetch('/api/chat/createConversation', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              userId: user.id,
+              schoolId: profile.school_id,
+              topic: topic || "General Chat",
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error(`Failed to create conversation: ${response.status}`);
           }
+
+          const data = await response.json();
+          const newConversationId = data.conversationId;
+          setConversationId(newConversationId);
+          onConversationCreated(newConversationId); // Notify the parent component
+
+          toast({
+            title: "New conversation started!",
+            description: "Start chatting to see the magic happen.",
+          });
+        } else {
+          throw new Error("Failed to start a new session.");
+        }
+      } catch (error) {
+        console.error("Error initializing session:", error);
+        toast({
+          variant: "destructive",
+          title: "Uh oh! Something went wrong.",
+          description: "Failed to initialize the chat session.",
+        });
+      }
+    };
+
+    initializeSession();
+  }, [user, profile, topic, onConversationCreated, conversationId, toast]);
+
+  // Update the session topic whenever the topic changes
+  useEffect(() => {
+    const updateTopic = async () => {
+      if (sessionId && topic) {
+        const success = await updateSessionTopic(sessionId, topic);
+        if (!success) {
+          toast({
+            variant: "destructive",
+            title: "Uh oh! Something went wrong.",
+            description: "Failed to update the session topic.",
+          });
         }
       }
-    } catch (err) {
-      console.error("Error loading conversation:", err);
-      toast.error("Failed to load conversation history");
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
 
-  // Create a new conversation
-  const createConversation = async (firstMessage: string) => {
-    if (!user) {
-      toast.error("You must be logged in to start a conversation");
-      return null;
-    }
+    updateTopic();
+  }, [sessionId, topic, toast]);
 
-    try {
-      // Get school ID if not provided
-      const userSchoolId = profile?.school_id || '';
-      
-      if (!userSchoolId) {
-        toast.error("No school association found");
-        return null;
-      }
-      
-      // Create conversation
-      const { data: conversationData, error: conversationError } = await supabase
-        .from('conversations')
-        .insert({
-          user_id: user.id,
-          school_id: userSchoolId,
-          title: topic || "New conversation",
-          topic: topic || null
-        })
-        .select('id')
-        .single();
+  // Function to send a message
+  const sendMessage = useCallback(async () => {
+    if (!input.trim() || isThinking || !user || !profile || !conversationId) return;
 
-      if (conversationError) throw conversationError;
+    const newMessage: Message = {
+      id: Date.now().toString(),
+      sender: 'user',
+      content: input,
+      timestamp: new Date().toISOString(),
+    };
 
-      // Save first message
-      const { error: messageError } = await supabase
-        .from('messages')
-        .insert({
-          conversation_id: conversationData.id,
-          sender: 'user',
-          content: firstMessage
-        });
-
-      if (messageError) throw messageError;
-
-      if (onConversationCreated) {
-        onConversationCreated(conversationData.id);
-      }
-
-      return conversationData.id;
-    } catch (err) {
-      console.error("Error creating conversation:", err);
-      toast.error("Failed to save conversation");
-      return null;
-    }
-  };
-
-  // Save message to existing conversation
-  const saveMessage = async (message: Message, conversationId: string) => {
-    try {
-      const { error } = await supabase
-        .from('messages')
-        .insert({
-          conversation_id: conversationId,
-          sender: message.role,
-          content: message.content
-        });
-
-      if (error) throw error;
-      return true;
-    } catch (err) {
-      console.error("Error saving message:", err);
-      return false;
-    }
-  };
-
-  const handleSubmit = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!input.trim() || isTyping) return;
+    setMessages((prevMessages) => [...prevMessages, newMessage]);
+    setInput('');
+    setIsThinking(true);
 
     try {
-      // Increment query count if session is active
+      // Increment query count
       if (sessionId) {
-        try {
-          await sessionLogger.incrementQueryCount(sessionId);
-        } catch (error) {
-          console.error("Failed to increment query count:", error);
-        }
+        await incrementSessionQueryCount(sessionId);
       }
 
-      // Prepare user message
-      const userMessage: Message = {
-        id: crypto.randomUUID(),
-        role: 'user',
-        content: input,
-        timestamp: new Date().toISOString()
-      };
-
-      setMessages(prevMessages => [...prevMessages, userMessage]);
-      setInput('');
-      setIsTyping(true);
-
-      // Save to database or create new conversation
-      let currentConvId = conversationId;
-      if (!currentConvId) {
-        currentConvId = await createConversation(input);
-      } else {
-        await saveMessage(userMessage, currentConvId);
-      }
-
-      // Call the proxy function
-      const apiKey = process.env.NEXT_PUBLIC_OPENAI_API_KEY;
-      const apiUrl = '/api/proxy-openai';
-        
-      const response = await fetch(apiUrl, {
+      // Send message to the API
+      const response = await fetch('/api/chat/sendMessage', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ prompt: input, apiKey }),
+        body: JSON.stringify({
+          message: input,
+          conversationId: conversationId,
+        }),
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        throw new Error(`Failed to send message: ${response.status}`);
       }
 
-      const responseData = await response.json();
-      if (responseData && responseData.result) {
-        const assistantMessage: Message = {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          content: responseData.result,
-          timestamp: new Date().toISOString()
-        };
+      const data = await response.json();
+      const aiMessage: Message = {
+        id: Date.now().toString(),
+        sender: 'ai',
+        content: data.response,
+        timestamp: new Date().toISOString(),
+      };
 
-        setMessages(prevMessages => [...prevMessages, assistantMessage]);
-        setLastAssistantMessage(assistantMessage.content);
-        if (currentConvId) {
-          await saveMessage(assistantMessage, currentConvId);
-        }
+      setMessages((prevMessages) => [...prevMessages, aiMessage]);
+    } catch (error) {
+      console.error("Error sending message:", error);
+      toast({
+        variant: "destructive",
+        title: "Uh oh! Something went wrong.",
+        description: "Failed to send the message.",
+      });
+    } finally {
+      setIsThinking(false);
+    }
+  }, [input, isThinking, user, profile, conversationId, sessionId, toast]);
+
+  // Function to handle voice transcript
+  const handleVoiceTranscript = (transcript: string) => {
+    setInput(transcript);
+  };
+
+  // Function to clear the conversation
+  const clearConversation = async () => {
+    if (!conversationId) return;
+
+    try {
+      const response = await fetch('/api/chat/clearConversation', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ conversationId: conversationId }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to clear conversation: ${response.status}`);
+      }
+
+      setMessages([]);
+      toast({
+        title: "Conversation cleared!",
+        description: "All messages have been removed.",
+      });
+    } catch (error) {
+      console.error("Error clearing conversation:", error);
+      toast({
+        variant: "destructive",
+        title: "Uh oh! Something went wrong.",
+        description: "Failed to clear the conversation.",
+      });
+    }
+  };
+
+  // Function to end the session
+  const handleEndSession = async () => {
+    if (!sessionId) return;
+
+    try {
+      const success = await endSession(sessionId);
+      if (success) {
+        toast({
+          title: "Session ended!",
+          description: "Your session has been successfully ended.",
+        });
       } else {
-        toast.error("Failed to get response from AI.");
+        throw new Error("Failed to end the session.");
       }
     } catch (error) {
-      console.error("Error in conversation:", error);
-      setIsTyping(false);
-      toast.error("Failed to get response. Please try again.");
-    } finally {
-      setIsTyping(false);
+      console.error("Error ending session:", error);
+      toast({
+        variant: "destructive",
+        title: "Uh oh! Something went wrong.",
+        description: "Failed to end the session.",
+      });
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      handleSubmit(e);
-    }
-  };
+  // Scroll to bottom on new messages
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
-  const handleTranscript = (transcript: string) => {
-    setInput(transcript);
+  // Handle Enter key press to send message
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      sendMessage();
+    }
   };
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-grow overflow-y-auto p-4">
-        {loading ? (
-          <div className="flex justify-center items-center h-full">
-            Loading...
-          </div>
-        ) : (
-          messages.map((message) => (
-            <ChatMessage key={message.id} message={message} />
-          ))
-        )}
-        {isTyping && <TypingIndicator />}
+      {/* Chat Messages */}
+      <div className="flex-grow">
+        <Card className="h-full flex flex-col">
+          <CardContent className="h-full flex flex-col p-4">
+            <ScrollArea className="flex-grow">
+              <div className="space-y-4">
+                {messages.map((message) => (
+                  <div
+                    key={message.id}
+                    className={`flex flex-col text-sm ${message.sender === 'user' ? 'items-end' : 'items-start'
+                      }`}
+                  >
+                    <div
+                      className={`rounded-lg px-3 py-2 inline-block ${message.sender === 'user'
+                        ? 'bg-learnable-light text-right'
+                        : 'bg-gray-100 text-left'
+                        }`}
+                    >
+                      {message.content}
+                    </div>
+                    <span className="text-xs text-gray-500">
+                      {new Date(message.timestamp).toLocaleTimeString()}
+                    </span>
+                  </div>
+                ))}
+                <div ref={chatBottomRef} /> {/* Scroll anchor */}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
       </div>
 
-      <form onSubmit={handleSubmit} className="p-4 border-t">
-        <div className="flex items-center space-x-2">
+      {/* Input and Controls */}
+      <div className="mt-4">
+        <div className="flex items-center gap-2">
           <Input
             type="text"
-            placeholder="Type your message..."
+            placeholder="Type your message here..."
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
+            disabled={isThinking}
             className="flex-grow"
-            disabled={isTyping}
           />
-          <Button 
-            type="button" 
-            variant="ghost" 
-            onClick={() => setShowVoiceRecorder(!showVoiceRecorder)}
-            disabled={isTyping}
-          >
-            {showVoiceRecorder ? <X className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
-          </Button>
-          <Button 
-            type="submit" 
-            disabled={isTyping || !input.trim()}
-          >
-            <Send className="h-5 w-5" />
+          <VoiceRecorder onTranscript={handleVoiceTranscript} isRecording={isRecording} setIsRecording={setIsRecording} />
+          <Button onClick={sendMessage} disabled={isThinking}>
+            {isThinking ? <PauseCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           </Button>
         </div>
-      </form>
-      
-      {showVoiceRecorder && (
-        <div className="mb-4">
-          <VoiceRecorder 
-            onTranscript={handleTranscript} 
-            isRecording={isRecording}
-            setIsRecording={setIsRecording}
-          />
+        <div className="flex justify-between items-center mt-2">
+          <Button variant="ghost" onClick={clearConversation} disabled={isThinking}>
+            <Trash2 className="h-4 w-4 mr-2" />
+            Clear Conversation
+          </Button>
+          <TextToSpeech message={messages.length > 0 ? messages[messages.length - 1].content : ''} />
+          <Button variant="secondary" onClick={handleEndSession} disabled={isThinking}>
+            End Session
+          </Button>
         </div>
-      )}
-      
-      {textToSpeechEnabled && lastAssistantMessage && (
-        <div className="mb-4">
-          <TextToSpeech message={lastAssistantMessage} />
-        </div>
-      )}
+      </div>
     </div>
   );
 };

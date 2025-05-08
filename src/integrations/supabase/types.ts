@@ -794,6 +794,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "students_profiles_fkey"
+            columns: ["id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "students_school_id_fkey"
             columns: ["school_id"]
             isOneToOne: false
@@ -1205,6 +1212,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "students_profiles_fkey"
+            columns: ["student_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "students_school_id_fkey"
             columns: ["school_id"]
             isOneToOne: false
@@ -1460,6 +1474,17 @@ export type Database = {
           completion_rate: number
           top_strengths: string
           top_weaknesses: string
+        }[]
+      }
+      get_students_with_profiles: {
+        Args: { school_id_param: string }
+        Returns: {
+          id: string
+          full_name: string
+          email: string
+          status: string
+          created_at: string
+          last_active: string
         }[]
       }
       get_teacher_performance_metrics: {

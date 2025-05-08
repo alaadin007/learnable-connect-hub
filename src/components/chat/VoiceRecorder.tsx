@@ -1,140 +1,104 @@
-
-// Update the VoiceRecorder component to support the onSendMessage prop
-import React, { useState, useRef } from 'react';
-import { Mic, Square, Loader2 } from 'lucide-react';
-import { Button } from '../ui/button';
-import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
+import { useState, useRef, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Mic, Square } from 'lucide-react';
 
 export interface VoiceRecorderProps {
-  placeholder?: string;
-  isLoading?: boolean;
-  onSendMessage?: (message: string) => Promise<void>;
+  onTranscript: (transcript: string) => void;
+  isRecording: boolean;
+  setIsRecording: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ 
-  placeholder = "Voice recording...",
-  isLoading = false,
-  onSendMessage
-}) => {
-  const [isRecording, setIsRecording] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
+export const VoiceRecorder = ({ onTranscript, isRecording, setIsRecording }: VoiceRecorderProps) => {
+  const mediaRecorder = useRef<MediaRecorder | null>(null);
+  const audioChunks = useRef<Blob[]>([]);
 
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
+  useEffect(() => {
+    const getMicrophone = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder.current = new MediaRecorder(stream);
 
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
+        mediaRecorder.current.ondataavailable = (event) => {
+          audioChunks.current.push(event.data);
+        };
 
-      mediaRecorder.onstop = async () => {
-        await processAudio();
-      };
+        mediaRecorder.current.onstop = async () => {
+          const audioBlob = new Blob(audioChunks.current, { type: 'audio/webm' });
+          audioChunks.current = [];
 
-      mediaRecorder.start();
+          const formData = new FormData();
+          formData.append('audio', audioBlob, 'recording.webm');
+
+          try {
+            const response = await fetch('/api/transcribe', {
+              method: 'POST',
+              body: formData,
+            });
+
+            if (!response.ok) {
+              console.error('Transcription failed:', response.status, response.statusText);
+              return;
+            }
+
+            const data = await response.json();
+            if (data && data.transcript) {
+              onTranscript(data.transcript);
+            } else {
+              console.error('No transcript received');
+            }
+          } catch (error) {
+            console.error('Error during transcription:', error);
+          }
+        };
+      } catch (error) {
+        console.error("Error accessing microphone:", error);
+      }
+    };
+
+    getMicrophone();
+
+    return () => {
+      if (mediaRecorder.current && mediaRecorder.current.state === 'recording') {
+        mediaRecorder.current.stop();
+      }
+    };
+  }, [onTranscript]);
+
+  const startRecording = () => {
+    if (mediaRecorder.current && mediaRecorder.current.state === 'inactive') {
+      audioChunks.current = [];
+      mediaRecorder.current.start();
       setIsRecording(true);
-    } catch (error) {
-      console.error('Error starting recording:', error);
-      toast.error('Unable to access microphone');
     }
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      
-      // Stop all audio tracks
-      if (mediaRecorderRef.current.stream) {
-        mediaRecorderRef.current.stream.getAudioTracks().forEach(track => track.stop());
-      }
-      
+    if (mediaRecorder.current && mediaRecorder.current.state === 'recording') {
+      mediaRecorder.current.stop();
       setIsRecording(false);
-    }
-  };
-
-  const processAudio = async () => {
-    if (audioChunksRef.current.length === 0) return;
-    
-    setIsProcessing(true);
-    
-    try {
-      const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-      
-      // Convert blob to base64
-      const reader = new FileReader();
-      reader.readAsDataURL(audioBlob);
-      
-      reader.onloadend = async () => {
-        const base64Audio = reader.result as string;
-        const base64Data = base64Audio.split(',')[1]; // Remove the data URL prefix
-        
-        const { data, error } = await supabase.functions.invoke('transcribe-audio', {
-          body: { audio: base64Data }
-        });
-        
-        if (error) {
-          console.error('Error transcribing audio:', error);
-          toast.error('Failed to transcribe audio');
-          return;
-        }
-        
-        const transcription = data.text;
-        
-        if (transcription && transcription.trim() && onSendMessage) {
-          toast.success('Audio transcribed successfully');
-          await onSendMessage(transcription);
-        } else {
-          toast.info('No speech detected');
-        }
-      };
-    } catch (error) {
-      console.error('Error processing audio:', error);
-      toast.error('Failed to process recording');
-    } finally {
-      setIsProcessing(false);
     }
   };
 
   return (
     <div>
-      {!isRecording ? (
-        <Button 
-          type="button"
-          variant="outline"
-          size="icon"
-          disabled={isLoading || isProcessing}
-          onClick={startRecording}
-          className="rounded-full"
-          title="Start voice recording"
-        >
-          {isProcessing ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Mic className="h-4 w-4" />
-          )}
-        </Button>
-      ) : (
-        <Button 
-          type="button"
-          variant="destructive"
-          size="icon" 
-          onClick={stopRecording}
-          className="rounded-full animate-pulse"
-          title="Stop recording"
-        >
-          <Square className="h-4 w-4" />
-        </Button>
-      )}
+      <Button
+        variant="outline"
+        onClick={isRecording ? stopRecording : startRecording}
+        className="w-full"
+        disabled={!mediaRecorder.current}
+      >
+        {isRecording ? (
+          <>
+            <Square className="mr-2 h-4 w-4" />
+            Stop Recording
+          </>
+        ) : (
+          <>
+            <Mic className="mr-2 h-4 w-4" />
+            Start Recording
+          </>
+        )}
+      </Button>
     </div>
   );
 };
-
-export default VoiceRecorder;
