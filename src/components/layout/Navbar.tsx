@@ -118,7 +118,7 @@ const Navbar = () => {
       ];
     }
 
-    // For school admin role, show specific admin links based on the image
+    // For school admin role, show ONLY the three specific admin links
     if (isAdmin) {
       return getSchoolAdminNavLinks();
     } 
