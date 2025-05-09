@@ -3,6 +3,7 @@ import { useState, useCallback, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { invokeEdgeFunction } from "@/utils/apiHelpers";
 
 // Types
 interface SchoolCodeResponse {
@@ -60,17 +61,14 @@ export function useSchoolCode(): UseSchoolCodeReturn {
     setError(null);
 
     try {
-      const { data, error } = await supabase.functions.invoke<SchoolCodeResponse>("generate-school-code", {
-        body: { schoolId }
+      // Use the improved invokeEdgeFunction helper
+      const data = await invokeEdgeFunction<SchoolCodeResponse>("generate-school-code", {
+        schoolId: schoolId
+      }, {
+        requireAuth: true,
+        retryCount: 2,
+        timeout: 15000
       });
-
-      if (error) {
-        console.error("Error generating school code:", error);
-        const errorMessage = error.message || "Failed to generate school code";
-        setError(errorMessage);
-        toast.error(errorMessage);
-        return null;
-      }
 
       if (!data?.code) {
         const errorMessage = "No code received from server";

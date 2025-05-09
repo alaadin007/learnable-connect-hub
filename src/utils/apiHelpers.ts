@@ -70,22 +70,21 @@ export async function invokeEdgeFunction<T = any>(
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-      // Invoke the function
-      const { data, error } = await supabase.functions.invoke<T>(functionName, {
+      // Invoke the function with proper options formatting
+      const response = await supabase.functions.invoke<T>(functionName, {
         body: payload,
-        headers,
-        signal: controller.signal
+        headers
       });
 
       clearTimeout(timeoutId);
 
-      if (error) {
-        throw error;
+      if (response.error) {
+        throw response.error;
       }
 
       // Log success
       console.log(`Successfully invoked ${functionName}`);
-      return data;
+      return response.data;
 
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
@@ -105,6 +104,42 @@ export async function invokeEdgeFunction<T = any>(
   }
 
   throw lastError || new Error(`Failed to invoke ${functionName} after ${retryCount} attempts`);
+}
+
+/**
+ * Gets the user's role with a fallback to user_type from profile if roles are not available
+ * @returns The user's role or null if not found
+ */
+export async function getUserRoleWithFallback(): Promise<string | null> {
+  try {
+    // First try to get the session
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session?.user) return null;
+    
+    // Try to get role from user_roles table
+    const { data: roles } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', session.user.id);
+
+    if (roles && roles.length > 0) {
+      return roles[0].role;
+    }
+    
+    // Fallback to checking profile user_type
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('user_type')
+      .eq('id', session.user.id)
+      .single();
+    
+    return profile?.user_type || null;
+    
+  } catch (error) {
+    console.error("Error getting user role:", error);
+    return null;
+  }
 }
 
 /**
@@ -144,7 +179,7 @@ export async function getCurrentSession(): Promise<Session | null> {
   }
 }
 
-// Helper functions
+// Helper functions to enhance edge function calls
 async function prepareHeaders(session: Session | null): Promise<Record<string, string>> {
   const headers: Record<string, string> = {
     "Origin": window.location.origin,
@@ -154,6 +189,9 @@ async function prepareHeaders(session: Session | null): Promise<Record<string, s
   if (session?.access_token) {
     headers.Authorization = `Bearer ${session.access_token}`;
   }
+
+  // Add additional client info for better debugging
+  headers["x-client-info"] = `${navigator.userAgent}`;
 
   return headers;
 }
@@ -165,7 +203,9 @@ function logRequestDetails(
 ): void {
   console.log(`Sending request to edge function: ${functionName}`, {
     hasHeaders: Object.keys(headers).length,
+    headersProvided: Object.keys(headers),
     hasPayload: !!payload,
+    payloadSize: payload ? JSON.stringify(payload).length : 0,
     origin: window.location.origin,
     connectionStatus: navigator.onLine ? "Online" : "Offline",
     timestamp: new Date().toISOString()
