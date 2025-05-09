@@ -68,7 +68,7 @@ const AIChatInterface = () => {
     stop,
   } = useCompletion({
     api: "/api/completion",
-    maxTokens: settings?.maxTokens || 400,
+    max: settings?.maxTokens || 400,  // Changed from maxTokens to max
     temperature: settings?.temperature || 0.5,
     // Track session and usage
     onFinish: () => {
