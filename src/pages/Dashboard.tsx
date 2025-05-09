@@ -7,7 +7,8 @@ import { MessageSquare, FileText, BarChart3, Settings } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
 import Footer from "@/components/layout/Footer";
-import { isSchoolAdmin } from "@/utils/apiHelpers";
+import { isSchoolAdmin, getUserRoleWithFallback } from "@/utils/apiHelpers";
+import { toast } from "sonner";
 
 const Dashboard = () => {
   const { user, profile, userRole } = useAuth();
@@ -16,21 +17,29 @@ const Dashboard = () => {
   
   // Immediate redirect for school admin users
   useEffect(() => {
+    // Get both context role and fallback role to ensure we catch all cases
+    const fallbackRole = getUserRoleWithFallback();
+    const effectiveRole = userRole || fallbackRole;
+    
     // More comprehensive check for school admin roles
-    const isAdmin = isSchoolAdmin(userRole);
+    const isAdmin = isSchoolAdmin(effectiveRole);
     
     if (isAdmin) {
-      console.log(`DASHBOARD REDIRECT: School admin (${userRole}) detected, redirecting to /admin`);
+      console.log(`DASHBOARD REDIRECT: School admin (${effectiveRole}) detected, redirecting to /admin`);
       setIsRedirecting(true);
+      
+      // Show toast notification
+      toast.info("Redirecting to School Admin Dashboard...");
+      
       // Force immediate hard redirect to prevent any back-button issues
       window.location.replace("/admin");
     } else {
-      console.log(`Dashboard component rendering for non-admin user: ${userRole}`);
+      console.log(`Dashboard component rendering for non-admin user: ${effectiveRole}`);
     }
   }, [userRole]);
 
   // If we're redirecting or user is a school admin, show loading state
-  if (isRedirecting || isSchoolAdmin(userRole)) {
+  if (isRedirecting || isSchoolAdmin(userRole) || isSchoolAdmin(getUserRoleWithFallback())) {
     return (
       <div className="h-screen flex flex-col items-center justify-center">
         <p className="text-xl mb-4">Redirecting to School Admin Dashboard...</p>

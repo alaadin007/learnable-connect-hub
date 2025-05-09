@@ -1,7 +1,7 @@
 
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth, UserRole } from "@/contexts/AuthContext";
-import { getUserRoleWithFallback, isSchoolAdmin } from "@/utils/apiHelpers";
+import { getUserRoleWithFallback, getSchoolIdWithFallback, isSchoolAdmin } from "@/utils/apiHelpers";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -26,6 +26,9 @@ const ProtectedRoute = ({
   // Try to get role and school ID from localStorage if not available from auth context
   const fallbackRole = getUserRoleWithFallback();
   const effectiveUserRole = userRole || fallbackRole;
+  
+  console.log('ProtectedRoute: Current path:', location.pathname);
+  console.log('ProtectedRoute: User role:', effectiveUserRole);
   
   // CRITICAL CHECK: If user is school admin, force redirect to admin dashboard when on /dashboard
   // This is the highest priority check - it happens before ANY other checks

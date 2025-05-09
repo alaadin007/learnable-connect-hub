@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -5,6 +6,7 @@ import { Menu, X, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { isSchoolAdmin, getUserRoleWithFallback } from "@/utils/apiHelpers";
 
 const Navbar = () => {
   const { user, signOut, profile, userRole } = useAuth();
@@ -43,8 +45,12 @@ const Navbar = () => {
     }
   }, [signOut, navigate]);
 
+  // Get effective user role from context or localStorage
+  const fallbackRole = getUserRoleWithFallback();
+  const effectiveUserRole = userRole || fallbackRole;
+  
   // Make sure this value is correctly calculated based on userRole
-  const isSchoolAdmin = userRole === "school" || userRole === "school_admin";
+  const isAdmin = isSchoolAdmin(effectiveUserRole);
   
   const isTestAccount = user?.email?.includes(".test@learnable.edu") || user?.id?.startsWith("test-");
   const isPublicPage = ["/", "/features", "/pricing", "/about", "/contact"].includes(location.pathname);
@@ -56,14 +62,14 @@ const Navbar = () => {
 
   // Determine default dashboard path based on user role
   const getDashboardPath = useCallback(() => {
-    if (userRole === 'school' || userRole === 'school_admin') {
+    if (isSchoolAdmin(effectiveUserRole)) {
       return '/admin';
-    } else if (userRole === 'teacher') {
+    } else if (effectiveUserRole === 'teacher') {
       return '/teacher/analytics';
     } else {
       return '/dashboard';
     }
-  }, [userRole]);
+  }, [effectiveUserRole]);
 
   const getNavLinks = useCallback(() => {
     if (isTestAccountsPage) return [];
@@ -82,7 +88,7 @@ const Navbar = () => {
     const dashboardPath = getDashboardPath();
 
     // For school admin role, show only the three links shown in the image: Dashboard, Chat, Documents
-    if (isSchoolAdmin) {
+    if (isAdmin) {
       console.log('Rendering school admin links');
       return [
         { name: "Dashboard", href: dashboardPath },
@@ -91,7 +97,7 @@ const Navbar = () => {
       ];
     } 
     // For teacher role
-    else if (userRole === "teacher") {
+    else if (effectiveUserRole === "teacher") {
       return [
         { name: "Dashboard", href: dashboardPath },
         { name: "Students", href: "/teacher/students" },
@@ -108,7 +114,7 @@ const Navbar = () => {
         { name: "Documents", href: "/documents" },
       ];
     }
-  }, [userRole, isLoggedIn, isTestAccountsPage, getDashboardPath, isSchoolAdmin]);
+  }, [effectiveUserRole, isLoggedIn, isTestAccountsPage, getDashboardPath, isAdmin]);
 
   const navLinks = getNavLinks();
 
@@ -140,6 +146,20 @@ const Navbar = () => {
       return;
     }
     
+    // Special case: if school admin tries to go to /dashboard, redirect to /admin
+    if (isAdmin && path === '/dashboard') {
+      console.log('Navbar: School admin trying to navigate to /dashboard, redirecting to /admin');
+      navigate('/admin', { 
+        state: { 
+          fromNavigation: true,
+          preserveContext: true,
+          timestamp: Date.now()
+        } 
+      });
+      setIsOpen(false);
+      return;
+    }
+    
     navigate(path, { 
       state: { 
         fromNavigation: true,
@@ -148,7 +168,7 @@ const Navbar = () => {
       } 
     });
     setIsOpen(false);
-  }, [location.pathname, navigate]);
+  }, [location.pathname, navigate, isAdmin]);
 
   if (isTestAccountsPage) {
     return null;
