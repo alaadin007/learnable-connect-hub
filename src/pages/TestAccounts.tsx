@@ -1,311 +1,155 @@
 
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { toast } from "sonner";
-import Navbar from "@/components/layout/Navbar";
-import Footer from "@/components/landing/Footer";
 import { Button } from "@/components/ui/button";
-import { Loader2, Info, School, Users, GraduationCap } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-
-const TEST_ACCOUNTS = {
-  school: {
-    email: "school.test@learnable.edu",
-    password: "school123",
-    role: "School Admin",
-    description: "Access the school administrator dashboard and manage teachers",
-    features: [
-      "School analytics dashboard",
-      "Teacher management",
-      "Invite new teachers",
-      "School-wide statistics",
-      "Student performance metrics",
-    ],
-  },
-  teacher: {
-    email: "teacher.test@learnable.edu",
-    password: "teacher123",
-    role: "Teacher",
-    description: "Access teacher analytics and student management",
-    features: [
-      "Student management",
-      "Class analytics",
-      "Assessment creation",
-      "Learning materials management",
-      "AI chat assistance",
-    ],
-  },
-  student: {
-    email: "student.test@learnable.edu",
-    password: "student123",
-    role: "Student",
-    description: "Access student dashboard with learning tools",
-    features: [
-      "AI learning assistant",
-      "Document management",
-      "Assessment submission",
-      "Learning materials access",
-      "Performance tracking",
-    ],
-  },
-};
-
-type AccountType = "school" | "teacher" | "student";
+import { persistUserRoleToDatabase } from "@/utils/apiHelpers"; 
+import { toast } from "sonner";
 
 const TestAccounts = () => {
-  const navigate = useNavigate();
   const { setTestUser } = useAuth();
-  const [loadingAccount, setLoadingAccount] = useState<AccountType | null>(null);
-  const [dataCreationLoading, setDataCreationLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState<string | null>(null);
 
-  // Clear any existing sessions when arriving at the test accounts page
-  useEffect(() => {
-    const clearPreviousSessions = async () => {
-      try {
-        await supabase.auth.signOut();
-        console.log("TestAccounts: Cleared previous sessions on page load");
-        // Also clear any test account indicators
-        localStorage.removeItem('userRole');
-        localStorage.removeItem('schoolId');
-      } catch (error) {
-        console.error("Error clearing sessions:", error);
-      }
-    };
-    
-    clearPreviousSessions();
-  }, []);
-
-  const createTestAccounts = useCallback(async () => {
+  // Helper to use test accounts with proper database persistence
+  const handleUseTestAccount = useCallback(async (accountType: "school" | "teacher" | "student") => {
     try {
-      setDataCreationLoading(true);
-      toast.loading("Refreshing test accounts...", {
-        id: "test-accounts-status",
-      });
-
-      // Check if create-test-accounts function is available in Supabase config
-      const response = await supabase.functions.invoke("create-test-accounts", {
-        body: { createAccounts: true },
-      }).catch(error => {
-        console.error("Error invoking create-test-accounts function:", error);
-        return { error };
-      });
-
-      if (response.error) {
-        toast.error("Failed to refresh test accounts", {
-          id: "test-accounts-error",
-        });
-        console.error("Error creating test accounts:", response.error);
-        return false;
+      setIsLoading(accountType);
+      
+      // First set the test user in auth context
+      await setTestUser(accountType);
+      
+      // Store in sessionStorage for recovery during page reloads
+      sessionStorage.setItem('testAccountType', accountType);
+      
+      // Determine test user ID and school ID based on account type
+      const userId = accountType === 'school' 
+        ? 'test-school-admin' 
+        : accountType === 'teacher' 
+          ? 'test-teacher' 
+          : 'test-student';
+          
+      const schoolId = 'test-school-id';
+      
+      // Persist the role to database for proper functioning
+      await persistUserRoleToDatabase(userId, accountType, schoolId);
+      
+      // Success message
+      toast.success(`Logged in as ${accountType}`);
+      
+      // Navigate to the appropriate dashboard based on the account type
+      if (accountType === "school") {
+        navigate("/admin", { state: { fromTestAccounts: true, preserveContext: true } });
+      } else if (accountType === "teacher") {
+        navigate("/teacher/analytics", { state: { fromTestAccounts: true, preserveContext: true } });
+      } else {
+        navigate("/dashboard", { state: { fromTestAccounts: true, preserveContext: true } });
       }
-
-      toast.success("Test accounts refreshed successfully!", {
-        id: "test-accounts-success",
-      });
-      return true;
     } catch (error) {
-      console.error("Error refreshing test accounts:", error);
-      toast.error("An error occurred while refreshing test accounts", {
-        id: "test-accounts-general-error",
-      });
-      return false;
+      console.error(`Error setting up test ${accountType} account:`, error);
+      toast.error(`Failed to set up test ${accountType} account`);
     } finally {
-      setDataCreationLoading(false);
-      toast.dismiss("test-accounts-status");
+      setIsLoading(null);
     }
-  }, []);
-
-  const handleUseAccount = useCallback(
-    async (accountType: AccountType) => {
-      setErrorMessage(null);
-      setLoadingAccount(accountType);
-      const account = TEST_ACCOUNTS[accountType];
-
-      try {
-        console.log(`TestAccounts: Logging in as ${accountType} test account...`);
-        
-        // First set test user in auth context
-        await setTestUser(accountType);
-        
-        // Store account type in session storage for easier recognition
-        sessionStorage.setItem('testAccountType', accountType);
-        
-        // Immediately show success toast so user gets feedback
-        toast.success(`Logged in as ${account.role}`, {
-          id: `login-success-${accountType}`,
-        });
-
-        // Define redirect paths based on account type
-        let redirectPath = "/dashboard";
-        
-        if (accountType === "school") {
-          redirectPath = "/admin";
-        } else if (accountType === "teacher") {
-          redirectPath = "/teacher/analytics";
-        }
-
-        console.log(`TestAccounts: Navigating to ${redirectPath} for ${accountType}`);
-        
-        // Navigate with proper state parameters
-        navigate(redirectPath, {
-          replace: true,
-          state: { 
-            fromTestAccounts: true,
-            accountType,
-            preserveContext: true,
-            timestamp: Date.now()
-          }
-        });
-      } catch (error: any) {
-        console.error(`Error setting up ${accountType} test account:`, error);
-        setErrorMessage(`Setup failed: ${error.message || "Unknown error"}`);
-        toast.error(`Account setup failed: ${error.message || "Unknown error"}`);
-        
-        // Reset loading state on error
-        setLoadingAccount(null);
-      }
-    },
-    [navigate, setTestUser]
-  );
-
-  const getAccountIcon = (accountType: AccountType) => {
-    switch (accountType) {
-      case "school":
-        return <School className="h-8 w-8 text-blue-600" aria-hidden="true" />;
-      case "teacher":
-        return <Users className="h-8 w-8 text-green-600" aria-hidden="true" />;
-      case "student":
-        return <GraduationCap className="h-8 w-8 text-purple-600" aria-hidden="true" />;
-    }
-  };
+  }, [navigate, setTestUser]);
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <Navbar />
-      <main
-        className="flex-grow flex flex-col items-center justify-center py-8 px-4"
-        aria-live="polite"
-      >
-        <div className="max-w-4xl w-full mx-auto">
-          {errorMessage && (
-            <div
-              className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4"
-              role="alert"
-            >
-              <span className="inline-flex items-center">
-                <svg
-                  className="w-5 h-5 mr-2"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                  aria-hidden="true"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                {errorMessage}
-              </span>
-            </div>
-          )}
-
-          <h1 className="text-3xl font-bold text-center text-learnable-blue mb-2">
-            Test Accounts
-          </h1>
-          <p className="text-center text-gray-600 mb-6">
-            Test the application using these pre-configured accounts for different user roles. Each{" "}
-            account provides access to a specific part of the platform with fully functional features.
+    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 flex flex-col items-center">
+      <div className="max-w-3xl w-full space-y-8">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Test Accounts</h1>
+          <p className="text-gray-600">
+            Use these test accounts to explore different user experiences without creating a real account.
           </p>
-
-          <Alert className="mb-6 bg-amber-50" role="region" aria-label="Test accounts information">
-            <Info className="h-4 w-4" aria-hidden="true" />
-            <AlertDescription>
-              All test accounts are automatically authenticated - just click login to access the platform with the selected role!
-            </AlertDescription>
-          </Alert>
-
-          <div className="flex justify-center space-x-4 mb-6">
-            <Button variant="outline" onClick={() => navigate("/")} className="border-gray-300">
-              Back to Homepage
-            </Button>
-            <Button
-              variant="default"
-              className="bg-learnable-blue hover:bg-learnable-blue/90"
-              onClick={createTestAccounts}
-              disabled={dataCreationLoading}
-            >
-              {dataCreationLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Refreshing Test Data...
-                </>
-              ) : (
-                "Refresh Test Data"
-              )}
-            </Button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {Object.entries(TEST_ACCOUNTS).map(([type, account]) => (
-              <div
-                key={type}
-                className="border rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow"
-              >
-                <div className="flex items-center mb-4">
-                  {getAccountIcon(type as AccountType)}
-                  <h2 className="text-xl font-semibold ml-3">{account.role}</h2>
-                </div>
-                <p className="text-gray-600 text-sm mb-4">{account.description}</p>
-                <div className="mb-4">
-                  <p className="font-medium mb-2 text-sm">Features:</p>
-                  <ul className="text-xs space-y-1 mb-4">
-                    {account.features.map((feature, index) => (
-                      <li key={index} className="flex items-center">
-                        <svg
-                          className="w-3 h-3 mr-1 text-green-500"
-                          fill="currentColor"
-                          viewBox="0 0 20 20"
-                          aria-hidden="true"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                        {feature}
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="bg-green-50 p-2 rounded-md">
-                    <p className="text-green-700 text-xs font-semibold">
-                      Direct access - no authentication required
-                    </p>
-                  </div>
-                </div>
-                <Button
-                  className="w-full bg-blue-700 hover:bg-blue-800"
-                  onClick={() => handleUseAccount(type as AccountType)}
-                  disabled={!!loadingAccount}
-                >
-                  {loadingAccount === type ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Accessing...
-                    </>
-                  ) : (
-                    `Login as ${account.role}`
-                  )}
-                </Button>
-              </div>
-            ))}
-          </div>
         </div>
-      </main>
-      <Footer />
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* School Admin Card */}
+          <Card>
+            <CardHeader className="bg-blue-50 border-b">
+              <CardTitle>School Admin</CardTitle>
+              <CardDescription>
+                Manage school, teachers and students
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <ul className="list-disc list-inside space-y-2 mb-6 text-sm text-gray-700">
+                <li>View analytics dashboard</li>
+                <li>Manage teachers</li>
+                <li>Configure school settings</li>
+                <li>Generate invite codes</li>
+              </ul>
+              <Button
+                className="w-full"
+                onClick={() => handleUseTestAccount("school")}
+                disabled={!!isLoading}
+              >
+                {isLoading === "school" ? "Loading..." : "Use School Admin Account"}
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Teacher Card */}
+          <Card>
+            <CardHeader className="bg-green-50 border-b">
+              <CardTitle>Teacher</CardTitle>
+              <CardDescription>
+                Manage students and assessments
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <ul className="list-disc list-inside space-y-2 mb-6 text-sm text-gray-700">
+                <li>View student progress</li>
+                <li>Create assessments</li>
+                <li>Review student work</li>
+                <li>Track performance metrics</li>
+              </ul>
+              <Button
+                className="w-full"
+                onClick={() => handleUseTestAccount("teacher")}
+                disabled={!!isLoading}
+              >
+                {isLoading === "teacher" ? "Loading..." : "Use Teacher Account"}
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Student Card */}
+          <Card>
+            <CardHeader className="bg-purple-50 border-b">
+              <CardTitle>Student</CardTitle>
+              <CardDescription>
+                Learn and complete assignments
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <ul className="list-disc list-inside space-y-2 mb-6 text-sm text-gray-700">
+                <li>Chat with AI assistant</li>
+                <li>Complete assessments</li>
+                <li>Track learning progress</li>
+                <li>Access study materials</li>
+              </ul>
+              <Button
+                className="w-full"
+                onClick={() => handleUseTestAccount("student")}
+                disabled={!!isLoading}
+              >
+                {isLoading === "student" ? "Loading..." : "Use Student Account"}
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="flex justify-center mt-8">
+          <Button
+            variant="outline"
+            onClick={() => navigate("/")}
+          >
+            Back to Home
+          </Button>
+        </div>
+      </div>
     </div>
   );
 };

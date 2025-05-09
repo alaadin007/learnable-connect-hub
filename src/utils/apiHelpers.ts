@@ -26,7 +26,10 @@ export async function getUserSchoolId(): Promise<string | null> {
       
       // Try to get from user metadata
       if (session.user.user_metadata?.school_id) {
-        return session.user.user_metadata.school_id;
+        // Store in localStorage for future use
+        const schoolId = session.user.user_metadata.school_id;
+        localStorage.setItem('schoolId', schoolId);
+        return schoolId;
       }
       
       // Return a default value if we can't get the real one to prevent errors
@@ -53,7 +56,10 @@ export async function getUserRole(): Promise<UserRole | null> {
     // Try to get from the session
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.user?.user_metadata?.user_type) {
-      return session.user.user_metadata.user_type as UserRole;
+      const role = session.user.user_metadata.user_type as UserRole;
+      // Store in localStorage for future use
+      localStorage.setItem('userRole', role);
+      return role;
     }
     
     // Return default role to prevent errors
@@ -111,11 +117,14 @@ export function getUserRoleWithFallback(): UserRole {
     if (testAccount === 'school') return 'school';
   }
   
-  // Check if we can get it from the session
+  // Try to get it from the session data if available
   try {
     const userMeta = JSON.parse(localStorage.getItem('supabase.auth.token') || '{}');
     if (userMeta?.currentSession?.user?.user_metadata?.user_type) {
-      return userMeta.currentSession.user.user_metadata.user_type;
+      const extractedRole = userMeta.currentSession.user.user_metadata.user_type;
+      // Store for future use
+      localStorage.setItem('userRole', extractedRole);
+      return extractedRole;
     }
   } catch (e) {
     console.error("Error parsing local session:", e);
@@ -128,15 +137,89 @@ export function getSchoolIdWithFallback(): string {
   const schoolId = localStorage.getItem('schoolId');
   if (schoolId) return schoolId;
   
-  // Check if we can get it from the session
+  // Try to get it from the session data if available
   try {
     const userMeta = JSON.parse(localStorage.getItem('supabase.auth.token') || '{}');
     if (userMeta?.currentSession?.user?.user_metadata?.school_id) {
-      return userMeta.currentSession.user.user_metadata.school_id;
+      const extractedSchoolId = userMeta.currentSession.user.user_metadata.school_id;
+      // Store for future use
+      localStorage.setItem('schoolId', extractedSchoolId);
+      return extractedSchoolId;
     }
   } catch (e) {
     console.error("Error parsing local session:", e);
   }
   
   return 'demo-school-id';
+}
+
+// Function to save user role and school ID to database
+export async function persistUserRoleToDatabase(userId: string, role: UserRole, schoolId?: string): Promise<boolean> {
+  try {
+    console.log(`Persisting user role to database: ${role} for user ${userId}`);
+    
+    // First update the profiles table
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .upsert({
+        id: userId,
+        user_type: role,
+        school_id: schoolId || null
+      }, { onConflict: 'id' });
+    
+    if (profileError) {
+      console.error("Error updating profile:", profileError);
+      return false;
+    }
+    
+    // Then update the specific role table (students, teachers, or school_admins)
+    if (role === 'student') {
+      const { error: studentError } = await supabase
+        .from('students')
+        .upsert({
+          id: userId,
+          school_id: schoolId || null,
+          status: 'pending' // New students start as pending
+        }, { onConflict: 'id' });
+      
+      if (studentError) {
+        console.error("Error creating student record:", studentError);
+        return false;
+      }
+    } else if (role === 'teacher') {
+      const { error: teacherError } = await supabase
+        .from('teachers')
+        .upsert({
+          id: userId,
+          school_id: schoolId || null,
+          is_supervisor: false // Default to non-supervisor
+        }, { onConflict: 'id' });
+      
+      if (teacherError) {
+        console.error("Error creating teacher record:", teacherError);
+        return false;
+      }
+    } else if (isSchoolAdmin(role)) {
+      const { error: adminError } = await supabase
+        .from('school_admins')
+        .upsert({
+          id: userId,
+          school_id: schoolId || null
+        }, { onConflict: 'id' });
+      
+      if (adminError) {
+        console.error("Error creating school admin record:", adminError);
+        return false;
+      }
+    }
+    
+    // Store in localStorage for immediate use
+    localStorage.setItem('userRole', role);
+    if (schoolId) localStorage.setItem('schoolId', schoolId);
+    
+    return true;
+  } catch (error) {
+    console.error("Error persisting user role:", error);
+    return false;
+  }
 }

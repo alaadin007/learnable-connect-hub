@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -40,10 +39,13 @@ const Navbar = () => {
     // If school admin is on /dashboard, redirect to /admin immediately
     if (isSchoolAdmin(effectiveRole) && location.pathname === '/dashboard') {
       console.log('NAVBAR: School admin detected on /dashboard, redirecting to /admin');
-      // Use replace to avoid adding to history stack
-      window.location.replace('/admin');
+      // Navigate with proper state to maintain context
+      navigate('/admin', { 
+        state: { preserveContext: true, adminRedirect: true },
+        replace: true
+      });
     }
-  }, [location.pathname, userRole]);
+  }, [location.pathname, userRole, navigate]);
 
   const toggleMenu = () => setIsOpen((open) => !open);
 
@@ -96,6 +98,24 @@ const Navbar = () => {
     }
   }, [effectiveUserRole]);
 
+  // Handle click on logo with role-based navigation while preserving auth state
+  const handleLogoClick = useCallback((e: React.MouseEvent) => {
+    // Only prevent default if user is logged in
+    if (user) {
+      e.preventDefault();
+      
+      // Navigate to the appropriate dashboard based on user role
+      navigate(getDashboardPath(), { 
+        state: { 
+          preserveContext: true, 
+          fromNavigation: true,
+          timestamp: Date.now()
+        } 
+      });
+    }
+    // Otherwise let it navigate to home page normally
+  }, [user, navigate, getDashboardPath]);
+
   // Simplified admin navbar links with more options
   const getSchoolAdminNavLinks = () => {
     return [
@@ -103,6 +123,16 @@ const Navbar = () => {
       { name: "Students", href: "/admin/students" },
       { name: "Analytics", href: "/admin/analytics" },
       { name: "Settings", href: "/admin/settings" },
+    ];
+  };
+
+  // Student navigation links
+  const getStudentNavLinks = () => {
+    return [
+      { name: "Dashboard", href: "/dashboard" },
+      { name: "Chat with AI", href: "/chat" },
+      { name: "Assessments", href: "/student/assessments" },
+      { name: "My Progress", href: "/student/progress" },
     ];
   };
 
@@ -130,9 +160,13 @@ const Navbar = () => {
         { name: "Students", href: "/teacher/students" },
       ];
     } 
-    // Student or other user types
+    // Student role - show student navigation
+    else if (effectiveUserRole === "student") {
+      return getStudentNavLinks();
+    }
+    // Default case
     else {
-      return []; // Empty array as we're removing the default links
+      return [];
     }
   }, [effectiveUserRole, isLoggedIn, isTestAccountsPage, isAdmin]);
 
@@ -154,6 +188,12 @@ const Navbar = () => {
 
     // Handle other specific paths
     switch (href) {
+      case '/chat':
+        return currentPath === '/chat';
+      case '/student/assessments':
+        return currentPath === '/student/assessments';
+      case '/student/progress':
+        return currentPath === '/student/progress';
       default:
         return currentPath === href;
     }
@@ -213,9 +253,20 @@ const Navbar = () => {
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
           <div className="flex-shrink-0">
-            <Link to="/" className="flex items-center">
-              <span className="ml-2 text-xl font-bold gradient-text">LearnAble</span>
-            </Link>
+            {user ? (
+              // For logged-in users, use onClick handler to preserve context
+              <button 
+                onClick={handleLogoClick}
+                className="flex items-center text-left"
+              >
+                <span className="ml-2 text-xl font-bold gradient-text">LearnAble</span>
+              </button>
+            ) : (
+              // For non-logged in users, use regular Link
+              <Link to="/" className="flex items-center">
+                <span className="ml-2 text-xl font-bold gradient-text">LearnAble</span>
+              </Link>
+            )}
           </div>
 
           {/* Mobile menu button */}

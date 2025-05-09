@@ -67,7 +67,7 @@ const Dashboard = () => {
     );
   }
 
-  // Standard student dashboard below
+  // Standard student dashboard below - always include Navbar
   return (
     <>
       <Navbar />
