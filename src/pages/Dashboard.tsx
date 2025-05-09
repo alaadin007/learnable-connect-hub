@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -15,7 +14,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const [isRedirecting, setIsRedirecting] = useState(false);
   
-  // Immediate redirect for school admin users
+  // Immediate redirect for school admin users - high priority check
   useEffect(() => {
     // Get both context role and fallback role to ensure we catch all cases
     const fallbackRole = getUserRoleWithFallback();

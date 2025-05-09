@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -33,37 +34,24 @@ const ChatWithAI = () => {
     const effectiveRole = userRole || fallbackRole;
     const isAdmin = isSchoolAdmin(effectiveRole);
     
-    // Check if the user is a school admin and should be redirected back to admin dashboard
-    // when they're done using the chat feature
+    // Set return state for when they navigate away from chat
     if (isAdmin) {
-      console.log("ChatWithAI: User is school admin, setting state for proper navigation");
-      // Don't redirect immediately, but ensure the state is set for proper return
-      // The actual redirect will be handled by the Dashboard link in Navbar
+      console.log("ChatWithAI: User is school admin, setting state for proper navigation back to /admin");
+      
+      // Update location state to ensure proper return navigation
+      if (!location.state?.schoolAdminReturn) {
+        navigate(location.pathname, {
+          state: { 
+            ...location.state,
+            preserveContext: true, 
+            schoolAdminReturn: true,
+            timestamp: Date.now()
+          },
+          replace: true
+        });
+      }
     }
-  }, [user, navigate, userRole]);
-
-  // Handle return to dashboard for school admin users
-  const handleReturnToDashboard = () => {
-    const fallbackRole = getUserRoleWithFallback();
-    const effectiveRole = userRole || fallbackRole;
-    
-    if (isSchoolAdmin(effectiveRole)) {
-      navigate("/admin", { 
-        state: { 
-          preserveContext: true, 
-          fromNavigation: true,
-          schoolAdminReturn: true,
-          timestamp: Date.now()
-        } 
-      });
-    } else {
-      navigate("/dashboard", { 
-        state: { 
-          preserveContext: true 
-        } 
-      });
-    }
-  };
+  }, [user, navigate, userRole, location]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

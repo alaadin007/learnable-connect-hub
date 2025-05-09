@@ -32,31 +32,24 @@ const Documents: React.FC = () => {
       return;
     }
     
-    // For school admin users, ensure proper navigation state
+    // For school admin users, ensure proper navigation state for returning to admin
     if (isAdmin) {
       console.log("Documents: User is school admin, setting state for proper navigation");
-      // The actual redirect will happen when clicking Dashboard in Navbar
-      // Just ensure we have the right state for when that happens
+      
+      // Update location state to ensure proper return navigation
+      if (!location.state?.schoolAdminReturn) {
+        navigate(location.pathname, {
+          state: { 
+            ...location.state,
+            preserveContext: true, 
+            schoolAdminReturn: true,
+            timestamp: Date.now()
+          },
+          replace: true
+        });
+      }
     }
-  }, [user, navigate, redirecting, isAdmin]);
-  
-  // Handle return to dashboard specifically for school admins
-  const handleReturnToDashboard = () => {
-    if (isAdmin) {
-      navigate("/admin", { 
-        state: { 
-          preserveContext: true, 
-          fromNavigation: true,
-          schoolAdminReturn: true,
-          timestamp: Date.now()
-        } 
-      });
-    } else {
-      navigate("/dashboard", { 
-        state: { preserveContext: true } 
-      });
-    }
-  };
+  }, [user, navigate, redirecting, isAdmin, location]);
 
   if (!user) {
     return (

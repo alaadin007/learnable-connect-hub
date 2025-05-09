@@ -186,7 +186,7 @@ const Navbar = () => {
       return;
     }
     
-    // Special case for navigation to Dashboard specifically
+    // Special case for navigation to Dashboard
     if (path === "/dashboard" || path === "/admin") {
       // If school admin, ensure we always go to /admin
       if (isSchoolAdmin(effectiveUserRole)) {
@@ -197,13 +197,29 @@ const Navbar = () => {
           fromNavigation: true,
           preserveContext: true,
           timestamp: Date.now(),
-          adminRedirect: true
+          adminRedirect: true,
+          schoolAdminReturn: true
         };
         
-        navigate('/admin', { state: navState });
+        navigate('/admin', { state: navState, replace: true });
         setIsOpen(false);
         return;
       }
+    }
+    
+    // For Chat and Documents paths with school admin users
+    if ((path === "/chat" || path === "/documents") && isSchoolAdmin(effectiveUserRole)) {
+      // Create navigation state with proper typing that will help when returning to admin
+      const navState: NavigationState = {
+        fromNavigation: true,
+        preserveContext: true,
+        timestamp: Date.now(),
+        schoolAdminReturn: true
+      };
+      
+      navigate(path, { state: navState });
+      setIsOpen(false);
+      return;
     }
     
     // For other paths or non-admin users

@@ -43,12 +43,19 @@ const ProtectedRoute = ({
   console.log('ProtectedRoute: User role:', effectiveUserRole);
   console.log('ProtectedRoute: Is school admin:', isSchoolAdmin(effectiveUserRole));
   console.log('ProtectedRoute: Location state:', locationState);
-  
-  // CRITICAL CHECK: If user is school admin, force redirect to admin dashboard when on /dashboard
-  // This is the highest priority check - it happens before ANY other checks
-  if (isSchoolAdmin(effectiveUserRole) && location.pathname === '/dashboard') {
+
+  // HIGHEST PRIORITY CHECK:
+  // If user is on /dashboard and they're a school admin, ALWAYS redirect to /admin
+  if (location.pathname === '/dashboard' && isSchoolAdmin(effectiveUserRole)) {
     console.log("PROTECTED ROUTE: School admin detected on /dashboard, forcing redirect to /admin");
     // Use replace: true to prevent back button from returning to /dashboard
+    return <Navigate to="/admin" state={{ preserveContext: true, adminRedirect: true }} replace />;
+  }
+  
+  // Also check for other dashboard-like paths
+  if (isSchoolAdmin(effectiveUserRole) && 
+      ['/student/assessments', '/student/progress', '/student/settings'].includes(location.pathname)) {
+    console.log("PROTECTED ROUTE: School admin detected on student page, redirecting to /admin");
     return <Navigate to="/admin" state={{ preserveContext: true, adminRedirect: true }} replace />;
   }
 
