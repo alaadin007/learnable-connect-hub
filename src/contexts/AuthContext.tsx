@@ -30,7 +30,7 @@ const AuthContext = createContext<AuthContextType>({
   userRole: null,
   isSuperviser: false,
   schoolId: null,
-  isLoading: true,
+  isLoading: false,
   signIn: async () => {},
   signOut: async () => {},
   updateProfile: async () => {},
@@ -50,18 +50,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [userRole, setUserRole] = useState<UserRole>(null);
   const [isSuperviser, setIsSuperviser] = useState<boolean>(false);
   const [schoolId, setSchoolId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
   // Optimized auth initialization
   useEffect(() => {
-    console.log("AuthContext: Starting auth initialization");
-    setIsLoading(true);
-    
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, currentSession) => {
-        console.log("AuthContext: Auth state change event:", event);
-        
         // Update session and user synchronously
         setSession(currentSession);
         setUser(currentSession?.user || null);
@@ -74,7 +69,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setUserRole(null);
           setIsSuperviser(false);
           setSchoolId(null);
-          setIsLoading(false);
         }
       }
     );
@@ -82,15 +76,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Check for existing session
     const checkSession = async () => {
       const { data: { session: initialSession } } = await supabase.auth.getSession();
-      console.log("AuthContext: Initial session check:", initialSession ? "Session exists" : "No session");
       
       setSession(initialSession);
       setUser(initialSession?.user || null);
 
       if (initialSession?.user) {
         await fetchUserProfile(initialSession.user);
-      } else {
-        setIsLoading(false);
       }
     };
 
@@ -124,7 +115,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const fetchUserProfile = async (currentUser: User) => {
-    console.log("AuthContext: Fetching user profile for:", currentUser.id);
     try {
       // Fetch profile data directly to avoid RPC calls that might cause recursion
       const { data: profileData, error: profileError } = await supabase
@@ -163,7 +153,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           undefined
       } : null;
       
-      console.log("AuthContext: Fetched profile:", fetchedProfile);
       setProfile(fetchedProfile);
 
       // Set school ID
@@ -171,7 +160,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       // Determine user role
       const role = await getUserRoleWithFallback(currentUser);
-      console.log("AuthContext: User role determined:", role);
       
       // Set user role
       setUserRole(role as UserRole);
@@ -180,8 +168,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setIsSuperviser(fetchedProfile?.is_supervisor === true || await checkIfUserIsSchoolAdmin(currentUser.id));
     } catch (error) {
       console.error("Error fetching user profile or determining role:", error);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -197,7 +183,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const signOut = async () => {
     try {
-      console.log("AuthContext: Attempting to sign out");
       await supabase.auth.signOut();
       
       // Clear all auth-related state
@@ -208,8 +193,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setIsSuperviser(false);
       setSchoolId(null);
       
-      console.log("AuthContext: User successfully signed out");
-      
       // Navigate is handled by the component calling this function
     } catch (error) {
       console.error("AuthContext: Error signing out:", error);
@@ -218,7 +201,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const updateProfile = async (updates: any) => {
-    setIsLoading(true);
     try {
       const { error } = await supabase.from('profiles').upsert({
         id: user!.id,
@@ -233,25 +215,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setProfile((prevProfile) => ({ ...prevProfile, ...updates } as Profile));
     } catch (error: any) {
       alert(error.error_description || error.message);
-    } finally {
-      setIsLoading(false);
     }
   };
   
   const refreshProfile = async () => {
     if (!user) {
-      console.log("AuthContext: Cannot refresh profile - no user");
       return;
     }
     
     try {
-      console.log("AuthContext: Refreshing profile for user:", user.id);
-      setIsLoading(true);
       await fetchUserProfile(user);
     } catch (error) {
       console.error("AuthContext: Error refreshing user profile:", error);
-    } finally {
-      setIsLoading(false);
     }
   };
   
@@ -296,8 +271,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUserRole(accountType as UserRole);
       setIsSuperviser(accountType === "school");
       setSchoolId(mockProfile.organization_id || null);
-      
-      console.log(`Set test user: ${accountType}`, mockUser, mockProfile);
     } catch (error) {
       console.error("Error setting test user:", error);
       throw error;

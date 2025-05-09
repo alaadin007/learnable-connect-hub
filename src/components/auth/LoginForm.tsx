@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,13 +8,12 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { Clock, Loader2, AlertCircle } from "lucide-react";
+import { Clock, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const LoginForm = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginAttemptInProgress, setLoginAttemptInProgress] = useState(false);
   
@@ -37,11 +37,7 @@ const LoginForm = () => {
 
   // Check if user is already authenticated and redirect immediately
   useEffect(() => {
-    console.log("LoginForm: Checking if user is already authenticated");
-    
     if (user && session && userRole) {
-      console.log("LoginForm: User is authenticated, redirecting based on role:", userRole);
-      
       let redirectPath = "/dashboard";
       if (userRole === "school" || userRole === "school_admin") {
         redirectPath = "/admin";
@@ -62,7 +58,6 @@ const LoginForm = () => {
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
     setLoginError(null);
-    console.log("LoginForm: Login attempt started");
 
     if (!email || !password) {
       toast.error("Please enter both email and password");
@@ -71,23 +66,19 @@ const LoginForm = () => {
     
     // Prevent double submission
     if (loginAttemptInProgress) {
-      console.log("Login attempt already in progress, ignoring duplicate request");
       return;
     }
     
-    setIsLoading(true);
     setLoginAttemptInProgress(true);
 
     try {
       // Handle test accounts - direct login without authentication
       if (email.includes(".test@learnable.edu")) {
-        console.log(`Using test account login flow for ${email}`);
         let type: "school" | "teacher" | "student" = "student";
         if (email.startsWith("school")) type = "school";
         else if (email.startsWith("teacher")) type = "teacher";
 
         await setTestUser(type);
-        console.log(`Test user set: ${type}`);
 
         const redirectPath = type === "school"
           ? "/admin"
@@ -116,8 +107,6 @@ const LoginForm = () => {
         });
         return;
       }
-
-      console.log(`Attempting to login with email: ${email}`);
       
       // Regular user login flow - using direct Supabase auth
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -126,20 +115,15 @@ const LoginForm = () => {
       });
 
       if (error) {
-        console.error("Supabase authentication error:", error);
         throw error;
       }
 
       if (!data?.user) {
-        console.error("Login successful but no user data returned");
         throw new Error("User data not found after authentication");
       }
-
-      console.log("Login successful, user data:", data.user);
       
       // Immediately refresh profile data
       await refreshProfile();
-      console.log("Profile refreshed after login");
       
       toast.success("Login successful", {
         description: `Welcome back, ${data.user.user_metadata?.full_name || email}!`,
@@ -174,7 +158,6 @@ const LoginForm = () => {
         });
       }
     } catch (error: any) {
-      console.error("Login error:", error);
       setLoginError(error.message);
 
       if (error.message) {
@@ -196,7 +179,6 @@ const LoginForm = () => {
         });
       }
     } finally {
-      setIsLoading(false);
       setLoginAttemptInProgress(false);
     }
   };
@@ -205,20 +187,17 @@ const LoginForm = () => {
     type: "school" | "teacher" | "student",
     schoolIndex = 0
   ) => {
-    console.log(`Quick login attempt for ${type}`);
     // Prevent double submission
     if (loginAttemptInProgress) {
       return;
     }
     
-    setIsLoading(true);
     setLoginAttemptInProgress(true);
     setLoginError(null);
 
     try {
       // Direct login for test accounts
       await setTestUser(type, schoolIndex);
-      console.log(`Test user set for quick login: ${type}`);
 
       // Define redirect paths
       let redirectPath = "/dashboard";
@@ -248,11 +227,9 @@ const LoginForm = () => {
         }
       });
     } catch (error: any) {
-      console.error("Quick login error:", error);
       setLoginError(`Failed to log in with test account: ${error.message}`);
       toast.error("Failed to log in with test account");
     } finally {
-      setIsLoading(false);
       setLoginAttemptInProgress(false);
     }
   };
@@ -262,7 +239,6 @@ const LoginForm = () => {
       toast.error("Please enter your email address");
       return;
     }
-    setIsLoading(true);
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -279,8 +255,6 @@ const LoginForm = () => {
       }
     } catch (error: any) {
       toast.error("An error occurred: " + error.message);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -317,7 +291,6 @@ const LoginForm = () => {
                     type="button"
                     onClick={() => handleQuickLogin("school")}
                     className="text-sm text-blue-800 font-semibold hover:text-blue-900 bg-blue-100 px-3 py-1 rounded-full transition-colors duration-200"
-                    disabled={isLoading}
                   >
                     Admin Login
                   </button>
@@ -325,7 +298,6 @@ const LoginForm = () => {
                     type="button"
                     onClick={() => handleQuickLogin("teacher")}
                     className="text-sm text-green-800 font-semibold hover:text-green-900 bg-green-100 px-3 py-1 rounded-full transition-colors duration-200"
-                    disabled={isLoading}
                   >
                     Teacher Login
                   </button>
@@ -333,7 +305,6 @@ const LoginForm = () => {
                     type="button"
                     onClick={() => handleQuickLogin("student")}
                     className="text-sm text-purple-800 font-semibold hover:text-purple-900 bg-purple-100 px-3 py-1 rounded-full transition-colors duration-200"
-                    disabled={isLoading}
                   >
                     Student Login
                   </button>
@@ -359,7 +330,6 @@ const LoginForm = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 autoComplete="email"
-                disabled={isLoading}
               />
             </div>
             <div className="space-y-2">
@@ -369,7 +339,6 @@ const LoginForm = () => {
                   type="button"
                   onClick={handleResetPassword}
                   className="text-sm text-learnable-blue hover:underline"
-                  disabled={isLoading}
                 >
                   Forgot password?
                 </button>
@@ -381,23 +350,14 @@ const LoginForm = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 autoComplete="current-password"
-                disabled={isLoading}
               />
             </div>
             <Button
               type="submit"
               className="w-full gradient-bg"
-              disabled={isLoading}
-              aria-busy={isLoading}
+              disabled={loginAttemptInProgress}
             >
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Logging in...
-                </>
-              ) : (
-                "Log in"
-              )}
+              Log in
             </Button>
           </form>
         </CardContent>

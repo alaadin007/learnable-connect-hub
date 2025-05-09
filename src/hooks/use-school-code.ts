@@ -24,7 +24,6 @@ export function useSchoolCode(): UseSchoolCodeReturn {
 
     setIsGenerating(true);
     try {
-      // Instead of using RPC that could trigger infinite recursion, use direct SQL function call
       const { data, error } = await supabase.functions.invoke("generate-school-code", {
         body: { schoolId }
       });

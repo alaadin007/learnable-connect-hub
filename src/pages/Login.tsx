@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import LoginForm from "@/components/auth/LoginForm";
 import Footer from "@/components/landing/Footer";
 import { Link, useNavigate } from "react-router-dom";
