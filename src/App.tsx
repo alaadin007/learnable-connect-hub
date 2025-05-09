@@ -71,37 +71,37 @@ function App() {
 
           {/* School admin routes */}
           <Route path="/admin" element={
-            <ProtectedRoute requiredUserType="school">
+            <ProtectedRoute allowedRoles={["school", "school_admin"]}>
               <SchoolAdmin />
             </ProtectedRoute>
           } />
           
           <Route path="/admin/teacher-management" element={
-            <ProtectedRoute requiredUserType="school">
+            <ProtectedRoute allowedRoles={["school", "school_admin"]}>
               <AdminTeacherManagement />
             </ProtectedRoute>
           } />
           
           <Route path="/admin/teachers" element={
-            <ProtectedRoute requiredUserType="school">
+            <ProtectedRoute allowedRoles={["school", "school_admin"]}>
               <AdminTeachers />
             </ProtectedRoute>
           } />
           
           <Route path="/admin/analytics" element={
-            <ProtectedRoute requiredUserType="school">
+            <ProtectedRoute allowedRoles={["school", "school_admin"]}>
               <AdminAnalytics />
             </ProtectedRoute>
           } />
 
           <Route path="/admin/students" element={
-            <ProtectedRoute requiredUserType="school">
+            <ProtectedRoute allowedRoles={["school", "school_admin"]}>
               <AdminStudents />
             </ProtectedRoute>
           } />
 
           <Route path="/admin/settings" element={
-            <ProtectedRoute requiredUserType="school">
+            <ProtectedRoute allowedRoles={["school", "school_admin"]}>
               <SchoolSettings />
             </ProtectedRoute>
           } />

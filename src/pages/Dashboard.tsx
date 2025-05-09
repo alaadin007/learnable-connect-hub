@@ -1,235 +1,20 @@
 
-import React, { useEffect, useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import React from "react";
+import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import { Button } from "@/components/ui/button";
 import { MessageSquare, FileText, BarChart3, Settings } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
 import Footer from "@/components/layout/Footer";
-import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 
 const Dashboard = () => {
-  const { user, profile, userRole, refreshProfile } = useAuth();
+  const { user, profile, userRole } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
-  const [isLoading, setIsLoading] = useState(true);
-  const [hasError, setHasError] = useState(false);
   
-  // Enhanced debug logs to help understand what's happening
-  useEffect(() => {
-    console.log("Dashboard: User data:", { 
-      userId: user?.id,
-      email: user?.email,
-      role: userRole,
-      profileData: profile,
-      locationState: location.state
-    });
-    
-    // Attempt to refresh profile if it's missing or incomplete
-    if (user && (!profile || !userRole)) {
-      console.log("Dashboard: Profile or role missing, attempting refresh");
-      refreshProfile();
-    }
-    
-    // Set a maximum loading time to prevent infinite loading state
-    const loadingTimeout = setTimeout(() => {
-      if (isLoading) {
-        console.log("Dashboard: Loading timeout reached, continuing anyway");
-        setIsLoading(false);
-      }
-    }, 3000); // 3 seconds max loading time
-    
-    return () => clearTimeout(loadingTimeout);
-  }, [user, profile, userRole, location.state, isLoading, refreshProfile]);
+  // This component is now rendered only after the Protected Route has validated the user
+  // So we don't need complex redirection logic here
 
-  // Handle redirections with improved error handling
-  useEffect(() => {
-    const checkUserRoleAndNavigate = async () => {
-      try {
-        setIsLoading(true);
-        
-        if (!user) {
-          // Allow test accounts/navigation with preserved context to bypass this check
-          if (location.state?.fromTestAccounts || location.state?.preserveContext) {
-            console.log("Dashboard: Bypassing login check due to navigation context");
-            setIsLoading(false);
-            return;
-          }
-          
-          console.log("Dashboard: No user found, redirecting to login");
-          navigate("/login");
-          return;
-        }
-        
-        // Check for school admin indicators in user metadata if role is not yet determined
-        let isSchoolAdmin = userRole === "school" || userRole === "school_admin";
-
-        // If userRole is null but we have user_metadata, check there
-        if (!userRole && user.user_metadata) {
-          const metadataRole = user.user_metadata.user_type;
-          if (metadataRole === "school" || metadataRole === "school_admin") {
-            console.log("Dashboard: School admin detected from user metadata");
-            isSchoolAdmin = true;
-          }
-        }
-        
-        // If we still have no determination, check email pattern
-        if (!isSchoolAdmin && user.email) {
-          if (user.email.includes('school') || user.email.includes('admin')) {
-            console.log("Dashboard: School admin detected from email pattern");
-            isSchoolAdmin = true;
-          }
-        }
-        
-        console.log("Dashboard: User role detected:", userRole || "unknown");
-
-        // Special case: If we determined this is a school admin but haven't set userRole yet
-        if (isSchoolAdmin) {
-          console.log("Dashboard: School admin detected, redirecting to admin dashboard");
-          navigate("/admin", { 
-            state: { fromNavigation: true, preserveContext: true },
-            replace: true 
-          });
-          return;
-        }
-
-        // Handle redirection logic with improved handling for school admin roles
-        if (userRole === "school" || userRole === "school_admin") {
-          console.log("Dashboard: School admin detected, redirecting to admin dashboard");
-          navigate("/admin", { 
-            state: { fromNavigation: true, preserveContext: true },
-            replace: true 
-          });
-          return;
-        }
-
-        if (userRole === "teacher") {
-          console.log("Dashboard: Teacher detected, redirecting to teacher analytics");
-          navigate("/teacher/analytics", { 
-            state: { fromNavigation: true, preserveContext: true },
-            replace: true 
-          });
-          return;
-        }
-
-        // Handle test account (might have different role mapping) as a fallback
-        const isTestAccount = user.email?.includes(".test@learnable.edu") || 
-                            user.id?.startsWith("test-");
-                              
-        if (isTestAccount) {
-          console.log("Dashboard: Test account detected, checking role from user metadata");
-          const metadataRole = user.user_metadata?.user_type;
-          
-          if (metadataRole === "school" || metadataRole === "school_admin") {
-            console.log("Dashboard: Test school admin detected from metadata, redirecting");
-            navigate("/admin", { 
-              state: { fromTestAccounts: true, preserveContext: true },
-              replace: true 
-            });
-            return;
-          } else if (metadataRole === "teacher") {
-            console.log("Dashboard: Test teacher detected from metadata, redirecting");
-            navigate("/teacher/analytics", { 
-              state: { fromTestAccounts: true, preserveContext: true },
-              replace: true 
-            });
-            return;
-          }
-        }
-        
-        // If we've reached this point and still don't know the user role 
-        // but they might be a school admin based on DB records, check teachers table
-        if (!userRole && user.id) {
-          console.log("Dashboard: Checking database for user role");
-          
-          // Use async/await in a try-catch block
-          try {
-            const { data } = await supabase.from("teachers")
-              .select("is_supervisor")
-              .eq("id", user.id)
-              .single();
-              
-            if (data && data.is_supervisor) {
-              console.log("Dashboard: School admin found in teachers table");
-              navigate("/admin", { 
-                state: { fromNavigation: true, preserveContext: true },
-                replace: true 
-              });
-              return;
-            } else {
-              console.log("Dashboard: User is not a supervisor in teachers table");
-            }
-          } catch (error) {
-            console.log("Dashboard: Error checking teachers table:", error);
-            // Continue with student dashboard as fallback
-          }
-        }
-
-        console.log("Dashboard: User remaining on student dashboard");
-        setIsLoading(false);
-      } catch (error) {
-        console.error("Dashboard: Error during redirection:", error);
-        setHasError(true);
-        setIsLoading(false);
-        toast.error("Something went wrong. Please try refreshing the page.", {
-          duration: 5000,
-        });
-      }
-    };
-    
-    checkUserRoleAndNavigate();
-  }, [user, navigate, location.state, userRole, refreshProfile]);
-
-  // If there are issues with profile loading, show a more helpful message
-  useEffect(() => {
-    if (user && !profile && !location.state?.fromTestAccounts) {
-      console.log("Dashboard: User exists but no profile data");
-      toast.error("Unable to load your profile. Please try refreshing the page.", {
-        duration: 5000,
-      });
-    }
-  }, [user, profile, location.state]);
-
-  // Show error state if something went wrong
-  if (hasError) {
-    return (
-      <>
-        <Navbar />
-        <main className="container mx-auto px-4 py-8 min-h-screen flex flex-col items-center justify-center">
-          <div className="text-center">
-            <h2 className="text-xl font-semibold mb-4">Something went wrong</h2>
-            <p className="mb-6">We had trouble loading your dashboard. Please try again.</p>
-            <Button 
-              onClick={() => window.location.reload()}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              Refresh Page
-            </Button>
-          </div>
-        </main>
-        <Footer />
-      </>
-    );
-  }
-
-  // Show loading state if user or profile data is not ready
-  if (isLoading) {
-    return (
-      <>
-        <Navbar />
-        <main className="container mx-auto px-4 py-8 min-h-screen flex items-center justify-center">
-          <div className="text-center">
-            <p className="text-xl mb-4">Loading your dashboard...</p>
-            <div className="w-16 h-1 bg-blue-600 animate-pulse mx-auto"></div>
-          </div>
-        </main>
-      </>
-    );
-  }
-
-  // This is now primarily for student users
   return (
     <>
       <Navbar />
@@ -247,7 +32,7 @@ const Dashboard = () => {
             description="Get help with your studies from our AI learning assistant"
             icon={<MessageSquare className="h-10 w-10" />}
             buttonText="Go to Chat with AI"
-            onClick={() => navigate("/chat", { state: { fromNavigation: true, preserveContext: true } })}
+            onClick={() => navigate("/chat", { state: { preserveContext: true } })}
           />
           
           <DashboardCard
@@ -255,7 +40,7 @@ const Dashboard = () => {
             description="View and complete your assigned assessments"
             icon={<FileText className="h-10 w-10" />}
             buttonText="Go to Assessments"
-            onClick={() => navigate("/student/assessments", { state: { fromNavigation: true, preserveContext: true } })}
+            onClick={() => navigate("/student/assessments", { state: { preserveContext: true } })}
           />
           
           <DashboardCard
@@ -263,7 +48,7 @@ const Dashboard = () => {
             description="Track your performance and learning progress"
             icon={<BarChart3 className="h-10 w-10" />}
             buttonText="Go to My Progress"
-            onClick={() => navigate("/student/progress", { state: { fromNavigation: true, preserveContext: true } })}
+            onClick={() => navigate("/student/progress", { state: { preserveContext: true } })}
           />
           
           <DashboardCard
@@ -271,7 +56,7 @@ const Dashboard = () => {
             description="Manage your profile and preferences"
             icon={<Settings className="h-10 w-10" />}
             buttonText="Go to Settings"
-            onClick={() => navigate("/student/settings", { state: { fromNavigation: true, preserveContext: true } })}
+            onClick={() => navigate("/student/settings", { state: { preserveContext: true } })}
           />
         </div>
       </main>

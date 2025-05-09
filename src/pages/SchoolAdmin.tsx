@@ -1,5 +1,5 @@
 
-import React, { useEffect } from "react";
+import React from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,16 +13,8 @@ const SchoolAdmin = () => {
   const navigate = useNavigate();
   const location = useLocation();
   
-  useEffect(() => {
-    // Only verify user type if not coming from test accounts
-    if (!location.state?.fromTestAccounts && !location.state?.preserveContext) {
-      // If user exists but isn't a school admin, redirect to appropriate dashboard
-      if (user && userRole && userRole !== "school" && userRole !== "school_admin") {
-        const redirectPath = userRole === "teacher" ? "/teacher/analytics" : "/dashboard";
-        navigate(redirectPath, { replace: true });
-      }
-    }
-  }, [user, userRole, navigate, location.state]);
+  // Don't add useEffect to check user role here - that's handled by ProtectedRoute
+  // This prevents redirect loops and unnecessary checks
 
   return (
     <>
@@ -50,7 +42,7 @@ const SchoolAdmin = () => {
                   </p>
                 </div>
                 <Button 
-                  onClick={() => navigate("/admin/teacher-management")} 
+                  onClick={() => navigate("/admin/teacher-management", { state: { preserveContext: true } })} 
                   className="bg-blue-600 hover:bg-blue-700 w-full"
                 >
                   Manage Teachers
@@ -73,7 +65,7 @@ const SchoolAdmin = () => {
                   </p>
                 </div>
                 <Button 
-                  onClick={() => navigate("/admin/students")} 
+                  onClick={() => navigate("/admin/students", { state: { preserveContext: true } })} 
                   className="bg-green-600 hover:bg-green-700 w-full"
                 >
                   View Students
@@ -96,7 +88,7 @@ const SchoolAdmin = () => {
                   </p>
                 </div>
                 <Button 
-                  onClick={() => navigate("/admin/analytics")} 
+                  onClick={() => navigate("/admin/analytics", { state: { preserveContext: true } })} 
                   className="bg-purple-600 hover:bg-purple-700 w-full"
                 >
                   View Analytics
@@ -119,7 +111,7 @@ const SchoolAdmin = () => {
                   </p>
                 </div>
                 <Button 
-                  onClick={() => navigate("/admin/settings")} 
+                  onClick={() => navigate("/admin/settings", { state: { preserveContext: true } })} 
                   className="bg-amber-600 hover:bg-amber-700 w-full"
                 >
                   School Settings
