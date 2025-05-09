@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -8,7 +7,7 @@ import { School } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import Footer from "@/components/landing/Footer";
 import AdminNavbar from "@/components/school-admin/AdminNavbar";
-import SchoolCodeGenerator from "@/components/school-admin/SchoolCodeGenerator";
+import SchoolCodeManager from "@/components/school-admin/SchoolCodeManager";
 import { supabase } from "@/integrations/supabase/client";
 
 const SchoolAdmin = () => {
@@ -16,21 +15,21 @@ const SchoolAdmin = () => {
   const navigate = useNavigate();
   const [currentCode, setCurrentCode] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
-  
+
   // Fetch the current school code on component mount
   useEffect(() => {
     const fetchSchoolCode = async () => {
       if (!profile?.organization?.id) return;
-      
+
       try {
         const { data, error } = await supabase
           .from("schools")
           .select("code")
           .eq("id", profile.organization.id)
           .single();
-          
+
         if (error) throw error;
-        
+
         if (data && data.code) {
           setCurrentCode(data.code);
         }
@@ -40,15 +39,17 @@ const SchoolAdmin = () => {
         setIsLoading(false);
       }
     };
-    
+
     fetchSchoolCode();
   }, [profile?.organization?.id]);
-  
+
   // Handle code generation callback
   const handleCodeGenerated = (code: string) => {
     setCurrentCode(code);
   };
-  
+
+  const schoolId = profile?.organization?.id || profile?.school_id || "";
+
   return (
     <>
       <Navbar />
@@ -59,25 +60,27 @@ const SchoolAdmin = () => {
             Manage your school, teachers, and student performance analytics
           </p>
         </div>
-        
-        {/* Updated AdminNavbar with correct links */}
+
         <AdminNavbar className="mb-8" />
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-          {/* School Code Generator */}
+          {/* School Code Manager */}
           <Card className="md:col-span-1">
             <CardContent className="p-6">
               <h3 className="text-xl font-bold mb-4">School Invitation Code</h3>
               <p className="text-gray-600 mb-4">
                 Generate and share this code for teachers and students to join your school
               </p>
-              
-              <SchoolCodeGenerator 
-                onCodeGenerated={handleCodeGenerated} 
-              />
+              {schoolId && (
+                <SchoolCodeManager
+                  schoolId={schoolId}
+                  currentCode={currentCode}
+                  onCodeGenerated={handleCodeGenerated}
+                />
+              )}
             </CardContent>
           </Card>
-          
+
           {/* School Profile Card */}
           <Card className="md:col-span-2">
             <CardContent className="p-6">
@@ -89,19 +92,13 @@ const SchoolAdmin = () => {
                   </div>
                   <div>
                     <p>
-                      <strong>School: </strong>{profile?.organization?.name || profile?.school_name || "Your School"}
+                      <strong>School: </strong>
+                      {profile?.organization?.name || profile?.school_name || "Your School"}
                     </p>
                     <p>
-                      <strong>Admin: </strong>{profile?.full_name || user?.email}
+                      <strong>Admin: </strong>
+                      {profile?.full_name || user?.email}
                     </p>
-                    {currentCode && (
-                      <p className="mt-2">
-                        <strong>School Code: </strong>
-                        <code className="bg-gray-100 px-2 py-1 rounded text-indigo-600 font-mono">
-                          {currentCode}
-                        </code>
-                      </p>
-                    )}
                   </div>
                 </div>
               </div>
@@ -119,8 +116,8 @@ const SchoolAdmin = () => {
                 <p className="text-gray-600">
                   Invite new teachers to your school and manage their accounts.
                 </p>
-                <Button 
-                  onClick={() => navigate("/admin/teacher-management", { state: { preserveContext: true } })} 
+                <Button
+                  onClick={() => navigate("/admin/teacher-management", { state: { preserveContext: true } })}
                   className="bg-blue-600 hover:bg-blue-700 w-full"
                 >
                   Manage Teachers
@@ -137,8 +134,8 @@ const SchoolAdmin = () => {
                 <p className="text-gray-600">
                   View student accounts, approval status, and access controls.
                 </p>
-                <Button 
-                  onClick={() => navigate("/admin/students", { state: { preserveContext: true } })} 
+                <Button
+                  onClick={() => navigate("/admin/students", { state: { preserveContext: true } })}
                   className="bg-green-600 hover:bg-green-700 w-full"
                 >
                   View Students
@@ -155,8 +152,8 @@ const SchoolAdmin = () => {
                 <p className="text-gray-600">
                   View usage analytics and performance metrics for your school.
                 </p>
-                <Button 
-                  onClick={() => navigate("/admin/analytics", { state: { preserveContext: true } })} 
+                <Button
+                  onClick={() => navigate("/admin/analytics", { state: { preserveContext: true } })}
                   className="bg-purple-600 hover:bg-purple-700 w-full"
                 >
                   View Analytics
@@ -173,8 +170,8 @@ const SchoolAdmin = () => {
                 <p className="text-gray-600">
                   Update school information, settings, and API configurations.
                 </p>
-                <Button 
-                  onClick={() => navigate("/admin/settings", { state: { preserveContext: true } })} 
+                <Button
+                  onClick={() => navigate("/admin/settings", { state: { preserveContext: true } })}
                   className="bg-amber-600 hover:bg-amber-700 w-full"
                 >
                   School Settings
