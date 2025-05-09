@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/landing/Footer';
 import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate, useLocation } from 'react-router-dom'; // Added useLocation
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import FileUpload from '@/components/documents/FileUpload';
@@ -13,9 +13,9 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { isSchoolAdmin, getUserRoleWithFallback } from "@/utils/apiHelpers";
 
 const Documents: React.FC = () => {
-  const { user, userRole, signOut } = useAuth();
+  const { user, userRole } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation(); // Get location for state checking
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState('upload');
   const [redirecting, setRedirecting] = useState(false);
 
@@ -24,7 +24,7 @@ const Documents: React.FC = () => {
   const effectiveRole = userRole || fallbackRole;
   const isAdmin = isSchoolAdmin(effectiveRole);
 
-  // Redirect if not logged in and handle admin state
+  // Enhanced navigation handling for school admins
   useEffect(() => {
     if (!user && !redirecting) {
       setRedirecting(true);
@@ -32,16 +32,35 @@ const Documents: React.FC = () => {
       return;
     }
     
-    // Check if user is a school admin and needs proper state tracking
+    // For school admin users, ensure proper navigation state
     if (isAdmin) {
-      console.log("Documents: User is school admin, ensuring proper navigation state for return");
+      console.log("Documents: User is school admin, setting state for proper navigation");
+      // The actual redirect will happen when clicking Dashboard in Navbar
+      // Just ensure we have the right state for when that happens
     }
-  }, [user, navigate, redirecting, isAdmin, location]);
+  }, [user, navigate, redirecting, isAdmin]);
+  
+  // Handle return to dashboard specifically for school admins
+  const handleReturnToDashboard = () => {
+    if (isAdmin) {
+      navigate("/admin", { 
+        state: { 
+          preserveContext: true, 
+          fromNavigation: true,
+          schoolAdminReturn: true,
+          timestamp: Date.now()
+        } 
+      });
+    } else {
+      navigate("/dashboard", { 
+        state: { preserveContext: true } 
+      });
+    }
+  };
 
   if (!user) {
     return (
       <div className="flex justify-center items-center h-screen" role="status" aria-live="polite">
-        {/* Consider replacing with spinner or skeleton */}
         Loading your documents page...
       </div>
     );

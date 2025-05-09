@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate, useSearchParams, useLocation } from "react-router-dom"; // Added useLocation
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
 import { useAuth } from "@/contexts/AuthContext";
@@ -33,11 +33,37 @@ const ChatWithAI = () => {
     const effectiveRole = userRole || fallbackRole;
     const isAdmin = isSchoolAdmin(effectiveRole);
     
-    // Make sure school admins can return properly to their dashboard
+    // Check if the user is a school admin and should be redirected back to admin dashboard
+    // when they're done using the chat feature
     if (isAdmin) {
-      console.log("ChatWithAI: User is school admin, ensuring proper navigation state for return");
+      console.log("ChatWithAI: User is school admin, setting state for proper navigation");
+      // Don't redirect immediately, but ensure the state is set for proper return
+      // The actual redirect will be handled by the Dashboard link in Navbar
     }
-  }, [user, navigate, userRole, location]);
+  }, [user, navigate, userRole]);
+
+  // Handle return to dashboard for school admin users
+  const handleReturnToDashboard = () => {
+    const fallbackRole = getUserRoleWithFallback();
+    const effectiveRole = userRole || fallbackRole;
+    
+    if (isSchoolAdmin(effectiveRole)) {
+      navigate("/admin", { 
+        state: { 
+          preserveContext: true, 
+          fromNavigation: true,
+          schoolAdminReturn: true,
+          timestamp: Date.now()
+        } 
+      });
+    } else {
+      navigate("/dashboard", { 
+        state: { 
+          preserveContext: true 
+        } 
+      });
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

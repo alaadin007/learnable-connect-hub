@@ -52,14 +52,23 @@ const ProtectedRoute = ({
     return <Navigate to="/admin" state={{ preserveContext: true, adminRedirect: true }} replace />;
   }
 
-  // Check if we're redirected from another page like Chat or Documents and need to go to the admin dashboard
-  const fromOtherPage = locationState?.fromNavigation && isSchoolAdmin(effectiveUserRole);
+  // Check if we're redirected from Chat, Documents or other pages
+  // and need to go to the admin dashboard for school admins
+  const fromOtherPage = locationState?.fromNavigation === true;
   const isSchoolAdminReturn = locationState?.schoolAdminReturn === true;
   
-  // Check if we need to redirect a school admin back to the admin dashboard
-  if ((fromOtherPage || isSchoolAdminReturn) && location.pathname !== '/admin' && isSchoolAdmin(effectiveUserRole)) {
-    console.log("PROTECTED ROUTE: School admin redirected from another page, sending to /admin");
-    return <Navigate to="/admin" state={{ preserveContext: true, adminRedirect: true }} replace />;
+  // Enhanced admin redirect check - more comprehensive locations and conditions
+  if (isSchoolAdmin(effectiveUserRole) && 
+      (fromOtherPage || isSchoolAdminReturn || 
+       ['/chat', '/documents'].includes(location.pathname))) {
+    
+    console.log("PROTECTED ROUTE: School admin detected on a shared page, redirecting to /admin if not already there");
+    
+    // Only redirect if not already on the admin dashboard
+    if (location.pathname !== '/admin') {
+      console.log("PROTECTED ROUTE: Redirecting school admin to /admin dashboard");
+      return <Navigate to="/admin" state={{ preserveContext: true, adminRedirect: true }} replace />;
+    }
   }
 
   // Check for special navigation states or preserved context
