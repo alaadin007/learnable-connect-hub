@@ -8,3 +8,4 @@ export { AnalyticsExport } from './AnalyticsExport';
 export { AnalyticsSummaryCards } from './AnalyticsSummaryCards';
 export { DateRangePicker } from './DateRangePicker';
 export { default as StudentSelector } from './StudentSelector';
+export { SchoolPerformancePanel } from './SchoolPerformancePanel';

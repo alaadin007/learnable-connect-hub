@@ -1,9 +1,10 @@
+
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
-import { StatsCard } from "@/components/analytics/StatsCard";
+import StatsCard from "@/components/analytics/StatsCard";
 import { SchoolPerformancePanel } from "@/components/analytics/SchoolPerformancePanel";
 import { StudyTimeData, SchoolPerformanceData, SchoolPerformanceSummary } from "@/components/analytics/types";
 import { Users, BookOpen, MessageSquare, Clock } from "lucide-react";
@@ -39,7 +40,7 @@ const AdminAnalytics = () => {
 
         // Fetch summary analytics
         const { data: summaryData, error: summaryError } = await supabase
-          .from('analytics_summary')
+          .from('school_analytics_summary')
           .select('*')
           .eq('school_id', schoolId)
           .single();
@@ -57,7 +58,7 @@ const AdminAnalytics = () => {
 
         // Fetch school performance summary
         const { data: performanceSummaryData, error: performanceSummaryError } = await supabase
-          .from('school_performance_summary')
+          .from('school_performance_metrics')
           .select('*')
           .eq('school_id', schoolId)
           .single();
@@ -78,7 +79,7 @@ const AdminAnalytics = () => {
 
         // Fetch school performance data
         const { data: performanceData, error: performanceError } = await supabase
-          .from('school_performance_data')
+          .from('school_improvement_metrics')
           .select('*')
           .eq('school_id', schoolId)
           .order('month', { ascending: false });
@@ -132,7 +133,7 @@ const AdminAnalytics = () => {
       studentName: item.student_name || item.studentName || item.name || "",
       name: item.student_name || item.studentName || item.name || "",
       hours: item.hours || (item.total_minutes ? item.total_minutes / 60 : 0),
-      week: String(item.week || "1"), // Convert to string to ensure compatibility
+      week: String(item.week_number || item.week || "1"), // Convert to string to ensure compatibility
       year: Number(item.year || new Date().getFullYear())
     }));
   };
