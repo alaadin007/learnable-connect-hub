@@ -14,6 +14,16 @@ import { ArrowLeft } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import SchoolCodeManager from "@/components/school-admin/SchoolCodeManager";
+import { 
+  AlertDialog, 
+  AlertDialogAction, 
+  AlertDialogCancel, 
+  AlertDialogContent, 
+  AlertDialogDescription, 
+  AlertDialogFooter, 
+  AlertDialogHeader, 
+  AlertDialogTitle
+} from "@/components/ui/alert-dialog";
 
 interface SchoolData {
   id: string;
@@ -27,7 +37,7 @@ interface SchoolData {
 }
 
 const SchoolSettings = () => {
-  const { profile, user } = useAuth();
+  const { profile, user, signOut } = useAuth();
   const navigate = useNavigate();
   const [schoolName, setSchoolName] = useState("");
   const [schoolCode, setSchoolCode] = useState("");
@@ -36,6 +46,8 @@ const SchoolSettings = () => {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     // Load initial school data
@@ -112,6 +124,55 @@ const SchoolSettings = () => {
       toast.error(error.message || "Failed to update school settings");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleDeleteSchool = async () => {
+    if (!profile?.organization?.id) {
+      toast.error("No school ID found. Cannot delete account.");
+      return;
+    }
+    
+    setIsDeleting(true);
+    try {
+      // First, delete students and teachers associated with the school
+      // This approach ensures we don't have orphaned records
+      
+      // 1. Delete students linked to the school
+      const { error: studentsError } = await supabase
+        .from("students")
+        .delete()
+        .eq("school_id", profile.organization.id);
+      
+      if (studentsError) throw studentsError;
+      
+      // 2. Delete teachers linked to the school
+      const { error: teachersError } = await supabase
+        .from("teachers")
+        .delete()
+        .eq("school_id", profile.organization.id);
+      
+      if (teachersError) throw teachersError;
+      
+      // 3. Delete the school itself
+      const { error: schoolError } = await supabase
+        .from("schools")
+        .delete()
+        .eq("id", profile.organization.id);
+      
+      if (schoolError) throw schoolError;
+      
+      // 4. Sign out the user after deletion is complete
+      await signOut();
+      
+      toast.success("School account successfully deleted");
+      navigate("/");
+    } catch (error: any) {
+      console.error("Error deleting school account:", error);
+      toast.error(error.message || "Failed to delete school account");
+    } finally {
+      setShowDeleteDialog(false);
+      setIsDeleting(false);
     }
   };
 
@@ -230,7 +291,10 @@ const SchoolSettings = () => {
                     Permanently remove your school account and all associated data.
                     This action cannot be undone.
                   </p>
-                  <Button variant="destructive">
+                  <Button 
+                    variant="destructive"
+                    onClick={() => setShowDeleteDialog(true)}
+                  >
                     Delete School Account
                   </Button>
                 </div>
@@ -240,6 +304,35 @@ const SchoolSettings = () => {
         </div>
       </main>
       <Footer />
+
+      {/* Delete School Account Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action will permanently delete your school account and all associated data, including:
+              <ul className="list-disc pl-5 mt-2 space-y-1">
+                <li>School profile information</li>
+                <li>Teacher accounts connected to your school</li>
+                <li>Student accounts connected to your school</li>
+                <li>All assessments, documents, and learning sessions</li>
+              </ul>
+              <p className="mt-2 font-semibold">This action cannot be undone.</p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteSchool}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? "Deleting..." : "Yes, Delete School Account"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
