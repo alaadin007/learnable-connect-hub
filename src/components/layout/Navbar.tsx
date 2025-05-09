@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -80,7 +79,7 @@ const Navbar = () => {
     // Get the dashboard path based on user role
     const dashboardPath = getDashboardPath();
 
-    // For school admin role, show simplified navigation as shown in the image
+    // For school admin role, show only the three links shown in the image: Dashboard, Chat, Documents
     if (isSchoolAdmin) {
       return [
         { name: "Dashboard", href: dashboardPath },
