@@ -18,7 +18,7 @@ const defaultOptions: FunctionOptions = {
  */
 export async function invokeEdgeFunction<T>(
   functionName: string,
-  payload: object,
+  payload: Record<string, any>,
   options?: FunctionOptions
 ): Promise<T> {
   const opts = { ...defaultOptions, ...options };
@@ -83,7 +83,8 @@ export async function invokeEdgeFunction<T>(
 /**
  * Helper function to get user role with fallback to localStorage
  */
-export function getUserRoleWithFallback(): string | null {
+export async function getUserRoleWithFallback(): Promise<string | null> {
+  // Try to get from localStorage first
   const storedRole = localStorage.getItem('userRole');
   return storedRole;
 }

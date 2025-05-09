@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -50,6 +51,7 @@ const Navbar = () => {
   );
   const isLoggedIn = !!user && !isPublicPage && !isAuthPage;
   const isTestAccountsPage = location.pathname === "/test-accounts";
+  const isSchoolAdmin = userRole === "school" || userRole === "school_admin";
 
   // Determine default dashboard path based on user role
   const getDashboardPath = useCallback(() => {
@@ -78,12 +80,10 @@ const Navbar = () => {
     // Get the dashboard path based on user role
     const dashboardPath = getDashboardPath();
 
-    // For school admin role, show specific navigation
-    if (userRole === "school" || userRole === "school_admin") {
+    // For school admin role, show simplified navigation as shown in the image
+    if (isSchoolAdmin) {
       return [
         { name: "Dashboard", href: dashboardPath },
-        { name: "Teachers", href: "/admin/teacher-management" },
-        { name: "Analytics", href: "/admin/analytics" },
         { name: "Chat", href: "/chat" },
         { name: "Documents", href: "/documents" },
       ];
@@ -106,7 +106,7 @@ const Navbar = () => {
         { name: "Documents", href: "/documents" },
       ];
     }
-  }, [userRole, isLoggedIn, isTestAccountsPage, getDashboardPath]);
+  }, [userRole, isLoggedIn, isTestAccountsPage, getDashboardPath, isSchoolAdmin]);
 
   const navLinks = getNavLinks();
 
