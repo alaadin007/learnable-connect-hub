@@ -16,7 +16,7 @@ const AdminTeacherManagement = () => {
       <Navbar />
       <main className="flex-grow bg-gray-50 py-8">
         <div className="container mx-auto px-4">
-          <div className="flex items-center gap-4 mb-6">
+          <div className="flex items-center gap-4 mb-4">
             <Button 
               variant="outline" 
               size="sm" 
@@ -29,7 +29,7 @@ const AdminTeacherManagement = () => {
             <h1 className="text-3xl font-bold">Teacher Management</h1>
           </div>
           
-          <AdminNavbar />
+          <AdminNavbar className="mb-8" />
           
           <TeacherManagement />
         </div>

@@ -67,8 +67,8 @@ const AdminNavbar = ({ navLinks = defaultNavLinks, className }: AdminNavbarProps
   const activeLink = determineActiveLink();
   
   return (
-    <div className={cn("border-b mb-6", className)}>
-      <nav className="flex space-x-4 overflow-x-auto pb-2">
+    <div className={cn("bg-white rounded-lg shadow mb-6", className)}>
+      <nav className="flex overflow-x-auto p-1">
         {navLinks.map((link) => {
           const isActive = link.href === activeLink;
           
@@ -77,13 +77,13 @@ const AdminNavbar = ({ navLinks = defaultNavLinks, className }: AdminNavbarProps
               key={link.href}
               to={link.href}
               className={cn(
-                "px-4 py-2 text-sm font-medium transition-colors flex items-center",
+                "px-4 py-3 text-sm font-medium transition-colors flex items-center gap-2 whitespace-nowrap rounded-md",
                 isActive
-                  ? "border-b-2 border-blue-600 text-blue-600"
-                  : "text-gray-600 hover:text-blue-600"
+                  ? "bg-blue-50 text-blue-600 border-blue-600"
+                  : "text-gray-600 hover:bg-gray-50 hover:text-blue-600"
               )}
             >
-              {link.icon && <link.icon className="mr-2 h-4 w-4" />}
+              <link.icon className="h-4 w-4" />
               {link.name}
             </Link>
           );
