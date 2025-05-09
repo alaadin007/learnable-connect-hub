@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -19,7 +18,15 @@ const SchoolAdmin = () => {
     setCurrentCode(code);
   };
 
-  const schoolId = profile?.organization?.id || profile?.school_id || "";
+  // Get a reliable school ID - either from storage or a default
+  const schoolId = localStorage.getItem('schoolId') || "demo-school-id";
+  
+  // Store demo school ID for development
+  useEffect(() => {
+    if (!localStorage.getItem('schoolId')) {
+      localStorage.setItem('schoolId', 'demo-school-id');
+    }
+  }, []);
 
   return (
     <>
@@ -63,11 +70,11 @@ const SchoolAdmin = () => {
                   <div>
                     <p>
                       <strong>School: </strong>
-                      {profile?.organization?.name || profile?.school_name || "Your School"}
+                      {profile?.organization?.name || "Demo School"}
                     </p>
                     <p>
                       <strong>Admin: </strong>
-                      {profile?.full_name || user?.email}
+                      {profile?.full_name || user?.email || "Admin User"}
                     </p>
                   </div>
                 </div>

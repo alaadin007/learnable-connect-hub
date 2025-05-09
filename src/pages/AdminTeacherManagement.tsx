@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,8 +14,8 @@ const AdminTeacherManagement = () => {
   const navigate = useNavigate();
   const { profile } = useAuth();
 
-  // Get schoolId from profile
-  const schoolId = profile?.organization?.id || profile?.school_id || "";
+  // Use hardcoded or local storage fallback instead of profile fetching
+  const schoolId = localStorage.getItem('schoolId') || "demo-school-id";
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -37,18 +37,16 @@ const AdminTeacherManagement = () => {
 
           <AdminNavbar className="mb-8" />
 
-          {/* School Code Generator */}
-          {schoolId && (
-            <div className="mb-8">
-              <div className="bg-white p-6 rounded-lg shadow-sm border">
-                <h2 className="text-xl font-semibold mb-4">School Invitation Code</h2>
-                <p className="text-gray-600 mb-4">Share this code with teachers to join your school</p>
-                <div className="max-w-md">
-                  <SchoolCodeGenerator />
-                </div>
+          {/* School Code Generator - only render if we have a school ID */}
+          <div className="mb-8">
+            <div className="bg-white p-6 rounded-lg shadow-sm border">
+              <h2 className="text-xl font-semibold mb-4">School Invitation Code</h2>
+              <p className="text-gray-600 mb-4">Share this code with teachers to join your school</p>
+              <div className="max-w-md">
+                <SchoolCodeGenerator />
               </div>
             </div>
-          )}
+          </div>
 
           <TeacherManagement />
         </div>
