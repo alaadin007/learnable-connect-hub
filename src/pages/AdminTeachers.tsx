@@ -50,7 +50,7 @@ const AdminTeachers = () => {
       full_name: "",
     },
   });
-  
+
   const selectedMethod = form.watch("method");
 
   // Load teacher invites
@@ -63,7 +63,7 @@ const AdminTeachers = () => {
           .order("created_at", { ascending: false });
 
         if (error) throw error;
-        
+
         // Safely type cast the response to our TeacherInvite type
         const safeData: TeacherInvite[] = data ? data.map((item: any) => ({
           id: item.id,
@@ -72,7 +72,7 @@ const AdminTeachers = () => {
           expires_at: item.expires_at,
           status: item.status,
         })) : [];
-        
+
         setInvites(safeData);
       } catch (error: any) {
         console.error("Error fetching teacher invites:", error);
@@ -85,9 +85,9 @@ const AdminTeachers = () => {
 
   const onSubmit = async (values: AddTeacherFormValues) => {
     if (!user) return;
-    
+
     setIsLoading(true);
-    
+
     try {
       if (values.method === "invite") {
         // Call the invite-teacher edge function
@@ -96,19 +96,19 @@ const AdminTeachers = () => {
         });
 
         if (error) throw new Error(error.message);
-        
+
         toast.success(`Invitation sent to ${values.email}`);
       } else {
         // Call the create-teacher edge function
         const { data, error } = await supabase.functions.invoke("create-teacher", {
-          body: { 
+          body: {
             email: values.email,
             full_name: values.full_name || undefined
           }
         });
 
         if (error) throw new Error(error.message);
-        
+
         // Show success message with temporary password
         toast.success(
           <div>
@@ -120,9 +120,9 @@ const AdminTeachers = () => {
           { duration: 10000 }
         );
       }
-      
+
       form.reset();
-      
+
       // Refresh the invites list
       const { data: updatedInvites } = await supabase
         .from("teacher_invitations")
@@ -138,10 +138,10 @@ const AdminTeachers = () => {
           expires_at: item.expires_at,
           status: item.status,
         }));
-        
+
         setInvites(safeData);
       }
-      
+
     } catch (error: any) {
       console.error("Error adding teacher:", error);
       toast.error(error.message || "Failed to add teacher");
@@ -156,9 +156,9 @@ const AdminTeachers = () => {
       <main className="flex-grow bg-learnable-super-light py-8">
         <div className="container mx-auto px-4">
           <div className="flex items-center gap-4 mb-6">
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               className="flex items-center gap-1"
               onClick={() => navigate('/admin', { state: { preserveContext: true } })}
             >
@@ -167,9 +167,9 @@ const AdminTeachers = () => {
             </Button>
             <h1 className="text-3xl font-bold gradient-text mb-2">Teacher Management</h1>
           </div>
-          
+
           <AdminNavbar />
-          
+
           <Card>
             <CardHeader>
               <CardTitle>Add New Teacher</CardTitle>
@@ -193,7 +193,7 @@ const AdminTeachers = () => {
                       </FormItem>
                     )}
                   />
-                  
+
                   <FormField
                     control={form.control}
                     name="method"
@@ -225,15 +225,15 @@ const AdminTeachers = () => {
                           </RadioGroup>
                         </FormControl>
                         <FormDescription>
-                          {selectedMethod === "invite" 
-                            ? "The teacher will receive an email invitation to join your school." 
+                          {selectedMethod === "invite"
+                            ? "The teacher will receive an email invitation to join your school."
                             : "You will create the account directly and get a temporary password."}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                  
+
                   {selectedMethod === "create" && (
                     <FormField
                       control={form.control}
@@ -252,10 +252,10 @@ const AdminTeachers = () => {
                       )}
                     />
                   )}
-                  
-                  <Button 
-                    type="submit" 
-                    className="gradient-bg" 
+
+                  <Button
+                    type="submit"
+                    className="gradient-bg"
                     disabled={isLoading}
                   >
                     {selectedMethod === "invite" ? (
@@ -274,7 +274,7 @@ const AdminTeachers = () => {
               </Form>
             </CardContent>
           </Card>
-          
+
           <Card className="mt-6">
             <CardHeader>
               <CardTitle>Teacher Invitations</CardTitle>
