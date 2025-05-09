@@ -29,15 +29,13 @@ const AdminNavbar = ({ navLinks = defaultNavLinks, className }: AdminNavbarProps
   // Function to determine if a link is active
   const isLinkActive = (linkHref: string): boolean => {
     // Exact match for dashboard
-    if (linkHref === "/admin") {
-      return location.pathname === "/admin";
+    if (linkHref === "/admin" && location.pathname === "/admin") {
+      return true;
     }
     
-    // For other pages, check if the current path exactly matches the link
-    // or if it's a direct subpage (e.g., /admin/teacher-management/123)
+    // For other pages, make sure it's not just a prefix match but a proper path segment match
     if (linkHref !== "/admin" && location.pathname.startsWith(linkHref)) {
-      // Make sure it's an exact match or has a slash after the href
-      // This ensures /admin/teacher-management doesn't match /admin/teacher-management-other
+      // Make sure it's either an exact match or a subpath (with / after the href)
       const remainingPath = location.pathname.slice(linkHref.length);
       return remainingPath === "" || remainingPath.startsWith("/");
     }

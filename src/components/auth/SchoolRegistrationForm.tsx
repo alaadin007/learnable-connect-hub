@@ -69,15 +69,14 @@ const SchoolRegistrationForm = () => {
     setErrorMessage(null);
     
     try {
-      // Check if email is already registered first
-      const { data: existingUser, error: userCheckError } = await supabase.auth.admin.getUserByEmail(data.adminEmail);
+      // Check if email is already registered by trying to get user by email
+      const { data: existingUser, error: emailCheckError } = await supabase.auth.signInWithPassword({
+        email: data.adminEmail,
+        password: "temp-check-only-not-real-password"
+      });
       
-      if (userCheckError) {
-        console.error("Error checking existing user:", userCheckError);
-        throw new Error("Failed to check email availability");
-      }
-      
-      if (existingUser) {
+      // If sign-in didn't return auth error about invalid user, it means the user exists
+      if (existingUser?.user) {
         throw new Error("Email already registered");
       }
       
@@ -152,6 +151,34 @@ const SchoolRegistrationForm = () => {
           .eq("id", school.id);
           
         throw new Error(userError.message || "Failed to create admin user");
+      }
+
+      // Manually create the school_admin record
+      if (userData.user) {
+        const { error: adminError } = await supabase
+          .from("school_admins")
+          .insert({
+            id: userData.user.id,
+            school_id: school.id
+          });
+
+        if (adminError) {
+          console.error("Error creating school admin record:", adminError);
+          // We don't throw here as the user is already created
+        }
+
+        // Insert into user_roles table for proper role management
+        const { error: roleError } = await supabase
+          .from("user_roles")
+          .insert({
+            user_id: userData.user.id,
+            role: 'school_admin'
+          });
+
+        if (roleError) {
+          console.error("Error setting user role:", roleError);
+          // We don't throw here as the user is already created
+        }
       }
 
       console.log("Successfully registered school and admin:", {
