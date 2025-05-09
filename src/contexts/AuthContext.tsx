@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
 import { supabase, isTestAccount } from "@/integrations/supabase/client";
 import { toast } from "sonner";
