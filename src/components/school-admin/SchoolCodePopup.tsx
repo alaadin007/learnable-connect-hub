@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   Copy, 
   CheckCircle, 
@@ -26,6 +26,21 @@ interface SchoolCodePopupProps {
 
 const SchoolCodePopup = ({ isOpen, onClose, code, expiresAt }: SchoolCodePopupProps) => {
   const [copied, setCopied] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  // Sync the internal open state with the isOpen prop
+  useEffect(() => {
+    console.log("SchoolCodePopup isOpen prop changed:", isOpen);
+    setOpen(isOpen);
+  }, [isOpen]);
+  
+  // Call the onClose callback when the internal open state changes to false
+  useEffect(() => {
+    if (!open && isOpen) {
+      console.log("Internal dialog state closed, calling onClose");
+      onClose();
+    }
+  }, [open, isOpen, onClose]);
 
   const copyToClipboard = () => {
     if (!code) return;
@@ -53,12 +68,24 @@ const SchoolCodePopup = ({ isOpen, onClose, code, expiresAt }: SchoolCodePopupPr
   };
 
   // For debugging - log when props change
-  React.useEffect(() => {
-    console.log("SchoolCodePopup isOpen:", isOpen, "code:", code);
-  }, [isOpen, code]);
+  useEffect(() => {
+    console.log("SchoolCodePopup render - isOpen:", isOpen, "code:", code, "internal open state:", open);
+  }, [isOpen, code, open]);
+
+  // If no code is provided, don't render the dialog
+  if (!code) {
+    console.log("SchoolCodePopup: No code provided, not rendering dialog");
+    return null;
+  }
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog 
+      open={open} 
+      onOpenChange={(newOpen) => {
+        console.log("Dialog onOpenChange called with:", newOpen);
+        setOpen(newOpen);
+      }}
+    >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>School Invitation Code</DialogTitle>
@@ -70,7 +97,7 @@ const SchoolCodePopup = ({ isOpen, onClose, code, expiresAt }: SchoolCodePopupPr
         <div className="flex items-center space-x-2">
           <div className="grid flex-1 gap-2">
             <div className="bg-muted p-6 rounded-md text-center">
-              <code className="font-mono text-xl">{code}</code>
+              <code className="font-mono text-xl">{code || "No code available"}</code>
             </div>
           </div>
           <Button 
@@ -109,7 +136,7 @@ const SchoolCodePopup = ({ isOpen, onClose, code, expiresAt }: SchoolCodePopupPr
         <DialogFooter className="sm:justify-between">
           <Button
             variant="outline"
-            onClick={onClose}
+            onClick={() => setOpen(false)}
           >
             Close
           </Button>

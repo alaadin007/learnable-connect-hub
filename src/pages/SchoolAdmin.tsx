@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -25,7 +26,7 @@ const SchoolAdmin = () => {
 
   // For debugging - log state changes
   useEffect(() => {
-    console.log("showCodePopup state:", showCodePopup);
+    console.log("showCodePopup state changed:", showCodePopup);
   }, [showCodePopup]);
 
   // Fetch the current school code on component mount
@@ -48,6 +49,7 @@ const SchoolAdmin = () => {
             code: data.code,
             expiresAt: data.code_expires_at
           });
+          console.log("Fetched school code:", data.code);
         }
       } catch (error) {
         console.error("Error fetching school code:", error);
@@ -61,6 +63,7 @@ const SchoolAdmin = () => {
 
   // Handle code generation callback
   const handleCodeGenerated = (code: string) => {
+    console.log("Code generated:", code);
     setCurrentCode(code);
     setCodeInfo({
       code: code,
@@ -105,14 +108,28 @@ const SchoolAdmin = () => {
 
   // Function to handle opening the popup
   const handleOpenCodePopup = () => {
-    console.log("Opening code popup");
+    console.log("Opening code popup, currentCode:", currentCode);
+    if (!currentCode) {
+      toast.error("No code available. Please generate a code first.");
+      return;
+    }
     setShowCodePopup(true);
+    console.log("showCodePopup set to true");
   };
 
   // Function to handle closing the popup
   const handleCloseCodePopup = () => {
     console.log("Closing code popup");
     setShowCodePopup(false);
+  };
+
+  // For debugging - force render the popup
+  const forceShowPopup = () => {
+    console.log("Force showing popup with code:", codeInfo.code);
+    setShowCodePopup(true);
+    setTimeout(() => {
+      console.log("showCodePopup after timeout:", showCodePopup);
+    }, 500);
   };
 
   const schoolId = profile?.organization?.id || profile?.school_id || "";
@@ -170,6 +187,13 @@ const SchoolAdmin = () => {
                     className="w-full"
                   >
                     Generate New Code
+                  </Button>
+                  <Button
+                    onClick={forceShowPopup}
+                    variant="outline"
+                    className="w-full text-purple-600 border-purple-300"
+                  >
+                    Debug: Force Show Popup
                   </Button>
                 </div>
               ) : (
@@ -286,7 +310,12 @@ const SchoolAdmin = () => {
       </main>
       <Footer />
 
-      {/* School Code Popup with debug information */}
+      {/* Debug info for popup state */}
+      <div className="fixed bottom-0 left-0 bg-yellow-100 p-2 text-xs border border-yellow-300 m-1 z-50 opacity-80">
+        Debug: showCodePopup={showCodePopup.toString()}, code={codeInfo.code || "none"}
+      </div>
+
+      {/* School Code Popup */}
       <SchoolCodePopup
         isOpen={showCodePopup}
         onClose={handleCloseCodePopup}
