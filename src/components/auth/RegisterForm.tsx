@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Invalid email address" }),
@@ -25,6 +26,9 @@ const formSchema = z.object({
   confirmPassword: z.string(),
   fullName: z.string().min(2, { message: "Name must be at least 2 characters" }),
   schoolCode: z.string().min(1, { message: "School code is required" }),
+  userType: z.enum(["student", "teacher"], { 
+    required_error: "Please select your role" 
+  }),
 })
 .refine((data) => data.password === data.confirmPassword, {
   message: "Passwords do not match",
@@ -45,6 +49,7 @@ const RegisterForm = () => {
       confirmPassword: "",
       fullName: "",
       schoolCode: "",
+      userType: "student",
     },
   });
 
@@ -86,7 +91,7 @@ const RegisterForm = () => {
             full_name: data.fullName,
             school_code: data.schoolCode,
             school_name: schoolInfo?.school_name || "Unknown School",
-            user_type: 'student', // Default to student role
+            user_type: data.userType, // Use selected user type
             school_id: schoolInfo?.id // Include the school_id from school_codes table
           }
         }
@@ -162,6 +167,37 @@ const RegisterForm = () => {
               <FormLabel>School Code</FormLabel>
               <FormControl>
                 <Input placeholder="Enter your school code" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        
+        <FormField
+          control={form.control}
+          name="userType"
+          render={({ field }) => (
+            <FormItem className="space-y-3">
+              <FormLabel>I am a</FormLabel>
+              <FormControl>
+                <RadioGroup
+                  onValueChange={field.onChange}
+                  defaultValue={field.value}
+                  className="flex flex-col space-y-1 sm:flex-row sm:space-y-0 sm:space-x-6"
+                >
+                  <FormItem className="flex items-center space-x-3 space-y-0">
+                    <FormControl>
+                      <RadioGroupItem value="student" />
+                    </FormControl>
+                    <FormLabel className="font-normal cursor-pointer">Student</FormLabel>
+                  </FormItem>
+                  <FormItem className="flex items-center space-x-3 space-y-0">
+                    <FormControl>
+                      <RadioGroupItem value="teacher" />
+                    </FormControl>
+                    <FormLabel className="font-normal cursor-pointer">Teacher</FormLabel>
+                  </FormItem>
+                </RadioGroup>
               </FormControl>
               <FormMessage />
             </FormItem>
