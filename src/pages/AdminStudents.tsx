@@ -212,9 +212,9 @@ const AdminStudents = () => {
                 <Button 
                   onClick={generateInviteCode}
                   disabled={isLoading || isGeneratingSchoolCode}
-                  className="w-full gradient-bg"
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                 >
-                  {isGeneratingSchoolCode ? (
+                  {isGeneratingSchoolCode || isLoading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Generating...
@@ -302,7 +302,9 @@ const AdminStudents = () => {
                     </Table>
                   </div>
                 ) : (
-                  <p className="text-muted-foreground text-center py-8">No invitations found</p>
+                  <div className="text-center py-8 text-muted-foreground">
+                    <p>No invitations found</p>
+                  </div>
                 )}
               </CardContent>
               <CardFooter>
