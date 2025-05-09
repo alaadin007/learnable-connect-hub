@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Save } from "lucide-react";
+import { ArrowLeft, Save, Loader2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import SchoolCodeManager from "@/components/school-admin/SchoolCodeManager";
@@ -24,6 +24,7 @@ import {
   AlertDialogHeader, 
   AlertDialogTitle
 } from "@/components/ui/alert-dialog";
+import AdminNavbar from "@/components/school-admin/AdminNavbar";
 
 interface SchoolData {
   id: string;
@@ -39,18 +40,23 @@ interface SchoolData {
 const SchoolSettings = () => {
   const { profile, user, signOut, refreshProfile } = useAuth();
   const navigate = useNavigate();
+  
+  // Form state
   const [schoolName, setSchoolName] = useState("");
   const [schoolCode, setSchoolCode] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [description, setDescription] = useState("");
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  
+  // UI state
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [initialLoaded, setInitialLoaded] = useState(false);
 
+  // Load initial school data
   useEffect(() => {
-    // Load initial school data
     const fetchSchoolData = async () => {
       if (!profile?.organization?.id) return;
       
@@ -65,7 +71,10 @@ const SchoolSettings = () => {
           .eq("id", profile.organization.id)
           .single();
             
-        if (error) throw error;
+        if (error) {
+          console.error("Error fetching school data:", error);
+          throw error;
+        }
           
         console.log("Fetched school data:", schoolData);
         
@@ -75,6 +84,7 @@ const SchoolSettings = () => {
           setContactEmail(schoolData.contact_email || user?.email || "");
           setDescription(schoolData.description || "");
           setNotificationsEnabled(schoolData.notifications_enabled !== false); // Default to true if undefined
+          setInitialLoaded(true);
         }
       } catch (error) {
         console.error("Error fetching school data:", error);
@@ -93,6 +103,11 @@ const SchoolSettings = () => {
       return;
     }
     
+    if (!schoolName.trim()) {
+      toast.error("School name cannot be empty");
+      return;
+    }
+    
     setIsSaving(true);
     try {
       const schoolId = profile.organization.id;
@@ -102,7 +117,7 @@ const SchoolSettings = () => {
       const { error } = await supabase
         .from("schools")
         .update({
-          name: schoolName,
+          name: schoolName.trim(),
           contact_email: contactEmail,
           description: description,
           notifications_enabled: notificationsEnabled,
@@ -195,6 +210,9 @@ const SchoolSettings = () => {
             <h1 className="text-3xl font-bold gradient-text">School Settings</h1>
           </div>
           
+          {/* Admin Navigation Bar */}
+          <AdminNavbar className="mb-8" />
+          
           {/* School Code Card - Moved to top for prominence */}
           <Card className="mb-6">
             <CardHeader>
@@ -224,7 +242,7 @@ const SchoolSettings = () => {
             <CardContent>
               {isLoading ? (
                 <div className="flex items-center justify-center py-8">
-                  <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-learnable-blue border-r-transparent align-[-0.125em]"></div>
+                  <Loader2 className="h-8 w-8 animate-spin text-learnable-blue" />
                   <span className="ml-3">Loading school information...</span>
                 </div>
               ) : (
@@ -237,6 +255,7 @@ const SchoolSettings = () => {
                         value={schoolName} 
                         onChange={(e) => setSchoolName(e.target.value)}
                         placeholder="Your school's name" 
+                        required
                       />
                     </div>
                     
@@ -274,12 +293,12 @@ const SchoolSettings = () => {
                   
                   <Button 
                     onClick={handleSaveSettings} 
-                    disabled={isSaving}
+                    disabled={isSaving || !initialLoaded}
                     className="gradient-bg flex items-center gap-2"
                   >
                     {isSaving ? (
                       <>
-                        <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-current border-r-transparent align-[-0.125em]"></span>
+                        <Loader2 className="h-4 w-4 animate-spin" />
                         Saving...
                       </>
                     ) : (
