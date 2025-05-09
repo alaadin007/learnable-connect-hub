@@ -347,7 +347,7 @@ const AdminAnalytics = () => {
                 </div>
                 <div className="flex flex-col sm:flex-row sm:items-center">
                   <span className="font-medium min-w-32">Code:</span>
-                  <span className="text-foreground">{profile?.organization?.code || "TEST123"}</span>
+                  <span className="text-foreground">{profile?.organization?.code || profile?.school_code || "TEST123"}</span>
                 </div>
               </div>
             </CardContent>

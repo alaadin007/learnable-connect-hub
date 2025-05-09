@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -112,11 +113,34 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setIsSuperviser(isAdmin);
       }
 
-      const fetchedProfile: Profile | null = profileData || null;
+      // Fix for TS2322 error by explicitly converting the profileData to Profile type
+      const fetchedProfile: Profile | null = profileData ? {
+        id: profileData.id,
+        full_name: profileData.full_name,
+        email: profileData.email,
+        user_type: profileData.user_type,
+        is_supervisor: profileData.is_supervisor,
+        organization_id: profileData.organization_id,
+        school_id: profileData.school_id,
+        school_code: profileData.school_code,
+        school_name: profileData.school_name,
+        is_active: profileData.is_active,
+        created_at: profileData.created_at,
+        updated_at: profileData.updated_at,
+        // Convert the organization from Json to expected format
+        organization: typeof profileData.organization === 'object' ? 
+          {
+            id: profileData.organization?.id,
+            name: profileData.organization?.name,
+            code: profileData.organization?.code
+          } : 
+          undefined
+      } : null;
+      
       setProfile(fetchedProfile);
 
       // Set school ID from profile or null
-      setSchoolId(fetchedProfile?.organization_id || null);
+      setSchoolId(fetchedProfile?.organization_id || fetchedProfile?.school_id || null);
 
       // Determine user role
       const role = await getUserRoleWithFallback(currentUser);
@@ -197,14 +221,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       await supabase.auth.signOut();
       
       // For test accounts, we'll set up mock data
-      const mockUser = {
+      // Fix TS2352 error by first defining a partial mock object and then casting it as any then User
+      const mockUserData = {
         id: `test-${accountType}-${Date.now()}`,
         email: `${accountType}.test@learnable.edu`,
         user_metadata: { 
           full_name: `Test ${accountType.charAt(0).toUpperCase() + accountType.slice(1)}`,
           user_type: accountType
-        }
-      } as User;
+        },
+        app_metadata: {},
+        aud: 'authenticated',
+        created_at: new Date().toISOString()
+      };
+      
+      const mockUser = mockUserData as unknown as User;
       
       const mockProfile: Profile = {
         id: mockUser.id,
@@ -215,8 +245,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         organization_id: accountType === "school" ? `school-org-${schoolIndex}` : `school-org-0`,
         organization: {
           id: accountType === "school" ? `school-org-${schoolIndex}` : `school-org-0`,
-          name: `Test School ${schoolIndex}`
-        }
+          name: `Test School ${schoolIndex}`,
+          code: `TEST${schoolIndex}` // Adding code property for SchoolAdmin component
+        },
+        school_name: `Test School ${schoolIndex}` // Adding school_name for SchoolAdmin component
       };
       
       // Update context state
