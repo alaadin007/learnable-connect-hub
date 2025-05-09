@@ -149,7 +149,7 @@ const SchoolCodeManager: React.FC<SchoolCodeManagerProps> = ({
       
       if (hoursRemaining < 6) {
         return (
-          <Alert variant="warning" className="mt-2">
+          <Alert className="mt-2 border-yellow-200 bg-yellow-50 text-yellow-800">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
               This code will expire soon (in {hoursRemaining} hours). Consider generating a new code.

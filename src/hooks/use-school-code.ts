@@ -1,4 +1,5 @@
-import { useState, useCallback } from "react";
+
+import { useState, useCallback, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -25,8 +26,8 @@ interface UseSchoolCodeReturn {
 }
 
 // Constants
-const CODE_LENGTH = 6;
-const CODE_PATTERN = /^[A-Z0-9]{6}$/;
+const CODE_LENGTH = 9; // 'SCH' prefix + 6 characters
+const CODE_PATTERN = /^SCH[A-Z0-9]{6}$/;
 
 // Helper functions
 function validateCodeFormat(code: string): boolean {
