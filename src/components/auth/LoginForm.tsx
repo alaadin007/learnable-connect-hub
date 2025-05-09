@@ -10,7 +10,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
+import { Loader2, School } from 'lucide-react';
+import { checkSessionStatus } from '@/utils/apiHelpers';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address' }),
@@ -22,6 +23,7 @@ type FormValues = z.infer<typeof formSchema>;
 const LoginForm = () => {
   const { signIn } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const form = useForm<FormValues>({
@@ -34,17 +36,28 @@ const LoginForm = () => {
 
   const onSubmit = async (values: FormValues) => {
     setIsSubmitting(true);
+    setLoginError(null);
+    
     try {
+      console.log(`Attempting login with email: ${values.email}`);
       const result = await signIn(values.email, values.password);
       
       if (result.success) {
         toast.success('Login successful!');
-        // Navigate to appropriate dashboard based on user type
-        // This will happen automatically through auth state change
+        
+        // Check session status to debug
+        const sessionStatus = await checkSessionStatus();
+        console.log("Session status after login:", sessionStatus);
+        
+        // Navigate based on user type will happen through auth state change
       } else {
+        console.error("Login failed:", result.error);
+        setLoginError(result.error || 'Login failed. Please check your credentials.');
         toast.error(result.error || 'Login failed');
       }
     } catch (error: any) {
+      console.error("Login exception:", error);
+      setLoginError(error.message || 'An unexpected error occurred');
       toast.error(error.message || 'An unexpected error occurred');
     } finally {
       setIsSubmitting(false);
@@ -83,6 +96,12 @@ const LoginForm = () => {
             )}
           />
 
+          {loginError && (
+            <div className="p-3 rounded bg-red-50 text-red-700 text-sm">
+              {loginError}
+            </div>
+          )}
+
           <div className="flex justify-between items-center">
             <Link to="/forgot-password" className="text-sm text-blue-600 hover:underline">
               Forgot password?
@@ -102,6 +121,29 @@ const LoginForm = () => {
             ) : (
               'Login'
             )}
+          </Button>
+          
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t"></span>
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-white px-2 text-gray-500">School Login Options</span>
+            </div>
+          </div>
+          
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full flex items-center justify-center gap-2 border border-gray-300 py-2"
+            onClick={() => {
+              form.setValue('email', '');
+              form.setValue('password', '');
+              navigate('/school-registration');
+            }}
+          >
+            <School className="h-4 w-4" />
+            <span>Register Your School</span>
           </Button>
         </form>
       </Form>
