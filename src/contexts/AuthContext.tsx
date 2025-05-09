@@ -49,7 +49,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [userRole, setUserRole] = useState<UserRole>(null);
   const [isSuperviser, setIsSuperviser] = useState<boolean>(false);
   const [schoolId, setSchoolId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // Optimized auth initialization
   useEffect(() => {
@@ -74,6 +74,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     // Check for existing session
     const checkSession = async () => {
+      setIsLoading(true);
       const { data: { session: initialSession } } = await supabase.auth.getSession();
       
       setSession(initialSession);
@@ -82,6 +83,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (initialSession?.user) {
         await fetchUserProfile(initialSession.user);
       }
+      setIsLoading(false);
     };
 
     checkSession();
@@ -91,9 +93,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
   }, []);
 
-  // Fixed function to avoid using a non-existent table and prevent recursive type issues
   const checkIfUserIsSchoolAdmin = async (userId: string): Promise<boolean> => {
     try {
+      // First check if user exists in school_admins table
+      const { data: adminData, error: adminError } = await supabase
+        .from('school_admins')
+        .select('id')
+        .eq('id', userId)
+        .maybeSingle();
+      
+      if (adminError) {
+        console.error("Error checking school_admins table:", adminError);
+      } else if (adminData) {
+        return true;
+      }
+      
       // Check if user has a profile with supervisor status
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
@@ -103,7 +117,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       if (profileError) {
         console.error("Error checking if user is school admin:", profileError);
-        return false;
+      } else if (profileData?.is_supervisor === true) {
+        return true;
       }
       
       // Check if user is in teachers table with supervisor flag
@@ -115,10 +130,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       if (teacherError) {
         console.error("Error checking teacher supervisor status:", teacherError);
+      } else if (teacherData?.is_supervisor === true) {
+        return true;
       }
       
-      // User is considered admin if either profile or teacher record indicates supervisor status
-      return (profileData?.is_supervisor === true) || (teacherData?.is_supervisor === true);
+      return false;
     } catch (error) {
       console.error("Exception checking if user is school admin:", error);
       return false;
@@ -127,6 +143,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const fetchUserProfile = async (currentUser: User) => {
     try {
+      setIsLoading(true);
       // Fetch profile data directly to avoid RPC calls that might cause recursion
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
@@ -175,10 +192,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Set user role
       setUserRole(role as UserRole);
 
-      // Set isSuperviser - avoid using checkIfSchoolAdmin and use local function
-      setIsSuperviser(fetchedProfile?.is_supervisor === true || await checkIfUserIsSchoolAdmin(currentUser.id));
+      // Set isSuperviser
+      const isSupervisor = fetchedProfile?.is_supervisor === true || await checkIfUserIsSchoolAdmin(currentUser.id);
+      setIsSuperviser(isSupervisor);
     } catch (error) {
       console.error("Error fetching user profile or determining role:", error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -267,13 +287,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         user_type: accountType,
         email: mockUser.email,
         is_supervisor: accountType === "school",
-        organization_id: accountType === "school" ? `school-org-${schoolIndex}` : `school-org-0`,
+        organization_id: `school-org-${schoolIndex}`,
         organization: {
-          id: accountType === "school" ? `school-org-${schoolIndex}` : `school-org-0`,
+          id: `school-org-${schoolIndex}`,
           name: `Test School ${schoolIndex}`,
           code: `TEST${schoolIndex}`
         },
-        school_name: `Test School ${schoolIndex}`
+        school_id: `school-org-${schoolIndex}`,
+        school_name: `Test School ${schoolIndex}`,
+        is_active: true
       };
       
       // Update context state
@@ -282,9 +304,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUserRole(accountType as UserRole);
       setIsSuperviser(accountType === "school");
       setSchoolId(mockProfile.organization_id || null);
+      
+      // Create a mock session
+      const mockSession = {
+        provider_token: null,
+        provider_refresh_token: null,
+        access_token: `mock-token-${Date.now()}`,
+        refresh_token: `mock-refresh-${Date.now()}`,
+        expires_in: 3600,
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        token_type: 'bearer',
+        user: mockUser
+      } as Session;
+      
+      setSession(mockSession);
+      
     } catch (error) {
       console.error("Error setting test user:", error);
       throw error;
+    } finally {
+      setIsLoading(false);
     }
   };
   

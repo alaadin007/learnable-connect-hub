@@ -456,6 +456,56 @@ export type Database = {
           },
         ]
       }
+      school_admins: {
+        Row: {
+          created_at: string
+          id: string
+          school_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id: string
+          school_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          school_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "school_admins_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_analytics_summary"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "school_admins_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_improvement_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "school_admins_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_performance_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "school_admins_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       school_codes: {
         Row: {
           active: boolean | null
@@ -1556,6 +1606,10 @@ export type Database = {
       }
       is_same_user_or_supervisor: {
         Args: { user_id: string }
+        Returns: boolean
+      }
+      is_school_admin: {
+        Args: { user_id?: string }
         Returns: boolean
       }
       is_supervisor: {

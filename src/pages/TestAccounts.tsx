@@ -181,7 +181,6 @@ const TestAccounts = () => {
       <main
         className="flex-grow flex flex-col items-center justify-center py-8 px-4"
         aria-live="polite"
-        aria-busy={dataCreationLoading || loadingAccount !== null}
       >
         <div className="max-w-4xl w-full mx-auto">
           {errorMessage && (
@@ -284,7 +283,7 @@ const TestAccounts = () => {
                 <Button
                   className="w-full bg-blue-700 hover:bg-blue-800"
                   onClick={() => handleUseAccount(type as AccountType)}
-                  disabled={loadingAccount !== null}
+                  disabled={!!loadingAccount}
                 >
                   {loadingAccount === type ? (
                     <>

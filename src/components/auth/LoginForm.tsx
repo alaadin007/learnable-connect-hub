@@ -15,7 +15,6 @@ const LoginForm = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState<string | null>(null);
-  const [loginAttemptInProgress, setLoginAttemptInProgress] = useState(false);
   
   const { signIn, setTestUser, userRole, refreshProfile, session, user } = useAuth();
   const navigate = useNavigate();
@@ -63,13 +62,6 @@ const LoginForm = () => {
       toast.error("Please enter both email and password");
       return;
     }
-    
-    // Prevent double submission
-    if (loginAttemptInProgress) {
-      return;
-    }
-    
-    setLoginAttemptInProgress(true);
 
     try {
       // Handle test accounts - direct login without authentication
@@ -178,8 +170,6 @@ const LoginForm = () => {
           description: "Please check your connection and try again."
         });
       }
-    } finally {
-      setLoginAttemptInProgress(false);
     }
   };
 
@@ -187,12 +177,6 @@ const LoginForm = () => {
     type: "school" | "teacher" | "student",
     schoolIndex = 0
   ) => {
-    // Prevent double submission
-    if (loginAttemptInProgress) {
-      return;
-    }
-    
-    setLoginAttemptInProgress(true);
     setLoginError(null);
 
     try {
@@ -229,8 +213,6 @@ const LoginForm = () => {
     } catch (error: any) {
       setLoginError(`Failed to log in with test account: ${error.message}`);
       toast.error("Failed to log in with test account");
-    } finally {
-      setLoginAttemptInProgress(false);
     }
   };
 
@@ -355,7 +337,6 @@ const LoginForm = () => {
             <Button
               type="submit"
               className="w-full gradient-bg"
-              disabled={loginAttemptInProgress}
             >
               Log in
             </Button>
