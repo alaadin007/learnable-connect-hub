@@ -52,7 +52,7 @@ const RegisterForm = () => {
     setIsLoading(true);
     try {
       // First verify if the school code is valid
-      const { data: schoolCodeData, error: schoolCodeError } = await supabase
+      const { data: isValidSchoolCode, error: schoolCodeError } = await supabase
         .rpc('verify_school_code', { code: data.schoolCode });
       
       if (schoolCodeError) {
@@ -60,19 +60,11 @@ const RegisterForm = () => {
         throw new Error(schoolCodeError.message || "Invalid school code. Please check and try again.");
       }
 
-      if (!schoolCodeData) {
+      if (!isValidSchoolCode) {
         throw new Error("Invalid school code. Please check and try again.");
       }
 
-      // Get school name from the code
-      const { data: schoolName, error: schoolNameError } = await supabase
-        .rpc('get_school_name_from_code', { code: data.schoolCode });
-      
-      if (schoolNameError) {
-        console.error("Error getting school name:", schoolNameError);
-      }
-      
-      // Get the school ID from the school code
+      // Get the school information from the school code
       const { data: schoolInfo, error: schoolInfoError } = await supabase
         .from("school_codes")
         .select("id, school_name")
@@ -80,8 +72,9 @@ const RegisterForm = () => {
         .eq("active", true)
         .single();
       
-      if (schoolInfoError) {
+      if (schoolInfoError || !schoolInfo) {
         console.error("Error getting school info:", schoolInfoError);
+        throw new Error("Could not find school information. Please check your school code.");
       }
       
       // Register user with Supabase
@@ -92,7 +85,7 @@ const RegisterForm = () => {
           data: {
             full_name: data.fullName,
             school_code: data.schoolCode,
-            school_name: schoolName || schoolInfo?.school_name || "Unknown School",
+            school_name: schoolInfo?.school_name || "Unknown School",
             user_type: 'student', // Default to student role
             school_id: schoolInfo?.id // Include the school_id from school_codes table
           }
