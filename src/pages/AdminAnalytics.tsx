@@ -143,14 +143,17 @@ const AdminAnalytics = () => {
       if (studyTimeError) {
         console.error("Error fetching study time:", studyTimeError);
       } else if (studyTimeResult) {
-        // Transform to expected format
+        // Transform to expected format with proper typing
         const transformedStudyTime: StudyTimeData[] = studyTimeResult.map(item => ({
-          week: `Week ${item.week_number || 1}`,
-          hours: Number(item.study_hours) || 0,
-          student_name: item.student_name,
-          studentName: item.student_name,
+          student_id: item.user_id || 'unknown-id',  // Add student_id field
+          student_name: item.student_name || 'Unknown',
+          studentName: item.student_name || 'Unknown',
           name: item.student_name || 'Unknown',
-          total_minutes: (Number(item.study_hours) || 0) * 60
+          total_minutes: Number(item.study_hours || 0) * 60,
+          // Convert any string values to numbers
+          week: `Week ${item.week_number || 1}`,
+          hours: Number(item.study_hours || 0),
+          year: Number(item.year || new Date().getFullYear())
         }));
         setStudyTimeData(transformedStudyTime);
       }
@@ -166,10 +169,10 @@ const AdminAnalytics = () => {
         console.error("Error fetching analytics summary:", analyticsError);
       } else if (analyticsData) {
         setAnalyticsSummary({
-          activeStudents: analyticsData.active_students || 0,
-          totalSessions: analyticsData.total_sessions || 0,
-          totalQueries: analyticsData.total_queries || 0,
-          avgSessionMinutes: analyticsData.avg_session_minutes || 0
+          activeStudents: Number(analyticsData.active_students || 0),
+          totalSessions: Number(analyticsData.total_sessions || 0),
+          totalQueries: Number(analyticsData.total_queries || 0),
+          avgSessionMinutes: Number(analyticsData.avg_session_minutes || 0)
         });
       }
       
@@ -210,11 +213,11 @@ const AdminAnalytics = () => {
     
     if (studyTimeData.length === 0) {
       setStudyTimeData([
-        { week: "Week 1", hours: 10.5, student_name: "Student Group", studentName: "Student Group", name: "Student Group", total_minutes: 630 },
-        { week: "Week 2", hours: 12.2, student_name: "Student Group", studentName: "Student Group", name: "Student Group", total_minutes: 732 },
-        { week: "Week 3", hours: 9.8, student_name: "Student Group", studentName: "Student Group", name: "Student Group", total_minutes: 588 },
-        { week: "Week 4", hours: 14.1, student_name: "Student Group", studentName: "Student Group", name: "Student Group", total_minutes: 846 },
-        { week: "Week 5", hours: 11.6, student_name: "Student Group", studentName: "Student Group", name: "Student Group", total_minutes: 696 }
+        { student_id: "student-1", week: "Week 1", hours: 10.5, student_name: "Student Group", studentName: "Student Group", name: "Student Group", total_minutes: 630 },
+        { student_id: "student-2", week: "Week 2", hours: 12.2, student_name: "Student Group", studentName: "Student Group", name: "Student Group", total_minutes: 732 },
+        { student_id: "student-3", week: "Week 3", hours: 9.8, student_name: "Student Group", studentName: "Student Group", name: "Student Group", total_minutes: 588 },
+        { student_id: "student-4", week: "Week 4", hours: 14.1, student_name: "Student Group", studentName: "Student Group", name: "Student Group", total_minutes: 846 },
+        { student_id: "student-5", week: "Week 5", hours: 11.6, student_name: "Student Group", studentName: "Student Group", name: "Student Group", total_minutes: 696 }
       ]);
     }
   };
@@ -327,7 +330,7 @@ const AdminAnalytics = () => {
               </CardHeader>
               <CardContent>
                 <SchoolPerformancePanel 
-                  performanceData={schoolPerformanceData}
+                  data={schoolPerformanceData}
                   summary={schoolSummary}
                   isLoading={isLoading}
                 />

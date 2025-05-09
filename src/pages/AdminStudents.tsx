@@ -60,7 +60,7 @@ const AdminStudents = () => {
         .from("profiles")
         .select("*")
         .eq("school_id", schoolId)
-        .eq("role", "student")
+        .eq("user_type", "student")
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -71,7 +71,17 @@ const AdminStudents = () => {
           variant: "destructive",
         });
       } else {
-        setStudents(data || []);
+        // Transform the data to match the Student interface
+        const transformedData: Student[] = (data || []).map(profile => ({
+          id: profile.id,
+          created_at: profile.created_at,
+          email: profile.email || '',
+          full_name: profile.full_name || '',
+          role: 'student', // Default role
+          status: 'active', // Default status, you might want to get this from a different source
+          school_id: profile.school_id || '',
+        }));
+        setStudents(transformedData);
       }
     } catch (error) {
       console.error("Error loading students:", error);
@@ -107,7 +117,7 @@ const AdminStudents = () => {
     try {
       const { error } = await supabase
         .from("profiles")
-        .update({ status: newStatus })
+        .update({ is_active: newStatus === "active" })
         .eq("id", studentId);
 
       if (error) {
