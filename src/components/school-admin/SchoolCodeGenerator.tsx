@@ -37,14 +37,22 @@ const SchoolCodeGenerator: React.FC<SchoolCodeGeneratorProps> = ({
   useEffect(() => {
     const getExistingCode = async () => {
       const schoolId = contextSchoolId;
-      if (!schoolId) return;
+      if (!schoolId) {
+        console.warn("No school ID available in context");
+        return;
+      }
 
       if (variant === 'school') {
         try {
+          console.log("Fetching existing school code for school ID:", schoolId);
           const currentCode = await fetchCurrentCode(schoolId);
+          
           if (currentCode) {
+            console.log("Found existing code:", currentCode);
             setGeneratedCode(currentCode);
             if (onCodeGenerated) onCodeGenerated(currentCode);
+          } else {
+            console.log("No existing code found");
           }
         } catch (error) {
           console.error("Error fetching existing code:", error);
@@ -58,10 +66,13 @@ const SchoolCodeGenerator: React.FC<SchoolCodeGeneratorProps> = ({
   const handleGenerateCode = async () => {
     const schoolId = contextSchoolId;
     if (!schoolId) {
+      console.error("No school ID found in context");
       toast.error("Could not determine your school ID");
       return;
     }
 
+    console.log("Generating code for variant:", variant, "school ID:", schoolId);
+    
     let newCode: string | null = null;
     
     if (variant === 'school') {
@@ -71,9 +82,12 @@ const SchoolCodeGenerator: React.FC<SchoolCodeGeneratorProps> = ({
     }
     
     if (newCode) {
+      console.log(`New ${variant} code generated:`, newCode);
       setGeneratedCode(newCode);
       toast.success(`New ${variant} code generated successfully`);
       if (onCodeGenerated) onCodeGenerated(newCode);
+    } else {
+      console.error("Failed to generate code");
     }
   };
 
@@ -96,13 +110,13 @@ const SchoolCodeGenerator: React.FC<SchoolCodeGeneratorProps> = ({
     <div className={className}>
       {generatedCode ? (
         <div className="space-y-3">
-          <div className="p-3 bg-muted rounded-md border flex items-center justify-between">
-            <code className="font-mono text-lg">{generatedCode}</code>
+          <div className="p-4 bg-blue-50 rounded-md border border-blue-200 flex items-center justify-between">
+            <code className="font-mono text-lg font-bold text-blue-700">{generatedCode}</code>
             <Button
               size="sm"
               variant="ghost"
               onClick={copyCode}
-              className={codeCopied ? "text-green-600" : ""}
+              className={`ml-2 ${codeCopied ? "text-green-600" : ""}`}
             >
               {codeCopied ? <CheckCircle className="h-4 w-4 mr-1" /> : <Copy className="h-4 w-4 mr-1" />}
               {codeCopied ? "Copied!" : "Copy"}

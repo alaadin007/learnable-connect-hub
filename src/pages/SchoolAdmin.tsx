@@ -1,16 +1,16 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { School, Copy, CheckCircle, AlertCircle } from "lucide-react";
+import { School, Copy, CheckCircle, AlertCircle, Info } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import Footer from "@/components/landing/Footer";
 import AdminNavbar from "@/components/school-admin/AdminNavbar";
 import { useSchoolCode } from "@/hooks/use-school-code";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import SchoolCodeGenerator from "@/components/school-admin/SchoolCodeGenerator";
 
 const SchoolAdmin = () => {
   const { user, profile } = useAuth();
@@ -19,7 +19,7 @@ const SchoolAdmin = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [codeCopied, setCodeCopied] = useState(false);
   const [codeInfo, setCodeInfo] = useState<{code: string, expiresAt?: string}>({code: ""});
-  const { generateCode, isGenerating } = useSchoolCode();
+  const { fetchCurrentCode, generateCode, isGenerating } = useSchoolCode();
 
   // Fetch the current school code on component mount
   useEffect(() => {
@@ -27,21 +27,16 @@ const SchoolAdmin = () => {
       if (!profile?.organization?.id) return;
 
       try {
-        const { data, error } = await supabase
-          .from("schools")
-          .select("code, code_expires_at")
-          .eq("id", profile.organization.id)
-          .single();
-
-        if (error) throw error;
-
-        if (data && data.code) {
-          setCurrentCode(data.code);
+        setIsLoading(true);
+        const code = await fetchCurrentCode(profile.organization.id);
+        
+        if (code) {
+          setCurrentCode(code);
           setCodeInfo({
-            code: data.code,
-            expiresAt: data.code_expires_at
+            code: code,
+            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // Approximate
           });
-          console.log("Fetched school code:", data.code);
+          console.log("Fetched school code:", code);
         }
       } catch (error) {
         console.error("Error fetching school code:", error);
@@ -51,7 +46,7 @@ const SchoolAdmin = () => {
     };
 
     fetchSchoolCode();
-  }, [profile?.organization?.id]);
+  }, [profile?.organization?.id, fetchCurrentCode]);
 
   // Handle code generation callback
   const generateSchoolCode = async () => {
@@ -62,7 +57,9 @@ const SchoolAdmin = () => {
     }
 
     try {
+      setIsLoading(true);
       const newCode = await generateCode(schoolId);
+      
       if (newCode) {
         setCurrentCode(newCode);
         setCodeInfo({
@@ -70,10 +67,14 @@ const SchoolAdmin = () => {
           expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // Assume 24h expiration
         });
         toast.success("New school code generated successfully");
+      } else {
+        toast.error("Failed to generate a new code");
       }
     } catch (error) {
       console.error("Failed to generate code:", error);
       toast.error("Could not generate a new code");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -129,32 +130,37 @@ const SchoolAdmin = () => {
               <div className="space-y-4">
                 <Button
                   onClick={generateSchoolCode}
-                  disabled={isGenerating}
+                  disabled={isGenerating || isLoading}
                   className="w-full bg-blue-600 hover:bg-blue-700"
                 >
-                  {isGenerating ? "Generating..." : currentCode ? "Generate New School Code" : "Generate School Code"}
+                  {(isGenerating || isLoading) ? (
+                    <div className="flex items-center gap-2">
+                      <div className="h-4 w-4 rounded-full border-2 border-t-transparent border-white animate-spin"></div>
+                      <span>Generating...</span>
+                    </div>
+                  ) : currentCode ? "Generate New School Code" : "Generate School Code"}
                 </Button>
                 
                 {currentCode && (
                   <div className="border rounded-md overflow-hidden mt-4">
-                    <div className="p-4 bg-gray-50 border-b">
+                    <div className="p-3 bg-gray-50 border-b flex justify-between items-center">
                       <h4 className="text-sm font-medium text-gray-700">Your School Code</h4>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={copyCodeToClipboard}
+                        className={codeCopied ? "text-green-600" : ""}
+                      >
+                        {codeCopied ? (
+                          <><CheckCircle className="h-4 w-4 mr-1" /> Copied</>
+                        ) : (
+                          <><Copy className="h-4 w-4 mr-1" /> Copy</>
+                        )}
+                      </Button>
                     </div>
                     <div className="p-4">
-                      <div className="flex items-center justify-between p-3 bg-white border rounded-md">
-                        <code className="font-mono text-lg font-bold">{currentCode}</code>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={copyCodeToClipboard}
-                          className={codeCopied ? "text-green-600" : ""}
-                        >
-                          {codeCopied ? (
-                            <CheckCircle className="h-4 w-4" />
-                          ) : (
-                            <Copy className="h-4 w-4" />
-                          )}
-                        </Button>
+                      <div className="flex items-center justify-center p-4 bg-blue-50 border border-blue-200 rounded-md">
+                        <code className="font-mono text-xl font-bold text-blue-700">{currentCode}</code>
                       </div>
                       
                       {codeInfo.expiresAt && (
@@ -164,10 +170,17 @@ const SchoolAdmin = () => {
                         </div>
                       )}
                       
-                      <div className="mt-3 bg-blue-50 border border-blue-200 rounded-md p-2 text-sm text-blue-800">
+                      <div className="mt-3 bg-blue-50 border border-blue-200 rounded-md p-2 text-sm text-blue-800 flex items-start gap-2">
+                        <Info className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />
                         <p>Share this code with teachers and students to join your school.</p>
                       </div>
                     </div>
+                  </div>
+                )}
+                
+                {!currentCode && !isLoading && (
+                  <div className="p-3 bg-gray-50 border rounded-md text-center text-gray-500">
+                    No school code generated yet. Click the button above to generate a code.
                   </div>
                 )}
               </div>
@@ -270,6 +283,25 @@ const SchoolAdmin = () => {
                 >
                   School Settings
                 </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Separate section for Student Invite Code */}
+        <div className="mt-8">
+          <h3 className="text-xl font-bold mb-4">Student Invitation</h3>
+          <Card>
+            <CardContent className="p-6">
+              <p className="text-gray-600 mb-4">
+                Generate a separate invitation code specifically for students to join your school
+              </p>
+              <div className="max-w-md">
+                <SchoolCodeGenerator 
+                  variant="student"
+                  label="Student Invitation Code"
+                  description="Generate and share this code with students who need to join your school"
+                />
               </div>
             </CardContent>
           </Card>
