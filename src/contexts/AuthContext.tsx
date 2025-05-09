@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { Database } from "@/integrations/supabase/types";
@@ -75,68 +75,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isSuperviser, setIsSuperviser] = useState(false);
   const [schoolId, setSchoolId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [authError, setAuthError] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Set up auth state listener FIRST - critical for avoiding deadlocks
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
-      console.log("Auth state changed:", event, !!newSession);
-      setSession(newSession);
-      setUser(newSession?.user ?? null);
-      
-      // Don't make any Supabase calls directly in the callback
-      if (newSession?.user) {
-        // Use setTimeout to ensure we don't create a Supabase deadlock
-        setTimeout(() => {
-          fetchUserProfile(newSession.user.id);
-        }, 0);
-      } else if (event === 'SIGNED_OUT') {
-        // Clear all auth state
-        setProfile(null);
-        setUserRole(null);
-        setIsSuperviser(false);
-        setSchoolId(null);
-      }
-    });
-
-    // THEN check for existing session
-    loadInitialSession();
-    
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
-  
-  const loadInitialSession = async () => {
-    try {
-      setIsLoading(true);
-      
-      // Get current session
-      const { data, error } = await supabase.auth.getSession();
-      
-      if (error) {
-        console.error("Initial session error:", error);
-        throw error;
-      }
-      
-      if (data.session) {
-        // Update state with session data
-        setSession(data.session);
-        setUser(data.session.user);
-        
-        // Fetch additional user information
-        await fetchUserProfile(data.session.user.id);
-      }
-    } catch (err) {
-      console.error("Error loading initial session:", err);
-      // IMPORTANT: Don't set an auth error here as we'll handle the fallback in fetchUserProfile
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Fetch user profile data including role and school information
-  const fetchUserProfile = async (userId: string) => {
+  // Fetch user profile data including role and school information - wrapped in useCallback
+  const fetchUserProfile = useCallback(async (userId: string) => {
     try {
       console.log("Fetching profile for user:", userId);
 
@@ -327,9 +268,70 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         localStorage.setItem('userRole', 'student');
       }
     }
-  };
+  }, [user, userRole]);
 
-  const signIn = async (email: string, password: string) => {
+  useEffect(() => {
+    // Set up auth state listener FIRST - critical for avoiding deadlocks
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
+      console.log("Auth state changed:", event, !!newSession);
+      setSession(newSession);
+      setUser(newSession?.user ?? null);
+      
+      // Don't make any Supabase calls directly in the callback
+      if (newSession?.user) {
+        // Use setTimeout to ensure we don't create a Supabase deadlock
+        setTimeout(() => {
+          fetchUserProfile(newSession.user.id);
+        }, 0);
+      } else if (event === 'SIGNED_OUT') {
+        // Clear all auth state
+        setProfile(null);
+        setUserRole(null);
+        setIsSuperviser(false);
+        setSchoolId(null);
+        
+        // Also clear localStorage items related to auth
+        localStorage.removeItem('userRole');
+        localStorage.removeItem('schoolId');
+      }
+    });
+
+    // THEN check for existing session
+    const loadInitialSession = async () => {
+      try {
+        setIsLoading(true);
+        
+        // Get current session
+        const { data, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error("Initial session error:", error);
+          throw error;
+        }
+        
+        if (data.session) {
+          // Update state with session data
+          setSession(data.session);
+          setUser(data.session.user);
+          
+          // Fetch additional user information
+          await fetchUserProfile(data.session.user.id);
+        }
+      } catch (err) {
+        console.error("Error loading initial session:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadInitialSession();
+    
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [fetchUserProfile]);
+
+  const signIn = useCallback(async (email: string, password: string) => {
     try {
       const response = await supabase.auth.signInWithPassword({ email, password });
       return response;
@@ -337,9 +339,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.error("Error signing in:", error);
       return { error, data: null };
     }
-  };
+  }, []);
 
-  const signUp = async (email: string, password: string, metadata: any) => {
+  const signUp = useCallback(async (email: string, password: string, metadata: any) => {
     try {
       const response = await supabase.auth.signUp({ 
         email, 
@@ -354,9 +356,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.error("Error signing up:", error);
       return { error, data: null };
     }
-  };
+  }, []);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     try {
       await supabase.auth.signOut();
       setSession(null);
@@ -370,22 +372,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error("Error signing out:", error);
     }
-  };
+  }, []);
 
   // Refresh user profile data
-  const refreshProfile = async () => {
+  const refreshProfile = useCallback(async () => {
     if (user) {
       await fetchUserProfile(user.id);
     }
-  };
+  }, [user, fetchUserProfile]);
 
   // Set up test user
-  const setTestUser = async (
+  const setTestUser = useCallback(async (
     type: "school" | "teacher" | "student",
     schoolIndex = 0
   ) => {
     try {
       const testUser = TEST_USERS[type];
+
+      // Store test account type in sessionStorage for easier recovery
+      sessionStorage.setItem('testAccountType', type);
 
       // Create a fake session for test users
       const fakeSession = {
@@ -421,7 +426,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.error("Error setting test user:", error);
       throw error;
     }
-  };
+  }, []);
 
   const contextValue: AuthState = {
     session,

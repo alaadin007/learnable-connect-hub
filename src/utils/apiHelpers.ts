@@ -99,8 +99,17 @@ export async function invokeEdgeFunction<T = any>(
 
 // These functions always return values to prevent errors
 export function getUserRoleWithFallback(): UserRole {
+  // First check localStorage which is most reliable
   const role = localStorage.getItem('userRole') as UserRole;
   if (role) return role;
+  
+  // Check for test account flags in sessionStorage
+  const testAccount = sessionStorage.getItem('testAccountType');
+  if (testAccount) {
+    if (testAccount === 'student') return 'student';
+    if (testAccount === 'teacher') return 'teacher';
+    if (testAccount === 'school') return 'school';
+  }
   
   // Check if we can get it from the session
   try {

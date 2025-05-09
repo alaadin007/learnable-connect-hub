@@ -15,41 +15,49 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const [isRedirecting, setIsRedirecting] = useState(false);
   
-  // Immediate redirect for school admin users - high priority check
+  // Redirect check for admin/teacher users with proper dependency array
   useEffect(() => {
-    // Get both context role and fallback role to ensure we catch all cases
-    const fallbackRole = getUserRoleWithFallback();
-    const effectiveRole = userRole || fallbackRole;
+    const checkAndRedirect = () => {
+      // Get both context role and fallback role to ensure we catch all cases
+      const fallbackRole = getUserRoleWithFallback();
+      const effectiveRole = userRole || fallbackRole;
+      
+      console.log("Dashboard detected user role:", effectiveRole);
+      
+      // More comprehensive check for school admin roles
+      if (isSchoolAdmin(effectiveRole)) {
+        console.log(`DASHBOARD REDIRECT: School admin (${effectiveRole}) detected, redirecting to /admin`);
+        setIsRedirecting(true);
+        
+        // Show toast notification
+        toast.info("Redirecting to School Admin Dashboard...");
+        
+        // Use navigate instead of window.location for smoother experience
+        navigate("/admin", { state: { preserveContext: true, adminRedirect: true }, replace: true });
+        return true;
+      } else if (effectiveRole === 'teacher') {
+        console.log(`DASHBOARD REDIRECT: Teacher (${effectiveRole}) detected, redirecting to /teacher/students`);
+        setIsRedirecting(true);
+        
+        // Show toast notification
+        toast.info("Redirecting to Teacher Dashboard...");
+        
+        // Redirect to teacher dashboard
+        navigate("/teacher/students", { state: { preserveContext: true }, replace: true });
+        return true;
+      } else {
+        console.log(`Dashboard component rendering for student user: ${effectiveRole}`);
+        return false;
+      }
+    };
     
-    console.log("Dashboard detected user role:", effectiveRole);
-    
-    // More comprehensive check for school admin roles
-    if (isSchoolAdmin(effectiveRole)) {
-      console.log(`DASHBOARD REDIRECT: School admin (${effectiveRole}) detected, redirecting to /admin`);
-      setIsRedirecting(true);
-      
-      // Show toast notification
-      toast.info("Redirecting to School Admin Dashboard...");
-      
-      // Use navigate instead of window.location for smoother experience
-      navigate("/admin", { state: { preserveContext: true, adminRedirect: true }, replace: true });
-      return;
-    } else if (effectiveRole === 'teacher') {
-      console.log(`DASHBOARD REDIRECT: Teacher (${effectiveRole}) detected, redirecting to /teacher/students`);
-      setIsRedirecting(true);
-      
-      // Show toast notification
-      toast.info("Redirecting to Teacher Dashboard...");
-      
-      // Redirect to teacher dashboard
-      navigate("/teacher/students", { state: { preserveContext: true }, replace: true });
-      return;
-    } else {
-      console.log(`Dashboard component rendering for student user: ${effectiveRole}`);
+    // Only redirect if we haven't started redirecting yet
+    if (!isRedirecting) {
+      checkAndRedirect();
     }
-  }, [userRole, navigate]);
+  }, [userRole, navigate, isRedirecting]); // Add isRedirecting to dependencies to prevent multiple redirections
 
-  // If we're redirecting or user is a school admin, show loading state
+  // If we're redirecting or user is a school admin/teacher, show loading state
   if (isRedirecting || isSchoolAdmin(userRole) || isSchoolAdmin(getUserRoleWithFallback()) || userRole === 'teacher') {
     return (
       <div className="h-screen flex flex-col items-center justify-center">

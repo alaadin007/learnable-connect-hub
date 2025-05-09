@@ -67,6 +67,9 @@ const TestAccounts = () => {
       try {
         await supabase.auth.signOut();
         console.log("TestAccounts: Cleared previous sessions on page load");
+        // Also clear any test account indicators
+        localStorage.removeItem('userRole');
+        localStorage.removeItem('schoolId');
       } catch (error) {
         console.error("Error clearing sessions:", error);
       }
@@ -125,6 +128,9 @@ const TestAccounts = () => {
         
         // First set test user in auth context
         await setTestUser(accountType);
+        
+        // Store account type in session storage for easier recognition
+        sessionStorage.setItem('testAccountType', accountType);
         
         // Immediately show success toast so user gets feedback
         toast.success(`Logged in as ${account.role}`, {
