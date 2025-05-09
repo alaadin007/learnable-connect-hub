@@ -7,9 +7,7 @@ import {
   UserPlus, 
   Users, 
   BarChart2, 
-  Settings, 
-  MessageSquare, 
-  FileText 
+  Settings
 } from "lucide-react";
 
 type AdminNavLink = {
@@ -24,8 +22,6 @@ const defaultNavLinks: AdminNavLink[] = [
   { name: "Students", href: "/admin/students", icon: Users },
   { name: "Analytics", href: "/admin/analytics", icon: BarChart2 },
   { name: "Settings", href: "/admin/settings", icon: Settings },
-  { name: "Chat", href: "/chat", icon: MessageSquare },
-  { name: "Documents", href: "/documents", icon: FileText },
 ];
 
 interface AdminNavbarProps {

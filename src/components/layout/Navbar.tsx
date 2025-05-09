@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -98,13 +99,10 @@ const Navbar = () => {
   // Simplified admin navbar links with more options
   const getSchoolAdminNavLinks = () => {
     return [
-      { name: "Dashboard", href: "/admin" },
       { name: "Teacher Management", href: "/admin/teacher-management" },
       { name: "Students", href: "/admin/students" },
       { name: "Analytics", href: "/admin/analytics" },
       { name: "Settings", href: "/admin/settings" },
-      { name: "Chat", href: "/chat" },
-      { name: "Documents", href: "/documents" },
     ];
   };
 
@@ -128,20 +126,13 @@ const Navbar = () => {
     // For teacher role
     else if (effectiveUserRole === "teacher") {
       return [
-        { name: "Dashboard", href: "/teacher/analytics" },
-        { name: "Students", href: "/teacher/students" },
         { name: "Analytics", href: "/teacher/analytics" },
-        { name: "Chat", href: "/chat" },
-        { name: "Documents", href: "/documents" },
+        { name: "Students", href: "/teacher/students" },
       ];
     } 
     // Student or other user types
     else {
-      return [
-        { name: "Dashboard", href: "/dashboard" },
-        { name: "Chat", href: "/chat" },
-        { name: "Documents", href: "/documents" },
-      ];
+      return []; // Empty array as we're removing the default links
     }
   }, [effectiveUserRole, isLoggedIn, isTestAccountsPage, isAdmin]);
 
@@ -163,10 +154,6 @@ const Navbar = () => {
 
     // Handle other specific paths
     switch (href) {
-      case "/chat":
-        return currentPath === "/chat" || currentPath.startsWith("/chat/");
-      case "/documents":
-        return currentPath === "/documents" || currentPath.startsWith("/documents/");
       default:
         return currentPath === href;
     }
