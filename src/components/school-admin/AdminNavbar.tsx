@@ -28,14 +28,14 @@ const AdminNavbar = ({ navLinks = defaultNavLinks, className }: AdminNavbarProps
   
   // Function to determine if a link is active
   const isLinkActive = (linkHref: string): boolean => {
-    // Exact match for dashboard
+    // Special case for dashboard (exact match only)
     if (linkHref === "/admin" && location.pathname === "/admin") {
       return true;
     }
     
-    // For other pages, make sure it's not just a prefix match but a proper path segment match
+    // For other pages, need to check parent paths
     if (linkHref !== "/admin" && location.pathname.startsWith(linkHref)) {
-      // Make sure it's either an exact match or a subpath (with / after the href)
+      // Make sure it's at path boundaries to avoid partial matches
       const remainingPath = location.pathname.slice(linkHref.length);
       return remainingPath === "" || remainingPath.startsWith("/");
     }
@@ -43,11 +43,34 @@ const AdminNavbar = ({ navLinks = defaultNavLinks, className }: AdminNavbarProps
     return false;
   };
   
+  // Extra check to ensure only one link is active when there are multiple matches
+  const getActiveLink = (): string => {
+    // First look for exact match
+    const exactMatch = navLinks.find(link => link.href === location.pathname);
+    if (exactMatch) return exactMatch.href;
+    
+    // If no exact match, get the longest matching prefix (most specific match)
+    const matchingLinks = navLinks
+      .filter(link => location.pathname.startsWith(link.href))
+      .filter(link => {
+        // Don't count the admin link as a match for subpages like /admin/settings
+        if (link.href === "/admin" && location.pathname !== "/admin") {
+          return false;
+        }
+        return true;
+      })
+      .sort((a, b) => b.href.length - a.href.length);
+    
+    return matchingLinks.length > 0 ? matchingLinks[0].href : "";
+  };
+  
+  const activeLink = getActiveLink();
+  
   return (
     <div className={cn("border-b mb-6", className)}>
       <nav className="flex space-x-4 overflow-x-auto pb-2">
         {navLinks.map((link) => {
-          const active = isLinkActive(link.href);
+          const active = link.href === activeLink;
           
           return (
             <Link

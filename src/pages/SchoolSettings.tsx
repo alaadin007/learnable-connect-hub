@@ -115,6 +115,9 @@ const SchoolSettings = () => {
         throw error;
       }
       
+      // Wait for a moment to ensure DB update is processed
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       // Refresh profile to get latest data
       await refreshProfile();
       
