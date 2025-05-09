@@ -1,124 +1,17 @@
 
-import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useEffect, useState, useCallback } from "react";
+import { useNavigate, Link } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, FileText, BarChart3, Settings } from "lucide-react";
+import { MessageSquare, FileText, BarChart3, Settings, Video, Calendar } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
 import Footer from "@/components/layout/Footer";
 import { isSchoolAdmin, getUserRoleWithFallback } from "@/utils/apiHelpers";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
-const Dashboard = () => {
-  const { user, profile, userRole } = useAuth();
-  const navigate = useNavigate();
-  const [isRedirecting, setIsRedirecting] = useState(false);
-  
-  // Redirect check for admin/teacher users with proper dependency array
-  useEffect(() => {
-    const checkAndRedirect = () => {
-      // Get both context role and fallback role to ensure we catch all cases
-      const fallbackRole = getUserRoleWithFallback();
-      const effectiveRole = userRole || fallbackRole;
-      
-      console.log("Dashboard detected user role:", effectiveRole);
-      
-      // More comprehensive check for school admin roles
-      if (isSchoolAdmin(effectiveRole)) {
-        console.log(`DASHBOARD REDIRECT: School admin (${effectiveRole}) detected, redirecting to /admin`);
-        setIsRedirecting(true);
-        
-        // Show toast notification
-        toast.info("Redirecting to School Admin Dashboard...");
-        
-        // Use navigate instead of window.location for smoother experience
-        navigate("/admin", { state: { preserveContext: true, adminRedirect: true }, replace: true });
-        return true;
-      } else if (effectiveRole === 'teacher') {
-        console.log(`DASHBOARD REDIRECT: Teacher (${effectiveRole}) detected, redirecting to /teacher/students`);
-        setIsRedirecting(true);
-        
-        // Show toast notification
-        toast.info("Redirecting to Teacher Dashboard...");
-        
-        // Redirect to teacher dashboard
-        navigate("/teacher/students", { state: { preserveContext: true }, replace: true });
-        return true;
-      } else {
-        console.log(`Dashboard component rendering for student user: ${effectiveRole}`);
-        return false;
-      }
-    };
-    
-    // Only redirect if we haven't started redirecting yet
-    if (!isRedirecting) {
-      checkAndRedirect();
-    }
-  }, [userRole, navigate, isRedirecting]); // Add isRedirecting to dependencies to prevent multiple redirections
-
-  // If we're redirecting or user is a school admin/teacher, show loading state
-  if (isRedirecting || isSchoolAdmin(userRole) || isSchoolAdmin(getUserRoleWithFallback()) || userRole === 'teacher') {
-    return (
-      <div className="h-screen flex flex-col items-center justify-center">
-        <p className="text-xl mb-4">Redirecting to appropriate dashboard...</p>
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
-  // Standard student dashboard below - always include Navbar
-  return (
-    <>
-      <Navbar />
-      <main className="container mx-auto px-4 py-8 min-h-screen">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Welcome, {profile?.full_name || user?.user_metadata?.full_name || "Student"}</h1>
-          <p className="text-gray-600">
-            Access your learning resources and complete your assessments
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <DashboardCard
-            title="Chat with AI"
-            description="Get help with your studies from our AI learning assistant"
-            icon={<MessageSquare className="h-10 w-10" />}
-            buttonText="Go to Chat with AI"
-            onClick={() => navigate("/chat", { state: { preserveContext: true } })}
-          />
-          
-          <DashboardCard
-            title="Assessments"
-            description="View and complete your assigned assessments"
-            icon={<FileText className="h-10 w-10" />}
-            buttonText="Go to Assessments"
-            onClick={() => navigate("/student/assessments", { state: { preserveContext: true } })}
-          />
-          
-          <DashboardCard
-            title="My Progress"
-            description="Track your performance and learning progress"
-            icon={<BarChart3 className="h-10 w-10" />}
-            buttonText="Go to My Progress"
-            onClick={() => navigate("/student/progress", { state: { preserveContext: true } })}
-          />
-          
-          <DashboardCard
-            title="Settings"
-            description="Manage your profile and preferences"
-            icon={<Settings className="h-10 w-10" />}
-            buttonText="Go to Settings"
-            onClick={() => navigate("/student/settings", { state: { preserveContext: true } })}
-          />
-        </div>
-      </main>
-      <Footer />
-    </>
-  );
-};
-
-// Keep the DashboardCard component
+// Dashboard Cards Component
 interface DashboardCardProps {
   title: string;
   description: string;
@@ -146,6 +39,327 @@ const DashboardCard: React.FC<DashboardCardProps> = ({ title, description, icon,
         </Button>
       </CardContent>
     </Card>
+  );
+};
+
+interface UpcomingAssessmentProps {
+  id: string;
+  title: string;
+  dueDate: string | null;
+  subject?: string;
+}
+
+const UpcomingAssessmentCard: React.FC<UpcomingAssessmentProps> = ({ id, title, dueDate, subject }) => {
+  const navigate = useNavigate();
+  
+  return (
+    <div 
+      className="p-4 border rounded-md hover:bg-gray-50 cursor-pointer"
+      onClick={() => navigate(`/student/assessment/${id}`)}
+    >
+      <div className="flex justify-between items-start">
+        <div>
+          <h4 className="font-medium">{title}</h4>
+          {subject && <p className="text-sm text-gray-500">{subject}</p>}
+        </div>
+        {dueDate && (
+          <div className="text-sm text-red-600 font-medium">
+            Due: {new Date(dueDate).toLocaleDateString()}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const Dashboard = () => {
+  const { user, profile, userRole } = useAuth();
+  const navigate = useNavigate();
+  const [isRedirecting, setIsRedirecting] = useState(false);
+  const [upcomingAssessments, setUpcomingAssessments] = useState<UpcomingAssessmentProps[]>([]);
+  const [recentLectures, setRecentLectures] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  // Redirect check for admin/teacher users with proper dependency array
+  const checkAndRedirect = useCallback(() => {
+    // Get both context role and fallback role to ensure we catch all cases
+    const fallbackRole = getUserRoleWithFallback();
+    const effectiveRole = userRole || fallbackRole;
+    
+    console.log("Dashboard detected user role:", effectiveRole);
+    
+    // More comprehensive check for school admin roles
+    if (isSchoolAdmin(effectiveRole)) {
+      console.log(`DASHBOARD REDIRECT: School admin (${effectiveRole}) detected, redirecting to /admin`);
+      setIsRedirecting(true);
+      
+      // Show toast notification
+      toast.info("Redirecting to School Admin Dashboard...");
+      
+      // Use navigate instead of window.location for smoother experience
+      navigate("/admin", { state: { preserveContext: true, adminRedirect: true }, replace: true });
+      return true;
+    } else if (effectiveRole === 'teacher') {
+      console.log(`DASHBOARD REDIRECT: Teacher (${effectiveRole}) detected, redirecting to /teacher/students`);
+      setIsRedirecting(true);
+      
+      // Show toast notification
+      toast.info("Redirecting to Teacher Dashboard...");
+      
+      // Redirect to teacher dashboard
+      navigate("/teacher/students", { state: { preserveContext: true }, replace: true });
+      return true;
+    } else {
+      console.log(`Dashboard component rendering for student user: ${effectiveRole}`);
+      return false;
+    }
+  }, [userRole, navigate]);
+  
+  useEffect(() => {
+    // Only redirect if we haven't started redirecting yet
+    if (!isRedirecting) {
+      const shouldRedirect = checkAndRedirect();
+      if (!shouldRedirect && user) {
+        // Fetch student dashboard data
+        const fetchDashboardData = async () => {
+          try {
+            setLoading(true);
+            // Fetch upcoming assessments
+            const { data: assessments, error: assessmentsError } = await supabase
+              .from("assessments")
+              .select(`
+                id, 
+                title, 
+                due_date,
+                subject
+              `)
+              .gt('due_date', new Date().toISOString())
+              .order('due_date', { ascending: true })
+              .limit(3);
+
+            if (assessmentsError) {
+              console.error("Error fetching assessments:", assessmentsError);
+            } else {
+              setUpcomingAssessments(assessments || []);
+            }
+
+            // Fetch recent lectures
+            const { data: lectures, error: lecturesError } = await supabase
+              .from("lectures")
+              .select(`
+                id,
+                title,
+                thumbnail_url,
+                created_at
+              `)
+              .order('created_at', { ascending: false })
+              .limit(3);
+
+            if (lecturesError) {
+              console.error("Error fetching lectures:", lecturesError);
+            } else {
+              setRecentLectures(lectures || []);
+            }
+          } catch (err) {
+            console.error("Error fetching dashboard data:", err);
+          } finally {
+            setLoading(false);
+          }
+        };
+        
+        fetchDashboardData();
+      }
+    }
+  }, [user, userRole, isRedirecting, checkAndRedirect]);
+
+  // If we're redirecting or user is a school admin/teacher, show loading state
+  if (isRedirecting || isSchoolAdmin(userRole) || isSchoolAdmin(getUserRoleWithFallback()) || userRole === 'teacher') {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center">
+        <p className="text-xl mb-4">Redirecting to appropriate dashboard...</p>
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  // Standard student dashboard below - always include Navbar
+  return (
+    <>
+      <Navbar />
+      <main className="container mx-auto px-4 py-8 min-h-screen">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold mb-2">Welcome, {profile?.full_name || user?.user_metadata?.full_name || "Student"}</h1>
+          <p className="text-gray-600">
+            Access your learning resources and complete your assessments
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+          <div className="col-span-1 md:col-span-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <DashboardCard
+                title="Chat with AI"
+                description="Get help with your studies from our AI learning assistant"
+                icon={<MessageSquare className="h-10 w-10" />}
+                buttonText="Go to Chat with AI"
+                onClick={() => navigate("/chat", { state: { preserveContext: true } })}
+              />
+              
+              <DashboardCard
+                title="Assessments"
+                description="View and complete your assigned assessments"
+                icon={<FileText className="h-10 w-10" />}
+                buttonText="Go to Assessments"
+                onClick={() => navigate("/student/assessments", { state: { preserveContext: true } })}
+              />
+              
+              <DashboardCard
+                title="Video Lectures"
+                description="Watch educational videos and course content"
+                icon={<Video className="h-10 w-10" />}
+                buttonText="Go to Lectures"
+                onClick={() => navigate("/student/lectures", { state: { preserveContext: true } })}
+              />
+              
+              <DashboardCard
+                title="My Progress"
+                description="Track your performance and learning progress"
+                icon={<BarChart3 className="h-10 w-10" />}
+                buttonText="Go to My Progress"
+                onClick={() => navigate("/student/progress", { state: { preserveContext: true } })}
+              />
+            </div>
+          </div>
+          
+          <div className="col-span-1 md:col-span-2 space-y-6">
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold flex items-center">
+                    <Calendar className="h-5 w-5 mr-2 text-blue-600" />
+                    Upcoming Assessments
+                  </h3>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => navigate("/student/assessments")}
+                  >
+                    View All
+                  </Button>
+                </div>
+                
+                {loading ? (
+                  <div className="flex justify-center py-6">
+                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-600"></div>
+                  </div>
+                ) : upcomingAssessments.length > 0 ? (
+                  <div className="space-y-3">
+                    {upcomingAssessments.map(assessment => (
+                      <UpcomingAssessmentCard 
+                        key={assessment.id}
+                        id={assessment.id}
+                        title={assessment.title}
+                        dueDate={assessment.dueDate}
+                        subject={assessment.subject}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-center py-6 text-gray-500">No upcoming assessments</p>
+                )}
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold flex items-center">
+                    <Video className="h-5 w-5 mr-2 text-blue-600" />
+                    Recent Lectures
+                  </h3>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => navigate("/student/lectures")}
+                  >
+                    View All
+                  </Button>
+                </div>
+                
+                {loading ? (
+                  <div className="flex justify-center py-6">
+                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-600"></div>
+                  </div>
+                ) : recentLectures.length > 0 ? (
+                  <div className="space-y-3">
+                    {recentLectures.map(lecture => (
+                      <Link 
+                        key={lecture.id}
+                        to={`/student/lecture/${lecture.id}`}
+                        className="block p-4 border rounded-md hover:bg-gray-50"
+                      >
+                        <div className="flex items-center space-x-3">
+                          <div className="w-12 h-12 bg-gray-200 rounded flex-shrink-0 flex items-center justify-center">
+                            {lecture.thumbnail_url ? (
+                              <img 
+                                src={lecture.thumbnail_url} 
+                                alt="" 
+                                className="w-full h-full object-cover rounded" 
+                              />
+                            ) : (
+                              <Video className="h-6 w-6 text-gray-400" />
+                            )}
+                          </div>
+                          <div>
+                            <h4 className="font-medium line-clamp-1">{lecture.title}</h4>
+                            <p className="text-xs text-gray-500">
+                              Added {new Date(lecture.created_at).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-center py-6 text-gray-500">No recent lectures</p>
+                )}
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold flex items-center">
+                    <Settings className="h-5 w-5 mr-2 text-blue-600" />
+                    Settings
+                  </h3>
+                </div>
+                
+                <div className="space-y-3">
+                  <Button 
+                    variant="outline" 
+                    className="w-full text-left justify-start"
+                    onClick={() => navigate("/student/settings")}
+                  >
+                    <Settings className="h-4 w-4 mr-2" />
+                    Account Settings
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    className="w-full text-left justify-start"
+                    onClick={() => navigate("/student/settings")}
+                  >
+                    <MessageSquare className="h-4 w-4 mr-2" />
+                    Notification Preferences
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </main>
+      <Footer />
+    </>
   );
 };
 

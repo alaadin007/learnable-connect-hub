@@ -5,11 +5,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Calendar, Clock, FileCheck } from "lucide-react";
-import { format } from "date-fns";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Loader2, Calendar, Clock, FileCheck, BookOpen, AlertCircle } from "lucide-react";
+import { format, isPast, isToday } from "date-fns";
+import { toast } from "sonner";
 
 interface Assessment {
   id: string;
@@ -51,7 +53,11 @@ const StudentAssessments = () => {
       setLoading(true);
       try {
         // Fetch assessments for this student's school
-        if (!schoolId) return;
+        if (!schoolId) {
+          setError("School information not available. Please contact support.");
+          setLoading(false);
+          return;
+        }
 
         const { data, error } = await supabase
           .from("assessments")
@@ -103,6 +109,7 @@ const StudentAssessments = () => {
       } catch (err: any) {
         console.error("Error fetching assessments:", err);
         setError(err.message || "Failed to load assessments");
+        toast.error("Failed to load assessments");
       } finally {
         setLoading(false);
       }
@@ -119,6 +126,94 @@ const StudentAssessments = () => {
     navigate(`/student/assessment-results/${assessmentId}/${submissionId}`);
   };
 
+  // Split assessments into upcoming, due soon, and past
+  const upcomingAssessments = assessments.filter(assessment => 
+    assessment.due_date && 
+    !isToday(new Date(assessment.due_date)) && 
+    !isPast(new Date(assessment.due_date)) &&
+    !assessment.submission
+  );
+  
+  const dueSoonAssessments = assessments.filter(assessment => 
+    (assessment.due_date && isToday(new Date(assessment.due_date))) && 
+    !assessment.submission
+  );
+  
+  const completedAssessments = assessments.filter(assessment => 
+    assessment.submission !== undefined
+  );
+  
+  const pastDueAssessments = assessments.filter(assessment => 
+    assessment.due_date && 
+    isPast(new Date(assessment.due_date)) && 
+    !isToday(new Date(assessment.due_date)) &&
+    !assessment.submission
+  );
+
+  const renderAssessmentCard = (assessment: Assessment) => (
+    <Card key={assessment.id} className="overflow-hidden">
+      <CardHeader className="bg-gray-50 pb-2">
+        <div className="flex justify-between items-start">
+          <CardTitle className="text-lg">{assessment.title}</CardTitle>
+          {assessment.submission ? (
+            assessment.submission.completed ? (
+              <Badge variant="secondary" className="bg-green-100 text-green-800">Completed</Badge>
+            ) : (
+              <Badge variant="secondary" className="bg-amber-100 text-amber-800">Submitted</Badge>
+            )
+          ) : assessment.due_date && isPast(new Date(assessment.due_date)) ? (
+            <Badge variant="destructive">Past Due</Badge>
+          ) : assessment.due_date && isToday(new Date(assessment.due_date)) ? (
+            <Badge variant="secondary" className="bg-red-100 text-red-800">Due Today</Badge>
+          ) : (
+            <Badge variant="outline" className="bg-blue-100 text-blue-800">Upcoming</Badge>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="pt-4">
+        <p className="text-gray-600 mb-4 line-clamp-2">{assessment.description || "No description provided"}</p>
+        <div className="space-y-2">
+          <div className="flex items-center text-sm text-gray-600">
+            <Calendar className="h-4 w-4 mr-2" />
+            {assessment.due_date ? (
+              <>Due: {format(new Date(assessment.due_date), "MMM d, yyyy")}</>
+            ) : (
+              <>No due date</>
+            )}
+          </div>
+          <div className="flex items-center text-sm text-gray-600">
+            <Clock className="h-4 w-4 mr-2" />
+            Created: {format(new Date(assessment.created_at), "MMM d, yyyy")}
+          </div>
+          <div className="flex items-center text-sm text-gray-600">
+            <FileCheck className="h-4 w-4 mr-2" />
+            Teacher: {assessment.teacher.full_name}
+          </div>
+          {assessment.submission?.completed && (
+            <div className="mt-2 text-base font-medium">
+              Score: {assessment.submission.score !== null ? `${assessment.submission.score}/100` : 'Not scored yet'}
+            </div>
+          )}
+        </div>
+      </CardContent>
+      <CardFooter className="border-t bg-gray-50">
+        {assessment.submission ? (
+          <Button 
+            onClick={() => handleViewResults(assessment.id, assessment.submission!.id)} 
+            className="w-full"
+            variant={assessment.submission.completed ? "default" : "outline"}
+          >
+            View Results
+          </Button>
+        ) : (
+          <Button onClick={() => handleTakeAssessment(assessment.id)} className="w-full">
+            Start Assessment
+          </Button>
+        )}
+      </CardFooter>
+    </Card>
+  );
+
   return (
     <>
       <Navbar />
@@ -134,71 +229,85 @@ const StudentAssessments = () => {
           <div className="bg-red-50 p-4 rounded-md text-red-500">{error}</div>
         ) : assessments.length === 0 ? (
           <div className="text-center py-12 bg-gray-50 rounded-md">
+            <BookOpen className="h-12 w-12 mx-auto text-gray-400 mb-4" />
             <p className="text-xl text-gray-600">No assessments assigned yet.</p>
             <p className="text-gray-500 mt-2">Check back later for new assignments.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {assessments.map((assessment) => (
-              <Card key={assessment.id} className="overflow-hidden">
-                <CardHeader className="bg-gray-50 pb-2">
-                  <div className="flex justify-between items-start">
-                    <CardTitle className="text-xl">{assessment.title}</CardTitle>
-                    {assessment.submission ? (
-                      assessment.submission.completed ? (
-                        <Badge variant="secondary" className="bg-green-100 text-green-800">Completed</Badge>
-                      ) : (
-                        <Badge variant="secondary" className="bg-amber-100 text-amber-800">Submitted</Badge>
-                      )
-                    ) : (
-                      <Badge variant="outline" className="bg-blue-100 text-blue-800">Pending</Badge>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-4">
-                  <p className="text-gray-600 mb-4 line-clamp-2">{assessment.description || "No description provided"}</p>
-                  <div className="space-y-2">
-                    <div className="flex items-center text-sm text-gray-600">
-                      <Calendar className="h-4 w-4 mr-2" />
-                      {assessment.due_date ? (
-                        <>Due: {format(new Date(assessment.due_date), "MMM d, yyyy")}</>
-                      ) : (
-                        <>No due date</>
-                      )}
-                    </div>
-                    <div className="flex items-center text-sm text-gray-600">
-                      <Clock className="h-4 w-4 mr-2" />
-                      Created: {format(new Date(assessment.created_at), "MMM d, yyyy")}
-                    </div>
-                    <div className="flex items-center text-sm text-gray-600">
-                      <FileCheck className="h-4 w-4 mr-2" />
-                      Teacher: {assessment.teacher.full_name}
-                    </div>
-                    {assessment.submission?.completed && (
-                      <div className="mt-2 text-base font-medium">
-                        Score: {assessment.submission.score !== null ? `${assessment.submission.score}/100` : 'Not scored yet'}
+          <Tabs defaultValue="due-soon" className="w-full">
+            <TabsList className="mb-6 grid grid-cols-4 w-full max-w-2xl">
+              <TabsTrigger value="due-soon">
+                Due Soon {dueSoonAssessments.length > 0 && <span className="ml-2 bg-red-500 text-white rounded-full w-5 h-5 inline-flex items-center justify-center text-xs">{dueSoonAssessments.length}</span>}
+              </TabsTrigger>
+              <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
+              <TabsTrigger value="completed">Completed</TabsTrigger>
+              <TabsTrigger value="past-due">
+                Past Due {pastDueAssessments.length > 0 && <span className="ml-2 bg-red-500 text-white rounded-full w-5 h-5 inline-flex items-center justify-center text-xs">{pastDueAssessments.length}</span>}
+              </TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="due-soon">
+              {dueSoonAssessments.length === 0 ? (
+                <div className="text-center py-12 bg-gray-50 rounded-md">
+                  <p className="text-xl text-gray-600">No assessments due today!</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {dueSoonAssessments.map(renderAssessmentCard)}
+                </div>
+              )}
+            </TabsContent>
+            
+            <TabsContent value="upcoming">
+              {upcomingAssessments.length === 0 ? (
+                <div className="text-center py-12 bg-gray-50 rounded-md">
+                  <p className="text-xl text-gray-600">No upcoming assessments.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {upcomingAssessments.map(renderAssessmentCard)}
+                </div>
+              )}
+            </TabsContent>
+            
+            <TabsContent value="completed">
+              {completedAssessments.length === 0 ? (
+                <div className="text-center py-12 bg-gray-50 rounded-md">
+                  <p className="text-xl text-gray-600">No completed assessments yet.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {completedAssessments.map(renderAssessmentCard)}
+                </div>
+              )}
+            </TabsContent>
+            
+            <TabsContent value="past-due">
+              {pastDueAssessments.length === 0 ? (
+                <div className="text-center py-12 bg-gray-50 rounded-md">
+                  <p className="text-xl text-gray-600">No past due assessments.</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  <Card className="border-red-200">
+                    <CardContent className="pt-6">
+                      <div className="flex items-start space-x-4 text-red-600 mb-4">
+                        <AlertCircle className="h-5 w-5 mt-0.5" />
+                        <div>
+                          <h3 className="font-semibold">Past Due Assessments</h3>
+                          <p className="text-sm text-red-500">These assessments are past their due date. Contact your teacher if you need to complete them.</p>
+                        </div>
                       </div>
-                    )}
+                    </CardContent>
+                  </Card>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {pastDueAssessments.map(renderAssessmentCard)}
                   </div>
-                </CardContent>
-                <CardFooter className="border-t bg-gray-50">
-                  {assessment.submission ? (
-                    <Button 
-                      onClick={() => handleViewResults(assessment.id, assessment.submission!.id)} 
-                      className="w-full"
-                      variant={assessment.submission.completed ? "default" : "outline"}
-                    >
-                      View Results
-                    </Button>
-                  ) : (
-                    <Button onClick={() => handleTakeAssessment(assessment.id)} className="w-full">
-                      Start Assessment
-                    </Button>
-                  )}
-                </CardFooter>
-              </Card>
-            ))}
-          </div>
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
         )}
       </main>
       <Footer />
