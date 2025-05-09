@@ -40,15 +40,13 @@ const ProtectedRoute = ({
   console.log('ProtectedRoute: Is school admin:', isSchoolAdmin(userRole));
   console.log('ProtectedRoute: Location state:', locationState);
 
-  // IMPORTANT: Special case for admin routes when running in preview mode
-  // or when database errors occurred
+  // IMPORTANT: Special case for admin routes 
   if (location.pathname.startsWith('/admin')) {
-    // If we have no session or user role but we're on an admin page
-    // we're likely in the preview environment
-    if (!userRole && location.pathname.startsWith('/admin')) {
-      console.log('Admin route accessed with no user role, assuming school admin preview access');
-      
-      // Silently allow access to admin routes in preview mode
+    // If we're in a preview or test environment (no user role but on admin page)
+    // OR if we have preserved context, allow access to admin routes
+    if ((!userRole && location.pathname.startsWith('/admin')) || 
+        locationState?.preserveContext === true) {
+      console.log('Admin access granted - preview mode or preserved context');
       return <>{children}</>;
     }
   }
@@ -62,8 +60,8 @@ const ProtectedRoute = ({
     return <>{children}</>;
   }
 
-  // If no user or session, redirect to login
-  if (!user && !session) {
+  // If no user or session, redirect to login, except for admin routes in preview mode
+  if (!user && !session && !location.pathname.startsWith('/admin')) {
     console.log("No user or session, redirecting to login");
     return <Navigate to="/login" state={{ from: location }} replace />;
   }

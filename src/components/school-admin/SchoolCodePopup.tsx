@@ -1,11 +1,6 @@
 
 import React, { useState, useEffect } from "react";
-import { 
-  Copy, 
-  CheckCircle, 
-  X, 
-  AlertCircle 
-} from "lucide-react";
+import { Copy, CheckCircle, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -30,7 +25,6 @@ const SchoolCodePopup = ({ isOpen, onClose, code, expiresAt }: SchoolCodePopupPr
 
   // Sync the internal open state with the isOpen prop
   useEffect(() => {
-    console.log("SchoolCodePopup isOpen prop changed:", isOpen);
     setOpen(isOpen);
   }, [isOpen]);
   
@@ -66,9 +60,7 @@ const SchoolCodePopup = ({ isOpen, onClose, code, expiresAt }: SchoolCodePopupPr
     }
   };
 
-  console.log("SchoolCodePopup render - isOpen:", isOpen, "code:", code, "internal open state:", open);
-
-  // If no code is provided, log a message and return null (don't render the dialog)
+  // If no code is provided, don't render the dialog
   if (!code) {
     return null;
   }
@@ -76,10 +68,7 @@ const SchoolCodePopup = ({ isOpen, onClose, code, expiresAt }: SchoolCodePopupPr
   return (
     <Dialog 
       open={open} 
-      onOpenChange={(newOpen) => {
-        console.log("Dialog onOpenChange:", newOpen);
-        setOpen(newOpen);
-      }}
+      onOpenChange={(newOpen) => setOpen(newOpen)}
     >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>

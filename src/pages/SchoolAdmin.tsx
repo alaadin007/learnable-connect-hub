@@ -1,14 +1,13 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { School, Copy, CheckCircle, X, AlertCircle } from "lucide-react";
+import { School, Copy, CheckCircle, AlertCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import Footer from "@/components/landing/Footer";
 import AdminNavbar from "@/components/school-admin/AdminNavbar";
-import SchoolCodeManager from "@/components/school-admin/SchoolCodeManager";
-import SchoolCodePopup from "@/components/school-admin/SchoolCodePopup";
 import { useSchoolCode } from "@/hooks/use-school-code";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -18,10 +17,8 @@ const SchoolAdmin = () => {
   const navigate = useNavigate();
   const [currentCode, setCurrentCode] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
-  const [showCodePopup, setShowCodePopup] = useState(false);
-  const [codeInfo, setCodeInfo] = useState<{code: string, expiresAt?: string}>({code: ""});
   const [codeCopied, setCodeCopied] = useState(false);
-  const [codeExpanded, setCodeExpanded] = useState(false);
+  const [codeInfo, setCodeInfo] = useState<{code: string, expiresAt?: string}>({code: ""});
   const { generateCode, isGenerating } = useSchoolCode();
 
   // Fetch the current school code on component mount
@@ -57,19 +54,6 @@ const SchoolAdmin = () => {
   }, [profile?.organization?.id]);
 
   // Handle code generation callback
-  const handleCodeGenerated = (code: string) => {
-    console.log("Code generated:", code);
-    setCurrentCode(code);
-    setCodeInfo({
-      code: code,
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // Assume 24h expiration
-    });
-    // Show expanded code section when code is generated
-    setCodeExpanded(true);
-    // Show success notification
-    toast.success("New school code generated successfully");
-  };
-
   const generateSchoolCode = async () => {
     const schoolId = profile?.organization?.id || profile?.school_id;
     if (!schoolId) {
@@ -80,7 +64,12 @@ const SchoolAdmin = () => {
     try {
       const newCode = await generateCode(schoolId);
       if (newCode) {
-        handleCodeGenerated(newCode);
+        setCurrentCode(newCode);
+        setCodeInfo({
+          code: newCode,
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // Assume 24h expiration
+        });
+        toast.success("New school code generated successfully");
       }
     } catch (error) {
       console.error("Failed to generate code:", error);
@@ -111,20 +100,6 @@ const SchoolAdmin = () => {
     } catch (e) {
       return "Invalid date";
     }
-  };
-
-  // Function to open the code popup with detailed view
-  const handleOpenCodePopup = () => {
-    if (!currentCode) {
-      toast.error("No code available. Please generate a code first.");
-      return;
-    }
-    setShowCodePopup(true);
-  };
-
-  // Function to handle closing the popup
-  const handleCloseCodePopup = () => {
-    setShowCodePopup(false);
   };
 
   const schoolId = profile?.organization?.id || profile?.school_id || "";
@@ -189,15 +164,8 @@ const SchoolAdmin = () => {
                         </div>
                       )}
                       
-                      <div className="mt-3">
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={handleOpenCodePopup}
-                          className="w-full"
-                        >
-                          View Complete Details
-                        </Button>
+                      <div className="mt-3 bg-blue-50 border border-blue-200 rounded-md p-2 text-sm text-blue-800">
+                        <p>Share this code with teachers and students to join your school.</p>
                       </div>
                     </div>
                   </div>
@@ -308,14 +276,6 @@ const SchoolAdmin = () => {
         </div>
       </main>
       <Footer />
-
-      {/* School Code Popup */}
-      <SchoolCodePopup
-        isOpen={showCodePopup}
-        onClose={handleCloseCodePopup}
-        code={codeInfo.code}
-        expiresAt={codeInfo.expiresAt}
-      />
     </>
   );
 };
