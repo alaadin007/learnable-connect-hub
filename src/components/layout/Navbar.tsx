@@ -43,6 +43,9 @@ const Navbar = () => {
     }
   }, [signOut, navigate]);
 
+  // Make sure this value is correctly calculated based on userRole
+  const isSchoolAdmin = userRole === "school" || userRole === "school_admin";
+  
   const isTestAccount = user?.email?.includes(".test@learnable.edu") || user?.id?.startsWith("test-");
   const isPublicPage = ["/", "/features", "/pricing", "/about", "/contact"].includes(location.pathname);
   const isAuthPage = ["/login", "/register", "/school-registration", "/test-accounts"].some(path =>
@@ -50,7 +53,6 @@ const Navbar = () => {
   );
   const isLoggedIn = !!user && !isPublicPage && !isAuthPage;
   const isTestAccountsPage = location.pathname === "/test-accounts";
-  const isSchoolAdmin = userRole === "school" || userRole === "school_admin";
 
   // Determine default dashboard path based on user role
   const getDashboardPath = useCallback(() => {
@@ -81,6 +83,7 @@ const Navbar = () => {
 
     // For school admin role, show only the three links shown in the image: Dashboard, Chat, Documents
     if (isSchoolAdmin) {
+      console.log('Rendering school admin links');
       return [
         { name: "Dashboard", href: dashboardPath },
         { name: "Chat", href: "/chat" },
@@ -191,7 +194,7 @@ const Navbar = () => {
 
           {/* Desktop nav */}
           <nav className="hidden md:flex space-x-8">
-            {navLinks.map((link) => (
+            {getNavLinks().map((link) => (
               <button
                 key={link.name}
                 onClick={() => handleNavigation(link.href)}

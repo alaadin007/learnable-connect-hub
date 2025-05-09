@@ -83,10 +83,15 @@ export async function invokeEdgeFunction<T>(
 /**
  * Helper function to get user role with fallback to localStorage
  */
-export async function getUserRoleWithFallback(): Promise<string | null> {
-  // Try to get from localStorage first
+export function getUserRoleWithFallback(): string | null {
+  // Get from localStorage since we're ensuring this is kept up to date in AuthContext
   const storedRole = localStorage.getItem('userRole');
-  return storedRole;
+  
+  if (storedRole && ['school', 'school_admin', 'teacher', 'student'].includes(storedRole)) {
+    return storedRole;
+  }
+  
+  return null;
 }
 
 /**

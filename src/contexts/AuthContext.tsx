@@ -68,6 +68,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setUserRole(null);
           setIsSuperviser(false);
           setSchoolId(null);
+          
+          // Clear localStorage when logged out
+          localStorage.removeItem('userRole');
+          localStorage.removeItem('schoolId');
         }
       }
     );
@@ -184,13 +188,32 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setProfile(fetchedProfile);
 
       // Set school ID
-      setSchoolId(fetchedProfile?.organization_id || fetchedProfile?.school_id || null);
-
-      // Determine user role - without passing any arguments
-      const role = await getUserRoleWithFallback();
+      const effectiveSchoolId = fetchedProfile?.organization_id || fetchedProfile?.school_id || null;
+      setSchoolId(effectiveSchoolId);
       
-      // Set user role
-      setUserRole(role as UserRole);
+      // Store schoolId in localStorage for components that need it without context
+      if (effectiveSchoolId) {
+        localStorage.setItem('schoolId', effectiveSchoolId);
+      }
+
+      // Determine user role based on profile data
+      let role: UserRole = null;
+      
+      if (fetchedProfile?.user_type === 'school' || fetchedProfile?.is_supervisor) {
+        role = fetchedProfile.user_type === 'school' ? 'school' : 'school_admin';
+      } else if (fetchedProfile?.user_type === 'teacher') {
+        role = 'teacher';
+      } else if (fetchedProfile?.user_type === 'student') {
+        role = 'student';
+      }
+      
+      // Store determined role in localStorage
+      if (role) {
+        localStorage.setItem('userRole', role);
+      }
+      
+      // Set user role in context
+      setUserRole(role);
 
       // Set isSuperviser
       const isSupervisor = fetchedProfile?.is_supervisor === true || await checkIfUserIsSchoolAdmin(currentUser.id);
