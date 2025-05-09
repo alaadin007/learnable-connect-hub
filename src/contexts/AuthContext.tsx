@@ -17,6 +17,10 @@ export interface AuthContextType {
   signIn: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
   updateProfile: (updates: any) => Promise<void>;
+  // Add missing properties
+  refreshProfile: () => Promise<void>;
+  setTestUser: (accountType: "school" | "teacher" | "student", schoolIndex?: number) => Promise<void>;
+  signUp: (email: string, password: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -30,6 +34,10 @@ const AuthContext = createContext<AuthContextType>({
   signIn: async () => {},
   signOut: async () => {},
   updateProfile: async () => {},
+  // Add missing properties to default context
+  refreshProfile: async () => {},
+  setTestUser: async () => {},
+  signUp: async () => {},
 });
 
 interface AuthProviderProps {
@@ -112,7 +120,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       // Determine user role
       const role = await getUserRoleWithFallback(currentUser);
-      setUserRole(role);
+      // Fix type issue here - convert string to UserRole type using type assertion
+      setUserRole(role as UserRole);
 
       // Set isSuperviser based on profile or fallback
       setIsSuperviser(fetchedProfile?.is_supervisor === true || await checkIfSchoolAdmin(currentUser.id));
@@ -168,6 +177,76 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  // Add the missing functions that cause TypeScript errors
+  const refreshProfile = async () => {
+    if (!user) return;
+    
+    try {
+      setIsLoading(true);
+      await fetchUserProfile(user);
+    } catch (error) {
+      console.error("Error refreshing user profile:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  const setTestUser = async (accountType: "school" | "teacher" | "student", schoolIndex: number = 0) => {
+    try {
+      // Log out any existing user first
+      await supabase.auth.signOut();
+      
+      // For test accounts, we'll set up mock data
+      const mockUser = {
+        id: `test-${accountType}-${Date.now()}`,
+        email: `${accountType}.test@learnable.edu`,
+        user_metadata: { 
+          full_name: `Test ${accountType.charAt(0).toUpperCase() + accountType.slice(1)}`,
+          user_type: accountType
+        }
+      } as User;
+      
+      const mockProfile: Profile = {
+        id: mockUser.id,
+        full_name: mockUser.user_metadata.full_name,
+        user_type: accountType,
+        email: mockUser.email,
+        is_supervisor: accountType === "school",
+        organization_id: accountType === "school" ? `school-org-${schoolIndex}` : `school-org-0`,
+        organization: {
+          id: accountType === "school" ? `school-org-${schoolIndex}` : `school-org-0`,
+          name: `Test School ${schoolIndex}`
+        }
+      };
+      
+      // Update context state
+      setUser(mockUser);
+      setProfile(mockProfile);
+      setUserRole(accountType as UserRole);
+      setIsSuperviser(accountType === "school");
+      setSchoolId(mockProfile.organization_id || null);
+      
+      console.log(`Set test user: ${accountType}`, mockUser, mockProfile);
+    } catch (error) {
+      console.error("Error setting test user:", error);
+      throw error;
+    }
+  };
+  
+  const signUp = async (email: string, password: string) => {
+    try {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password
+      });
+      
+      if (error) throw error;
+    } catch (error: any) {
+      console.error("Error signing up:", error);
+      throw error;
+    }
+  };
+
   const value = {
     user,
     session,
@@ -179,6 +258,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     signIn,
     signOut,
     updateProfile,
+    refreshProfile,
+    setTestUser,
+    signUp
   };
 
   return (
