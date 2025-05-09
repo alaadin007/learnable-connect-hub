@@ -1,7 +1,60 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+
+/**
+ * Key for storing school codes in localStorage
+ */
+const SCHOOL_CODE_HISTORY_KEY = 'school_code_history';
+const CURRENT_CODE_PREFIX = 'school_code_';
+
+/**
+ * Get stored code history from localStorage
+ */
+const getStoredCodeHistory = (schoolId: string): string[] => {
+  try {
+    // Get history for this particular school
+    const historyKey = `${SCHOOL_CODE_HISTORY_KEY}_${schoolId}`;
+    const storedHistory = localStorage.getItem(historyKey);
+    return storedHistory ? JSON.parse(storedHistory) : [];
+  } catch (error) {
+    console.error("Error retrieving code history:", error);
+    return [];
+  }
+};
+
+/**
+ * Store code history in localStorage
+ */
+const storeCodeHistory = (schoolId: string, codes: string[]) => {
+  try {
+    // Store history for this particular school
+    const historyKey = `${SCHOOL_CODE_HISTORY_KEY}_${schoolId}`;
+    localStorage.setItem(historyKey, JSON.stringify(codes));
+  } catch (error) {
+    console.error("Error storing code history:", error);
+  }
+};
+
+/**
+ * Add a code to the history
+ */
+const addCodeToHistory = (schoolId: string, code: string) => {
+  try {
+    // Get current history
+    const currentHistory = getStoredCodeHistory(schoolId);
+    
+    // Only add if it's not already there
+    if (!currentHistory.includes(code)) {
+      // Add code to beginning of array (most recent first)
+      const updatedHistory = [code, ...currentHistory].slice(0, 10); // Keep last 10 codes
+      storeCodeHistory(schoolId, updatedHistory);
+    }
+  } catch (error) {
+    console.error("Error adding code to history:", error);
+  }
+};
 
 /**
  * Custom hook for generating and managing school invitation codes
@@ -9,6 +62,7 @@ import { supabase } from '@/integrations/supabase/client';
 export const useSchoolCode = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [lastGeneratedCode, setLastGeneratedCode] = useState<string | null>(null);
+  const [codeHistory, setCodeHistory] = useState<string[]>([]);
 
   /**
    * Fetch the current school code
@@ -20,7 +74,7 @@ export const useSchoolCode = () => {
 
     try {
       // Try to get code from localStorage first for instant loading
-      const cachedCode = localStorage.getItem(`school_code_${schoolId}`);
+      const cachedCode = localStorage.getItem(`${CURRENT_CODE_PREFIX}${schoolId}`);
       if (cachedCode) return cachedCode;
       
       // If in production, try to fetch from database
@@ -32,14 +86,18 @@ export const useSchoolCode = () => {
           .single();
           
         if (!error && schoolData) {
-          localStorage.setItem(`school_code_${schoolId}`, schoolData.code);
+          localStorage.setItem(`${CURRENT_CODE_PREFIX}${schoolId}`, schoolData.code);
+          // Add to history
+          addCodeToHistory(schoolId, schoolData.code);
           return schoolData.code;
         }
       }
       
       // Generate a new instant code if none exists
       const newCode = `SCH${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-      localStorage.setItem(`school_code_${schoolId}`, newCode);
+      localStorage.setItem(`${CURRENT_CODE_PREFIX}${schoolId}`, newCode);
+      // Add to history
+      addCodeToHistory(schoolId, newCode);
       return newCode;
     } catch (error: any) {
       console.error("Exception fetching school code:", error);
@@ -54,7 +112,9 @@ export const useSchoolCode = () => {
     if (!schoolId || schoolId === 'demo-school-id') {
       const demoCode = `DEMO-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
       setLastGeneratedCode(demoCode);
-      localStorage.setItem(`school_code_${schoolId}`, demoCode);
+      localStorage.setItem(`${CURRENT_CODE_PREFIX}${schoolId}`, demoCode);
+      // Add to history
+      addCodeToHistory(schoolId, demoCode);
       return demoCode;
     }
 
@@ -70,7 +130,9 @@ export const useSchoolCode = () => {
           
           if (error) throw error;
           if (data && data.code) {
-            localStorage.setItem(`school_code_${schoolId}`, data.code);
+            localStorage.setItem(`${CURRENT_CODE_PREFIX}${schoolId}`, data.code);
+            // Add to history
+            addCodeToHistory(schoolId, data.code);
             setLastGeneratedCode(data.code);
             return data.code;
           }
@@ -107,7 +169,10 @@ export const useSchoolCode = () => {
       }
       
       // Store in localStorage for quick access
-      localStorage.setItem(`school_code_${schoolId}`, generatedCode);
+      localStorage.setItem(`${CURRENT_CODE_PREFIX}${schoolId}`, generatedCode);
+      
+      // Add to history
+      addCodeToHistory(schoolId, generatedCode);
       
       setLastGeneratedCode(generatedCode);
       return generatedCode;
@@ -116,7 +181,9 @@ export const useSchoolCode = () => {
       // Fallback code
       const fallbackCode = 'SCHOOL-' + Date.now().toString(36).toUpperCase();
       setLastGeneratedCode(fallbackCode);
-      localStorage.setItem(`school_code_${schoolId}`, fallbackCode);
+      localStorage.setItem(`${CURRENT_CODE_PREFIX}${schoolId}`, fallbackCode);
+      // Add to history
+      addCodeToHistory(schoolId, fallbackCode);
       return fallbackCode;
     } finally {
       setIsGenerating(false);
@@ -130,6 +197,8 @@ export const useSchoolCode = () => {
     if (!schoolId || schoolId === 'demo-school-id') {
       const demoStudentCode = `STU-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
       setLastGeneratedCode(demoStudentCode);
+      // Add to history
+      addCodeToHistory(schoolId, demoStudentCode);
       return demoStudentCode;
     }
 
@@ -145,6 +214,8 @@ export const useSchoolCode = () => {
           
           if (error) throw error;
           if (data && data.code) {
+            // Add to history
+            addCodeToHistory(schoolId, data.code);
             setLastGeneratedCode(data.code);
             return data.code;
           }
@@ -156,11 +227,15 @@ export const useSchoolCode = () => {
       
       // Generate student code locally as fallback
       const generatedCode = `STU${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+      // Add to history
+      addCodeToHistory(schoolId, generatedCode);
       setLastGeneratedCode(generatedCode);
       return generatedCode;
     } catch (error: any) {
       console.error("Error generating student invite code:", error);
       const fallbackCode = 'STUDENT-' + Date.now().toString(36).toUpperCase();
+      // Add to history
+      addCodeToHistory(schoolId, fallbackCode);
       setLastGeneratedCode(fallbackCode);
       return fallbackCode;
     } finally {
@@ -168,11 +243,20 @@ export const useSchoolCode = () => {
     }
   };
 
+  // Load code history when school ID changes or on mount
+  const loadCodeHistory = (schoolId: string) => {
+    if (!schoolId) return;
+    const history = getStoredCodeHistory(schoolId);
+    setCodeHistory(history);
+  };
+
   return {
     generateCode,
     fetchCurrentCode,
     generateStudentInviteCode,
     isGenerating,
-    lastGeneratedCode
+    lastGeneratedCode,
+    codeHistory,
+    loadCodeHistory
   };
 };

@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -15,9 +15,15 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, verifySchoolCode } from "@/integrations/supabase/client";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
+import { 
+  Popover, 
+  PopoverContent, 
+  PopoverTrigger 
+} from "@/components/ui/popover";
+import { Check, HelpCircle, Info } from "lucide-react";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Invalid email address" }),
@@ -41,6 +47,13 @@ type FormData = z.infer<typeof formSchema>;
 const RegisterForm = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
+  const [isValidatingCode, setIsValidatingCode] = useState(false);
+  const [codeValidationState, setCodeValidationState] = useState<{
+    isValid: boolean | null;
+    schoolName: string | null;
+  }>({ isValid: null, schoolName: null });
+
+  const [recentCodes, setRecentCodes] = useState<string[]>([]);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -53,6 +66,61 @@ const RegisterForm = () => {
       userType: "student",
     },
   });
+
+  // Load recent codes from localStorage
+  useEffect(() => {
+    try {
+      // Scan localStorage for any school code entries
+      const allCodes: string[] = [];
+      
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('school_code_history_')) {
+          const history = JSON.parse(localStorage.getItem(key) || '[]');
+          allCodes.push(...history);
+        }
+      }
+      
+      // Remove duplicates and take the most recent 5
+      const uniqueCodes = [...new Set(allCodes)].slice(0, 5);
+      setRecentCodes(uniqueCodes);
+    } catch (error) {
+      console.error("Error loading recent codes:", error);
+    }
+  }, []);
+
+  // Validate school code when it changes
+  const schoolCode = form.watch("schoolCode");
+  
+  useEffect(() => {
+    const validateCode = async () => {
+      if (!schoolCode || schoolCode.length < 4) {
+        setCodeValidationState({ isValid: null, schoolName: null });
+        return;
+      }
+      
+      setIsValidatingCode(true);
+      try {
+        const result = await verifySchoolCode(schoolCode);
+        setCodeValidationState({ 
+          isValid: result.valid, 
+          schoolName: result.schoolName || null 
+        });
+      } catch (error) {
+        console.error("Error validating code:", error);
+        setCodeValidationState({ isValid: null, schoolName: null });
+      } finally {
+        setIsValidatingCode(false);
+      }
+    };
+    
+    const timeoutId = setTimeout(validateCode, 500);
+    return () => clearTimeout(timeoutId);
+  }, [schoolCode]);
+
+  const handleSelectRecentCode = (code: string) => {
+    form.setValue("schoolCode", code);
+  };
 
   const onSubmit = async (data: FormData) => {
     setIsLoading(true);
@@ -117,6 +185,17 @@ const RegisterForm = () => {
       if (setupError) {
         console.warn("User profile setup warning:", setupError);
         // Continue despite this error - it's not critical for the registration
+      }
+      
+      // Save the used code to the history if it's not already there
+      try {
+        const historyKey = `school_code_history_${schoolId}`;
+        const currentHistory = JSON.parse(localStorage.getItem(historyKey) || '[]');
+        if (!currentHistory.includes(data.schoolCode)) {
+          localStorage.setItem(historyKey, JSON.stringify([data.schoolCode, ...currentHistory].slice(0, 10)));
+        }
+      } catch (error) {
+        console.error("Error updating code history:", error);
       }
       
       // Show success message
@@ -187,10 +266,64 @@ const RegisterForm = () => {
           name="schoolCode"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>School Code</FormLabel>
+              <div className="flex justify-between">
+                <FormLabel>School Code</FormLabel>
+                {recentCodes.length > 0 && (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="ghost" size="sm" className="h-5 px-2 text-xs">
+                        <Info className="h-3 w-3 mr-1" />
+                        Recent codes
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="end" className="w-fit">
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">Recent school codes</p>
+                        <div className="flex flex-col gap-1">
+                          {recentCodes.map((code) => (
+                            <Button
+                              key={code}
+                              variant="ghost"
+                              size="sm"
+                              className="justify-start h-8 text-left font-mono"
+                              onClick={() => handleSelectRecentCode(code)}
+                            >
+                              {code}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                )}
+              </div>
               <FormControl>
-                <Input placeholder="Enter your school code" {...field} />
+                <div className="relative">
+                  <Input placeholder="Enter your school code" {...field} />
+                  {isValidatingCode && (
+                    <div className="absolute right-3 top-2.5">
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
+                    </div>
+                  )}
+                  {!isValidatingCode && codeValidationState.isValid === true && (
+                    <div className="absolute right-3 top-2.5 text-green-500">
+                      <Check className="h-4 w-4" />
+                    </div>
+                  )}
+                </div>
               </FormControl>
+              {codeValidationState.isValid === true && codeValidationState.schoolName && (
+                <div className="text-xs text-green-600 flex items-center gap-1 mt-1">
+                  <Check className="h-3 w-3" />
+                  <span>Valid code for: {codeValidationState.schoolName}</span>
+                </div>
+              )}
+              {codeValidationState.isValid === false && schoolCode && (
+                <div className="text-xs text-red-500 flex items-center gap-1 mt-1">
+                  <Info className="h-3 w-3" />
+                  <span>Invalid school code. Please check and try again.</span>
+                </div>
+              )}
               <FormMessage />
             </FormItem>
           )}
@@ -258,7 +391,7 @@ const RegisterForm = () => {
         <Button 
           type="submit" 
           className="w-full gradient-bg" 
-          disabled={isLoading}
+          disabled={isLoading || codeValidationState.isValid === false}
         >
           {isLoading ? "Registering..." : "Register"}
         </Button>

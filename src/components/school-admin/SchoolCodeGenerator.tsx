@@ -2,10 +2,22 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Clipboard, RefreshCw, Check } from "lucide-react";
+import { Clipboard, RefreshCw, Check, Clock, ChevronDown } from "lucide-react";
 import { useSchoolCode } from "@/hooks/use-school-code";
 import { toast } from "sonner";
 import { getSchoolIdWithFallback } from "@/utils/apiHelpers";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface SchoolCodeGeneratorProps {
   onCodeGenerated?: (code: string) => void;
@@ -15,7 +27,8 @@ interface SchoolCodeGeneratorProps {
 const SchoolCodeGenerator = ({ onCodeGenerated, variant }: SchoolCodeGeneratorProps) => {
   const [code, setCode] = useState<string | null>("DEMO-CODE");
   const [copied, setCopied] = useState(false);
-  const { generateCode, isGenerating } = useSchoolCode();
+  const [showHistory, setShowHistory] = useState(false);
+  const { generateCode, isGenerating, codeHistory, loadCodeHistory } = useSchoolCode();
   
   // Generate a code immediately on component mount
   useEffect(() => {
@@ -33,7 +46,10 @@ const SchoolCodeGenerator = ({ onCodeGenerated, variant }: SchoolCodeGeneratorPr
     // We don't need to actually generate a code right away
     // But we'll store this one for future reference
     localStorage.setItem(`school_code_${schoolId}`, instantCode);
-  }, [onCodeGenerated]);
+    
+    // Load code history
+    loadCodeHistory(schoolId);
+  }, [onCodeGenerated, loadCodeHistory]);
 
   const handleGenerateClick = async () => {
     try {
@@ -47,6 +63,9 @@ const SchoolCodeGenerator = ({ onCodeGenerated, variant }: SchoolCodeGeneratorPr
           onCodeGenerated(generatedCode);
         }
         toast.success("New invitation code generated");
+        
+        // Refresh code history
+        loadCodeHistory(schoolId);
       } else {
         // In case code generation fails, use a fallback
         const fallbackCode = `DEMO-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
@@ -77,6 +96,16 @@ const SchoolCodeGenerator = ({ onCodeGenerated, variant }: SchoolCodeGeneratorPr
       setTimeout(() => {
         setCopied(false);
       }, 2000);
+    }
+  };
+
+  const handleSelectPreviousCode = (selectedCode: string) => {
+    if (selectedCode) {
+      setCode(selectedCode);
+      if (onCodeGenerated) {
+        onCodeGenerated(selectedCode);
+      }
+      toast.success("Previous code selected");
     }
   };
 
@@ -113,17 +142,51 @@ const SchoolCodeGenerator = ({ onCodeGenerated, variant }: SchoolCodeGeneratorPr
             </Button>
           </CardContent>
         </Card>
-        <Button 
-          onClick={handleGenerateClick}
-          disabled={isGenerating}
-          className="flex items-center" 
-        >
-          <RefreshCw className={`h-4 w-4 mr-2 ${isGenerating ? "animate-spin" : ""}`} />
-          Generate New Code
-        </Button>
+        <div className="flex space-x-2">
+          <Button 
+            onClick={handleGenerateClick}
+            disabled={isGenerating}
+            className="flex items-center" 
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isGenerating ? "animate-spin" : ""}`} />
+            Generate New Code
+          </Button>
+          
+          {codeHistory && codeHistory.length > 1 && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="icon">
+                        <Clock className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <div className="text-sm font-medium px-2 py-1.5 text-muted-foreground">Previous codes</div>
+                      {codeHistory.map((historyCode, index) => (
+                        <DropdownMenuItem 
+                          key={`${historyCode}-${index}`}
+                          onClick={() => handleSelectPreviousCode(historyCode)}
+                          className="font-mono"
+                        >
+                          {historyCode}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>View previous codes</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+        </div>
       </div>
       <p className="text-sm text-muted-foreground">
         Teachers can use this code to join your school. For security, generate a new code after sharing.
+        {codeHistory && codeHistory.length > 0 && " Previous codes are also stored for reference."}
       </p>
     </div>
   );

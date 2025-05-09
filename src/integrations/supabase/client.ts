@@ -35,6 +35,16 @@ export async function verifySchoolCode(code: string): Promise<{
   schoolName?: string;
 }> {
   try {
+    // First check if this is a test code
+    if (code === TEST_SCHOOL_CODE) {
+      return { 
+        valid: true, 
+        schoolId: 'test-school-id', 
+        schoolName: 'Test School' 
+      };
+    }
+    
+    // Try to verify the code using Supabase RPC function
     const { data, error } = await supabase
       .rpc('verify_and_link_school_code', { code });
     
@@ -44,7 +54,42 @@ export async function verifySchoolCode(code: string): Promise<{
     }
     
     if (!data || data.length === 0 || !data[0].valid) {
+      // If server validation fails, check if the code is in local storage history
+      // for any school id (could help if server is down or user is offline)
+      try {
+        // Scan all localStorage keys for school code history
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('school_code_history_')) {
+            const schoolId = key.replace('school_code_history_', '');
+            const history = JSON.parse(localStorage.getItem(key) || '[]');
+            
+            if (history.includes(code)) {
+              console.log("Found code in local history for school:", schoolId);
+              // We found the code in history, now try to get the school name
+              const schoolName = localStorage.getItem(`school_name_${schoolId}`) || 'Unknown School';
+              return { 
+                valid: true, 
+                schoolId, 
+                schoolName 
+              };
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Error checking local storage for code:", e);
+      }
+      
       return { valid: false };
+    }
+    
+    // Store the school name in localStorage for future reference
+    if (data[0].school_id) {
+      try {
+        localStorage.setItem(`school_name_${data[0].school_id}`, data[0].school_name || 'Unknown School');
+      } catch (e) {
+        console.error("Error storing school name:", e);
+      }
     }
     
     return {
