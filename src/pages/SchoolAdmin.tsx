@@ -1,19 +1,53 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { School } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import Footer from "@/components/layout/Footer";
+import Footer from "@/components/landing/Footer";
 import AdminNavbar from "@/components/school-admin/AdminNavbar";
 import SchoolCodeGenerator from "@/components/school-admin/SchoolCodeGenerator";
+import { supabase } from "@/integrations/supabase/client";
 
 const SchoolAdmin = () => {
-  const { user, profile, userRole } = useAuth();
+  const { user, profile } = useAuth();
   const navigate = useNavigate();
   const [currentCode, setCurrentCode] = useState<string>("");
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Fetch the current school code on component mount
+  useEffect(() => {
+    const fetchSchoolCode = async () => {
+      if (!profile?.organization?.id) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from("schools")
+          .select("code")
+          .eq("id", profile.organization.id)
+          .single();
+          
+        if (error) throw error;
+        
+        if (data && data.code) {
+          setCurrentCode(data.code);
+        }
+      } catch (error) {
+        console.error("Error fetching school code:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchSchoolCode();
+  }, [profile?.organization?.id]);
+  
+  // Handle code generation callback
+  const handleCodeGenerated = (code: string) => {
+    setCurrentCode(code);
+  };
   
   return (
     <>
@@ -26,14 +60,25 @@ const SchoolAdmin = () => {
           </p>
         </div>
         
+        {/* Updated AdminNavbar with correct links */}
         <AdminNavbar className="mb-8" />
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-          <SchoolCodeGenerator 
-            className="md:col-span-1" 
-            onCodeGenerated={code => setCurrentCode(code)} 
-          />
+          {/* School Code Generator */}
+          <Card className="md:col-span-1">
+            <CardContent className="p-6">
+              <h3 className="text-xl font-bold mb-4">School Invitation Code</h3>
+              <p className="text-gray-600 mb-4">
+                Generate and share this code for teachers and students to join your school
+              </p>
+              
+              <SchoolCodeGenerator 
+                onCodeGenerated={handleCodeGenerated} 
+              />
+            </CardContent>
+          </Card>
           
+          {/* School Profile Card */}
           <Card className="md:col-span-2">
             <CardContent className="p-6">
               <div className="space-y-4">
@@ -64,6 +109,7 @@ const SchoolAdmin = () => {
           </Card>
         </div>
 
+        {/* Card grid for admin functions */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Card className="border overflow-hidden">
             <CardContent className="p-6">

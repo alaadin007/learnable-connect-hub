@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import { Copy, CheckCircle, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { getUserSchoolId } from "@/utils/apiHelpers";
 
 interface SchoolCodeGeneratorProps {
@@ -122,48 +121,25 @@ const SchoolCodeGenerator: React.FC<SchoolCodeGeneratorProps> = ({ onCodeGenerat
   };
 
   return (
-    <Card className={className}>
-      <CardHeader>
-        <CardTitle>School Invitation Code</CardTitle>
-        <CardDescription>
-          Generate and share this code for teachers and students to join your school
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {generatedCode ? (
-          <div className="space-y-3">
-            <div className="p-3 bg-muted rounded-md border flex items-center justify-between">
-              <code className="font-mono text-lg">{generatedCode}</code>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={copyCode}
-                className={codeCopied ? "text-green-600" : ""}
-              >
-                {codeCopied ? <CheckCircle className="h-4 w-4 mr-1" /> : <Copy className="h-4 w-4 mr-1" />}
-                {codeCopied ? "Copied!" : "Copy"}
-              </Button>
-            </div>
+    <div className={className}>
+      {generatedCode ? (
+        <div className="space-y-3">
+          <div className="p-3 bg-muted rounded-md border flex items-center justify-between">
+            <code className="font-mono text-lg">{generatedCode}</code>
             <Button
-              onClick={handleGenerateCode}
-              disabled={isGenerating}
-              variant="outline"
-              className="w-full"
+              size="sm"
+              variant="ghost"
+              onClick={copyCode}
+              className={codeCopied ? "text-green-600" : ""}
             >
-              {isGenerating ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Generating...
-                </>
-              ) : (
-                "Generate New Code"
-              )}
+              {codeCopied ? <CheckCircle className="h-4 w-4 mr-1" /> : <Copy className="h-4 w-4 mr-1" />}
+              {codeCopied ? "Copied!" : "Copy"}
             </Button>
           </div>
-        ) : (
           <Button
             onClick={handleGenerateCode}
             disabled={isGenerating}
+            variant="outline"
             className="w-full"
           >
             {isGenerating ? (
@@ -172,16 +148,31 @@ const SchoolCodeGenerator: React.FC<SchoolCodeGeneratorProps> = ({ onCodeGenerat
                 Generating...
               </>
             ) : (
-              "Generate School Code"
+              "Generate New Code"
             )}
           </Button>
-        )}
-        <p className="text-xs text-muted-foreground mt-2">
-          This code can be used by teachers and students to join your school.
-          Generating a new code will invalidate the previous one.
-        </p>
-      </CardContent>
-    </Card>
+        </div>
+      ) : (
+        <Button
+          onClick={handleGenerateCode}
+          disabled={isGenerating}
+          className="w-full bg-blue-600 hover:bg-blue-700"
+        >
+          {isGenerating ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              Generating...
+            </>
+          ) : (
+            "Generate School Code"
+          )}
+        </Button>
+      )}
+      <p className="text-xs text-muted-foreground mt-2">
+        This code can be used by teachers and students to join your school.
+        Generating a new code will invalidate the previous one.
+      </p>
+    </div>
   );
 };
 
