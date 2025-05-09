@@ -120,7 +120,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         email: profileData.email,
         user_type: profileData.user_type,
         is_supervisor: profileData.is_supervisor,
-        organization_id: profileData.organization_id,
+        organization_id: profileData.school_id, // Using school_id as organization_id
         school_id: profileData.school_id,
         school_code: profileData.school_code,
         school_name: profileData.school_name,
@@ -128,11 +128,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         created_at: profileData.created_at,
         updated_at: profileData.updated_at,
         // Convert the organization from Json to expected format
-        organization: typeof profileData.organization === 'object' ? 
+        organization: typeof profileData.organization === 'object' && profileData.organization !== null ? 
           {
-            id: profileData.organization?.id,
-            name: profileData.organization?.name,
-            code: profileData.organization?.code
+            id: (profileData.organization as Record<string, any>)?.id,
+            name: (profileData.organization as Record<string, any>)?.name,
+            code: (profileData.organization as Record<string, any>)?.code
           } : 
           undefined
       } : null;
