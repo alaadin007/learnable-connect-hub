@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -96,10 +95,14 @@ const Navbar = () => {
     }
   }, [effectiveUserRole]);
 
-  // Simplified admin navbar links based on the image
+  // Simplified admin navbar links with more options
   const getSchoolAdminNavLinks = () => {
     return [
       { name: "Dashboard", href: "/admin" },
+      { name: "Teacher Management", href: "/admin/teacher-management" },
+      { name: "Students", href: "/admin/students" },
+      { name: "Analytics", href: "/admin/analytics" },
+      { name: "Settings", href: "/admin/settings" },
       { name: "Chat", href: "/chat" },
       { name: "Documents", href: "/documents" },
     ];
@@ -118,7 +121,7 @@ const Navbar = () => {
       ];
     }
 
-    // For school admin role, show ONLY the three specific admin links
+    // For school admin role, show expanded admin links
     if (isAdmin) {
       return getSchoolAdminNavLinks();
     } 
