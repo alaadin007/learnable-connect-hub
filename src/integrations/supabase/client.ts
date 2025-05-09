@@ -22,6 +22,7 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
 
 // Define test school code that will be used for test accounts
 export const TEST_SCHOOL_CODE = "SCHTEST0" 
+export const DEMO_CODES = ["DEMO-CODE", "DEMO-AMP99S"]
 
 // Helper function to check if an account is a test account
 export function isTestAccount(email: string): boolean {
@@ -35,8 +36,8 @@ export async function verifySchoolCode(code: string): Promise<{
   schoolName?: string;
 }> {
   try {
-    // First check if this is a test code
-    if (code === TEST_SCHOOL_CODE) {
+    // First check if this is a demo or test code
+    if (DEMO_CODES.includes(code) || code.startsWith("DEMO-") || code === TEST_SCHOOL_CODE) {
       return { 
         valid: true, 
         schoolId: 'test-school-id', 

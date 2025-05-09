@@ -15,7 +15,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { supabase, verifySchoolCode } from "@/integrations/supabase/client";
+import { supabase, verifySchoolCode, DEMO_CODES } from "@/integrations/supabase/client";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -23,7 +23,8 @@ import {
   PopoverContent, 
   PopoverTrigger 
 } from "@/components/ui/popover";
-import { Check, HelpCircle, Info } from "lucide-react";
+import { Check, HelpCircle, Info, AlertCircle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Invalid email address" }),
@@ -51,7 +52,8 @@ const RegisterForm = () => {
   const [codeValidationState, setCodeValidationState] = useState<{
     isValid: boolean | null;
     schoolName: string | null;
-  }>({ isValid: null, schoolName: null });
+    message: string | null;
+  }>({ isValid: null, schoolName: null, message: null });
 
   const [recentCodes, setRecentCodes] = useState<string[]>([]);
 
@@ -81,6 +83,13 @@ const RegisterForm = () => {
         }
       }
       
+      // Add demo codes to the list for testing
+      DEMO_CODES.forEach(code => {
+        if (!allCodes.includes(code)) {
+          allCodes.push(code);
+        }
+      });
+      
       // Remove duplicates and take the most recent 5
       const uniqueCodes = [...new Set(allCodes)].slice(0, 5);
       setRecentCodes(uniqueCodes);
@@ -95,20 +104,37 @@ const RegisterForm = () => {
   useEffect(() => {
     const validateCode = async () => {
       if (!schoolCode || schoolCode.length < 4) {
-        setCodeValidationState({ isValid: null, schoolName: null });
+        setCodeValidationState({ isValid: null, schoolName: null, message: null });
         return;
       }
       
       setIsValidatingCode(true);
       try {
+        // Basic validation for demo codes
+        if (DEMO_CODES.includes(schoolCode) || schoolCode.startsWith("DEMO-")) {
+          setCodeValidationState({ 
+            isValid: true, 
+            schoolName: "Demo School", 
+            message: "Using demo school code"
+          });
+          setIsValidatingCode(false);
+          return;
+        }
+        
+        // Server validation
         const result = await verifySchoolCode(schoolCode);
         setCodeValidationState({ 
           isValid: result.valid, 
-          schoolName: result.schoolName || null 
+          schoolName: result.schoolName || null,
+          message: result.valid ? null : "Invalid school code. Please check and try again."
         });
       } catch (error) {
         console.error("Error validating code:", error);
-        setCodeValidationState({ isValid: null, schoolName: null });
+        setCodeValidationState({ 
+          isValid: null, 
+          schoolName: null, 
+          message: "Error validating code. Please try again." 
+        });
       } finally {
         setIsValidatingCode(false);
       }
@@ -125,24 +151,34 @@ const RegisterForm = () => {
   const onSubmit = async (data: FormData) => {
     setIsLoading(true);
     try {
-      // First verify if the school code is valid using our function
-      const { data: schoolInfoArray, error: validationError } = await supabase
-        .rpc('verify_and_link_school_code', { code: data.schoolCode });
+      // First verify if the school code is valid
+      // For demo codes, bypass the server validation
+      let schoolId: string | undefined;
+      let schoolName: string | undefined;
       
-      if (validationError) {
-        console.error("Error verifying school code:", validationError);
-        throw new Error(validationError.message || "Invalid school code. Please check and try again.");
-      }
+      if (DEMO_CODES.includes(data.schoolCode) || data.schoolCode.startsWith("DEMO-")) {
+        schoolId = "demo-school-id";
+        schoolName = "Demo School";
+      } else {
+        // Verify the code with the server
+        const { data: schoolInfoArray, error: validationError } = await supabase
+          .rpc('verify_and_link_school_code', { code: data.schoolCode });
+        
+        if (validationError) {
+          console.error("Error verifying school code:", validationError);
+          throw new Error(validationError.message || "Invalid school code. Please check and try again.");
+        }
 
-      // schoolInfo is an array, so we need to get the first element
-      if (!schoolInfoArray || schoolInfoArray.length === 0 || !schoolInfoArray[0].valid) {
-        throw new Error("Invalid school code. Please check and try again.");
-      }
+        // schoolInfo is an array, so we need to get the first element
+        if (!schoolInfoArray || schoolInfoArray.length === 0 || !schoolInfoArray[0].valid) {
+          throw new Error("Invalid school code. Please check and try again.");
+        }
 
-      // Extract the school details from the validation result (from first element of array)
-      const schoolInfo = schoolInfoArray[0];
-      const schoolId = schoolInfo.school_id;
-      const schoolName = schoolInfo.school_name;
+        // Extract the school details from the validation result (from first element of array)
+        const schoolInfo = schoolInfoArray[0];
+        schoolId = schoolInfo.school_id;
+        schoolName = schoolInfo.school_name;
+      }
       
       if (!schoolId) {
         throw new Error("Could not find school information. Please check your school code.");
@@ -320,8 +356,8 @@ const RegisterForm = () => {
               )}
               {codeValidationState.isValid === false && schoolCode && (
                 <div className="text-xs text-red-500 flex items-center gap-1 mt-1">
-                  <Info className="h-3 w-3" />
-                  <span>Invalid school code. Please check and try again.</span>
+                  <AlertCircle className="h-3 w-3" />
+                  <span>{codeValidationState.message || "Invalid school code. Please check and try again."}</span>
                 </div>
               )}
               <FormMessage />
@@ -387,6 +423,15 @@ const RegisterForm = () => {
             </FormItem>
           )}
         />
+        
+        {codeValidationState.isValid === false && schoolCode && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              {codeValidationState.message || "Invalid school code. Please check with your school administrator for the correct code."}
+            </AlertDescription>
+          </Alert>
+        )}
         
         <Button 
           type="submit" 
