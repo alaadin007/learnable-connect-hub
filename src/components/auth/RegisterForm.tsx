@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Badge } from "@/components/ui/badge";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Invalid email address" }),
@@ -72,7 +73,7 @@ const RegisterForm = () => {
       // Get the school information from the school code
       const { data: schoolInfo, error: schoolInfoError } = await supabase
         .from("school_codes")
-        .select("id, school_name")
+        .select("id, school_name, school_id")
         .eq("code", data.schoolCode)
         .eq("active", true)
         .single();
@@ -92,7 +93,7 @@ const RegisterForm = () => {
             school_code: data.schoolCode,
             school_name: schoolInfo?.school_name || "Unknown School",
             user_type: data.userType, // Use selected user type
-            school_id: schoolInfo?.id // Include the school_id from school_codes table
+            school_id: schoolInfo?.school_id // Include the school_id from school_codes table
           }
         }
       });
@@ -108,11 +109,30 @@ const RegisterForm = () => {
       
       console.log("Registration successful:", authData);
       
+      // Call our edge function to set up the user in the correct tables
+      const { error: setupError } = await supabase.functions.invoke("verify-and-setup-user");
+      if (setupError) {
+        console.warn("User profile setup warning:", setupError);
+        // Continue despite this error - it's not critical for the registration
+      }
+      
       // Show success message
       toast.success(
         <div>
           <h3>Registration Successful!</h3>
           <p>Please check your email to verify your account.</p>
+          {data.userType === "student" && (
+            <div className="mt-2">
+              <Badge variant="success">Student Account</Badge>
+              <p className="text-sm mt-1">Your account needs teacher approval before you can log in.</p>
+            </div>
+          )}
+          {data.userType === "teacher" && (
+            <div className="mt-2">
+              <Badge variant="success">Teacher Account</Badge>
+              <p className="text-sm mt-1">You can log in after verifying your email.</p>
+            </div>
+          )}
         </div>, 
         { duration: 6000 }
       );
