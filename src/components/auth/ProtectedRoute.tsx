@@ -29,11 +29,13 @@ const ProtectedRoute = ({
   
   console.log('ProtectedRoute: Current path:', location.pathname);
   console.log('ProtectedRoute: User role:', effectiveUserRole);
+  console.log('ProtectedRoute: Is school admin:', isSchoolAdmin(effectiveUserRole));
   
   // CRITICAL CHECK: If user is school admin, force redirect to admin dashboard when on /dashboard
   // This is the highest priority check - it happens before ANY other checks
   if (isSchoolAdmin(effectiveUserRole) && location.pathname === '/dashboard') {
     console.log("PROTECTED ROUTE: School admin detected on /dashboard, forcing redirect to /admin");
+    // Use replace: true to prevent back button from returning to /dashboard
     return <Navigate to="/admin" state={{ preserveContext: true, adminRedirect: true }} replace />;
   }
 

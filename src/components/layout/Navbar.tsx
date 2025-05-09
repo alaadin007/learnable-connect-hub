@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -20,6 +19,18 @@ const Navbar = () => {
   useEffect(() => {
     setIsLoaded(true);
   }, []);
+
+  // Check for school admin role and redirect if needed
+  useEffect(() => {
+    const fallbackRole = getUserRoleWithFallback();
+    const effectiveRole = userRole || fallbackRole;
+    
+    // If school admin is on /dashboard, redirect to /admin
+    if (isSchoolAdmin(effectiveRole) && location.pathname === '/dashboard') {
+      console.log('NAVBAR: School admin detected on /dashboard, redirecting to /admin');
+      window.location.replace('/admin');
+    }
+  }, [location.pathname, userRole]);
 
   const toggleMenu = () => setIsOpen((open) => !open);
 
@@ -89,7 +100,7 @@ const Navbar = () => {
 
     // For school admin role, show only the three links shown in the image: Dashboard, Chat, Documents
     if (isAdmin) {
-      console.log('Rendering school admin links');
+      console.log('Rendering school admin links with dashboard path:', dashboardPath);
       return [
         { name: "Dashboard", href: dashboardPath },
         { name: "Chat", href: "/chat" },
@@ -148,14 +159,8 @@ const Navbar = () => {
     
     // Special case: if school admin tries to go to /dashboard, redirect to /admin
     if (isAdmin && path === '/dashboard') {
-      console.log('Navbar: School admin trying to navigate to /dashboard, redirecting to /admin');
-      navigate('/admin', { 
-        state: { 
-          fromNavigation: true,
-          preserveContext: true,
-          timestamp: Date.now()
-        } 
-      });
+      console.log('Navbar: School admin clicking on Dashboard, redirecting to /admin');
+      window.location.replace('/admin');
       setIsOpen(false);
       return;
     }

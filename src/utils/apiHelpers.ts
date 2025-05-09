@@ -107,5 +107,6 @@ export function getSchoolIdWithFallback(): string | null {
  * Helper function to check if a user has school admin privileges
  */
 export function isSchoolAdmin(role: string | null): boolean {
+  if (!role) return false;
   return role === 'school' || role === 'school_admin';
 }

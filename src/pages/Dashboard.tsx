@@ -32,11 +32,13 @@ const Dashboard = () => {
       toast.info("Redirecting to School Admin Dashboard...");
       
       // Force immediate hard redirect to prevent any back-button issues
+      // This is a stronger approach than navigate() as it completely replaces the URL
       window.location.replace("/admin");
+      return; // Early return to prevent the rest of the component from rendering
     } else {
       console.log(`Dashboard component rendering for non-admin user: ${effectiveRole}`);
     }
-  }, [userRole]);
+  }, [userRole, navigate]);
 
   // If we're redirecting or user is a school admin, show loading state
   if (isRedirecting || isSchoolAdmin(userRole) || isSchoolAdmin(getUserRoleWithFallback())) {
