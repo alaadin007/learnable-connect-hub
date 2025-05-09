@@ -73,7 +73,7 @@ const RegisterForm = () => {
       // Get the school information from the school code
       const { data: schoolInfo, error: schoolInfoError } = await supabase
         .from("school_codes")
-        .select("id, school_name, school_id")
+        .select("id, school_name")
         .eq("code", data.schoolCode)
         .eq("active", true)
         .single();
@@ -93,7 +93,7 @@ const RegisterForm = () => {
             school_code: data.schoolCode,
             school_name: schoolInfo?.school_name || "Unknown School",
             user_type: data.userType, // Use selected user type
-            school_id: schoolInfo?.school_id // Include the school_id from school_codes table
+            school_id: schoolInfo?.id // Use the id from school_codes as school_id
           }
         }
       });
