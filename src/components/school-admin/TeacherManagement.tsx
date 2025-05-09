@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import {
   Card,
@@ -103,14 +104,20 @@ const TeacherManagement = () => {
       return;
     }
 
+    // Basic email validation
+    if (!email || !email.includes('@') || !email.includes('.')) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+
     setIsCreating(true);
     try {
       const { data, error } = await supabase.functions.invoke("invite-teacher", {
         body: {
           email,
           role,
-          schoolId,
           customMessage,
+          schoolId
         },
       });
 
@@ -123,7 +130,9 @@ const TeacherManagement = () => {
       setOpen(false); // Close the dialog
       setEmail(""); // Reset the email input
       setCustomMessage(""); // Reset the custom message
+      setRole("teacher"); // Reset the role
     } catch (error: any) {
+      console.error("Failed to create invitation:", error);
       toast.error(error.message || "Failed to create invitation");
     } finally {
       setIsCreating(false);
@@ -237,7 +246,7 @@ const TeacherManagement = () => {
               Delete Selected
             </Button>
           </div>
-          <Dialog>
+          <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button variant="outline">
                 <Plus className="mr-2 h-4 w-4" />
@@ -262,13 +271,14 @@ const TeacherManagement = () => {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="col-span-3"
+                    placeholder="teacher@example.com"
                   />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="role" className="text-right">
                     Role
                   </Label>
-                  <Select onValueChange={setRole}>
+                  <Select value={role} onValueChange={setRole}>
                     <SelectTrigger className="col-span-3">
                       <SelectValue placeholder="Select a role" />
                     </SelectTrigger>
@@ -307,7 +317,10 @@ const TeacherManagement = () => {
           </Dialog>
         </div>
         {isLoading ? (
-          <p>Loading invitations...</p>
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <span className="ml-2">Loading invitations...</span>
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <Table>
@@ -321,48 +334,59 @@ const TeacherManagement = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {invitations.map((invitation) => (
-                  <TableRow key={invitation.id}>
-                    <TableCell className="w-[50px]">
-                      <Checkbox
-                        checked={selectedInvitations.includes(invitation.id)}
-                        onCheckedChange={() => handleCheckboxChange(invitation.id)}
-                      />
-                    </TableCell>
-                    <TableCell>{invitation.email}</TableCell>
-                    <TableCell>{invitation.role || "teacher"}</TableCell>
-                    <TableCell>
-                      {invitation.status === "pending" ? (
-                        <Badge variant="secondary">Pending</Badge>
-                      ) : (
-                        invitation.status
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleCopyInvitationLink(invitation)}
-                      >
-                        <Copy className="mr-2 h-4 w-4" />
-                        Copy Link
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleResendInvitation(invitation)}
-                        disabled={isLoading}
-                      >
-                        {isLoading ? (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                          <Mail className="mr-2 h-4 w-4" />
-                        )}
-                        Resend
-                      </Button>
+                {invitations.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="h-24 text-center">
+                      No invitations found. Invite a teacher to get started.
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  invitations.map((invitation) => (
+                    <TableRow key={invitation.id}>
+                      <TableCell className="w-[50px]">
+                        <Checkbox
+                          checked={selectedInvitations.includes(invitation.id)}
+                          onCheckedChange={() => handleCheckboxChange(invitation.id)}
+                        />
+                      </TableCell>
+                      <TableCell>{invitation.email}</TableCell>
+                      <TableCell>{invitation.role || "teacher"}</TableCell>
+                      <TableCell>
+                        <Badge 
+                          variant={invitation.status === "accepted" ? "success" : 
+                                 invitation.status === "expired" ? "destructive" : 
+                                 "secondary"}
+                        >
+                          {invitation.status === "pending" ? "Pending" : 
+                           invitation.status === "accepted" ? "Accepted" : 
+                           invitation.status === "expired" ? "Expired" : 
+                           invitation.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex space-x-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleCopyInvitationLink(invitation)}
+                          >
+                            <Copy className="h-4 w-4 mr-1" />
+                            Copy Link
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleResendInvitation(invitation)}
+                            disabled={invitation.status === "accepted" || isLoading}
+                          >
+                            <Mail className="h-4 w-4 mr-1" />
+                            Resend
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>
