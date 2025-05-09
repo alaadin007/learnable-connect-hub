@@ -21,9 +21,11 @@ const Login = () => {
           console.error("Supabase connection error:", error);
           
           if (error.message.includes('No API key found')) {
-            // Force refresh the session and reset API key in headers
-            const freshSession = await refreshAuthSession();
-            if (!freshSession) {
+            // Refresh the session directly from supabase
+            const { data: refreshSessionData, error: refreshError } = await supabase.auth.refreshSession();
+            const freshSession = refreshSessionData?.session;
+            
+            if (!freshSession || refreshError) {
               toast.error("Could not establish connection to database. Please refresh the page.");
             }
           }
