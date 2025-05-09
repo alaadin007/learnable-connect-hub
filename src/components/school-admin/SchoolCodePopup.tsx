@@ -30,14 +30,12 @@ const SchoolCodePopup = ({ isOpen, onClose, code, expiresAt }: SchoolCodePopupPr
 
   // Sync the internal open state with the isOpen prop
   useEffect(() => {
-    console.log("SchoolCodePopup isOpen prop changed:", isOpen);
     setOpen(isOpen);
   }, [isOpen]);
   
   // Call the onClose callback when the internal open state changes to false
   useEffect(() => {
     if (!open && isOpen) {
-      console.log("Internal dialog state closed, calling onClose");
       onClose();
     }
   }, [open, isOpen, onClose]);
@@ -67,14 +65,8 @@ const SchoolCodePopup = ({ isOpen, onClose, code, expiresAt }: SchoolCodePopupPr
     }
   };
 
-  // For debugging - log when props change
-  useEffect(() => {
-    console.log("SchoolCodePopup render - isOpen:", isOpen, "code:", code, "internal open state:", open);
-  }, [isOpen, code, open]);
-
   // If no code is provided, don't render the dialog
   if (!code) {
-    console.log("SchoolCodePopup: No code provided, not rendering dialog");
     return null;
   }
 
@@ -82,7 +74,6 @@ const SchoolCodePopup = ({ isOpen, onClose, code, expiresAt }: SchoolCodePopupPr
     <Dialog 
       open={open} 
       onOpenChange={(newOpen) => {
-        console.log("Dialog onOpenChange called with:", newOpen);
         setOpen(newOpen);
       }}
     >

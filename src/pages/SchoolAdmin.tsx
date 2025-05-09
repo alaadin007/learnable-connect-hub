@@ -1,10 +1,9 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { School, Copy, CheckCircle } from "lucide-react";
+import { School, Copy, CheckCircle, X, AlertCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import Footer from "@/components/landing/Footer";
 import AdminNavbar from "@/components/school-admin/AdminNavbar";
@@ -22,6 +21,7 @@ const SchoolAdmin = () => {
   const [showCodePopup, setShowCodePopup] = useState(false);
   const [codeInfo, setCodeInfo] = useState<{code: string, expiresAt?: string}>({code: ""});
   const [codeCopied, setCodeCopied] = useState(false);
+  const [codeExpanded, setCodeExpanded] = useState(false);
   const { generateCode, isGenerating } = useSchoolCode();
 
   // For debugging - log state changes
@@ -69,8 +69,8 @@ const SchoolAdmin = () => {
       code: code,
       expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // Assume 24h expiration
     });
-    // Force open the popup when code is generated
-    setShowCodePopup(true);
+    // Show expanded code section when code is generated
+    setCodeExpanded(true);
   };
 
   const generateSchoolCode = async () => {
@@ -106,7 +106,22 @@ const SchoolAdmin = () => {
       });
   };
 
-  // Function to handle opening the popup
+  const formatExpiryDate = (dateString?: string) => {
+    if (!dateString) return "No expiration set";
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleString();
+    } catch (e) {
+      return "Invalid date";
+    }
+  };
+
+  // Function to toggle the code expanded state
+  const toggleCodeExpanded = () => {
+    setCodeExpanded(!codeExpanded);
+  };
+
+  // Function to handle opening the popup - now only used for the view details option
   const handleOpenCodePopup = () => {
     console.log("Opening code popup, currentCode:", currentCode);
     if (!currentCode) {
@@ -114,22 +129,12 @@ const SchoolAdmin = () => {
       return;
     }
     setShowCodePopup(true);
-    console.log("showCodePopup set to true");
   };
 
   // Function to handle closing the popup
   const handleCloseCodePopup = () => {
     console.log("Closing code popup");
     setShowCodePopup(false);
-  };
-
-  // For debugging - force render the popup
-  const forceShowPopup = () => {
-    console.log("Force showing popup with code:", codeInfo.code);
-    setShowCodePopup(true);
-    setTimeout(() => {
-      console.log("showCodePopup after timeout:", showCodePopup);
-    }, 500);
   };
 
   const schoolId = profile?.organization?.id || profile?.school_id || "";
@@ -156,55 +161,105 @@ const SchoolAdmin = () => {
                 Generate and share this code for teachers and students to join your school
               </p>
               
-              {currentCode ? (
-                <div className="space-y-3">
-                  <div className="p-3 bg-muted rounded-md border flex items-center justify-between">
-                    <code className="font-mono text-lg">{currentCode}</code>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={copyCodeToClipboard}
-                      className={codeCopied ? "text-green-600" : ""}
-                    >
-                      {codeCopied ? (
-                        <CheckCircle className="h-4 w-4 mr-1" />
-                      ) : (
-                        <Copy className="h-4 w-4 mr-1" />
-                      )}
-                      {codeCopied ? "Copied!" : "Copy"}
-                    </Button>
-                  </div>
-                  <Button 
-                    onClick={handleOpenCodePopup} 
-                    className="w-full bg-blue-600 hover:bg-blue-700"
-                  >
-                    View School Code
-                  </Button>
+              <div className="space-y-4">
+                {!currentCode ? (
                   <Button
                     onClick={generateSchoolCode}
                     disabled={isGenerating}
-                    variant="outline"
-                    className="w-full"
+                    className="w-full bg-blue-600 hover:bg-blue-700"
                   >
-                    Generate New Code
+                    {isGenerating ? "Generating..." : "Generate School Code"}
                   </Button>
-                  <Button
-                    onClick={forceShowPopup}
-                    variant="outline"
-                    className="w-full text-purple-600 border-purple-300"
-                  >
-                    Debug: Force Show Popup
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  onClick={generateSchoolCode}
-                  disabled={isGenerating}
-                  className="w-full bg-blue-600 hover:bg-blue-700"
-                >
-                  {isGenerating ? "Generating..." : "Generate School Code"}
-                </Button>
-              )}
+                ) : (
+                  <>
+                    <Button
+                      onClick={generateSchoolCode}
+                      disabled={isGenerating}
+                      className="w-full bg-blue-600 hover:bg-blue-700"
+                    >
+                      {isGenerating ? "Generating..." : "Generate New School Code"}
+                    </Button>
+                    
+                    <div className="border rounded-md overflow-hidden">
+                      <div className="bg-muted p-3 border-b flex items-center justify-between">
+                        <h4 className="font-medium">School Invitation Code</h4>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={toggleCodeExpanded}
+                          className="h-6 w-6 p-0"
+                        >
+                          {codeExpanded ? 
+                            <X className="h-4 w-4" /> : 
+                            <div className="h-4 w-4 flex items-center justify-center">
+                              <span className="text-xs font-bold">+</span>
+                            </div>
+                          }
+                        </Button>
+                      </div>
+                      
+                      {codeExpanded && (
+                        <div className="p-3 space-y-3">
+                          <div className="p-3 bg-muted rounded-md border flex items-center justify-between">
+                            <code className="font-mono text-lg">{currentCode}</code>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={copyCodeToClipboard}
+                              className={codeCopied ? "text-green-600" : ""}
+                            >
+                              {codeCopied ? (
+                                <CheckCircle className="h-4 w-4" />
+                              ) : (
+                                <Copy className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </div>
+                          
+                          {codeInfo.expiresAt && (
+                            <div className="bg-amber-50 border border-amber-200 rounded-md p-2 text-amber-800 flex items-start gap-2">
+                              <AlertCircle className="h-4 w-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                              <p className="text-xs">
+                                Expires: {formatExpiryDate(codeInfo.expiresAt)}
+                              </p>
+                            </div>
+                          )}
+                          
+                          <div className="flex items-center space-x-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={copyCodeToClipboard}
+                              className="flex-1"
+                            >
+                              {codeCopied ? (
+                                <>
+                                  <CheckCircle className="h-3.5 w-3.5 mr-1" />
+                                  <span>Copied!</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="h-3.5 w-3.5 mr-1" />
+                                  <span>Copy Code</span>
+                                </>
+                              )}
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={handleOpenCodePopup}
+                              className="flex-1"
+                            >
+                              View Details
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+              
             </CardContent>
           </Card>
 
@@ -309,11 +364,6 @@ const SchoolAdmin = () => {
         </div>
       </main>
       <Footer />
-
-      {/* Debug info for popup state */}
-      <div className="fixed bottom-0 left-0 bg-yellow-100 p-2 text-xs border border-yellow-300 m-1 z-50 opacity-80">
-        Debug: showCodePopup={showCodePopup.toString()}, code={codeInfo.code || "none"}
-      </div>
 
       {/* School Code Popup */}
       <SchoolCodePopup
