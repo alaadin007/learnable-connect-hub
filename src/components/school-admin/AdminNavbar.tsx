@@ -2,20 +2,30 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { 
+  LayoutDashboard, 
+  UserPlus, 
+  Users, 
+  BarChart2, 
+  Settings, 
+  MessageSquare, 
+  FileText 
+} from "lucide-react";
 
 type AdminNavLink = {
   name: string;
   href: string;
+  icon: React.ComponentType<{ className?: string }>;
 };
 
 const defaultNavLinks: AdminNavLink[] = [
-  { name: "Dashboard", href: "/admin" },
-  { name: "Teacher Management", href: "/admin/teacher-management" },
-  { name: "Students", href: "/admin/students" },
-  { name: "Analytics", href: "/admin/analytics" },
-  { name: "Settings", href: "/admin/settings" },
-  { name: "Chat", href: "/chat" },
-  { name: "Documents", href: "/documents" },
+  { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
+  { name: "Teacher Management", href: "/admin/teacher-management", icon: UserPlus },
+  { name: "Students", href: "/admin/students", icon: Users },
+  { name: "Analytics", href: "/admin/analytics", icon: BarChart2 },
+  { name: "Settings", href: "/admin/settings", icon: Settings },
+  { name: "Chat", href: "/chat", icon: MessageSquare },
+  { name: "Documents", href: "/documents", icon: FileText },
 ];
 
 interface AdminNavbarProps {
@@ -67,12 +77,13 @@ const AdminNavbar = ({ navLinks = defaultNavLinks, className }: AdminNavbarProps
               key={link.href}
               to={link.href}
               className={cn(
-                "px-4 py-2 text-sm font-medium transition-colors",
+                "px-4 py-2 text-sm font-medium transition-colors flex items-center",
                 isActive
                   ? "border-b-2 border-blue-600 text-blue-600"
                   : "text-gray-600 hover:text-blue-600"
               )}
             >
+              {link.icon && <link.icon className="mr-2 h-4 w-4" />}
               {link.name}
             </Link>
           );

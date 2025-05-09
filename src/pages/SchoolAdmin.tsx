@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Users, BarChart, Settings, UserPlus, School } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import Footer from "@/components/layout/Footer";
+import AdminNavbar from "@/components/school-admin/AdminNavbar";
 
 const SchoolAdmin = () => {
   const { user, profile, userRole } = useAuth();
@@ -26,6 +27,8 @@ const SchoolAdmin = () => {
             Manage your school, teachers, and student performance analytics
           </p>
         </div>
+        
+        <AdminNavbar />
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <Card className="border overflow-hidden">
