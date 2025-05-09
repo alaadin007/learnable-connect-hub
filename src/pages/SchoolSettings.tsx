@@ -19,8 +19,8 @@ interface SchoolData {
   id: string;
   name: string;
   code: string;
-  created_at: string;
-  updated_at: string;
+  created_at?: string;
+  updated_at?: string;
   contact_email?: string;
   description?: string;
   notifications_enabled?: boolean;
@@ -44,22 +44,34 @@ const SchoolSettings = () => {
       
       setIsLoading(true);
       try {
-        // Get school information using our new function
-        const { data, error } = await supabase
+        // First get basic school information from the RPC function
+        const { data: schoolBasicData, error: basicDataError } = await supabase
           .rpc('get_school_by_id', {
             school_id_param: profile.organization.id
           });
 
-        if (error) throw error;
+        if (basicDataError) throw basicDataError;
         
-        if (data && data.length > 0) {
-          const schoolData = data[0];
-          setSchoolName(schoolData.name || "");
-          setSchoolCode(schoolData.code || "");
-          setContactEmail(schoolData.contact_email || user?.email || "");
-          // For fields not returned by the function, use existing values
-          setDescription(schoolData.description || "");
-          setNotificationsEnabled(schoolData.notifications_enabled !== false); // Default to true if undefined
+        if (schoolBasicData && schoolBasicData.length > 0) {
+          const basicData = schoolBasicData[0];
+          setSchoolName(basicData.name || "");
+          setSchoolCode(basicData.code || "");
+          setContactEmail(basicData.contact_email || user?.email || "");
+          
+          // Now fetch the full school data with all fields we need
+          const { data: fullSchoolData, error: fullDataError } = await supabase
+            .from("schools")
+            .select("*")
+            .eq("id", profile.organization.id)
+            .single();
+            
+          if (fullDataError) throw fullDataError;
+          
+          if (fullSchoolData) {
+            // Update the additional fields from the full data
+            setDescription(fullSchoolData.description || "");
+            setNotificationsEnabled(fullSchoolData.notifications_enabled !== false); // Default to true if undefined
+          }
         }
       } catch (error) {
         console.error("Error fetching school data:", error);
