@@ -1,5 +1,3 @@
-
-// Add import for TeacherInvitation type from SchoolAdmin
 import React, { useState, useEffect } from "react";
 import {
   Card,
@@ -53,7 +51,6 @@ export interface TeacherInvitation {
   role?: string;
 }
 
-// Update component to use TeacherInvitation type
 const TeacherManagement = () => {
   const { profile } = useAuth();
   const [invitations, setInvitations] = useState<TeacherInvitation[]>([]);
