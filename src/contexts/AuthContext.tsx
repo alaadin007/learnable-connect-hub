@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { Session, User } from "@supabase/supabase-js";
-import { supabase, isTestAccount } from "@/integrations/supabase/client";
+import { supabase, isTestAccount, refreshAuthSession } from "@/integrations/supabase/client";
 import { Database } from "@/integrations/supabase/types";
 
 // Define types for user roles based on the actual application structure
@@ -15,7 +15,8 @@ interface AuthState {
   isSuperviser: boolean;
   schoolId: string | null;
   isLoading: boolean;
-  signIn: (session: Session) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<{ error: any | null; data: any | null }>;
+  signUp: (email: string, password: string, metadata: any) => Promise<{ error: any | null; data: any | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   setTestUser: (type: "school" | "teacher" | "student", schoolIndex?: number) => Promise<void>;
@@ -30,7 +31,8 @@ const AuthContext = createContext<AuthState>({
   isSuperviser: false,
   schoolId: null,
   isLoading: true,
-  signIn: async () => {},
+  signIn: async () => ({ error: null, data: null }),
+  signUp: async () => ({ error: null, data: null }),
   signOut: async () => {},
   refreshProfile: async () => {},
   setTestUser: async () => {},
@@ -77,10 +79,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const getSession = async () => {
       try {
+        setIsLoading(true);
         // First check for existing session
         const { data, error } = await supabase.auth.getSession();
         if (error) {
           console.error("Session retrieval error:", error);
+          
+          // Try to refresh the session
+          const freshSession = await refreshAuthSession();
+          if (freshSession) {
+            handleSession(freshSession);
+            return;
+          }
+          
           throw error;
         }
 
@@ -103,10 +114,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     getSession();
 
     // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      console.log("Auth state changed:", _event, !!session);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("Auth state changed:", event, !!session);
       if (session) {
-        handleSession(session);
+        await handleSession(session);
+      } else if (event === 'SIGNED_OUT') {
+        // Clear all auth state
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+        setUserRole(null);
+        setIsSuperviser(false);
+        setSchoolId(null);
       }
     });
 
@@ -137,6 +156,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     } catch (error) {
       console.error("Failed to restore auth state from localStorage:", error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -184,11 +205,35 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const signIn = async (session: Session) => {
+  const signIn = async (email: string, password: string) => {
     try {
-      await handleSession(session);
+      const response = await supabase.auth.signInWithPassword({ email, password });
+      
+      if (response.data.session) {
+        await handleSession(response.data.session);
+      }
+      
+      return response;
     } catch (error) {
       console.error("Error signing in:", error);
+      return { error, data: null };
+    }
+  };
+
+  const signUp = async (email: string, password: string, metadata: any) => {
+    try {
+      const response = await supabase.auth.signUp({ 
+        email, 
+        password, 
+        options: { 
+          data: metadata
+        }
+      });
+      
+      return response;
+    } catch (error) {
+      console.error("Error signing up:", error);
+      return { error, data: null };
     }
   };
 
@@ -348,6 +393,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     schoolId,
     isLoading,
     signIn,
+    signUp,
     signOut,
     refreshProfile,
     setTestUser,

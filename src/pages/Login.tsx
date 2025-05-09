@@ -5,7 +5,8 @@ import Footer from "@/components/landing/Footer";
 import { Link, useNavigate } from "react-router-dom";
 import { AlertCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, refreshAuthSession } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const Login = () => {
   const { user, userRole, session, isLoading } = useAuth();
@@ -17,13 +18,20 @@ const Login = () => {
       try {
         // Simple ping test to verify API key is working
         const { error } = await supabase.from('profiles').select('count', { count: 'exact', head: true });
-        if (error && error.message.includes('No API key found')) {
-          console.error("Supabase connection error: API key not found", error);
-          // Force refresh the session to ensure headers are properly set
-          await supabase.auth.refreshSession();
+        if (error) {
+          console.error("Supabase connection error:", error);
+          
+          if (error.message.includes('No API key found')) {
+            // Force refresh the session and reset API key in headers
+            const freshSession = await refreshAuthSession();
+            if (!freshSession) {
+              toast.error("Could not establish connection to database. Please refresh the page.");
+            }
+          }
         }
       } catch (err) {
         console.error("Failed to check Supabase connection:", err);
+        toast.error("Connection error. Please refresh the page.");
       }
     };
     
