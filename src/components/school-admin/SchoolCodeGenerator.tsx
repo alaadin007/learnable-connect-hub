@@ -1,8 +1,9 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Copy, CheckCircle, Loader2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { useSchoolCode } from "@/hooks/use-school-code";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface SchoolCodeGeneratorProps {
@@ -10,89 +11,47 @@ interface SchoolCodeGeneratorProps {
   className?: string;
 }
 
-const SchoolCodeGenerator: React.FC<SchoolCodeGeneratorProps> = ({ onCodeGenerated, className }) => {
-  const [isGenerating, setIsGenerating] = useState(false);
+const SchoolCodeGenerator: React.FC<SchoolCodeGeneratorProps> = ({ 
+  onCodeGenerated, 
+  className 
+}) => {
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
   const [codeCopied, setCodeCopied] = useState(false);
   const { schoolId: contextSchoolId } = useAuth();
+  const { generateCode, isGenerating, fetchCurrentCode } = useSchoolCode();
 
   // Fetch current code on component mount
   useEffect(() => {
-    const fetchCurrentCode = async () => {
+    const getExistingCode = async () => {
+      const schoolId = contextSchoolId;
+      if (!schoolId) return;
+
       try {
-        const schoolId = contextSchoolId;
-        if (!schoolId) return;
-
-        const { data, error } = await supabase
-          .from("schools")
-          .select("code")
-          .eq("id", schoolId)
-          .single();
-
-        if (error) throw error;
-
-        if (data?.code) {
-          setGeneratedCode(data.code);
-          if (onCodeGenerated) onCodeGenerated(data.code);
+        const currentCode = await fetchCurrentCode(schoolId);
+        if (currentCode) {
+          setGeneratedCode(currentCode);
+          if (onCodeGenerated) onCodeGenerated(currentCode);
         }
       } catch (error) {
-        console.error("Error fetching current code:", error);
+        console.error("Error fetching existing code:", error);
       }
     };
 
-    fetchCurrentCode();
-  }, [contextSchoolId, onCodeGenerated]);
+    getExistingCode();
+  }, [contextSchoolId, fetchCurrentCode, onCodeGenerated]);
 
   const handleGenerateCode = async () => {
-    setIsGenerating(true);
+    const schoolId = contextSchoolId;
+    if (!schoolId) {
+      toast.error("Could not determine your school ID");
+      return;
+    }
 
-    try {
-      const schoolId = contextSchoolId;
-      if (!schoolId) {
-        toast.error("Could not determine your school ID");
-        return;
-      }
-
-      // Try to use the Supabase Edge Function first
-      try {
-        const { data, error } = await supabase.functions.invoke('generate-school-code', {
-          body: { schoolId }
-        });
-
-        if (error) throw error;
-
-        if (data && data.code) {
-          setGeneratedCode(data.code);
-          toast.success("New school code generated successfully");
-          if (onCodeGenerated) onCodeGenerated(data.code);
-          return;
-        }
-      } catch (edgeFnError) {
-        console.error("Edge function error:", edgeFnError);
-      }
-
-      // Fallback to RPC function
-      const { data, error } = await supabase.rpc('generate_new_school_code', {
-        school_id_param: schoolId
-      });
-
-      if (error) {
-        console.error("Error generating code:", error);
-        throw error;
-      }
-
-      if (data) {
-        setGeneratedCode(data);
-        toast.success("New school code generated successfully");
-        if (onCodeGenerated) onCodeGenerated(data);
-      } else {
-        throw new Error("No code was generated");
-      }
-    } catch (error: any) {
-      console.error("Error generating code:", error);
-      toast.error(error.message || "Failed to generate code");
-    } finally {
-      setIsGenerating(false);
+    const newCode = await generateCode(schoolId);
+    if (newCode) {
+      setGeneratedCode(newCode);
+      toast.success("New school code generated successfully");
+      if (onCodeGenerated) onCodeGenerated(newCode);
     }
   };
 

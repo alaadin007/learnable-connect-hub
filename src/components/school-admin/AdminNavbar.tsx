@@ -1,3 +1,4 @@
+
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -35,20 +36,18 @@ interface AdminNavbarProps {
 const AdminNavbar = ({ navLinks = defaultNavLinks, className }: AdminNavbarProps) => {
   const location = useLocation();
   
-  // Determine the single active link based on current path
+  // Determine the active link based on current path
   const determineActiveLink = (): string => {
     // Case 1: Exact match for any link (highest priority)
     const exactMatch = navLinks.find(link => link.href === location.pathname);
     if (exactMatch) return exactMatch.href;
     
     // Case 2: Special handling for root admin path
-    // Only highlight dashboard when exactly at /admin
     if (location.pathname === "/admin") {
       return "/admin";
     }
     
     // Case 3: Find the most specific path match (longest prefix)
-    // Filter out the admin root path when we're on a subpage
     const matchingLinks = navLinks
       .filter(link => {
         // Skip the dashboard link when on subpages
