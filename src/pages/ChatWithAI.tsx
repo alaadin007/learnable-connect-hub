@@ -11,9 +11,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search } from "lucide-react";
 import { toast } from "sonner";
+import { isSchoolAdmin, getUserRoleWithFallback } from "@/utils/apiHelpers";
 
 const ChatWithAI = () => {
-  const { user, profile } = useAuth();
+  const { user, profile, userRole } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [topic, setTopic] = useState(searchParams.get("topic") || "");
   const [activeTopic, setActiveTopic] = useState(searchParams.get("topic") || "");
@@ -75,6 +76,11 @@ const ChatWithAI = () => {
   if (!user) {
     return <div className="flex justify-center items-center h-screen">Loading...</div>;
   }
+
+  // Determine if user is a school admin
+  const fallbackRole = getUserRoleWithFallback();
+  const effectiveRole = userRole || fallbackRole;
+  const isAdmin = isSchoolAdmin(effectiveRole);
 
   return (
     <div className="min-h-screen flex flex-col">

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/landing/Footer';
@@ -9,12 +10,18 @@ import FileUpload from '@/components/documents/FileUpload';
 import FileList from '@/components/documents/FileList';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { isSchoolAdmin, getUserRoleWithFallback } from "@/utils/apiHelpers";
 
 const Documents: React.FC = () => {
-  const { user, signOut } = useAuth();
+  const { user, userRole, signOut } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('upload');
   const [redirecting, setRedirecting] = useState(false);
+
+  // Get effective user role
+  const fallbackRole = getUserRoleWithFallback();
+  const effectiveRole = userRole || fallbackRole;
+  const isAdmin = isSchoolAdmin(effectiveRole);
 
   // Redirect if not logged in
   useEffect(() => {

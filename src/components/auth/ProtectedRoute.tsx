@@ -39,6 +39,13 @@ const ProtectedRoute = ({
     return <Navigate to="/admin" state={{ preserveContext: true, adminRedirect: true }} replace />;
   }
 
+  // Check if we're redirected from another page like Chat or Documents and need to go to the admin dashboard
+  const fromOtherPage = location.state?.fromNavigation && isSchoolAdmin(effectiveUserRole);
+  if (fromOtherPage && location.pathname !== '/admin') {
+    console.log("PROTECTED ROUTE: School admin redirected from another page, sending to /admin");
+    return <Navigate to="/admin" state={{ preserveContext: true, adminRedirect: true }} replace />;
+  }
+
   // Check for special navigation states or preserved context
   const isPreservedContext = location.state?.fromTestAccounts || location.state?.preserveContext;
   

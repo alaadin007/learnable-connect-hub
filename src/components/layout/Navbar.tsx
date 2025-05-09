@@ -165,13 +165,19 @@ const Navbar = () => {
       return;
     }
     
-    navigate(path, { 
-      state: { 
-        fromNavigation: true,
-        preserveContext: true,
-        timestamp: Date.now()
-      } 
-    });
+    // Add a special state flag for returning to the proper dashboard
+    let state = { 
+      fromNavigation: true,
+      preserveContext: true,
+      timestamp: Date.now()
+    };
+    
+    // If we're a school admin, add a flag to ensure proper dashboard on return
+    if (isAdmin) {
+      state = { ...state, schoolAdminReturn: true };
+    }
+    
+    navigate(path, { state });
     setIsOpen(false);
   }, [location.pathname, navigate, isAdmin]);
 
