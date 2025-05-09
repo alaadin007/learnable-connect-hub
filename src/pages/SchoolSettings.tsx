@@ -12,7 +12,7 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Save, Loader2, Check } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import SchoolCodeManager from "@/components/school-admin/SchoolCodeManager";
+import SchoolCodeGenerator from "@/components/school-admin/SchoolCodeGenerator";
 import { 
   AlertDialog, 
   AlertDialogAction, 
@@ -24,6 +24,7 @@ import {
   AlertDialogTitle
 } from "@/components/ui/alert-dialog";
 import AdminNavbar from "@/components/school-admin/AdminNavbar";
+import { getSchoolIdWithFallback } from "@/utils/apiHelpers";
 
 const SchoolSettings = () => {
   const { profile, user, signOut, refreshProfile } = useAuth();
@@ -47,28 +48,55 @@ const SchoolSettings = () => {
   // Load initial school data
   useEffect(() => {
     const fetchSchoolData = async () => {
-      if (!profile?.organization?.id) return;
+      const schoolId = getSchoolIdWithFallback();
+      if (!schoolId) return;
 
       setIsLoading(true);
       try {
-        const { data: schoolData, error } = await supabase
-          .from("schools")
-          .select("*")
-          .eq("id", profile.organization.id)
-          .single();
+        // Try getting from localStorage first for instant loading
+        const cachedName = localStorage.getItem('school_name');
+        const cachedCode = localStorage.getItem(`school_code_${schoolId}`);
+        const cachedEmail = localStorage.getItem('school_email');
+        const cachedDesc = localStorage.getItem('school_description');
+        
+        // Set cached values if they exist
+        if (cachedName) setSchoolName(cachedName);
+        if (cachedCode) setSchoolCode(cachedCode);
+        if (cachedEmail) setContactEmail(cachedEmail);
+        if (cachedDesc) setDescription(cachedDesc);
+        
+        // Set some default values if nothing is found
+        if (!cachedName) setSchoolName("Your School");
+        if (!cachedCode) setSchoolCode("DEMO-CODE");
+        if (!cachedEmail) setContactEmail(user?.email || "");
+        
+        if (process.env.NODE_ENV === 'production') {
+          // Try to get from database in production
+          const { data: schoolData, error } = await supabase
+            .from("schools")
+            .select("*")
+            .eq("id", schoolId)
+            .single();
 
-        if (error) throw error;
-
-        if (schoolData) {
-          setSchoolName(schoolData.name || "");
-          setSchoolCode(schoolData.code || "");
-          setContactEmail(schoolData.contact_email || user?.email || "");
-          setDescription(schoolData.description || "");
-          setNotificationsEnabled(schoolData.notifications_enabled !== false);
-          setInitialLoaded(true);
+          if (!error && schoolData) {
+            setSchoolName(schoolData.name || "");
+            setSchoolCode(schoolData.code || "");
+            setContactEmail(schoolData.contact_email || user?.email || "");
+            setDescription(schoolData.description || "");
+            setNotificationsEnabled(schoolData.notifications_enabled !== false);
+            
+            // Cache the values
+            localStorage.setItem('school_name', schoolData.name || "");
+            localStorage.setItem(`school_code_${schoolId}`, schoolData.code || "");
+            localStorage.setItem('school_email', schoolData.contact_email || user?.email || "");
+            localStorage.setItem('school_description', schoolData.description || "");
+          }
         }
+        
+        setInitialLoaded(true);
       } catch (error) {
-        toast.error("Could not load school information");
+        console.error("Error loading school data:", error);
+        // No toast to avoid interrupting UX, we'll just use the cached/default values
       } finally {
         setIsLoading(false);
       }
@@ -78,10 +106,12 @@ const SchoolSettings = () => {
   }, [profile, user]);
 
   const handleSaveSettings = async () => {
-    if (!profile?.organization?.id) {
+    const schoolId = getSchoolIdWithFallback();
+    if (!schoolId) {
       toast.error("No school ID found. Please refresh the page or contact support.");
       return;
     }
+    
     if (!schoolName.trim()) {
       toast.error("School name cannot be empty");
       return;
@@ -89,63 +119,90 @@ const SchoolSettings = () => {
 
     setSaveSuccess(false);
     setIsSaving(true);
+    
     try {
-      const schoolId = profile.organization.id;
-      const { error } = await supabase
-        .from("schools")
-        .update({
-          name: schoolName.trim(),
-          contact_email: contactEmail,
-          description: description,
-          notifications_enabled: notificationsEnabled,
-          updated_at: new Date().toISOString()
-        })
-        .eq("id", schoolId);
+      // Update localStorage immediately for instant UI update across the site
+      localStorage.setItem('school_name', schoolName.trim());
+      localStorage.setItem(`school_code_${schoolId}`, schoolCode);
+      localStorage.setItem('school_email', contactEmail);
+      localStorage.setItem('school_description', description);
+      
+      // Now update in database if in production
+      if (process.env.NODE_ENV === 'production') {
+        const { error } = await supabase
+          .from("schools")
+          .update({
+            name: schoolName.trim(),
+            contact_email: contactEmail,
+            description: description,
+            notifications_enabled: notificationsEnabled,
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", schoolId);
 
-      if (error) throw error;
+        if (error) throw error;
+      }
 
       await new Promise(resolve => setTimeout(resolve, 500));
-      await refreshProfile();
+      
+      // Refresh profile to update the UI with new school info
+      if (refreshProfile) {
+        await refreshProfile();
+      }
 
       setSaveSuccess(true);
       toast.success("School settings updated successfully!");
       setTimeout(() => setSaveSuccess(false), 2000);
     } catch (error: any) {
+      console.error("Error saving school settings:", error);
       toast.error(error.message || "Failed to update school settings");
+      // Even if DB update fails, we keep the localStorage values for better UX
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleDeleteSchool = async () => {
-    if (!profile?.organization?.id) {
+    const schoolId = getSchoolIdWithFallback();
+    if (!schoolId) {
       toast.error("No school ID found. Cannot delete account.");
       return;
     }
 
     setIsDeleting(true);
     try {
-      const schoolId = profile.organization.id;
+      if (process.env.NODE_ENV === 'production') {
+        // Use the delete-school-data edge function to handle the complex deletion
+        const { error } = await supabase.functions.invoke("delete-school-data", {
+          body: { school_id: schoolId }
+        });
 
-      // Use the delete-school-data edge function to handle the complex deletion
-      const { error } = await supabase.functions.invoke("delete-school-data", {
-        body: { school_id: schoolId }
-      });
+        if (error) throw new Error(error.message || "Failed to delete school data");
 
-      if (error) throw new Error(error.message || "Failed to delete school data");
+        // Delete the school itself
+        const { error: schoolError } = await supabase
+          .from("schools")
+          .delete()
+          .eq("id", schoolId);
 
-      // Delete the school itself
-      const { error: schoolError } = await supabase
-        .from("schools")
-        .delete()
-        .eq("id", schoolId);
+        if (schoolError) throw schoolError;
+      }
 
-      if (schoolError) throw schoolError;
-
-      await signOut();
+      // Clean up localStorage
+      localStorage.removeItem('school_name');
+      localStorage.removeItem(`school_code_${schoolId}`);
+      localStorage.removeItem('school_email');
+      localStorage.removeItem('school_description');
+      localStorage.removeItem('schoolId');
+      
+      if (signOut) {
+        await signOut();
+      }
+      
       toast.success("School account successfully deleted");
       navigate("/");
     } catch (error: any) {
+      console.error("Error deleting school:", error);
       toast.error(error.message || "Failed to delete school account");
     } finally {
       setShowDeleteDialog(false);
@@ -155,6 +212,21 @@ const SchoolSettings = () => {
 
   const handleCodeGenerated = (newCode: string) => {
     setSchoolCode(newCode);
+    
+    // Save the new code to localStorage for immediate sync across the site
+    const schoolId = getSchoolIdWithFallback();
+    localStorage.setItem(`school_code_${schoolId}`, newCode);
+    
+    // Update in database if in production
+    if (process.env.NODE_ENV === 'production' && schoolId) {
+      supabase
+        .from("schools")
+        .update({ code: newCode })
+        .eq("id", schoolId)
+        .then(({ error }) => {
+          if (error) console.error("Error updating school code:", error);
+        });
+    }
   };
 
   return (
@@ -185,13 +257,9 @@ const SchoolSettings = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {profile?.organization?.id && (
-                <SchoolCodeManager 
-                  schoolId={profile.organization.id} 
-                  currentCode={schoolCode} 
-                  onCodeGenerated={handleCodeGenerated}
-                />
-              )}
+              <SchoolCodeGenerator 
+                onCodeGenerated={handleCodeGenerated}
+              />
             </CardContent>
           </Card>
 

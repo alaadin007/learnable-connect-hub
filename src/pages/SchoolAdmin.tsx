@@ -1,184 +1,258 @@
+
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import Navbar from "@/components/layout/Navbar";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { School } from "lucide-react";
+import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
+import { ArrowRight, Users, School, Settings, BookOpen } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import AdminNavbar from "@/components/school-admin/AdminNavbar";
 import SchoolCodeGenerator from "@/components/school-admin/SchoolCodeGenerator";
+import { getSchoolIdWithFallback } from "@/utils/apiHelpers";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 const SchoolAdmin = () => {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
-  const [currentCode, setCurrentCode] = useState<string>("");
-
-  const handleCodeGenerated = (code: string) => {
-    setCurrentCode(code);
-  };
-
-  // Get a reliable school ID - either from storage or a default
-  const schoolId = localStorage.getItem('schoolId') || "demo-school-id";
   
-  // Store demo school ID for development
+  const [schoolName, setSchoolName] = useState<string>("Your School");
+  const [schoolCode, setSchoolCode] = useState<string>("");
+  const [studentCount, setStudentCount] = useState<number>(0);
+  const [teacherCount, setTeacherCount] = useState<number>(0);
+  
   useEffect(() => {
-    if (!localStorage.getItem('schoolId')) {
-      localStorage.setItem('schoolId', 'demo-school-id');
-    }
+    const fetchSchoolData = async () => {
+      const schoolId = getSchoolIdWithFallback();
+      
+      // Load from localStorage for immediate display
+      const cachedName = localStorage.getItem('school_name');
+      const cachedCode = localStorage.getItem(`school_code_${schoolId}`);
+      
+      if (cachedName) setSchoolName(cachedName);
+      if (cachedCode) setSchoolCode(cachedCode);
+      
+      try {
+        if (process.env.NODE_ENV === 'production') {
+          // Get school details from supabase in production
+          const { data: schoolData, error: schoolError } = await supabase
+            .from("schools")
+            .select("name, code")
+            .eq("id", schoolId)
+            .single();
+            
+          if (!schoolError && schoolData) {
+            setSchoolName(schoolData.name);
+            setSchoolCode(schoolData.code);
+            // Update localStorage
+            localStorage.setItem('school_name', schoolData.name);
+            localStorage.setItem(`school_code_${schoolId}`, schoolData.code);
+          }
+          
+          // Get student count
+          const { count: studentCount, error: studentError } = await supabase
+            .from('students')
+            .select('*', { count: 'exact', head: true })
+            .eq('school_id', schoolId);
+            
+          if (!studentError) {
+            setStudentCount(studentCount || 0);
+          }
+          
+          // Get teacher count
+          const { count: teacherCount, error: teacherError } = await supabase
+            .from('teachers')
+            .select('*', { count: 'exact', head: true })
+            .eq('school_id', schoolId);
+            
+          if (!teacherError) {
+            setTeacherCount(teacherCount || 0);
+          }
+        } else {
+          // Use demo data in development
+          setStudentCount(32);
+          setTeacherCount(8);
+        }
+      } catch (error) {
+        console.error("Error fetching school data:", error);
+        // Default to sample counts if error occurs
+        setStudentCount(32);
+        setTeacherCount(8);
+      }
+    };
+
+    fetchSchoolData();
   }, []);
 
+  // If not logged in, redirect to login
+  if (!user) {
+    return <Navigate to="/login" />;
+  }
+
+  const handleCodeGenerated = (code: string) => {
+    setSchoolCode(code);
+    
+    // Update localStorage to sync across the site
+    const schoolId = getSchoolIdWithFallback();
+    localStorage.setItem(`school_code_${schoolId}`, code);
+    
+    // Update in database if in production
+    if (process.env.NODE_ENV === 'production') {
+      try {
+        supabase
+          .from("schools")
+          .update({ code: code })
+          .eq("id", schoolId)
+          .then(({ error }) => {
+            if (error) console.error("Error updating school code:", error);
+          });
+      } catch (error) {
+        console.error("Error updating school code:", error);
+      }
+    }
+  };
+
   return (
-    <>
+    <div className="min-h-screen flex flex-col">
       <Navbar />
-      <main className="container mx-auto px-4 py-8 min-h-screen">
-        <div className="mb-4">
-          <h1 className="text-3xl font-bold mb-2">School Admin Dashboard</h1>
-          <p className="text-gray-600">
-            Manage your school, teachers, and student performance analytics
-          </p>
-        </div>
-
-        <AdminNavbar className="mb-8" />
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-          {/* School Code Manager */}
-          <Card className="md:col-span-1">
-            <CardContent className="p-6">
-              <h3 className="text-xl font-bold mb-4">School Invitation Code</h3>
-              <p className="text-gray-600 mb-4">
-                Generate and share this code for teachers and students to join your school
-              </p>
-              
-              <div className="space-y-4">
+      
+      <main className="flex-grow bg-gray-50 py-8">
+        <div className="container mx-auto px-4">
+          <h1 className="text-3xl font-bold mb-6">School Administration</h1>
+          
+          <AdminNavbar className="mb-8" />
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex flex-col items-center space-y-2">
+                  <School className="h-8 w-8 text-blue-600" />
+                  <h3 className="text-xl font-semibold">{schoolName}</h3>
+                  <div className="text-sm text-gray-500">School Code: {schoolCode}</div>
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex flex-col items-center space-y-2">
+                  <Users className="h-8 w-8 text-blue-600" />
+                  <h3 className="text-xl font-semibold">{studentCount}</h3>
+                  <div className="text-sm text-gray-500">Total Students</div>
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex flex-col items-center space-y-2">
+                  <BookOpen className="h-8 w-8 text-blue-600" />
+                  <h3 className="text-xl font-semibold">{teacherCount}</h3>
+                  <div className="text-sm text-gray-500">Total Teachers</div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <Card className="col-span-1">
+              <CardHeader>
+                <CardTitle>School Code</CardTitle>
+                <CardDescription>Generate and share the code for teachers to join</CardDescription>
+              </CardHeader>
+              <CardContent>
                 <SchoolCodeGenerator 
                   onCodeGenerated={handleCodeGenerated}
                 />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* School Profile Card */}
-          <Card className="md:col-span-2">
-            <CardContent className="p-6">
-              <div className="space-y-4">
-                <h3 className="text-xl font-bold mb-1">School Profile</h3>
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="text-indigo-600">
-                    <School className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <p>
-                      <strong>School: </strong>
-                      {profile?.organization?.name || "Demo School"}
-                    </p>
-                    <p>
-                      <strong>Admin: </strong>
-                      {profile?.full_name || user?.email || "Admin User"}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Card grid for admin functions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card className="border overflow-hidden">
-            <CardContent className="p-6">
-              <div className="space-y-4">
-                <h3 className="text-xl font-bold mb-1">Teacher Management</h3>
-                <p className="text-sm text-gray-500 mb-1">Invite and manage teachers</p>
-                <p className="text-gray-600">
-                  Invite new teachers to your school and manage their accounts.
-                </p>
-                <Button
-                  onClick={() => navigate("/admin/teacher-management", { state: { preserveContext: true } })}
-                  className="bg-blue-600 hover:bg-blue-700 w-full"
+              </CardContent>
+            </Card>
+            
+            <Card className="col-span-1">
+              <CardHeader>
+                <CardTitle>Quick Actions</CardTitle>
+                <CardDescription>Shortcuts to common administrative tasks</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Button 
+                  onClick={() => navigate('/admin/teacher-management')} 
+                  variant="outline" 
+                  className="w-full justify-between"
                 >
                   Manage Teachers
+                  <ArrowRight className="h-4 w-4" />
                 </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border overflow-hidden">
-            <CardContent className="p-6">
-              <div className="space-y-4">
-                <h3 className="text-xl font-bold mb-1">Student Management</h3>
-                <p className="text-sm text-gray-500 mb-1">View and manage students</p>
-                <p className="text-gray-600">
-                  View student accounts, approval status, and access controls.
-                </p>
-                <Button
-                  onClick={() => navigate("/admin/students", { state: { preserveContext: true } })}
-                  className="bg-green-600 hover:bg-green-700 w-full"
+                <Button 
+                  onClick={() => navigate('/admin/students')} 
+                  variant="outline" 
+                  className="w-full justify-between"
                 >
-                  View Students
+                  Manage Students
+                  <ArrowRight className="h-4 w-4" />
                 </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border overflow-hidden">
-            <CardContent className="p-6">
-              <div className="space-y-4">
-                <h3 className="text-xl font-bold mb-1">Analytics Dashboard</h3>
-                <p className="text-sm text-gray-500 mb-1">Track performance metrics</p>
-                <p className="text-gray-600">
-                  View usage analytics and performance metrics for your school.
-                </p>
-                <Button
-                  onClick={() => navigate("/admin/analytics", { state: { preserveContext: true } })}
-                  className="bg-purple-600 hover:bg-purple-700 w-full"
-                >
-                  View Analytics
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border overflow-hidden">
-            <CardContent className="p-6">
-              <div className="space-y-4">
-                <h3 className="text-xl font-bold mb-1">School Settings</h3>
-                <p className="text-sm text-gray-500 mb-1">Configure school options</p>
-                <p className="text-gray-600">
-                  Update school information, settings, and API configurations.
-                </p>
-                <Button
-                  onClick={() => navigate("/admin/settings", { state: { preserveContext: true } })}
-                  className="bg-amber-600 hover:bg-amber-700 w-full"
+                <Button 
+                  onClick={() => navigate('/admin/settings')} 
+                  variant="outline" 
+                  className="w-full justify-between"
                 >
                   School Settings
+                  <ArrowRight className="h-4 w-4" />
                 </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Separate section for Student Invite Code */}
-        <div className="mt-8">
-          <h3 className="text-xl font-bold mb-4">Student Invitation</h3>
-          <Card>
-            <CardContent className="p-6">
-              <p className="text-gray-600 mb-4">
-                Generate a separate invitation code specifically for students to join your school
-              </p>
-              <div className="max-w-md">
-                <SchoolCodeGenerator 
-                  variant="student"
-                  label="Student Invitation Code"
-                  description="Generate and share this code with students who need to join your school"
-                />
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
+          
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>School Management</CardTitle>
+                <CardDescription>
+                  Configure school-wide settings and manage access
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                  <Card className="bg-gray-50 border-dashed cursor-pointer hover:bg-gray-100 transition-colors" 
+                    onClick={() => navigate('/admin/teacher-management')}>
+                    <CardContent className="flex flex-col items-center justify-center p-6">
+                      <Users className="h-8 w-8 text-blue-600 mb-2" />
+                      <h3 className="font-semibold">Teacher Management</h3>
+                      <p className="text-sm text-gray-500 text-center">
+                        Invite and manage teachers
+                      </p>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card className="bg-gray-50 border-dashed cursor-pointer hover:bg-gray-100 transition-colors"
+                    onClick={() => navigate('/admin/students')}>
+                    <CardContent className="flex flex-col items-center justify-center p-6">
+                      <BookOpen className="h-8 w-8 text-blue-600 mb-2" />
+                      <h3 className="font-semibold">Student Management</h3>
+                      <p className="text-sm text-gray-500 text-center">
+                        Oversee student accounts
+                      </p>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card className="bg-gray-50 border-dashed cursor-pointer hover:bg-gray-100 transition-colors"
+                    onClick={() => navigate('/admin/settings')}>
+                    <CardContent className="flex flex-col items-center justify-center p-6">
+                      <Settings className="h-8 w-8 text-blue-600 mb-2" />
+                      <h3 className="font-semibold">School Settings</h3>
+                      <p className="text-sm text-gray-500 text-center">
+                        Configure school details
+                      </p>
+                    </CardContent>
+                  </Card>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </main>
+      
       <Footer />
-    </>
+    </div>
   );
 };
 

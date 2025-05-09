@@ -7,7 +7,12 @@ import { useSchoolCode } from "@/hooks/use-school-code";
 import { toast } from "sonner";
 import { getSchoolIdWithFallback } from "@/utils/apiHelpers";
 
-const SchoolCodeGenerator = () => {
+interface SchoolCodeGeneratorProps {
+  onCodeGenerated?: (code: string) => void;
+  variant?: string; // Optional variant for styling differences
+}
+
+const SchoolCodeGenerator = ({ onCodeGenerated, variant }: SchoolCodeGeneratorProps) => {
   const [code, setCode] = useState<string | null>("DEMO-CODE");
   const [copied, setCopied] = useState(false);
   const { generateCode, isGenerating } = useSchoolCode();
@@ -20,10 +25,15 @@ const SchoolCodeGenerator = () => {
     const instantCode = localStorage.getItem(`school_code_${schoolId}`) || "DEMO-CODE";
     setCode(instantCode);
     
+    // Call onCodeGenerated if provided to sync code with other components
+    if (onCodeGenerated && instantCode) {
+      onCodeGenerated(instantCode);
+    }
+    
     // We don't need to actually generate a code right away
     // But we'll store this one for future reference
     localStorage.setItem(`school_code_${schoolId}`, instantCode);
-  }, []);
+  }, [onCodeGenerated]);
 
   const handleGenerateClick = async () => {
     try {
@@ -32,18 +42,28 @@ const SchoolCodeGenerator = () => {
       
       if (generatedCode) {
         setCode(generatedCode);
+        // Call onCodeGenerated if provided to sync code with other components
+        if (onCodeGenerated) {
+          onCodeGenerated(generatedCode);
+        }
         toast.success("New invitation code generated");
       } else {
         // In case code generation fails, use a fallback
         const fallbackCode = `DEMO-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
         setCode(fallbackCode);
         localStorage.setItem(`school_code_${schoolId}`, fallbackCode);
+        if (onCodeGenerated) {
+          onCodeGenerated(fallbackCode);
+        }
         toast.success("New invitation code generated");
       }
     } catch (error) {
       console.error("Error generating code:", error);
       const fallbackCode = `DEMO-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
       setCode(fallbackCode);
+      if (onCodeGenerated) {
+        onCodeGenerated(fallbackCode);
+      }
       toast.success("New invitation code generated");
     }
   };
@@ -59,6 +79,23 @@ const SchoolCodeGenerator = () => {
       }, 2000);
     }
   };
+
+  // Small variant for inline display
+  if (variant === "small") {
+    return (
+      <div className="flex items-center space-x-2">
+        <span className="font-mono font-semibold">{code}</span>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={handleGenerateClick} 
+          disabled={isGenerating}
+        >
+          <RefreshCw className={`h-4 w-4 ${isGenerating ? "animate-spin" : ""}`} />
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col space-y-4">
