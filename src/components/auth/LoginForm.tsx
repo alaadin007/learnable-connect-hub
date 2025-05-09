@@ -49,7 +49,8 @@ const LoginForm = () => {
         const sessionStatus = await checkSessionStatus();
         console.log("Session status after login:", sessionStatus);
         
-        // Navigate based on user type will happen through auth state change
+        // Navigate based on user role will happen through auth state change in AuthContext
+        // No need for manual navigation here
       } else {
         console.error("Login failed:", result.error);
         setLoginError(result.error || 'Login failed. Please check your credentials.');
@@ -75,7 +76,12 @@ const LoginForm = () => {
               <FormItem>
                 <FormLabel>Email</FormLabel>
                 <FormControl>
-                  <Input type="email" placeholder="your.email@example.com" className="py-2" {...field} />
+                  <Input 
+                    type="email" 
+                    placeholder="your.email@example.com" 
+                    className="py-2" 
+                    {...field} 
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -89,7 +95,12 @@ const LoginForm = () => {
               <FormItem>
                 <FormLabel>Password</FormLabel>
                 <FormControl>
-                  <Input type="password" placeholder="••••••••" className="py-2" {...field} />
+                  <Input 
+                    type="password" 
+                    placeholder="••••••••" 
+                    className="py-2" 
+                    {...field} 
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
