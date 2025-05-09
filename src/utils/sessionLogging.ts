@@ -77,13 +77,6 @@ const logSessionEnd = async (sessionId?: string, performanceData?: any): Promise
 
     if (error) {
       console.error("Error ending session:", error);
-      return;
-    }
-
-    // Clear the active session from localStorage if it matches
-    const activeSessionId = localStorage.getItem("activeSessionId");
-    if (activeSessionId === sessionId) {
-      localStorage.removeItem("activeSessionId");
     }
   } catch (error) {
     console.error("Error ending session:", error);
@@ -134,7 +127,9 @@ const incrementQueryCount = async (sessionId: string): Promise<void> => {
 
 // Check if there is an active session
 const hasActiveSession = (): boolean => {
-  return localStorage.getItem("activeSessionId") !== null;
+  // We're no longer using localStorage to track active sessions
+  // This would need to be updated to use Supabase to check for active sessions
+  return false;
 };
 
 // Create a wrapper object to match what the components expect
@@ -150,12 +145,7 @@ const sessionLogger = {
         return null;
       }
       
-      const sessionId = await logSessionStart(topic, userId);
-      if (sessionId) {
-        localStorage.setItem("activeSessionId", sessionId);
-        return sessionId;
-      }
-      return null;
+      return await logSessionStart(topic, userId);
     } catch (error) {
       console.error("Error in startSession:", error);
       return null;
@@ -167,14 +157,45 @@ const sessionLogger = {
       return;
     }
     
-    const sessionId = localStorage.getItem("activeSessionId");
-    if (sessionId) {
+    // Get current active session ID from auth state
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) {
+      return;
+    }
+
+    // Get active sessions for the user from database
+    const { data } = await supabase
+      .from('session_logs')
+      .select('id')
+      .eq('user_id', session.user.id)
+      .is('session_end', null)
+      .order('session_start', { ascending: false })
+      .limit(1);
+
+    if (data && data.length > 0) {
+      const sessionId = data[0].id;
       await logSessionEnd(sessionId, performanceData);
     }
   },
   updateSessionTopic,
   incrementQueryCount,
-  hasActiveSession
+  hasActiveSession: async (): Promise<boolean> => {
+    // Get current active session ID from auth state
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) {
+      return false;
+    }
+
+    // Check for active sessions for the user from database
+    const { data, count } = await supabase
+      .from('session_logs')
+      .select('id', { count: 'exact' })
+      .eq('user_id', session.user.id)
+      .is('session_end', null)
+      .limit(1);
+
+    return count !== null && count > 0;
+  }
 };
 
 // Function to generate mock analytics data for test accounts

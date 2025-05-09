@@ -32,7 +32,6 @@ const logSessionStart = async (topic?: string, userId?: string): Promise<string 
     if (userIdToUse.startsWith('test-')) {
       console.log("Creating mock session log for test user", userIdToUse);
       const mockSessionId = `mock-session-${Date.now()}`;
-      localStorage.setItem("activeSessionId", mockSessionId);
       return mockSessionId;
     }
     
@@ -109,7 +108,6 @@ const logSessionStart = async (topic?: string, userId?: string): Promise<string 
       console.error("Database error in session logging:", dbError);
       // Continue with mock session for resilience
       const mockSessionId = `mock-session-fallback-${Date.now()}`;
-      localStorage.setItem("activeSessionId", mockSessionId);
       return mockSessionId;
     }
     
@@ -127,9 +125,8 @@ const logSessionEnd = async (sessionId?: string, performanceData?: any): Promise
       return;
     }
 
-    // For mock sessions, just remove from localStorage
+    // For mock sessions, just return
     if (sessionId.startsWith('mock-session')) {
-      localStorage.removeItem("activeSessionId");
       return;
     }
 
@@ -148,12 +145,6 @@ const logSessionEnd = async (sessionId?: string, performanceData?: any): Promise
       }
     } catch (dbError) {
       console.error("Database error ending session:", dbError);
-    }
-
-    // Clear the active session from localStorage
-    const activeSessionId = localStorage.getItem("activeSessionId");
-    if (activeSessionId === sessionId) {
-      localStorage.removeItem("activeSessionId");
     }
   } catch (error) {
     console.error("Error ending session:", error);

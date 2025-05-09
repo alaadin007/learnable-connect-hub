@@ -39,20 +39,7 @@ const AdminStudents = () => {
   const { generateCode, isGenerating: isGeneratingSchoolCode } = useSchoolCode();
   
   // Ensure we have a school ID even if auth context is slow to load
-  const schoolId = authSchoolId || 
-                  profile?.school_id || 
-                  profile?.organization?.id || 
-                  localStorage.getItem('schoolId') || 
-                  '';
-  
-  useEffect(() => {
-    // Store school ID in localStorage if available for persistence
-    if (profile?.organization?.id) {
-      localStorage.setItem('schoolId', profile.organization.id);
-    } else if (profile?.school_id) {
-      localStorage.setItem('schoolId', profile.school_id);
-    }
-  }, [profile, schoolId]);
+  const schoolId = authSchoolId || profile?.school_id || profile?.organization?.id;
   
   // Load student invites
   useEffect(() => {

@@ -124,13 +124,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         
         // Fetch additional user information
         await fetchUserProfile(data.session.user.id);
-      } else {
-        // No active session, try to restore from localStorage
-        restoreFromLocalStorage();
       }
     } catch (err) {
       console.error("Error loading initial session:", err);
-      restoreFromLocalStorage();
     } finally {
       setIsLoading(false);
     }
@@ -159,11 +155,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           
         if (teacherData) {
           setSchoolId(teacherData.school_id);
-          localStorage.setItem('schoolId', teacherData.school_id);
         }
         
         setUserRole('school');
-        localStorage.setItem('userRole', 'school');
       } else {
         // If not found as admin, check in teachers table
         const { data: teacherData } = await supabase
@@ -174,13 +168,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           
         if (teacherData) {
           setSchoolId(teacherData.school_id);
-          localStorage.setItem('schoolId', teacherData.school_id);
-          
           setIsSuperviser(teacherData.is_supervisor || false);
-          localStorage.setItem('isSuperviser', (teacherData.is_supervisor || false).toString());
-          
           setUserRole('teacher');
-          localStorage.setItem('userRole', 'teacher');
         } else {
           // Finally check in students table
           const { data: studentData } = await supabase
@@ -191,10 +180,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             
           if (studentData) {
             setSchoolId(studentData.school_id);
-            localStorage.setItem('schoolId', studentData.school_id);
-            
             setUserRole('student');
-            localStorage.setItem('userRole', 'student');
           }
         }
       }
@@ -211,33 +197,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     } catch (error) {
       console.error("Error fetching user profile:", error);
-    }
-  };
-
-  // Restore user, profile, and role from localStorage if available
-  const restoreFromLocalStorage = () => {
-    try {
-      // Try to find user data in localStorage
-      const savedUserRole = localStorage.getItem('userRole');
-      const savedSchoolId = localStorage.getItem('schoolId');
-      const savedIsSuperviser = localStorage.getItem('isSuperviser') === 'true';
-
-      // If we have the basic role data, set it
-      if (savedUserRole) {
-        setUserRole(savedUserRole as UserRole);
-      }
-
-      if (savedSchoolId) {
-        setSchoolId(savedSchoolId);
-      }
-
-      if (savedIsSuperviser) {
-        setIsSuperviser(true);
-      }
-    } catch (error) {
-      console.error("Failed to restore auth state from localStorage:", error);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -277,12 +236,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUserRole(null);
       setIsSuperviser(false);
       setSchoolId(null);
-
-      // Clear localStorage
-      localStorage.removeItem('userRole');
-      localStorage.removeItem('schoolId');
-      localStorage.removeItem('isSuperviser');
-      localStorage.removeItem('user-settings');
     } catch (error) {
       console.error("Error signing out:", error);
     }
@@ -331,11 +284,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUserRole(testUser.role as UserRole);
       setIsSuperviser(testUser.isSuperviser);
       setSchoolId(testUser.schoolId);
-
-      // Store in localStorage for persistence
-      localStorage.setItem('userRole', testUser.role);
-      localStorage.setItem('schoolId', testUser.schoolId);
-      localStorage.setItem('isSuperviser', testUser.isSuperviser.toString());
     } catch (error) {
       console.error("Error setting test user:", error);
       throw error;

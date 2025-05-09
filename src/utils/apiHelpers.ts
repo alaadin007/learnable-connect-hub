@@ -1,112 +1,101 @@
 
+// Import the necessary utilities
 import { supabase } from "@/integrations/supabase/client";
+import { UserRole } from "@/contexts/AuthContext";
 
-interface FunctionOptions {
-  requireAuth?: boolean;
-  retryCount?: number;
-  timeout?: number;
-}
-
-const defaultOptions: FunctionOptions = {
-  requireAuth: true,
-  retryCount: 1,
-  timeout: 10000,
-};
-
-/**
- * Invoke a Supabase Edge Function with typed response
- */
-export async function invokeEdgeFunction<T>(
-  functionName: string,
-  payload: Record<string, any>,
-  options?: FunctionOptions
-): Promise<T> {
-  const opts = { ...defaultOptions, ...options };
-  let attempts = 0;
-
-  while (attempts <= (opts.retryCount || 0)) {
-    try {
-      console.log(`Invoking edge function: ${functionName} (attempt ${attempts + 1})`);
-
-      // Get the current session token if authentication is required
-      let headers = {};
-      if (opts.requireAuth) {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.access_token) {
-          console.error('No authentication token available');
-          throw new Error('Authentication required but no token available');
-        }
-      }
-
-      // Set up the function invocation with timeout
-      const functionPromise = supabase.functions.invoke<{ data: T }>(functionName, {
-        body: payload,
-      });
-
-      // Create a timeout promise
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error(`Function invocation timed out after ${opts.timeout}ms`)), opts.timeout);
-      });
-
-      // Race the function invocation against the timeout
-      const response = await Promise.race([functionPromise, timeoutPromise]) as { data: T; error: { message: string } | null };
-      
-      if ('error' in response && response.error) {
-        console.error(`Error invoking ${functionName}:`, response.error);
-        throw new Error(response.error.message || `Error invoking ${functionName}`);
-      }
-
-      if (!('data' in response) || response.data === null) {
-        console.error(`Invalid response from ${functionName}:`, response);
-        throw new Error(`Invalid response from ${functionName}`);
-      }
-
-      return response.data as unknown as T;
-    } catch (error) {
-      attempts++;
-      console.error(`Function invocation failed (attempt ${attempts}):`, error);
-      
-      // If we've reached max retries, throw the error
-      if (attempts > (opts.retryCount || 0)) {
-        throw error;
-      }
-      
-      // Wait before retrying (exponential backoff)
-      const backoffMs = Math.min(1000 * Math.pow(2, attempts), 10000);
-      await new Promise(resolve => setTimeout(resolve, backoffMs));
+// Function to get user school ID in a safe way
+export async function getUserSchoolId(): Promise<string | null> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) {
+      return null;
     }
+    
+    // Try to get from teachers table first
+    const { data: teacherData } = await supabase
+      .from('teachers')
+      .select('school_id')
+      .eq('id', session.user.id)
+      .single();
+    
+    if (teacherData?.school_id) {
+      return teacherData.school_id;
+    }
+    
+    // If not found in teachers, check students table
+    const { data: studentData } = await supabase
+      .from('students')
+      .select('school_id')
+      .eq('id', session.user.id)
+      .single();
+    
+    if (studentData?.school_id) {
+      return studentData.school_id;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error("Error getting user school ID:", error);
+    return null;
   }
-
-  throw new Error(`Failed to invoke ${functionName} after ${opts.retryCount} retries`);
 }
 
-/**
- * Helper function to get user role with fallback to localStorage
- * Enhanced to ensure school admin roles are properly detected
- */
-export function getUserRoleWithFallback(): string | null {
-  // Get from localStorage since we're ensuring this is kept up to date in AuthContext
-  const storedRole = localStorage.getItem('userRole');
-  
-  if (storedRole && ['school', 'school_admin', 'teacher', 'student'].includes(storedRole)) {
-    return storedRole;
+// Function to get current user role
+export async function getUserRole(): Promise<UserRole | null> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) {
+      return null;
+    }
+    
+    // Check if user is school admin
+    const { data: adminData } = await supabase
+      .from('school_admins')
+      .select('id')
+      .eq('id', session.user.id);
+    
+    if (adminData && adminData.length > 0) {
+      return 'school';
+    }
+    
+    // Check if user is teacher
+    const { data: teacherData } = await supabase
+      .from('teachers')
+      .select('id')
+      .eq('id', session.user.id);
+    
+    if (teacherData && teacherData.length > 0) {
+      return 'teacher';
+    }
+    
+    // Check if user is student
+    const { data: studentData } = await supabase
+      .from('students')
+      .select('id')
+      .eq('id', session.user.id);
+    
+    if (studentData && studentData.length > 0) {
+      return 'student';
+    }
+    
+    return null;
+  } catch (error) {
+    console.error("Error getting user role:", error);
+    return null;
   }
-  
+}
+
+// Check if a user is a school admin
+export function isSchoolAdmin(role: UserRole | null): boolean {
+  return role === 'school' || role === 'school_admin';
+}
+
+// These functions are being kept as fallbacks during transition, but they should 
+// eventually be removed since we're removing localStorage
+export function getUserRoleWithFallback(): UserRole | null {
   return null;
 }
 
-/**
- * Helper function to get school ID with fallback to localStorage
- */
 export function getSchoolIdWithFallback(): string | null {
-  const storedSchoolId = localStorage.getItem('schoolId');
-  return storedSchoolId;
-}
-
-/**
- * Helper function to check if a user has school admin privileges
- */
-export function isSchoolAdmin(role: string | null): boolean {
-  if (!role) return false;
-  return role === 'school' || role === 'school_admin';
+  return null;
 }

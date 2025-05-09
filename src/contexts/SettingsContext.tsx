@@ -49,23 +49,17 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   });
   const [isLoading, setIsLoading] = useState(false);
 
-  // Load settings from storage or database
+  // Load settings from database
   useEffect(() => {
     async function loadSettings() {
       setIsLoading(true);
       try {
-        // First try to get from localStorage for quick load
-        const storedSettings = localStorage.getItem('user-settings');
-        if (storedSettings) {
-          setSettings(JSON.parse(storedSettings));
-        }
-        
-        // Then try to get from database if user is authenticated
+        // Get settings from database if user is authenticated
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
-          // Check if the user_settings table exists using a safer approach
+          // Check if the user_api_keys table exists
           try {
-            // Use the new function that returns properly typed data
+            // Use the function that returns properly typed data
             const { data, error } = await supabase
               .from('user_api_keys')
               .select('provider, api_key')
@@ -84,11 +78,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
               };
               
               setSettings(dbSettings);
-              localStorage.setItem('user-settings', JSON.stringify(dbSettings));
             }
           } catch (dbError) {
             console.warn('User settings error:', dbError);
-            // Just continue with localStorage settings
           }
         }
       } catch (error) {
@@ -106,9 +98,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     try {
       const updatedSettings = { ...settings, ...newSettings };
       setSettings(updatedSettings);
-      
-      // Store in localStorage
-      localStorage.setItem('user-settings', JSON.stringify(updatedSettings));
       
       // Save to database if user is authenticated
       const { data: { session } } = await supabase.auth.getSession();
