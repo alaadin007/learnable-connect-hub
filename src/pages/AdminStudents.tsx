@@ -27,7 +27,7 @@ import { useSchoolCode } from "@/hooks/use-school-code";
 
 // Define the schema for student invite form
 const addStudentSchema = z.object({
-  email: z.string().email({ message: "Please enter a valid email address" }),
+  email: z.string().email({ message: "Please enter a valid email address" }).optional(),
   method: z.enum(["invite", "code"], {
     required_error: "Please select a method",
   }),
@@ -150,8 +150,35 @@ const AdminStudents = () => {
     setIsLoading(true);
     
     try {
-      if (values.method === "invite") {
+      if (values.method === "invite" && values.email) {
         console.log("Creating email invitation for:", values.email);
+        
+        // Try to use the Edge Function first
+        try {
+          console.log("Invoking invite-student edge function");
+          const { data, error } = await supabase.functions.invoke('invite-student', {
+            body: { 
+              method: 'email',
+              email: values.email 
+            }
+          });
+          
+          if (error) {
+            console.error("Error from invite-student function:", error);
+            throw error;
+          }
+          
+          if (data) {
+            console.log("Successfully created invitation via edge function:", data);
+            toast.success(`Invitation sent to ${values.email}`);
+            form.reset();
+            setRefreshTrigger(prev => prev + 1);
+            return;
+          }
+        } catch (edgeFnError: any) {
+          console.error("Edge function error:", edgeFnError);
+          // Fall through to direct DB insertion
+        }
         
         // Try to insert into student_invites first
         try {
@@ -194,8 +221,32 @@ const AdminStudents = () => {
         
         toast.success(`Invitation sent to ${values.email}`);
         form.reset();
-      } else {
-        // Generate school code using the hook
+      } else if (values.method === "code") {
+        // Generate code using the invite-student Edge Function first
+        try {
+          console.log("Invoking invite-student edge function for code generation");
+          const { data, error } = await supabase.functions.invoke('invite-student', {
+            body: { method: 'code' }
+          });
+          
+          if (error) {
+            console.error("Error from invite-student function:", error);
+            throw error;
+          }
+          
+          if (data && data.code) {
+            console.log("Successfully generated code via edge function:", data);
+            setGeneratedCode(data.code);
+            toast.success("Student invitation code generated");
+            setRefreshTrigger(prev => prev + 1);
+            return;
+          }
+        } catch (edgeFnError: any) {
+          console.error("Edge function error for code generation:", edgeFnError);
+          // Fall through to use school code hook
+        }
+        
+        // Generate school code using the hook as fallback
         try {
           if (!schoolId) {
             throw new Error("School ID is required to generate a code");
@@ -208,6 +259,7 @@ const AdminStudents = () => {
             console.log("Generated code successfully:", code);
             setGeneratedCode(code);
             toast.success("Student invitation code generated");
+            setRefreshTrigger(prev => prev + 1);
           } else {
             throw new Error("Failed to generate invitation code");
           }
@@ -216,10 +268,6 @@ const AdminStudents = () => {
           toast.error(error.message || "Failed to generate invitation code");
         }
       }
-      
-      // Refresh the invites list
-      setRefreshTrigger(prev => prev + 1);
-      
     } catch (error: any) {
       console.error("Error inviting student:", error);
       toast.error(error.message || "Failed to invite student");
@@ -229,8 +277,10 @@ const AdminStudents = () => {
   };
 
   const copyInviteCode = () => {
-    navigator.clipboard.writeText(generatedCode);
-    toast.success("Code copied to clipboard!");
+    if (generatedCode) {
+      navigator.clipboard.writeText(generatedCode);
+      toast.success("Code copied to clipboard!");
+    }
   };
   
   const handleRefresh = () => {
@@ -322,8 +372,28 @@ const AdminStudents = () => {
                     />
                   )}
                   
+                  {selectedMethod === "code" && (
+                    <Button 
+                      type="submit" 
+                      className="gradient-bg w-full" 
+                      disabled={isLoading || isGeneratingSchoolCode}
+                    >
+                      {isGeneratingSchoolCode ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <UserPlus className="mr-2 h-4 w-4" />
+                          Generate Code
+                        </>
+                      )}
+                    </Button>
+                  )}
+                  
                   {generatedCode && selectedMethod === "code" && (
-                    <div className="p-4 bg-muted rounded-lg">
+                    <div className="p-4 bg-muted rounded-lg mt-4">
                       <p className="font-semibold mb-2">Invitation Code:</p>
                       <div className="flex items-center gap-2">
                         <code className="bg-background p-2 rounded border flex-1 text-center text-lg font-mono">
@@ -339,30 +409,25 @@ const AdminStudents = () => {
                     </div>
                   )}
                   
-                  <Button 
-                    type="submit" 
-                    className="gradient-bg" 
-                    disabled={isLoading || isGeneratingSchoolCode}
-                  >
-                    {selectedMethod === "invite" ? (
-                      <>
-                        <Mail className="mr-2 h-4 w-4" />
-                        {isLoading ? "Sending..." : "Send Invitation"}
-                      </>
-                    ) : (
-                      <>
-                        <UserPlus className="mr-2 h-4 w-4" />
-                        {isGeneratingSchoolCode ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Generating...
-                          </>
-                        ) : (
-                          "Generate Code"
-                        )}
-                      </>
-                    )}
-                  </Button>
+                  {selectedMethod === "invite" && (
+                    <Button 
+                      type="submit" 
+                      className="gradient-bg" 
+                      disabled={isLoading || isGeneratingSchoolCode}
+                    >
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Sending...
+                        </>
+                      ) : (
+                        <>
+                          <Mail className="mr-2 h-4 w-4" />
+                          Send Invitation
+                        </>
+                      )}
+                    </Button>
+                  )}
                 </form>
               </Form>
             </CardContent>
@@ -407,7 +472,7 @@ const AdminStudents = () => {
                             {new Date(invite.created_at).toLocaleDateString()}
                           </TableCell>
                           <TableCell>
-                            {new Date(invite.expires_at).toLocaleDateString()}
+                            {invite.expires_at ? new Date(invite.expires_at).toLocaleDateString() : 'N/A'}
                           </TableCell>
                           <TableCell>
                             <span className={`text-xs font-medium px-2 py-0.5 rounded ${
@@ -417,7 +482,7 @@ const AdminStudents = () => {
                                 ? "bg-green-100 text-green-800"
                                 : "bg-red-100 text-red-800"
                             }`}>
-                              {invite.status.charAt(0).toUpperCase() + invite.status.slice(1)}
+                              {invite.status?.charAt(0).toUpperCase() + invite.status?.slice(1) || 'Unknown'}
                             </span>
                           </TableCell>
                         </TableRow>
