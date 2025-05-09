@@ -26,18 +26,30 @@ interface AdminNavbarProps {
 const AdminNavbar = ({ navLinks = defaultNavLinks, className }: AdminNavbarProps) => {
   const location = useLocation();
   
+  // Function to determine if a link is active
+  const isLinkActive = (linkHref: string): boolean => {
+    // Exact match for dashboard
+    if (linkHref === "/admin") {
+      return location.pathname === "/admin";
+    }
+    
+    // For other pages, check if the current path exactly matches the link
+    // or if it's a direct subpage (e.g., /admin/teacher-management/123)
+    if (linkHref !== "/admin" && location.pathname.startsWith(linkHref)) {
+      // Make sure it's an exact match or has a slash after the href
+      // This ensures /admin/teacher-management doesn't match /admin/teacher-management-other
+      const remainingPath = location.pathname.slice(linkHref.length);
+      return remainingPath === "" || remainingPath.startsWith("/");
+    }
+    
+    return false;
+  };
+  
   return (
     <div className={cn("border-b mb-6", className)}>
       <nav className="flex space-x-4 overflow-x-auto pb-2">
         {navLinks.map((link) => {
-          // Check if the current path matches this link's path exactly
-          // For the dashboard, only highlight when exactly on /admin
-          // For other routes, check exact match or if it's a sub-route (starts with the link path + /)
-          const isActive = 
-            link.href === "/admin"
-              ? location.pathname === "/admin"
-              : location.pathname === link.href || 
-                (location.pathname.startsWith(link.href + "/") && link.href !== "/");
+          const active = isLinkActive(link.href);
           
           return (
             <Link
@@ -45,7 +57,7 @@ const AdminNavbar = ({ navLinks = defaultNavLinks, className }: AdminNavbarProps
               to={link.href}
               className={cn(
                 "px-4 py-2 text-sm font-medium transition-colors",
-                isActive
+                active
                   ? "border-b-2 border-blue-600 text-blue-600"
                   : "text-gray-600 hover:text-blue-600"
               )}

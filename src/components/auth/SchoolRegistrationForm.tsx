@@ -35,6 +35,18 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
+// Function to generate a random school code
+const generateSchoolCode = (): string => {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // Removed confusing chars
+  let result = 'SCH';
+  
+  for (let i = 0; i < 5; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  
+  return result;
+};
+
 const SchoolRegistrationForm = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
@@ -57,34 +69,105 @@ const SchoolRegistrationForm = () => {
     setErrorMessage(null);
     
     try {
-      // Register school and admin user together via edge function
-      const { data: schoolData, error: schoolError } = await supabase.functions.invoke('register-school', {
-        body: { 
-          schoolName: data.schoolName,
-          adminEmail: data.adminEmail,
-          adminFullName: data.adminFullName,
-          adminPassword: data.password,
-          contactEmail: data.contactEmail || data.adminEmail
+      // Check if email is already registered first
+      const { data: existingUser, error: userCheckError } = await supabase.auth.admin.getUserByEmail(data.adminEmail);
+      
+      if (userCheckError) {
+        console.error("Error checking existing user:", userCheckError);
+        throw new Error("Failed to check email availability");
+      }
+      
+      if (existingUser) {
+        throw new Error("Email already registered");
+      }
+      
+      // Generate unique school code
+      const schoolCode = generateSchoolCode();
+      
+      // Create school record
+      const { data: school, error: schoolError } = await supabase
+        .from("schools")
+        .insert({
+          name: data.schoolName,
+          code: schoolCode,
+          contact_email: data.contactEmail || data.adminEmail,
+        })
+        .select()
+        .single();
+
+      if (schoolError) {
+        console.error("Error creating school:", schoolError);
+        throw new Error("Failed to create school record");
+      }
+
+      // Create school code record
+      const { error: schoolCodeError } = await supabase
+        .from("school_codes")
+        .insert({
+          code: schoolCode,
+          school_name: data.schoolName,
+          active: true,
+          school_id: school.id
+        });
+      
+      if (schoolCodeError) {
+        console.error("Error creating school code:", schoolCodeError);
+        
+        // Clean up the school record if code creation fails
+        await supabase
+          .from("schools")
+          .delete()
+          .eq("id", school.id);
+          
+        throw new Error("Failed to create school code");
+      }
+
+      // Create the admin user
+      const { data: userData, error: userError } = await supabase.auth.signUp({
+        email: data.adminEmail,
+        password: data.password,
+        options: {
+          data: {
+            full_name: data.adminFullName,
+            school_code: schoolCode,
+            user_type: 'school_admin',
+            school_id: school.id
+          },
+          emailRedirectTo: `${window.location.origin}/login`
         }
       });
 
-      if (schoolError) {
-        console.error("School registration error:", schoolError);
-        throw new Error(schoolError.message || "Failed to register school");
+      if (userError) {
+        console.error("Error creating admin user:", userError);
+        
+        // Clean up the school and school code records if user creation fails
+        await supabase
+          .from("school_codes")
+          .delete()
+          .eq("code", schoolCode);
+          
+        await supabase
+          .from("schools")
+          .delete()
+          .eq("id", school.id);
+          
+        throw new Error(userError.message || "Failed to create admin user");
       }
 
-      if (!schoolData || !schoolData.success) {
-        throw new Error(schoolData?.error || "Invalid response from school registration");
-      }
-      
-      console.log("School registration successful:", schoolData);
-      
+      console.log("Successfully registered school and admin:", {
+        school_id: school.id,
+        school_code: schoolCode,
+        school_name: data.schoolName,
+        admin_id: userData.user?.id
+      });
+
       // Show success message with school code
       toast.success(
         <div>
           <h3>School Registration Successful!</h3>
-          <p>Your school code is: <strong>{schoolData.school_code}</strong></p>
+          <p>Your school code is: <strong>{schoolCode}</strong></p>
           <p>Use this code to invite teachers and students to your school.</p>
+          <p>Please check your email to verify your account.</p>
         </div>,
         { duration: 10000 }
       );
