@@ -52,10 +52,7 @@ const SchoolSettings = () => {
   useEffect(() => {
     // Load initial school data
     const fetchSchoolData = async () => {
-      if (!profile?.organization?.id) {
-        console.log("No school ID found in profile:", profile);
-        return;
-      }
+      if (!profile?.organization?.id) return;
       
       setIsLoading(true);
       try {
@@ -68,10 +65,7 @@ const SchoolSettings = () => {
           .eq("id", profile.organization.id)
           .single();
             
-        if (error) {
-          console.error("Error fetching school data:", error);
-          throw error;
-        }
+        if (error) throw error;
           
         console.log("Fetched school data:", schoolData);
         
@@ -99,39 +93,23 @@ const SchoolSettings = () => {
       return;
     }
     
-    if (!schoolName.trim()) {
-      toast.error("School name cannot be empty");
-      return;
-    }
-    
     setIsSaving(true);
     try {
       console.log("Saving school settings for ID:", profile.organization.id);
-      console.log("Settings to save:", {
-        name: schoolName.trim(),
-        contact_email: contactEmail.trim(),
-        description: description.trim(),
-        notifications_enabled: notificationsEnabled
-      });
       
       // Update school information
       const { error } = await supabase
         .from("schools")
         .update({
-          name: schoolName.trim(),
-          contact_email: contactEmail.trim(),
-          description: description.trim(),
+          name: schoolName,
+          contact_email: contactEmail,
+          description: description,
           notifications_enabled: notificationsEnabled,
           updated_at: new Date().toISOString()
         })
         .eq("id", profile.organization.id);
 
-      if (error) {
-        console.error("Error during update:", error);
-        throw error;
-      }
-      
-      console.log("School settings updated successfully");
+      if (error) throw error;
       
       // Refresh profile to get latest data
       await refreshProfile();
@@ -266,8 +244,8 @@ const SchoolSettings = () => {
                     />
                   </div>
                   
-                  <div className="space-y-4">
-                    <Label className="block mb-2">School Code</Label>
+                  <div className="space-y-2">
+                    <Label>School Code</Label>
                     {profile?.organization?.id && (
                       <SchoolCodeManager 
                         schoolId={profile.organization.id} 

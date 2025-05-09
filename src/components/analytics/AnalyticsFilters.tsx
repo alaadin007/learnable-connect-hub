@@ -2,7 +2,7 @@
 import React from "react";
 import { DateRangePicker } from "./DateRangePicker";
 import StudentSelector from "./StudentSelector";
-import TeacherSelector from "./TeacherSelector";
+import { TeacherSelector } from "./TeacherSelector";
 import { Card, CardContent } from "@/components/ui/card";
 import { Filter } from "lucide-react";
 import { AnalyticsFilters as FiltersType, DateRange } from "./types";
@@ -76,8 +76,9 @@ export const AnalyticsFilters: React.FC<AnalyticsFiltersProps> = ({
             {showTeacherSelector && (
               <div>
                 <TeacherSelector
-                  value={filters.teacherId || null}
-                  onChange={handleTeacherChange}
+                  schoolId={typeof filters.schoolId === "string" ? filters.schoolId : ""}
+                  selectedTeacherId={filters.teacherId}
+                  onTeacherChange={handleTeacherChange}
                 />
               </div>
             )}
