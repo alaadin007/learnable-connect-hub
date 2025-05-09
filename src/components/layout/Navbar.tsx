@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -42,16 +43,7 @@ const Navbar = () => {
       // Use replace to avoid adding to history stack
       window.location.replace('/admin');
     }
-    
-    // If school admin is on /chat or /documents and state indicates we should return to admin
-    const locationState = location.state as NavigationState | null;
-    if (isSchoolAdmin(effectiveRole) && 
-        (location.pathname === '/chat' || location.pathname === '/documents') &&
-        locationState?.schoolAdminReturn) {
-      console.log('NAVBAR: School admin returning from chat or documents, need to return to admin');
-      // We don't redirect here, but this flag will be used when Dashboard is clicked
-    }
-  }, [location.pathname, userRole, location.state]);
+  }, [location.pathname, userRole]);
 
   const toggleMenu = () => setIsOpen((open) => !open);
 
@@ -91,6 +83,7 @@ const Navbar = () => {
   );
   const isLoggedIn = !!user && !isPublicPage && !isAuthPage;
   const isTestAccountsPage = location.pathname === "/test-accounts";
+  const isAdminPage = location.pathname === "/admin" || location.pathname.startsWith("/admin/");
 
   // Determine default dashboard path based on user role - specifically handling school admin
   const getDashboardPath = useCallback(() => {
@@ -102,6 +95,15 @@ const Navbar = () => {
       return '/dashboard';
     }
   }, [effectiveUserRole]);
+
+  // Simplified admin navbar links based on the image
+  const getSchoolAdminNavLinks = () => {
+    return [
+      { name: "Dashboard", href: "/admin" },
+      { name: "Chat", href: "/chat" },
+      { name: "Documents", href: "/documents" },
+    ];
+  };
 
   const getNavLinks = useCallback(() => {
     if (isTestAccountsPage) return [];
@@ -116,17 +118,9 @@ const Navbar = () => {
       ];
     }
 
-    // For school admin role, show specific admin links
+    // For school admin role, show specific admin links based on the image
     if (isAdmin) {
-      return [
-        { name: "Dashboard", href: "/admin" },
-        { name: "Teacher Management", href: "/admin/teacher-management" },
-        { name: "Students", href: "/admin/students" },
-        { name: "Analytics", href: "/admin/analytics" },
-        { name: "Settings", href: "/admin/settings" },
-        { name: "Chat", href: "/chat" },
-        { name: "Documents", href: "/documents" },
-      ];
+      return getSchoolAdminNavLinks();
     } 
     // For teacher role
     else if (effectiveUserRole === "teacher") {
@@ -166,14 +160,6 @@ const Navbar = () => {
 
     // Handle other specific paths
     switch (href) {
-      case "/admin/teacher-management":
-        return currentPath === "/admin/teacher-management" || currentPath === "/admin/teachers";
-      case "/admin/students":
-        return currentPath === "/admin/students";
-      case "/admin/analytics":
-        return currentPath === "/admin/analytics";
-      case "/admin/settings":
-        return currentPath === "/admin/settings";
       case "/chat":
         return currentPath === "/chat" || currentPath.startsWith("/chat/");
       case "/documents":
@@ -261,8 +247,8 @@ const Navbar = () => {
                 key={link.name}
                 onClick={() => handleNavigation(link.href)}
                 className={cn(
-                  "text-learnable-gray hover:text-learnable-blue font-medium transition-colors duration-200 px-4 py-2 rounded-md",
-                  isActiveLink(link.href) && "text-learnable-blue bg-blue-50 font-semibold"
+                  "text-gray-700 hover:text-blue-600 font-medium transition-colors duration-200 px-4 py-2 rounded-md",
+                  isActiveLink(link.href) && "text-blue-600 font-semibold"
                 )}
               >
                 {link.name}
@@ -343,8 +329,8 @@ const Navbar = () => {
                 className={cn(
                   "block w-full text-left px-3 py-2 text-base font-medium rounded-md",
                   isActiveLink(link.href)
-                    ? "bg-blue-50 text-learnable-blue"
-                    : "text-learnable-dark hover:bg-learnable-super-light"
+                    ? "bg-blue-50 text-blue-600"
+                    : "text-gray-700 hover:bg-gray-50"
                 )}
               >
                 {link.name}

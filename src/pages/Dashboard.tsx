@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -48,6 +49,7 @@ const Dashboard = () => {
     );
   }
 
+  // Standard student/teacher dashboard below - this will never render for school admins
   return (
     <>
       <Navbar />
