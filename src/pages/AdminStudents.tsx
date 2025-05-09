@@ -3,19 +3,11 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/layout/Navbar";
-import Footer from "@/components/landing/Footer";
+import Footer from "@/components/layout/Footer";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Mail, User, ArrowLeft, Copy, UserPlus, RefreshCw, Loader2 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
-import {
+import { 
   Table,
   TableBody,
   TableCell,
@@ -23,17 +15,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ArrowLeft, Copy, RefreshCw, Loader2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import AdminNavbar from "@/components/school-admin/AdminNavbar";
 import { useSchoolCode } from "@/hooks/use-school-code";
-
-// Define the schema for student invite form
-const addStudentSchema = z.object({
-  email: z.string().email({ message: "Please enter a valid email address" }).optional(),
-  method: z.enum(["invite", "code"], {
-    required_error: "Please select a method",
-  }),
-});
-
-type AddStudentFormValues = z.infer<typeof addStudentSchema>;
 
 type StudentInvite = {
   id: string;
@@ -67,45 +52,35 @@ const AdminStudents = () => {
     } else if (profile?.school_id) {
       localStorage.setItem('schoolId', profile.school_id);
     }
-    
-    console.log("AdminStudents - Current school ID:", schoolId);
   }, [profile, schoolId]);
   
-  const form = useForm<AddStudentFormValues>({
-    resolver: zodResolver(addStudentSchema),
-    defaultValues: {
-      email: "",
-      method: "invite",
-    },
-  });
-  
-  const selectedMethod = form.watch("method");
-
   // Load student invites
   useEffect(() => {
-    const fetchInvites = async () => {
-      if (!schoolId) {
-        console.log("No school ID available to fetch invites");
-        return;
-      }
+    fetchInvites();
+  }, [schoolId, refreshTrigger]);
+
+  const fetchInvites = async () => {
+    if (!schoolId) {
+      console.log("No school ID available to fetch invites");
+      return;
+    }
+    
+    setIsLoading(true);
+    try {
+      console.log("Fetching student invites for school:", schoolId);
       
-      try {
-        console.log("Fetching student invites for school:", schoolId);
+      // Try to fetch from student_invites table
+      const { data: studentInvites, error: studentInviteError } = await supabase
+        .from("student_invites")
+        .select("*")
+        .eq("school_id", schoolId)
+        .order("created_at", { ascending: false })
+        .limit(10);
         
-        // Try to fetch from student_invites table
-        const { data: studentInvites, error: studentInviteError } = await supabase
-          .from("student_invites")
-          .select("*")
-          .eq("school_id", schoolId)
-          .order("created_at", { ascending: false })
-          .limit(10);
-          
-        if (studentInvites && studentInvites.length > 0) {
-          console.log("Found student invites:", studentInvites);
-          setInvites(studentInvites as StudentInvite[]);
-          return;
-        }
-        
+      if (studentInvites && studentInvites.length > 0) {
+        console.log("Found student invites:", studentInvites);
+        setInvites(studentInvites as StudentInvite[]);
+      } else {
         // Fallback to teacher_invitations table for display
         const { data, error } = await supabase
           .from("teacher_invitations")
@@ -130,147 +105,63 @@ const AdminStudents = () => {
         
         console.log("Using teacher invitations as fallback:", studentInviteData);
         setInvites(studentInviteData);
-      } catch (error: any) {
-        console.error("Error fetching student invites:", error);
-        toast.error("Failed to load student invites");
       }
-    };
-
-    if (schoolId) {
-      fetchInvites();
+    } catch (error: any) {
+      console.error("Error fetching student invites:", error);
+      toast.error("Failed to load student invites");
+    } finally {
+      setIsLoading(false);
     }
-  }, [schoolId, refreshTrigger]);
+  };
 
-  const onSubmit = async (values: AddStudentFormValues) => {
+  const generateInviteCode = async () => {
     if (!schoolId) {
-      toast.error("You must be logged in with a school account to invite students");
+      toast.error("You must be logged in with a school account to generate codes");
       return;
     }
     
     setIsLoading(true);
     
     try {
-      if (values.method === "invite" && values.email) {
-        console.log("Creating email invitation for:", values.email);
+      console.log("Generating code for school:", schoolId);
+      
+      // Try to use the Edge Function first
+      try {
+        console.log("Invoking invite-student edge function for code generation");
+        const { data, error } = await supabase.functions.invoke('invite-student', {
+          body: { method: 'code' }
+        });
         
-        // Try to use the Edge Function first
-        try {
-          console.log("Invoking invite-student edge function");
-          const { data, error } = await supabase.functions.invoke('invite-student', {
-            body: { 
-              method: 'email',
-              email: values.email 
-            }
-          });
-          
-          if (error) {
-            console.error("Error from invite-student function:", error);
-            throw error;
-          }
-          
-          if (data) {
-            console.log("Successfully created invitation via edge function:", data);
-            toast.success(`Invitation sent to ${values.email}`);
-            form.reset();
-            setRefreshTrigger(prev => prev + 1);
-            return;
-          }
-        } catch (edgeFnError: any) {
-          console.error("Edge function error:", edgeFnError);
-          // Fall through to direct DB insertion
+        if (error) {
+          console.error("Error from invite-student function:", error);
+          throw error;
         }
         
-        // Try to insert into student_invites first
-        try {
-          const { data, error } = await supabase
-            .from("student_invites")
-            .insert({
-              email: values.email,
-              school_id: schoolId,
-              created_by: profile?.id || user?.id,
-              status: "pending"
-            })
-            .select();
-
-          if (error) {
-            console.error("Error inserting into student_invites:", error);
-            throw error;
-          } else {
-            console.log("Successfully created student invite:", data);
-          }
-        } catch (error: any) {
-          console.error("Failed to insert into student_invites, trying teacher_invitations:", error);
-          
-          // Fallback to teacher_invitations
-          const { data, error: fallbackError } = await supabase
-            .from("teacher_invitations")
-            .insert({
-              email: values.email,
-              school_id: schoolId,
-              created_by: profile?.id || user?.id,
-              status: "pending",
-              invitation_token: Math.random().toString(36).substring(2, 15)
-            })
-            .select();
-            
-          if (fallbackError) {
-            console.error("Fallback also failed:", fallbackError);
-            throw fallbackError;
-          }
+        if (data && data.code) {
+          console.log("Successfully generated code via edge function:", data);
+          setGeneratedCode(data.code);
+          toast.success("Student invitation code generated");
+          setRefreshTrigger(prev => prev + 1);
+          return;
         }
-        
-        toast.success(`Invitation sent to ${values.email}`);
-        form.reset();
-      } else if (values.method === "code") {
-        // Generate code using the invite-student Edge Function first
-        try {
-          console.log("Invoking invite-student edge function for code generation");
-          const { data, error } = await supabase.functions.invoke('invite-student', {
-            body: { method: 'code' }
-          });
-          
-          if (error) {
-            console.error("Error from invite-student function:", error);
-            throw error;
-          }
-          
-          if (data && data.code) {
-            console.log("Successfully generated code via edge function:", data);
-            setGeneratedCode(data.code);
-            toast.success("Student invitation code generated");
-            setRefreshTrigger(prev => prev + 1);
-            return;
-          }
-        } catch (edgeFnError: any) {
-          console.error("Edge function error for code generation:", edgeFnError);
-          // Fall through to use school code hook
-        }
-        
-        // Generate school code using the hook as fallback
-        try {
-          if (!schoolId) {
-            throw new Error("School ID is required to generate a code");
-          }
-          
-          console.log("Generating code for school:", schoolId);
-          const code = await generateCode(schoolId);
-          
-          if (code) {
-            console.log("Generated code successfully:", code);
-            setGeneratedCode(code);
-            toast.success("Student invitation code generated");
-            setRefreshTrigger(prev => prev + 1);
-          } else {
-            throw new Error("Failed to generate invitation code");
-          }
-        } catch (error: any) {
-          console.error("Error generating code:", error);
-          toast.error(error.message || "Failed to generate invitation code");
-        }
+      } catch (edgeFnError: any) {
+        console.error("Edge function error for code generation:", edgeFnError);
+      }
+      
+      // Generate school code using the hook as fallback
+      const code = await generateCode(schoolId);
+      
+      if (code) {
+        console.log("Generated code successfully:", code);
+        setGeneratedCode(code);
+        toast.success("Student invitation code generated");
+        setRefreshTrigger(prev => prev + 1);
+      } else {
+        throw new Error("Failed to generate invitation code");
       }
     } catch (error: any) {
-      console.error("Error inviting student:", error);
-      toast.error(error.message || "Failed to invite student");
+      console.error("Error generating code:", error);
+      toast.error(error.message || "Failed to generate invitation code");
     } finally {
       setIsLoading(false);
     }
@@ -285,7 +176,7 @@ const AdminStudents = () => {
   
   const handleRefresh = () => {
     setRefreshTrigger(prev => prev + 1);
-    toast.success("Refreshing student invitations...");
+    toast.success("Refreshing invitations...");
   };
 
   return (
@@ -306,200 +197,121 @@ const AdminStudents = () => {
             <h1 className="text-3xl font-bold gradient-text">Student Management</h1>
           </div>
           
-          <Card>
-            <CardHeader>
-              <CardTitle>Add New Student</CardTitle>
-              <CardDescription>
-                Invite a student via email or generate a code
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                  <FormField
-                    control={form.control}
-                    name="method"
-                    render={({ field }) => (
-                      <FormItem className="space-y-3">
-                        <FormLabel>Method</FormLabel>
-                        <FormControl>
-                          <RadioGroup
-                            onValueChange={field.onChange}
-                            defaultValue={field.value}
-                            className="flex flex-col space-y-1"
-                          >
-                            <FormItem className="flex items-center space-x-3 space-y-0">
-                              <FormControl>
-                                <RadioGroupItem value="invite" />
-                              </FormControl>
-                              <FormLabel className="font-normal">
-                                Invite via Email
-                              </FormLabel>
-                            </FormItem>
-                            <FormItem className="flex items-center space-x-3 space-y-0">
-                              <FormControl>
-                                <RadioGroupItem value="code" />
-                              </FormControl>
-                              <FormLabel className="font-normal">
-                                Generate Invitation Code
-                              </FormLabel>
-                            </FormItem>
-                          </RadioGroup>
-                        </FormControl>
-                        <FormDescription>
-                          {selectedMethod === "invite" 
-                            ? "The student will receive an email invitation to join your school." 
-                            : "You will receive a code that you can share with students."}
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  {selectedMethod === "invite" && (
-                    <FormField
-                      control={form.control}
-                      name="email"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Email</FormLabel>
-                          <FormControl>
-                            <Input placeholder="student@example.com" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  )}
-                  
-                  {selectedMethod === "code" && (
-                    <Button 
-                      type="submit" 
-                      className="gradient-bg w-full" 
-                      disabled={isLoading || isGeneratingSchoolCode}
-                    >
-                      {isGeneratingSchoolCode ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Generating...
-                        </>
-                      ) : (
-                        <>
-                          <UserPlus className="mr-2 h-4 w-4" />
-                          Generate Code
-                        </>
-                      )}
-                    </Button>
-                  )}
-                  
-                  {generatedCode && selectedMethod === "code" && (
-                    <div className="p-4 bg-muted rounded-lg mt-4">
-                      <p className="font-semibold mb-2">Invitation Code:</p>
-                      <div className="flex items-center gap-2">
-                        <code className="bg-background p-2 rounded border flex-1 text-center text-lg font-mono">
-                          {generatedCode}
-                        </code>
-                        <Button type="button" variant="outline" size="sm" onClick={copyInviteCode}>
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <p className="text-sm text-muted-foreground mt-2">
-                        Share this code with students to join your school
-                      </p>
-                    </div>
-                  )}
-                  
-                  {selectedMethod === "invite" && (
-                    <Button 
-                      type="submit" 
-                      className="gradient-bg" 
-                      disabled={isLoading || isGeneratingSchoolCode}
-                    >
-                      {isLoading ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Sending...
-                        </>
-                      ) : (
-                        <>
-                          <Mail className="mr-2 h-4 w-4" />
-                          Send Invitation
-                        </>
-                      )}
-                    </Button>
-                  )}
-                </form>
-              </Form>
-            </CardContent>
-          </Card>
+          <AdminNavbar className="mb-8" />
           
-          <Card className="mt-6">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Student Invitations</CardTitle>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Left column - Generate Code */}
+            <Card className="md:col-span-1">
+              <CardHeader>
+                <CardTitle>Generate Invitation Code</CardTitle>
                 <CardDescription>
-                  Recent student invitations and codes
+                  Create a code for students to join your school
                 </CardDescription>
-              </div>
-              <Button variant="outline" size="sm" onClick={handleRefresh} className="flex items-center gap-2">
-                <RefreshCw className="h-4 w-4" />
-                Refresh
-              </Button>
-            </CardHeader>
-            <CardContent>
-              {invites.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Email/Code</TableHead>
-                        <TableHead>Created</TableHead>
-                        <TableHead>Expires</TableHead>
-                        <TableHead>Status</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {invites.map((invite) => (
-                        <TableRow key={invite.id}>
-                          <TableCell>
-                            {invite.email || 
-                             <code className="bg-muted p-1 rounded text-xs font-mono">
-                               {invite.code || 'N/A'}
-                             </code>
-                            }
-                          </TableCell>
-                          <TableCell>
-                            {new Date(invite.created_at).toLocaleDateString()}
-                          </TableCell>
-                          <TableCell>
-                            {invite.expires_at ? new Date(invite.expires_at).toLocaleDateString() : 'N/A'}
-                          </TableCell>
-                          <TableCell>
-                            <span className={`text-xs font-medium px-2 py-0.5 rounded ${
-                              invite.status === "pending"
-                                ? "bg-yellow-100 text-yellow-800"
-                                : invite.status === "accepted"
-                                ? "bg-green-100 text-green-800"
-                                : "bg-red-100 text-red-800"
-                            }`}>
-                              {invite.status?.charAt(0).toUpperCase() + invite.status?.slice(1) || 'Unknown'}
-                            </span>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Button 
+                  onClick={generateInviteCode}
+                  disabled={isLoading || isGeneratingSchoolCode}
+                  className="w-full gradient-bg"
+                >
+                  {isGeneratingSchoolCode ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    "Generate Code"
+                  )}
+                </Button>
+                
+                {generatedCode && (
+                  <div className="mt-4 p-4 bg-muted rounded-lg border">
+                    <p className="font-semibold mb-2">Invitation Code:</p>
+                    <div className="flex items-center gap-2">
+                      <code className="bg-background p-2 rounded border flex-1 text-center text-lg font-mono">
+                        {generatedCode}
+                      </code>
+                      <Button type="button" variant="outline" size="sm" onClick={copyInviteCode}>
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-2">
+                      Share this code with students to join your school
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+            
+            {/* Right column - Invites Table */}
+            <Card className="md:col-span-2">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>Recent Invitations</CardTitle>
+                  <CardDescription>
+                    Student invitation codes and status
+                  </CardDescription>
                 </div>
-              ) : (
-                <p className="text-muted-foreground">No invitations found.</p>
-              )}
-            </CardContent>
-            <CardFooter>
-              <p className="text-xs text-muted-foreground">
-                Student invitations expire after 7 days.
-              </p>
-            </CardFooter>
-          </Card>
+                <Button variant="outline" size="sm" onClick={handleRefresh} className="flex items-center gap-2">
+                  <RefreshCw className="h-4 w-4" />
+                  Refresh
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {isLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  </div>
+                ) : invites.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Email/Code</TableHead>
+                          <TableHead>Created</TableHead>
+                          <TableHead>Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {invites.map((invite) => (
+                          <TableRow key={invite.id}>
+                            <TableCell>
+                              {invite.email || 
+                               <code className="bg-muted p-1 rounded text-xs font-mono">
+                                 {invite.code || 'N/A'}
+                               </code>
+                              }
+                            </TableCell>
+                            <TableCell>
+                              {new Date(invite.created_at).toLocaleDateString()}
+                            </TableCell>
+                            <TableCell>
+                              <span className={`text-xs font-medium px-2 py-0.5 rounded ${
+                                invite.status === "pending"
+                                  ? "bg-yellow-100 text-yellow-800"
+                                  : invite.status === "accepted" || invite.status === "used"
+                                  ? "bg-green-100 text-green-800"
+                                  : "bg-red-100 text-red-800"
+                              }`}>
+                                {invite.status?.charAt(0).toUpperCase() + invite.status?.slice(1) || 'Unknown'}
+                              </span>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground text-center py-8">No invitations found</p>
+                )}
+              </CardContent>
+              <CardFooter>
+                <p className="text-xs text-muted-foreground">
+                  Student invitations expire after 7 days
+                </p>
+              </CardFooter>
+            </Card>
+          </div>
         </div>
       </main>
       <Footer />
