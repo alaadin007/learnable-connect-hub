@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,8 +9,24 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle, CheckCircle, HelpCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
 
 const RegisterForm = () => {
   const navigate = useNavigate();
@@ -26,6 +43,7 @@ const RegisterForm = () => {
   const [teacherSchoolName, setTeacherSchoolName] = useState("");
   const [teacherError, setTeacherError] = useState<string | null>(null);
   const [teacherExistingRole, setTeacherExistingRole] = useState<string | null>(null);
+  const [teacherCodeVerified, setTeacherCodeVerified] = useState(false);
 
   // Student registration state
   const [studentName, setStudentName] = useState("");
@@ -36,6 +54,10 @@ const RegisterForm = () => {
   const [studentSchoolName, setStudentSchoolName] = useState("");
   const [studentError, setStudentError] = useState<string | null>(null);
   const [studentExistingRole, setStudentExistingRole] = useState<string | null>(null);
+  const [studentCodeVerified, setStudentCodeVerified] = useState(false);
+  
+  // Help dialog state
+  const [showHelpDialog, setShowHelpDialog] = useState(false);
 
   const validateSchoolCode = async (code: string, userType: "teacher" | "student") => {
     if (!code) {
@@ -69,8 +91,10 @@ const RegisterForm = () => {
         
         if (userType === 'teacher') {
           setTeacherSchoolName(schoolNameStr);
+          setTeacherCodeVerified(true);
         } else {
           setStudentSchoolName(schoolNameStr);
+          setStudentCodeVerified(true);
         }
         
         toast.success(`Code verified for ${schoolNameStr}`);
@@ -148,8 +172,12 @@ const RegisterForm = () => {
 
   const handleVerifyTeacherCode = async () => {
     setIsVerifyingTeacherCode(true);
+    setTeacherCodeVerified(false);
     try {
-      await validateSchoolCode(teacherSchoolCode, "teacher");
+      const isValid = await validateSchoolCode(teacherSchoolCode, "teacher");
+      if (!isValid) {
+        setTeacherSchoolName("");
+      }
     } finally {
       setIsVerifyingTeacherCode(false);
     }
@@ -157,8 +185,12 @@ const RegisterForm = () => {
 
   const handleVerifyStudentCode = async () => {
     setIsVerifyingStudentCode(true);
+    setStudentCodeVerified(false);
     try {
-      await validateSchoolCode(studentSchoolCode, "student");
+      const isValid = await validateSchoolCode(studentSchoolCode, "student");
+      if (!isValid) {
+        setStudentSchoolName("");
+      }
     } finally {
       setIsVerifyingStudentCode(false);
     }
@@ -183,9 +215,11 @@ const RegisterForm = () => {
       return;
     }
 
-    // Validate school code first
-    const isValid = await validateSchoolCode(teacherSchoolCode, "teacher");
-    if (!isValid) return;
+    // Validate school code first if not already verified
+    if (!teacherCodeVerified) {
+      const isValid = await validateSchoolCode(teacherSchoolCode, "teacher");
+      if (!isValid) return;
+    }
 
     setIsLoading(true);
     
@@ -253,9 +287,11 @@ const RegisterForm = () => {
       return;
     }
 
-    // Validate school code first
-    const isValid = await validateSchoolCode(studentSchoolCode, "student");
-    if (!isValid) return;
+    // Validate school code first if not already verified
+    if (!studentCodeVerified) {
+      const isValid = await validateSchoolCode(studentSchoolCode, "student");
+      if (!isValid) return;
+    }
 
     setIsLoading(true);
     
@@ -382,33 +418,72 @@ const RegisterForm = () => {
               </div>
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
-                  <Label htmlFor="school-code">School Code</Label>
+                  <div className="flex items-center">
+                    <Label htmlFor="teacher-code" className="mr-2">School Code</Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-6 w-6 p-0 rounded-full"
+                            onClick={() => setShowHelpDialog(true)}
+                            type="button"
+                          >
+                            <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                            <span className="sr-only">School code help</span>
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="text-xs">Learn how to get a school code</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
                   {teacherSchoolName && (
-                    <span className="text-xs text-green-600">{teacherSchoolName}</span>
+                    <div className="flex items-center text-xs text-green-600">
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                      <span>{teacherSchoolName}</span>
+                    </div>
                   )}
                 </div>
                 <div className="flex space-x-2">
                   <Input 
-                    id="school-code" 
+                    id="teacher-code" 
                     placeholder="Enter school registration code"
                     value={teacherSchoolCode}
-                    onChange={(e) => setTeacherSchoolCode(e.target.value)}
+                    onChange={(e) => {
+                      setTeacherSchoolCode(e.target.value);
+                      setTeacherCodeVerified(false);
+                    }}
                     required
+                    className={teacherCodeVerified ? "border-green-500 pr-10" : ""}
                   />
                   <Button 
                     type="button" 
-                    variant="outline" 
+                    variant={teacherCodeVerified ? "outline" : "secondary"} 
                     onClick={handleVerifyTeacherCode}
                     disabled={isVerifyingTeacherCode || !teacherSchoolCode}
+                    className={teacherCodeVerified ? "bg-green-50 text-green-700 border-green-500 hover:bg-green-100 hover:text-green-800" : ""}
                   >
                     {isVerifyingTeacherCode ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         Checking...
                       </>
+                    ) : teacherCodeVerified ? (
+                      <>
+                        <CheckCircle className="mr-2 h-4 w-4" />
+                        Verified
+                      </>
                     ) : "Verify"}
                   </Button>
                 </div>
+                {!teacherCodeVerified && teacherSchoolCode && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Please verify your school code before proceeding
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="teacher-password">Password</Label>
@@ -424,7 +499,7 @@ const RegisterForm = () => {
               <Button 
                 type="submit" 
                 className="w-full gradient-bg"
-                disabled={isLoading || !teacherSchoolName}
+                disabled={isLoading || !teacherSchoolName || !teacherCodeVerified}
               >
                 {isLoading ? (
                   <>
@@ -480,9 +555,33 @@ const RegisterForm = () => {
               </div>
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
-                  <Label htmlFor="student-code">School Code</Label>
+                  <div className="flex items-center">
+                    <Label htmlFor="student-code" className="mr-2">School Code</Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-6 w-6 p-0 rounded-full"
+                            onClick={() => setShowHelpDialog(true)}
+                            type="button"
+                          >
+                            <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                            <span className="sr-only">School code help</span>
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="text-xs">Learn how to get a school code</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
                   {studentSchoolName && (
-                    <span className="text-xs text-green-600">{studentSchoolName}</span>
+                    <div className="flex items-center text-xs text-green-600">
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                      <span>{studentSchoolName}</span>
+                    </div>
                   )}
                 </div>
                 <div className="flex space-x-2">
@@ -490,23 +589,38 @@ const RegisterForm = () => {
                     id="student-code" 
                     placeholder="Enter school registration code"
                     value={studentSchoolCode}
-                    onChange={(e) => setStudentSchoolCode(e.target.value)}
+                    onChange={(e) => {
+                      setStudentSchoolCode(e.target.value);
+                      setStudentCodeVerified(false);
+                    }}
                     required
+                    className={studentCodeVerified ? "border-green-500 pr-10" : ""}
                   />
                   <Button 
                     type="button" 
-                    variant="outline" 
+                    variant={studentCodeVerified ? "outline" : "secondary"} 
                     onClick={handleVerifyStudentCode}
                     disabled={isVerifyingStudentCode || !studentSchoolCode}
+                    className={studentCodeVerified ? "bg-green-50 text-green-700 border-green-500 hover:bg-green-100 hover:text-green-800" : ""}
                   >
                     {isVerifyingStudentCode ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         Checking...
                       </>
+                    ) : studentCodeVerified ? (
+                      <>
+                        <CheckCircle className="mr-2 h-4 w-4" />
+                        Verified
+                      </>
                     ) : "Verify"}
                   </Button>
                 </div>
+                {!studentCodeVerified && studentSchoolCode && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Please verify your school code before proceeding
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="student-password">Password</Label>
@@ -522,7 +636,7 @@ const RegisterForm = () => {
               <Button 
                 type="submit" 
                 className="w-full gradient-bg"
-                disabled={isLoading || !studentSchoolName}
+                disabled={isLoading || !studentSchoolName || !studentCodeVerified}
               >
                 {isLoading ? (
                   <>
@@ -543,6 +657,47 @@ const RegisterForm = () => {
           </Link>
         </p>
       </CardFooter>
+      
+      {/* Help Dialog for School Code */}
+      <Dialog open={showHelpDialog} onOpenChange={setShowHelpDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>How to Get a School Code</DialogTitle>
+            <DialogDescription>
+              School codes are provided by school administrators who have registered their school with LearnAble.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <h4 className="font-medium text-sm">You can obtain a school code from:</h4>
+            <ul className="list-disc pl-5 space-y-2">
+              <li>Your school administrator who registered the school</li>
+              <li>Your department head or IT administrator</li>
+              <li>Another teacher or colleague who already has an account</li>
+              <li>By asking your school to register if they haven't already</li>
+            </ul>
+            
+            <div className="bg-amber-50 border-l-4 border-amber-500 p-3 rounded-md mt-4">
+              <p className="text-amber-800 text-sm">
+                <strong>Note:</strong> Each school gets a unique code that is shared among all teachers and students at that institution.
+              </p>
+            </div>
+            
+            <p className="text-sm text-gray-600 mt-4">
+              If your school hasn't registered yet, please ask your school administrator to 
+              <Link to="/school-registration" className="font-medium text-learnable-blue hover:underline ml-1">
+                register your school first
+              </Link>.
+            </p>
+          </div>
+          
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button">Close</Button>
+            </DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 };

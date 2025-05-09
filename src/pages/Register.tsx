@@ -6,7 +6,7 @@ import Footer from "@/components/landing/Footer";
 import { Link } from "react-router-dom";
 import { Toaster } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Info } from "lucide-react";
 
 const Register = () => {
   return (
@@ -21,6 +21,25 @@ const Register = () => {
             <AlertDescription className="text-amber-700">
               After registration, please check your inbox (and spam folder) for a verification email.
               If you don't receive it, you can request another one from the login page.
+            </AlertDescription>
+          </Alert>
+        </div>
+
+        {/* School code help info */}
+        <div className="max-w-md w-full mx-auto mb-6">
+          <Alert className="bg-blue-50 border-blue-200 text-blue-800">
+            <Info className="h-5 w-5 text-blue-500" />
+            <AlertTitle>Need a School Code?</AlertTitle>
+            <AlertDescription className="text-blue-700">
+              <p className="mb-2">Teachers and students need a school code to register. You can obtain this code:</p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>From your school administrator who registered the school</li>
+                <li>From another teacher at your school who already has an account</li>
+                <li>By asking your IT department who manages educational accounts</li>
+              </ul>
+              <p className="mt-2 text-sm italic">
+                School administrators must first <Link to="/school-registration" className="font-medium underline">register their school</Link> to generate a code.
+              </p>
             </AlertDescription>
           </Alert>
         </div>
