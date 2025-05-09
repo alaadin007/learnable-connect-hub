@@ -52,7 +52,8 @@ export function useSchoolCode() {
     }
   };
   
-  const generateNewCode = async (schoolId: string): Promise<string | null> => {
+  // Rename to generateCode to match what's being used in the components
+  const generateCode = async (schoolId: string): Promise<string | null> => {
     try {
       setIsGenerating(true);
       
@@ -78,7 +79,7 @@ export function useSchoolCode() {
       return null;
       
     } catch (error) {
-      console.error("Error in generateNewCode:", error);
+      console.error("Error in generateCode:", error);
       toast.error("An unexpected error occurred while generating code.");
       return null;
     } finally {
@@ -89,7 +90,8 @@ export function useSchoolCode() {
   return {
     verifySchoolCode,
     getSchoolName,
-    generateNewCode,
+    generateNewCode: generateCode, // Keep old name for backward compatibility
+    generateCode, // Add the new name that's being used in components
     isVerifying,
     isGenerating
   };

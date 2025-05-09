@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -124,7 +123,7 @@ const LoginForm = () => {
         refresh_token: data.session?.refresh_token,
       }));
 
-      // Set auth state
+      // Set auth state - Pass the entire session object
       await signIn(data.session);
       
       // Immediately refresh profile data
