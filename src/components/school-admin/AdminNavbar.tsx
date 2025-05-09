@@ -30,11 +30,14 @@ const AdminNavbar = ({ navLinks = defaultNavLinks, className }: AdminNavbarProps
     <div className={cn("border-b mb-6", className)}>
       <nav className="flex space-x-4 overflow-x-auto pb-2">
         {navLinks.map((link) => {
-          // Check if the current path matches this link's path
-          // Use exact match for dashboard to prevent highlighting when on sub-routes
-          const isActive = link.href === "/admin" 
-            ? location.pathname === "/admin"
-            : location.pathname === link.href;
+          // Check if the current path matches this link's path exactly
+          // For the dashboard, only highlight when exactly on /admin
+          // For other routes, check exact match or if it's a sub-route (starts with the link path + /)
+          const isActive = 
+            link.href === "/admin"
+              ? location.pathname === "/admin"
+              : location.pathname === link.href || 
+                (location.pathname.startsWith(link.href + "/") && link.href !== "/");
           
           return (
             <Link
