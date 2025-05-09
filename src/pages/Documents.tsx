@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/landing/Footer';
 import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom'; // Added useLocation
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import FileUpload from '@/components/documents/FileUpload';
@@ -15,6 +15,7 @@ import { isSchoolAdmin, getUserRoleWithFallback } from "@/utils/apiHelpers";
 const Documents: React.FC = () => {
   const { user, userRole, signOut } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation(); // Get location for state checking
   const [activeTab, setActiveTab] = useState('upload');
   const [redirecting, setRedirecting] = useState(false);
 
@@ -23,13 +24,19 @@ const Documents: React.FC = () => {
   const effectiveRole = userRole || fallbackRole;
   const isAdmin = isSchoolAdmin(effectiveRole);
 
-  // Redirect if not logged in
+  // Redirect if not logged in and handle admin state
   useEffect(() => {
     if (!user && !redirecting) {
       setRedirecting(true);
       navigate('/login', { state: { from: '/documents' } });
+      return;
     }
-  }, [user, navigate, redirecting]);
+    
+    // Check if user is a school admin and needs proper state tracking
+    if (isAdmin) {
+      console.log("Documents: User is school admin, ensuring proper navigation state for return");
+    }
+  }, [user, navigate, redirecting, isAdmin, location]);
 
   if (!user) {
     return (

@@ -3,6 +3,17 @@ import { Navigate, useLocation } from "react-router-dom";
 import { useAuth, UserRole } from "@/contexts/AuthContext";
 import { getUserRoleWithFallback, getSchoolIdWithFallback, isSchoolAdmin } from "@/utils/apiHelpers";
 
+// Define a proper type for the location state
+interface LocationState {
+  from?: Location;
+  preserveContext?: boolean;
+  fromNavigation?: boolean;
+  adminRedirect?: boolean;
+  fromTestAccounts?: boolean;
+  schoolAdminReturn?: boolean;
+  [key: string]: any; // Allow for additional properties
+}
+
 interface ProtectedRouteProps {
   children: React.ReactNode;
   requiredUserType?: UserRole;
@@ -22,6 +33,7 @@ const ProtectedRoute = ({
 }: ProtectedRouteProps) => {
   const { user, profile, isSuperviser, userRole, schoolId: userSchoolId, session } = useAuth();
   const location = useLocation();
+  const locationState = location.state as LocationState | null;
 
   // Try to get role and school ID from localStorage if not available from auth context
   const fallbackRole = getUserRoleWithFallback();
@@ -30,6 +42,7 @@ const ProtectedRoute = ({
   console.log('ProtectedRoute: Current path:', location.pathname);
   console.log('ProtectedRoute: User role:', effectiveUserRole);
   console.log('ProtectedRoute: Is school admin:', isSchoolAdmin(effectiveUserRole));
+  console.log('ProtectedRoute: Location state:', locationState);
   
   // CRITICAL CHECK: If user is school admin, force redirect to admin dashboard when on /dashboard
   // This is the highest priority check - it happens before ANY other checks
@@ -40,14 +53,17 @@ const ProtectedRoute = ({
   }
 
   // Check if we're redirected from another page like Chat or Documents and need to go to the admin dashboard
-  const fromOtherPage = location.state?.fromNavigation && isSchoolAdmin(effectiveUserRole);
-  if (fromOtherPage && location.pathname !== '/admin') {
+  const fromOtherPage = locationState?.fromNavigation && isSchoolAdmin(effectiveUserRole);
+  const isSchoolAdminReturn = locationState?.schoolAdminReturn === true;
+  
+  // Check if we need to redirect a school admin back to the admin dashboard
+  if ((fromOtherPage || isSchoolAdminReturn) && location.pathname !== '/admin' && isSchoolAdmin(effectiveUserRole)) {
     console.log("PROTECTED ROUTE: School admin redirected from another page, sending to /admin");
     return <Navigate to="/admin" state={{ preserveContext: true, adminRedirect: true }} replace />;
   }
 
   // Check for special navigation states or preserved context
-  const isPreservedContext = location.state?.fromTestAccounts || location.state?.preserveContext;
+  const isPreservedContext = locationState?.fromTestAccounts || locationState?.preserveContext;
   
   // If we have preserved context, allow access
   if (isPreservedContext) {

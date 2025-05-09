@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -6,6 +7,14 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { isSchoolAdmin, getUserRoleWithFallback } from "@/utils/apiHelpers";
+
+// Define a type for our navigation state to fix the TypeScript error
+interface NavigationState {
+  fromNavigation: boolean;
+  preserveContext: boolean;
+  timestamp: number;
+  schoolAdminReturn?: boolean; // Make this property optional
+}
 
 const Navbar = () => {
   const { user, signOut, profile, userRole } = useAuth();
@@ -165,8 +174,8 @@ const Navbar = () => {
       return;
     }
     
-    // Add a special state flag for returning to the proper dashboard
-    let state = { 
+    // Create a properly typed navigation state
+    const navState: NavigationState = {
       fromNavigation: true,
       preserveContext: true,
       timestamp: Date.now()
@@ -174,10 +183,10 @@ const Navbar = () => {
     
     // If we're a school admin, add a flag to ensure proper dashboard on return
     if (isAdmin) {
-      state = { ...state, schoolAdminReturn: true };
+      navState.schoolAdminReturn = true;
     }
     
-    navigate(path, { state });
+    navigate(path, { state: navState });
     setIsOpen(false);
   }, [location.pathname, navigate, isAdmin]);
 

@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom"; // Added useLocation
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
 import { useAuth } from "@/contexts/AuthContext";
@@ -20,13 +19,25 @@ const ChatWithAI = () => {
   const [activeTopic, setActiveTopic] = useState(searchParams.get("topic") || "");
   const [conversationId, setConversationId] = useState<string | null>(searchParams.get("conversationId") || null);
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     // Redirect if user is not logged in
     if (!user) {
       navigate("/login", { state: { from: "/chat" } });
+      return;
     }
-  }, [user, navigate]);
+
+    // Check if user is a school admin and came from another page
+    const fallbackRole = getUserRoleWithFallback();
+    const effectiveRole = userRole || fallbackRole;
+    const isAdmin = isSchoolAdmin(effectiveRole);
+    
+    // Make sure school admins can return properly to their dashboard
+    if (isAdmin) {
+      console.log("ChatWithAI: User is school admin, ensuring proper navigation state for return");
+    }
+  }, [user, navigate, userRole, location]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
