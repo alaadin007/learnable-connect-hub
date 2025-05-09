@@ -1,8 +1,8 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { RefreshCcw, Copy, CheckCircle, AlertCircle } from "lucide-react";
+import { RefreshCcw, Copy, CheckCircle, AlertCircle, Info } from "lucide-react";
 import { useSchoolCode } from "@/hooks/use-school-code";
 import {
   Dialog,
@@ -13,11 +13,19 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
+import { supabase } from "@/integrations/supabase/client";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface SchoolCodeManagerProps {
   schoolId: string;
   currentCode: string;
   onCodeGenerated: (code: string) => void;
+}
+
+interface SchoolCodeInfo {
+  code: string;
+  expiresAt: string | null;
+  generatedAt: string | null;
 }
 
 const SchoolCodeManager: React.FC<SchoolCodeManagerProps> = ({
@@ -28,6 +36,47 @@ const SchoolCodeManager: React.FC<SchoolCodeManagerProps> = ({
   const { generateCode, isGenerating } = useSchoolCode();
   const [showDialog, setShowDialog] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
+  const [codeInfo, setCodeInfo] = useState<SchoolCodeInfo | null>(null);
+  
+  useEffect(() => {
+    if (currentCode) {
+      fetchCodeInfo();
+    }
+  }, [currentCode]);
+  
+  const fetchCodeInfo = async () => {
+    try {
+      // Get code expiration and generation time
+      const { data, error } = await supabase
+        .from("schools")
+        .select("code, code_expires_at")
+        .eq("id", schoolId)
+        .single();
+        
+      if (error) {
+        console.error("Failed to fetch code info:", error);
+        return;
+      }
+      
+      // Get the most recent generation timestamp from logs
+      const { data: logData } = await supabase
+        .from("school_code_logs")
+        .select("generated_at")
+        .eq("school_id", schoolId)
+        .eq("code", currentCode)
+        .order("generated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      setCodeInfo({
+        code: data.code,
+        expiresAt: data.code_expires_at,
+        generatedAt: logData?.generated_at || null
+      });
+    } catch (error) {
+      console.error("Error fetching code info:", error);
+    }
+  };
   
   const handleGenerateCode = async () => {
     if (!schoolId) {
@@ -44,6 +93,9 @@ const SchoolCodeManager: React.FC<SchoolCodeManagerProps> = ({
         onCodeGenerated(newCode);
         setShowDialog(true);
         toast.success("New school code generated successfully");
+        
+        // Fetch updated code info
+        await fetchCodeInfo();
       }
     } catch (error) {
       console.error("Failed to generate code:", error);
@@ -63,6 +115,60 @@ const SchoolCodeManager: React.FC<SchoolCodeManagerProps> = ({
       .catch(() => {
         toast.error("Failed to copy code to clipboard");
       });
+  };
+  
+  const formatExpiryDate = (dateString: string | null) => {
+    if (!dateString) return "No expiration set";
+    
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleString();
+    } catch (e) {
+      return "Invalid date";
+    }
+  };
+  
+  const getExpiryStatus = () => {
+    if (!codeInfo?.expiresAt) return null;
+    
+    try {
+      const expiryDate = new Date(codeInfo.expiresAt);
+      const now = new Date();
+      const hoursRemaining = Math.round((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60));
+      
+      if (expiryDate < now) {
+        return (
+          <Alert variant="destructive" className="mt-2">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              This code has expired. Generate a new code.
+            </AlertDescription>
+          </Alert>
+        );
+      }
+      
+      if (hoursRemaining < 6) {
+        return (
+          <Alert variant="warning" className="mt-2">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              This code will expire soon (in {hoursRemaining} hours). Consider generating a new code.
+            </AlertDescription>
+          </Alert>
+        );
+      }
+      
+      return (
+        <Alert className="mt-2 bg-green-50">
+          <Info className="h-4 w-4" />
+          <AlertDescription>
+            Code valid until {formatExpiryDate(codeInfo.expiresAt)}
+          </AlertDescription>
+        </Alert>
+      );
+    } catch (e) {
+      return null;
+    }
   };
 
   return (
@@ -90,6 +196,7 @@ const SchoolCodeManager: React.FC<SchoolCodeManagerProps> = ({
           )}
         </Button>
       </div>
+      {getExpiryStatus()}
       <p className="text-sm text-muted-foreground mt-2">
         This code is used by teachers and students to join your school.
         Generating a new code will invalidate the old one.
@@ -127,6 +234,19 @@ const SchoolCodeManager: React.FC<SchoolCodeManagerProps> = ({
               </Button>
             </div>
           </div>
+          {codeInfo?.expiresAt && (
+            <div className="bg-blue-50 border border-blue-200 rounded-md p-4 text-blue-800 mb-4">
+              <div className="flex items-start gap-2">
+                <Info className="h-5 w-5 text-blue-600 mt-0.5" />
+                <div>
+                  <h4 className="font-semibold mb-1">Expiration</h4>
+                  <p className="text-sm">
+                    This code will expire on {formatExpiryDate(codeInfo.expiresAt)}.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
           <div className="bg-amber-50 border border-amber-200 rounded-md p-4 text-amber-800">
             <div className="flex items-start gap-2">
               <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5" />

@@ -506,6 +506,59 @@ export type Database = {
           },
         ]
       }
+      school_code_logs: {
+        Row: {
+          code: string
+          generated_at: string
+          generated_by: string
+          id: string
+          school_id: string
+        }
+        Insert: {
+          code: string
+          generated_at?: string
+          generated_by: string
+          id?: string
+          school_id: string
+        }
+        Update: {
+          code?: string
+          generated_at?: string
+          generated_by?: string
+          id?: string
+          school_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "school_code_logs_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_analytics_summary"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "school_code_logs_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_improvement_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "school_code_logs_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_performance_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "school_code_logs_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       school_codes: {
         Row: {
           active: boolean | null
@@ -533,6 +586,7 @@ export type Database = {
       schools: {
         Row: {
           code: string
+          code_expires_at: string | null
           contact_email: string | null
           created_at: string
           description: string | null
@@ -543,6 +597,7 @@ export type Database = {
         }
         Insert: {
           code: string
+          code_expires_at?: string | null
           contact_email?: string | null
           created_at?: string
           description?: string | null
@@ -553,6 +608,7 @@ export type Database = {
         }
         Update: {
           code?: string
+          code_expires_at?: string | null
           contact_email?: string | null
           created_at?: string
           description?: string | null

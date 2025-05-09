@@ -9,7 +9,7 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIU
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey)
 
 // Define test school code that will be used for test accounts
-export const TEST_SCHOOL_CODE = "TEST0";
+export const TEST_SCHOOL_CODE = "SCHTEST0"; // Updated to match new format
 
 // Helper function to check if an account is a test account
 export function isTestAccount(email: string): boolean {

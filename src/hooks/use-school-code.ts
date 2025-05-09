@@ -34,6 +34,19 @@ export function useSchoolCode(): UseSchoolCodeReturn {
         return null;
       }
 
+      // Handle API error responses
+      if (data?.error) {
+        console.error("API error generating school code:", data.error);
+        
+        if (data.error === 'Rate Limit') {
+          toast.error("Too many code generations in 24 hours. Please try again later.");
+        } else {
+          toast.error(data.message || "Failed to generate school code");
+        }
+        
+        return null;
+      }
+
       return data?.code || null;
     } catch (error) {
       console.error("Exception while generating school code:", error);
@@ -52,7 +65,7 @@ export function useSchoolCode(): UseSchoolCodeReturn {
       // Direct validation without using RPC
       const { data, error } = await supabase
         .from("schools")
-        .select("id")
+        .select("id, code_expires_at")
         .eq("code", code)
         .maybeSingle();
 
@@ -61,7 +74,19 @@ export function useSchoolCode(): UseSchoolCodeReturn {
         return false;
       }
 
-      return !!data;
+      // Check if code exists and has not expired
+      if (!data) return false;
+      
+      // Check expiration if it's set
+      if (data.code_expires_at) {
+        const expiresAt = new Date(data.code_expires_at);
+        if (expiresAt < new Date()) {
+          console.log("School code has expired:", code);
+          return false;
+        }
+      }
+
+      return true;
     } catch (error) {
       console.error("Exception while validating school code:", error);
       return false;
