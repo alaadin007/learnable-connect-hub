@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -23,6 +22,11 @@ const SchoolAdmin = () => {
   const [codeInfo, setCodeInfo] = useState<{code: string, expiresAt?: string}>({code: ""});
   const [codeCopied, setCodeCopied] = useState(false);
   const { generateCode, isGenerating } = useSchoolCode();
+
+  // For debugging - log state changes
+  useEffect(() => {
+    console.log("showCodePopup state:", showCodePopup);
+  }, [showCodePopup]);
 
   // Fetch the current school code on component mount
   useEffect(() => {
@@ -62,6 +66,7 @@ const SchoolAdmin = () => {
       code: code,
       expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // Assume 24h expiration
     });
+    // Force open the popup when code is generated
     setShowCodePopup(true);
   };
 
@@ -96,6 +101,18 @@ const SchoolAdmin = () => {
         console.error("Failed to copy:", err);
         toast.error("Failed to copy code");
       });
+  };
+
+  // Function to handle opening the popup
+  const handleOpenCodePopup = () => {
+    console.log("Opening code popup");
+    setShowCodePopup(true);
+  };
+
+  // Function to handle closing the popup
+  const handleCloseCodePopup = () => {
+    console.log("Closing code popup");
+    setShowCodePopup(false);
   };
 
   const schoolId = profile?.organization?.id || profile?.school_id || "";
@@ -141,7 +158,7 @@ const SchoolAdmin = () => {
                     </Button>
                   </div>
                   <Button 
-                    onClick={() => setShowCodePopup(true)} 
+                    onClick={handleOpenCodePopup} 
                     className="w-full bg-blue-600 hover:bg-blue-700"
                   >
                     View School Code
@@ -269,9 +286,10 @@ const SchoolAdmin = () => {
       </main>
       <Footer />
 
+      {/* School Code Popup with debug information */}
       <SchoolCodePopup
         isOpen={showCodePopup}
-        onClose={() => setShowCodePopup(false)}
+        onClose={handleCloseCodePopup}
         code={codeInfo.code}
         expiresAt={codeInfo.expiresAt}
       />

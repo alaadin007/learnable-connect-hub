@@ -52,6 +52,11 @@ const SchoolCodePopup = ({ isOpen, onClose, code, expiresAt }: SchoolCodePopupPr
     }
   };
 
+  // For debugging - log when props change
+  React.useEffect(() => {
+    console.log("SchoolCodePopup isOpen:", isOpen, "code:", code);
+  }, [isOpen, code]);
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
