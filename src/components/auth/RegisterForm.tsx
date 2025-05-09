@@ -1,180 +1,210 @@
 
 import React, { useState } from "react";
-import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Link, useNavigate } from "react-router-dom";
-import { Form, FormControl, FormField, FormItem, FormLabel } from "@/components/ui/form";
-import { Button } from "@/components/ui/button";
+import * as z from "zod";
+import { useNavigate } from "react-router-dom";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { useSchoolCode } from "@/hooks/use-school-code";
-import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Invalid email address" }),
-  password: z.string().min(8, { message: "Password must be at least 8 characters" }),
-  fullName: z.string().min(2, { message: "Full name is required" }),
-  schoolCode: z.string().min(4, { message: "School code is required" })
+  password: z
+    .string()
+    .min(6, { message: "Password must be at least 6 characters" }),
+  confirmPassword: z.string(),
+  fullName: z.string().min(2, { message: "Name must be at least 2 characters" }),
+  schoolCode: z.string().min(1, { message: "School code is required" }),
+})
+.refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords do not match",
+  path: ["confirmPassword"],
 });
 
-type RegisterFormValues = z.infer<typeof formSchema>;
+type FormData = z.infer<typeof formSchema>;
 
 const RegisterForm = () => {
-  const [loading, setLoading] = useState(false);
-  const { verifySchoolCode, getSchoolName } = useSchoolCode();
-  const { signUp } = useAuth();
   const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(false);
 
-  const form = useForm<RegisterFormValues>({
+  const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       email: "",
       password: "",
+      confirmPassword: "",
       fullName: "",
-      schoolCode: ""
-    }
+      schoolCode: "",
+    },
   });
 
-  const onSubmit = async (data: RegisterFormValues) => {
+  const onSubmit = async (data: FormData) => {
+    setIsLoading(true);
     try {
-      setLoading(true);
+      // First verify if the school code is valid
+      const { data: schoolCodeValid, error: schoolCodeError } = await supabase
+        .rpc('verify_school_code', { code: data.schoolCode });
       
-      // Verify school code
-      const isValid = await verifySchoolCode(data.schoolCode);
-      
-      if (!isValid) {
-        toast.error("Invalid school code. Please check and try again.");
-        return;
+      if (schoolCodeError || !schoolCodeValid) {
+        throw new Error("Invalid school code. Please check and try again.");
       }
 
-      const schoolName = await getSchoolName(data.schoolCode);
+      // Get school name from the code
+      const { data: schoolName, error: schoolNameError } = await supabase
+        .rpc('get_school_name_from_code', { code: data.schoolCode });
       
-      // Register user
-      const { error } = await signUp(
-        data.email,
-        data.password,
-        {
-          user_type: "student",
-          full_name: data.fullName,
-          school_code: data.schoolCode,
-          school_name: schoolName
+      if (schoolNameError) {
+        console.error("Error getting school name:", schoolNameError);
+      }
+      
+      // Register user with Supabase
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: data.email,
+        password: data.password,
+        options: {
+          data: {
+            full_name: data.fullName,
+            school_code: data.schoolCode,
+            school_name: schoolName || "Unknown School",
+            user_type: 'student' // Default to student role
+          }
         }
-      );
+      });
 
-      if (error) {
-        console.error("Registration error:", error);
-        toast.error(error.message || "Failed to register. Please try again.");
-        return;
+      if (authError) {
+        console.error("Registration error:", authError);
+        throw new Error(authError.message);
       }
 
-      // Success!
-      toast.success("Registration successful! Please log in.");
-      navigate("/login");
+      if (!authData.user) {
+        throw new Error("Registration failed. Please try again.");
+      }
       
-    } catch (error) {
+      console.log("Registration successful:", authData);
+      
+      // Show success message
+      toast.success(
+        <div>
+          <h3>Registration Successful!</h3>
+          <p>Please check your email to verify your account.</p>
+        </div>, 
+        { duration: 6000 }
+      );
+      
+      // Redirect to login page
+      setTimeout(() => navigate("/login"), 1000);
+      
+    } catch (error: any) {
       console.error("Registration error:", error);
-      toast.error("An unexpected error occurred. Please try again.");
+      toast.error(error.message || "Registration failed. Please try again.");
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-8 w-full max-w-md mx-auto">
-      <h2 className="text-2xl font-bold mb-6 text-center">Create Your Account</h2>
-      
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          <FormField
-            control={form.control}
-            name="email"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Email address</FormLabel>
-                <FormControl>
-                  <Input 
-                    placeholder="Enter your email" 
-                    type="email" 
-                    {...field} 
-                    disabled={loading}
-                  />
-                </FormControl>
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="password"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Password</FormLabel>
-                <FormControl>
-                  <Input 
-                    placeholder="Create a secure password" 
-                    type="password" 
-                    {...field} 
-                    disabled={loading}
-                  />
-                </FormControl>
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="fullName"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Full Name</FormLabel>
-                <FormControl>
-                  <Input 
-                    placeholder="Enter your full name" 
-                    {...field} 
-                    disabled={loading}
-                  />
-                </FormControl>
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="schoolCode"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>School Code</FormLabel>
-                <FormControl>
-                  <Input 
-                    placeholder="Enter your school's code" 
-                    {...field} 
-                    disabled={loading}
-                  />
-                </FormControl>
-              </FormItem>
-            )}
-          />
-
-          <Button 
-            type="submit" 
-            className="w-full mt-6" 
-            disabled={loading}
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <FormField
+          control={form.control}
+          name="email"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Email</FormLabel>
+              <FormControl>
+                <Input type="email" placeholder="you@example.com" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        
+        <FormField
+          control={form.control}
+          name="fullName"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Full Name</FormLabel>
+              <FormControl>
+                <Input placeholder="John Doe" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        
+        <FormField
+          control={form.control}
+          name="schoolCode"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>School Code</FormLabel>
+              <FormControl>
+                <Input placeholder="Enter your school code" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        
+        <FormField
+          control={form.control}
+          name="password"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Password</FormLabel>
+              <FormControl>
+                <Input type="password" placeholder="******" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        
+        <FormField
+          control={form.control}
+          name="confirmPassword"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Confirm Password</FormLabel>
+              <FormControl>
+                <Input type="password" placeholder="******" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        
+        <Button 
+          type="submit" 
+          className="w-full gradient-bg" 
+          disabled={isLoading}
+        >
+          {isLoading ? "Registering..." : "Register"}
+        </Button>
+        
+        <p className="text-center text-sm">
+          Already have an account?{" "}
+          <Button
+            variant="link"
+            className="p-0 h-auto text-primary"
+            onClick={() => navigate("/login")}
           >
-            {loading ? "Registering..." : "Register"}
+            Login
           </Button>
-          
-          <div className="text-center mt-4">
-            <p className="text-sm text-gray-600">
-              Already have an account?{" "}
-              <Link to="/login" className="text-blue-600 hover:underline">
-                Log in
-              </Link>
-            </p>
-          </div>
-        </form>
-      </Form>
-    </div>
+        </p>
+      </form>
+    </Form>
   );
 };
 
