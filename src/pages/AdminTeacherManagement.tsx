@@ -1,4 +1,5 @@
-import React, { useContext } from "react";
+
+import React from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -6,16 +7,15 @@ import TeacherManagement from "@/components/school-admin/TeacherManagement";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import AdminNavbar from "@/components/school-admin/AdminNavbar";
-import SchoolCodeManager from "@/components/school-admin/SchoolCodeManager";
+import SchoolCodeGenerator from "@/components/school-admin/SchoolCodeGenerator";
 import { useAuth } from "@/contexts/AuthContext";
 
 const AdminTeacherManagement = () => {
   const navigate = useNavigate();
   const { profile } = useAuth();
 
-  // Get schoolId and currentCode from profile (adjust as needed for your context)
+  // Get schoolId from profile
   const schoolId = profile?.organization?.id || profile?.school_id || "";
-  const currentCode = profile?.organization?.code || profile?.school_code || "";
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -37,14 +37,16 @@ const AdminTeacherManagement = () => {
 
           <AdminNavbar className="mb-8" />
 
-          {/* School Code Manager block */}
+          {/* School Code Generator */}
           {schoolId && (
             <div className="mb-8">
-              <SchoolCodeManager
-                schoolId={schoolId}
-                currentCode={currentCode}
-                onCodeGenerated={() => {}} // Optionally handle code updates
-              />
+              <div className="bg-white p-6 rounded-lg shadow-sm border">
+                <h2 className="text-xl font-semibold mb-4">School Invitation Code</h2>
+                <p className="text-gray-600 mb-4">Share this code with teachers to join your school</p>
+                <div className="max-w-md">
+                  <SchoolCodeGenerator />
+                </div>
+              </div>
             </div>
           )}
 

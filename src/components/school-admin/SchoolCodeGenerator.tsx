@@ -2,9 +2,10 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Copy, CheckCircle, Loader2 } from "lucide-react";
+import { Copy, CheckCircle } from "lucide-react";
 import { useSchoolCode } from "@/hooks/use-school-code";
 import { useAuth } from "@/contexts/AuthContext";
+import { getUserSchoolId } from "@/utils/apiHelpers";
 
 interface SchoolCodeGeneratorProps {
   onCodeGenerated?: (code: string) => void;
@@ -16,7 +17,7 @@ interface SchoolCodeGeneratorProps {
 
 const SchoolCodeGenerator: React.FC<SchoolCodeGeneratorProps> = ({ 
   onCodeGenerated, 
-  className,
+  className = "",
   variant = 'school',
   label = variant === 'school' ? 'School Code' : 'Student Invitation Code',
   description = variant === 'school' 
@@ -29,30 +30,26 @@ const SchoolCodeGenerator: React.FC<SchoolCodeGeneratorProps> = ({
   const { 
     generateCode, 
     generateStudentInviteCode,
-    isGenerating, 
     fetchCurrentCode 
   } = useSchoolCode();
 
   // Fetch current code on component mount
   useEffect(() => {
     const getExistingCode = async () => {
-      const schoolId = contextSchoolId;
+      const schoolId = contextSchoolId || await getUserSchoolId();
+      
       if (!schoolId) {
-        console.warn("No school ID available in context");
+        console.log("No school ID available to fetch code");
         return;
       }
 
       if (variant === 'school') {
         try {
-          console.log("Fetching existing school code for school ID:", schoolId);
           const currentCode = await fetchCurrentCode(schoolId);
           
           if (currentCode) {
-            console.log("Found existing code:", currentCode);
             setGeneratedCode(currentCode);
             if (onCodeGenerated) onCodeGenerated(currentCode);
-          } else {
-            console.log("No existing code found");
           }
         } catch (error) {
           console.error("Error fetching existing code:", error);
@@ -64,14 +61,12 @@ const SchoolCodeGenerator: React.FC<SchoolCodeGeneratorProps> = ({
   }, [contextSchoolId, fetchCurrentCode, onCodeGenerated, variant]);
 
   const handleGenerateCode = async () => {
-    const schoolId = contextSchoolId;
+    const schoolId = contextSchoolId || await getUserSchoolId();
+    
     if (!schoolId) {
-      console.error("No school ID found in context");
       toast.error("Could not determine your school ID");
       return;
     }
-
-    console.log("Generating code for variant:", variant, "school ID:", schoolId);
     
     let newCode: string | null = null;
     
@@ -82,12 +77,9 @@ const SchoolCodeGenerator: React.FC<SchoolCodeGeneratorProps> = ({
     }
     
     if (newCode) {
-      console.log(`New ${variant} code generated:`, newCode);
       setGeneratedCode(newCode);
       toast.success(`New ${variant} code generated successfully`);
       if (onCodeGenerated) onCodeGenerated(newCode);
-    } else {
-      console.error("Failed to generate code");
     }
   };
 
@@ -111,17 +103,9 @@ const SchoolCodeGenerator: React.FC<SchoolCodeGeneratorProps> = ({
       {!generatedCode ? (
         <Button
           onClick={handleGenerateCode}
-          disabled={isGenerating}
           className="w-full bg-blue-600 hover:bg-blue-700"
         >
-          {isGenerating ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              Generating...
-            </>
-          ) : (
-            `Generate ${label}`
-          )}
+          {`Generate ${label}`}
         </Button>
       ) : (
         <div className="space-y-6">
@@ -148,18 +132,10 @@ const SchoolCodeGenerator: React.FC<SchoolCodeGeneratorProps> = ({
 
           <Button
             onClick={handleGenerateCode}
-            disabled={isGenerating}
             variant="outline"
             className="w-full"
           >
-            {isGenerating ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                Generating...
-              </>
-            ) : (
-              `Generate New ${variant === 'school' ? 'School' : 'Student'} Code`
-            )}
+            {`Generate New ${variant === 'school' ? 'School' : 'Student'} Code`}
           </Button>
         </div>
       )}
