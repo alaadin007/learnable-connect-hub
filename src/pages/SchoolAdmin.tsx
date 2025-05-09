@@ -1,5 +1,6 @@
-import React from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,11 +8,12 @@ import { School } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import Footer from "@/components/layout/Footer";
 import AdminNavbar from "@/components/school-admin/AdminNavbar";
+import SchoolCodeGenerator from "@/components/school-admin/SchoolCodeGenerator";
 
 const SchoolAdmin = () => {
   const { user, profile, userRole } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
+  const [currentCode, setCurrentCode] = useState<string>("");
   
   return (
     <>
@@ -25,6 +27,42 @@ const SchoolAdmin = () => {
         </div>
         
         <AdminNavbar className="mb-8" />
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+          <SchoolCodeGenerator 
+            className="md:col-span-1" 
+            onCodeGenerated={code => setCurrentCode(code)} 
+          />
+          
+          <Card className="md:col-span-2">
+            <CardContent className="p-6">
+              <div className="space-y-4">
+                <h3 className="text-xl font-bold mb-1">School Profile</h3>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="text-indigo-600">
+                    <School className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <p>
+                      <strong>School: </strong>{profile?.organization?.name || profile?.school_name || "Your School"}
+                    </p>
+                    <p>
+                      <strong>Admin: </strong>{profile?.full_name || user?.email}
+                    </p>
+                    {currentCode && (
+                      <p className="mt-2">
+                        <strong>School Code: </strong>
+                        <code className="bg-gray-100 px-2 py-1 rounded text-indigo-600 font-mono">
+                          {currentCode}
+                        </code>
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Card className="border overflow-hidden">
@@ -95,36 +133,6 @@ const SchoolAdmin = () => {
                 >
                   School Settings
                 </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border overflow-hidden col-span-1 md:col-span-2">
-            <CardContent className="p-6">
-              <div className="space-y-4">
-                <h3 className="text-xl font-bold mb-1">School Profile</h3>
-                <p className="text-sm text-gray-500 mb-1">School information</p>
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="text-indigo-600">
-                    <School className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <p>
-                      <strong>School: </strong>{profile?.organization?.name || profile?.school_name || "Your School"}
-                    </p>
-                    <p>
-                      <strong>Admin: </strong>{profile?.full_name || user?.email}
-                    </p>
-                    {profile?.organization?.code && (
-                      <p className="mt-2">
-                        <strong>School Code: </strong>
-                        <code className="bg-gray-100 px-2 py-1 rounded text-indigo-600 font-mono">
-                          {profile.organization.code}
-                        </code>
-                      </p>
-                    )}
-                  </div>
-                </div>
               </div>
             </CardContent>
           </Card>

@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -100,6 +99,7 @@ const Dashboard = () => {
   );
 };
 
+// Keep the DashboardCard component
 interface DashboardCardProps {
   title: string;
   description: string;
