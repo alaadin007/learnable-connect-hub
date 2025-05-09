@@ -57,8 +57,8 @@ const RegisterForm = () => {
   const onSubmit = async (data: FormData) => {
     setIsLoading(true);
     try {
-      // First verify if the school code is valid using our new function
-      const { data: schoolInfo, error: validationError } = await supabase
+      // First verify if the school code is valid using our function
+      const { data: schoolInfoArray, error: validationError } = await supabase
         .rpc('verify_and_link_school_code', { code: data.schoolCode });
       
       if (validationError) {
@@ -67,17 +67,24 @@ const RegisterForm = () => {
       }
 
       // schoolInfo is an array, so we need to get the first element
-      if (!schoolInfo || !schoolInfo[0] || !schoolInfo[0].valid) {
+      if (!schoolInfoArray || schoolInfoArray.length === 0 || !schoolInfoArray[0].valid) {
         throw new Error("Invalid school code. Please check and try again.");
       }
 
       // Extract the school details from the validation result (from first element of array)
-      const schoolId = schoolInfo[0].school_id;
-      const schoolName = schoolInfo[0].school_name;
+      const schoolInfo = schoolInfoArray[0];
+      const schoolId = schoolInfo.school_id;
+      const schoolName = schoolInfo.school_name;
       
       if (!schoolId) {
         throw new Error("Could not find school information. Please check your school code.");
       }
+      
+      console.log("School validation successful:", {
+        schoolId,
+        schoolName,
+        code: data.schoolCode
+      });
       
       // Register user with Supabase
       const { data: authData, error: authError } = await supabase.auth.signUp({

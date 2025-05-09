@@ -48,6 +48,13 @@ serve(async (req) => {
     const schoolCode = userMetadata.school_code;
     const schoolName = userMetadata.school_name;
     
+    console.log("User setup with metadata:", {
+      userType,
+      schoolId,
+      schoolCode,
+      schoolName
+    });
+    
     // Ensure profile has the correct details
     const { error: profileError } = await supabaseClient
       .from("profiles")

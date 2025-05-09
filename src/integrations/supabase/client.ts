@@ -27,3 +27,33 @@ export const TEST_SCHOOL_CODE = "SCHTEST0"
 export function isTestAccount(email: string): boolean {
   return email.includes(".test@learnable.edu") || email.startsWith("test-");
 }
+
+// Helper function to verify a school code
+export async function verifySchoolCode(code: string): Promise<{
+  valid: boolean;
+  schoolId?: string;
+  schoolName?: string;
+}> {
+  try {
+    const { data, error } = await supabase
+      .rpc('verify_and_link_school_code', { code });
+    
+    if (error) {
+      console.error("Error verifying school code:", error);
+      return { valid: false };
+    }
+    
+    if (!data || data.length === 0 || !data[0].valid) {
+      return { valid: false };
+    }
+    
+    return {
+      valid: true,
+      schoolId: data[0].school_id,
+      schoolName: data[0].school_name
+    };
+  } catch (error) {
+    console.error("Exception verifying school code:", error);
+    return { valid: false };
+  }
+}
