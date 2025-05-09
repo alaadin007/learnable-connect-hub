@@ -6,11 +6,15 @@ import { useAuth, UserRole } from '@/contexts/AuthContext';
 interface ProtectedRouteProps {
   children: React.ReactNode;
   requiredRole?: UserRole | UserRole[];
+  allowedRoles?: string[];
+  requiredUserType?: string;
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children,
   requiredRole = 'any',
+  allowedRoles,
+  requiredUserType,
 }) => {
   const { isAuthenticated, userRole, isLoading, isSuperviser, session } = useAuth();
 
@@ -29,8 +33,31 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to="/login" replace />;
   }
 
+  // Handle allowedRoles prop if provided (used in App.tsx)
+  if (allowedRoles && allowedRoles.length > 0) {
+    const hasAllowedRole = allowedRoles.includes(userRole as string);
+    const isSupervisorAccessingContent = 
+      isSuperviser && 
+      allowedRoles.includes('teacher');
+      
+    if (hasAllowedRole || isSupervisorAccessingContent) {
+      return <>{children}</>;
+    }
+  }
+
+  // Handle requiredUserType prop if provided (used in App.tsx)
+  if (requiredUserType) {
+    const hasRequiredType = userRole === requiredUserType;
+    const isSupervisorAccessingTeacherContent = 
+      isSuperviser && requiredUserType === 'teacher';
+      
+    if (hasRequiredType || isSupervisorAccessingTeacherContent) {
+      return <>{children}</>;
+    }
+  }
+
   // If no specific role is required, allow access
-  if (requiredRole === 'any') {
+  if (requiredRole === 'any' && !allowedRoles && !requiredUserType) {
     return <>{children}</>;
   }
 
