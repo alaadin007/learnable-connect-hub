@@ -1,372 +1,347 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
-import { Session, User } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
-import { Profile } from '@/types/profile';
-import { getUserRoleWithFallback } from '@/utils/apiHelpers';
 
-export type UserRole = 'student' | 'teacher' | 'school' | 'school_admin' | null;
+import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { Session, User } from "@supabase/supabase-js";
+import { supabase, isTestAccount } from "@/integrations/supabase/client";
+import { Database } from "@/integrations/supabase/types";
 
-export interface AuthContextType {
-  user: User | null;
+// Define types for user roles based on the actual application structure
+export type UserRole = "school" | "school_admin" | "teacher" | "student";
+
+interface AuthState {
   session: Session | null;
-  profile: Profile | null;
-  userRole: UserRole;
+  user: User | null;
+  profile: any | null;
+  userRole: UserRole | null;
   isSuperviser: boolean;
   schoolId: string | null;
   isLoading: boolean;
-  signIn: (email: string) => Promise<void>;
+  signIn: (session: Session) => Promise<void>;
   signOut: () => Promise<void>;
-  updateProfile: (updates: any) => Promise<void>;
   refreshProfile: () => Promise<void>;
-  setTestUser: (accountType: "school" | "teacher" | "student", schoolIndex?: number) => Promise<void>;
-  signUp: (email: string, password: string) => Promise<void>;
+  setTestUser: (type: "school" | "teacher" | "student", schoolIndex?: number) => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType>({
-  user: null,
+// Create context with a default value
+const AuthContext = createContext<AuthState>({
   session: null,
+  user: null,
   profile: null,
   userRole: null,
   isSuperviser: false,
   schoolId: null,
-  isLoading: false,
+  isLoading: true,
   signIn: async () => {},
   signOut: async () => {},
-  updateProfile: async () => {},
   refreshProfile: async () => {},
   setTestUser: async () => {},
-  signUp: async () => {},
 });
 
-interface AuthProviderProps {
-  children: React.ReactNode;
-}
+// Define test user data
+const TEST_USERS = {
+  school: {
+    id: "test-school-admin",
+    email: "school.test@learnable.edu",
+    name: "Test School Admin",
+    role: "school",
+    schoolId: "test-school-id",
+    isSuperviser: true,
+  },
+  teacher: {
+    id: "test-teacher",
+    email: "teacher.test@learnable.edu",
+    name: "Test Teacher",
+    role: "teacher",
+    schoolId: "test-school-id",
+    isSuperviser: false,
+  },
+  student: {
+    id: "test-student",
+    email: "student.test@learnable.edu",
+    name: "Test Student",
+    role: "student",
+    schoolId: "test-school-id",
+    isSuperviser: false,
+  },
+};
 
-export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [userRole, setUserRole] = useState<UserRole>(null);
-  const [isSuperviser, setIsSuperviser] = useState<boolean>(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<any | null>(null);
+  const [userRole, setUserRole] = useState<UserRole | null>(null);
+  const [isSuperviser, setIsSuperviser] = useState(false);
   const [schoolId, setSchoolId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Optimized auth initialization
+  // Load session from localStorage on mount
   useEffect(() => {
-    // Set up auth state listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, currentSession) => {
-        // Update session and user synchronously
-        setSession(currentSession);
-        setUser(currentSession?.user || null);
-
-        if (currentSession?.user) {
-          // Use setTimeout with 0ms to defer profile fetch without adding delay
-          fetchUserProfile(currentSession.user);
-        } else {
-          setProfile(null);
-          setUserRole(null);
-          setIsSuperviser(false);
-          setSchoolId(null);
-          
-          // Clear localStorage when logged out
-          localStorage.removeItem('userRole');
-          localStorage.removeItem('schoolId');
+    const getSession = async () => {
+      try {
+        // First check for existing session
+        const { data, error } = await supabase.auth.getSession();
+        if (error) {
+          console.error("Session retrieval error:", error);
+          throw error;
         }
-      }
-    );
 
-    // Check for existing session
-    const checkSession = async () => {
-      setIsLoading(true);
-      const { data: { session: initialSession } } = await supabase.auth.getSession();
-      
-      setSession(initialSession);
-      setUser(initialSession?.user || null);
-
-      if (initialSession?.user) {
-        await fetchUserProfile(initialSession.user);
+        // Handle session data
+        if (data.session) {
+          handleSession(data.session);
+        } else {
+          console.log("No active session found");
+          // Try to restore from localStorage as fallback
+          restoreFromLocalStorage();
+        }
+      } catch (err) {
+        console.error("Error retrieving session:", err);
+        restoreFromLocalStorage();
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     };
 
-    checkSession();
+    getSession();
+
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      console.log("Auth state changed:", _event, !!session);
+      if (session) {
+        handleSession(session);
+      }
+    });
 
     return () => {
-      subscription?.unsubscribe();
+      subscription.unsubscribe();
     };
   }, []);
 
-  const checkIfUserIsSchoolAdmin = async (userId: string): Promise<boolean> => {
+  // Restore user, profile, and role from localStorage if available
+  const restoreFromLocalStorage = () => {
     try {
-      // First check if user exists in school_admins table
-      const { data: adminData, error: adminError } = await supabase
-        .from('school_admins')
-        .select('id')
-        .eq('id', userId)
-        .maybeSingle();
-      
-      if (adminError) {
-        console.error("Error checking school_admins table:", adminError);
-      } else if (adminData) {
-        return true;
+      // Try to find user data in localStorage
+      const savedUserRole = localStorage.getItem('userRole');
+      const savedSchoolId = localStorage.getItem('schoolId');
+      const savedIsSuperviser = localStorage.getItem('isSuperviser') === 'true';
+
+      // If we have the basic role data, set it
+      if (savedUserRole) {
+        setUserRole(savedUserRole as UserRole);
       }
-      
-      // Check if user has a profile with supervisor status
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('is_supervisor')
-        .eq('id', userId)
-        .maybeSingle();
-      
-      if (profileError) {
-        console.error("Error checking if user is school admin:", profileError);
-      } else if (profileData?.is_supervisor === true) {
-        return true;
+
+      if (savedSchoolId) {
+        setSchoolId(savedSchoolId);
       }
-      
-      // Check if user is in teachers table with supervisor flag
-      const { data: teacherData, error: teacherError } = await supabase
-        .from('teachers')
-        .select('is_supervisor')
-        .eq('id', userId)
-        .maybeSingle();
-      
-      if (teacherError) {
-        console.error("Error checking teacher supervisor status:", teacherError);
-      } else if (teacherData?.is_supervisor === true) {
-        return true;
+
+      if (savedIsSuperviser) {
+        setIsSuperviser(true);
       }
-      
-      return false;
     } catch (error) {
-      console.error("Exception checking if user is school admin:", error);
-      return false;
+      console.error("Failed to restore auth state from localStorage:", error);
     }
   };
 
-  const fetchUserProfile = async (currentUser: User) => {
+  // Handle session data
+  const handleSession = async (newSession: Session) => {
     try {
-      setIsLoading(true);
-      // Fetch profile data directly to avoid RPC calls that might cause recursion
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('*, organization:school_id(*)')
-        .eq('id', currentUser.id)
-        .single();
+      setSession(newSession);
+      setUser(newSession.user);
+      
+      // Ensure API key is correctly set in future requests
+      supabase.auth.setSession({
+        access_token: newSession.access_token,
+        refresh_token: newSession.refresh_token || '',
+      });
+      
+      // Determine user role from metadata
+      const userData = newSession.user;
 
-      if (profileError) {
-        console.error("Error fetching profile:", profileError);
-        // Fallback to checking if user is a school admin
-        const isAdmin = await checkIfUserIsSchoolAdmin(currentUser.id);
-        setIsSuperviser(isAdmin);
+      if (userData) {
+        // Check if this is a test account
+        const email = userData.email || '';
+        if (isTestAccount(email)) {
+          // For test accounts, restore from local storage
+          restoreFromLocalStorage();
+        } else {
+          // For real users, determine role from metadata
+          const metadata = userData.user_metadata;
+          const userType = metadata?.user_type as UserRole || "student";
+          const isAdmin = userType === 'school' || userType === 'school_admin';
+
+          // Update state
+          setUserRole(userType);
+          setIsSuperviser(isAdmin);
+          localStorage.setItem('userRole', userType);
+          localStorage.setItem('isSuperviser', isAdmin.toString());
+
+          // Try to fetch profile to get school ID
+          await refreshProfile();
+        }
       }
-
-      // Convert the profileData to Profile type
-      const fetchedProfile: Profile | null = profileData ? {
-        id: profileData.id,
-        full_name: profileData.full_name,
-        email: profileData.email,
-        user_type: profileData.user_type,
-        is_supervisor: profileData.is_supervisor,
-        organization_id: profileData.school_id,
-        school_id: profileData.school_id,
-        school_code: profileData.school_code,
-        school_name: profileData.school_name,
-        is_active: profileData.is_active,
-        created_at: profileData.created_at,
-        updated_at: profileData.updated_at,
-        organization: typeof profileData.organization === 'object' && profileData.organization !== null ? 
-          {
-            id: (profileData.organization as Record<string, any>)?.id,
-            name: (profileData.organization as Record<string, any>)?.name,
-            code: (profileData.organization as Record<string, any>)?.code
-          } : 
-          undefined
-      } : null;
-      
-      setProfile(fetchedProfile);
-
-      // Set school ID
-      const effectiveSchoolId = fetchedProfile?.organization_id || fetchedProfile?.school_id || null;
-      setSchoolId(effectiveSchoolId);
-      
-      // Store schoolId in localStorage for components that need it without context
-      if (effectiveSchoolId) {
-        localStorage.setItem('schoolId', effectiveSchoolId);
-      }
-
-      // Determine user role based on profile data
-      let role: UserRole = null;
-      
-      if (fetchedProfile?.user_type === 'school' || fetchedProfile?.is_supervisor) {
-        role = fetchedProfile.user_type === 'school' ? 'school' : 'school_admin';
-      } else if (fetchedProfile?.user_type === 'teacher') {
-        role = 'teacher';
-      } else if (fetchedProfile?.user_type === 'student') {
-        role = 'student';
-      }
-      
-      // Store determined role in localStorage
-      if (role) {
-        localStorage.setItem('userRole', role);
-      }
-      
-      // Set user role in context
-      setUserRole(role);
-
-      // Set isSuperviser
-      const isSupervisor = fetchedProfile?.is_supervisor === true || await checkIfUserIsSchoolAdmin(currentUser.id);
-      setIsSuperviser(isSupervisor);
     } catch (error) {
-      console.error("Error fetching user profile or determining role:", error);
+      console.error("Error handling session:", error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const signIn = async (email: string) => {
+  const signIn = async (session: Session) => {
     try {
-      const { error } = await supabase.auth.signInWithOtp({ email });
-      if (error) throw error;
-      alert('Check your email for the magic link to sign in.');
-    } catch (error: any) {
-      alert(error.error_description || error.message);
+      await handleSession(session);
+    } catch (error) {
+      console.error("Error signing in:", error);
     }
   };
 
   const signOut = async () => {
     try {
       await supabase.auth.signOut();
-      
-      // Clear all auth-related state
       setSession(null);
       setUser(null);
       setProfile(null);
       setUserRole(null);
       setIsSuperviser(false);
       setSchoolId(null);
-      
-      // Navigate is handled by the component calling this function
+
+      // Clear localStorage
+      localStorage.removeItem('userRole');
+      localStorage.removeItem('schoolId');
+      localStorage.removeItem('isSuperviser');
+      localStorage.removeItem('user-settings');
     } catch (error) {
-      console.error("AuthContext: Error signing out:", error);
-      throw error; // Rethrow to allow component to handle the error
+      console.error("Error signing out:", error);
     }
   };
 
-  const updateProfile = async (updates: any) => {
+  // Refresh user profile data
+  const refreshProfile = async () => {
     try {
-      const { error } = await supabase.from('profiles').upsert({
-        id: user!.id,
-        ...updates,
-      });
+      if (!user) return;
 
-      if (error) {
-        throw error;
+      // Try to get schoolId from different sources
+      let userSchoolId: string | null = null;
+      let userIsSuperviser = false;
+      
+      try {
+        // First check if user is a school admin
+        const { data: adminData, error: adminError } = await supabase
+          .from('school_admins')
+          .select('id')
+          .eq('id', user.id);
+
+        if (!adminError && adminData && adminData.length > 0) {
+          userIsSuperviser = true;
+          
+          // Get schoolId from teachers table for school admins
+          const { data: teacherData } = await supabase
+            .from('teachers')
+            .select('school_id')
+            .eq('id', user.id)
+            .single();
+            
+          if (teacherData) {
+            userSchoolId = teacherData.school_id;
+          }
+        }
+        
+        if (!userSchoolId) {
+          // If not found as admin, check in teachers table
+          const { data: teacherData } = await supabase
+            .from('teachers')
+            .select('school_id, is_supervisor')
+            .eq('id', user.id)
+            .single();
+            
+          if (teacherData) {
+            userSchoolId = teacherData.school_id;
+            userIsSuperviser = teacherData.is_supervisor || false;
+          } else {
+            // Finally check in students table
+            const { data: studentData } = await supabase
+              .from('students')
+              .select('school_id')
+              .eq('id', user.id)
+              .single();
+              
+            if (studentData) {
+              userSchoolId = studentData.school_id;
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching school ID:", error);
       }
 
-      // Optimistically update the profile in the context
-      setProfile((prevProfile) => ({ ...prevProfile, ...updates } as Profile));
-    } catch (error: any) {
-      alert(error.error_description || error.message);
-    }
-  };
-  
-  const refreshProfile = async () => {
-    if (!user) {
-      return;
-    }
-    
-    try {
-      await fetchUserProfile(user);
+      // Update local state
+      setSchoolId(userSchoolId);
+      setIsSuperviser(userIsSuperviser);
+
+      // Store in localStorage for persistence
+      if (userSchoolId) {
+        localStorage.setItem('schoolId', userSchoolId);
+      }
+      localStorage.setItem('isSuperviser', userIsSuperviser.toString());
+      
+      // Extract user role from metadata and store it
+      if (user.user_metadata?.user_type) {
+        const role = user.user_metadata.user_type as UserRole;
+        setUserRole(role);
+        localStorage.setItem('userRole', role);
+      }
     } catch (error) {
-      console.error("AuthContext: Error refreshing user profile:", error);
+      console.error("Error refreshing profile:", error);
     }
   };
-  
-  const setTestUser = async (accountType: "school" | "teacher" | "student", schoolIndex: number = 0) => {
+
+  // Set up test user
+  const setTestUser = async (
+    type: "school" | "teacher" | "student",
+    schoolIndex = 0
+  ) => {
     try {
-      // Log out any existing user first
-      await supabase.auth.signOut();
-      
-      // Set up mock data
-      const mockUserData = {
-        id: `test-${accountType}-${Date.now()}`,
-        email: `${accountType}.test@learnable.edu`,
-        user_metadata: { 
-          full_name: `Test ${accountType.charAt(0).toUpperCase() + accountType.slice(1)}`,
-          user_type: accountType
-        },
-        app_metadata: {},
-        aud: 'authenticated',
-        created_at: new Date().toISOString()
-      };
-      
-      const mockUser = mockUserData as unknown as User;
-      
-      const mockProfile: Profile = {
-        id: mockUser.id,
-        full_name: mockUser.user_metadata.full_name,
-        user_type: accountType,
-        email: mockUser.email,
-        is_supervisor: accountType === "school",
-        organization_id: `school-org-${schoolIndex}`,
-        organization: {
-          id: `school-org-${schoolIndex}`,
-          name: `Test School ${schoolIndex}`,
-          code: `TEST${schoolIndex}`
-        },
-        school_id: `school-org-${schoolIndex}`,
-        school_name: `Test School ${schoolIndex}`,
-        is_active: true
-      };
-      
-      // Update context state
-      setUser(mockUser);
-      setProfile(mockProfile);
-      setUserRole(accountType as UserRole);
-      setIsSuperviser(accountType === "school");
-      setSchoolId(mockProfile.organization_id || null);
-      
-      // Create a mock session
-      const mockSession = {
+      const testUser = TEST_USERS[type];
+
+      // Create a fake session for test users
+      const fakeSession = {
         provider_token: null,
         provider_refresh_token: null,
-        access_token: `mock-token-${Date.now()}`,
-        refresh_token: `mock-refresh-${Date.now()}`,
-        expires_in: 3600,
-        expires_at: Math.floor(Date.now() / 1000) + 3600,
-        token_type: 'bearer',
-        user: mockUser
-      } as Session;
-      
-      setSession(mockSession);
-      
+        access_token: `test-access-token-${type}`,
+        refresh_token: `test-refresh-token-${type}`,
+        expires_in: 60 * 60,
+        expires_at: new Date().getTime() + 60 * 60 * 1000,
+        token_type: "bearer",
+        user: {
+          id: testUser.id,
+          app_metadata: {},
+          user_metadata: {
+            user_type: testUser.role,
+            full_name: testUser.name,
+          },
+          aud: "authenticated",
+          email: testUser.email,
+        },
+      } as unknown as Session;
+
+      // Set fake session
+      setSession(fakeSession);
+      setUser(fakeSession.user as User);
+      setProfile({ full_name: testUser.name, email: testUser.email });
+      setUserRole(testUser.role as UserRole);
+      setIsSuperviser(testUser.isSuperviser);
+      setSchoolId(testUser.schoolId);
+
+      // Store in localStorage for persistence
+      localStorage.setItem('userRole', testUser.role);
+      localStorage.setItem('schoolId', testUser.schoolId);
+      localStorage.setItem('isSuperviser', testUser.isSuperviser.toString());
     } catch (error) {
       console.error("Error setting test user:", error);
       throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
-  const signUp = async (email: string, password: string) => {
-    try {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password
-      });
-      
-      if (error) throw error;
-    } catch (error: any) {
-      console.error("Error signing up:", error);
-      throw error;
     }
   };
 
-  const value = {
-    user,
+  const contextValue: AuthState = {
     session,
+    user,
     profile,
     userRole,
     isSuperviser,
@@ -374,19 +349,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isLoading,
     signIn,
     signOut,
-    updateProfile,
     refreshProfile,
     setTestUser,
-    signUp
   };
 
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );
 };
 
-export const useAuth = () => {
-  return useContext(AuthContext);
-};
+// Create and export the hook
+export const useAuth = () => useContext(AuthContext);

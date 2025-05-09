@@ -1,13 +1,34 @@
+
 import React, { useEffect } from "react";
 import LoginForm from "@/components/auth/LoginForm";
 import Footer from "@/components/landing/Footer";
 import { Link, useNavigate } from "react-router-dom";
 import { AlertCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 
 const Login = () => {
   const { user, userRole, session, isLoading } = useAuth();
   const navigate = useNavigate();
+  
+  // Check Supabase connection on component mount
+  useEffect(() => {
+    const checkSupabaseConnection = async () => {
+      try {
+        // Simple ping test to verify API key is working
+        const { error } = await supabase.from('profiles').select('count', { count: 'exact', head: true });
+        if (error && error.message.includes('No API key found')) {
+          console.error("Supabase connection error: API key not found", error);
+          // Force refresh the session to ensure headers are properly set
+          await supabase.auth.refreshSession();
+        }
+      } catch (err) {
+        console.error("Failed to check Supabase connection:", err);
+      }
+    };
+    
+    checkSupabaseConnection();
+  }, []);
   
   // Immediately redirect authenticated users without delay
   useEffect(() => {

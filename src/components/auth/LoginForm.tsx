@@ -15,6 +15,7 @@ const LoginForm = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   
   const { signIn, setTestUser, userRole, refreshProfile, session, user } = useAuth();
   const navigate = useNavigate();
@@ -57,9 +58,11 @@ const LoginForm = () => {
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
     setLoginError(null);
+    setIsLoggingIn(true);
 
     if (!email || !password) {
       toast.error("Please enter both email and password");
+      setIsLoggingIn(false);
       return;
     }
 
@@ -97,6 +100,7 @@ const LoginForm = () => {
             timestamp: Date.now()
           } 
         });
+        setIsLoggingIn(false);
         return;
       }
       
@@ -113,6 +117,15 @@ const LoginForm = () => {
       if (!data?.user) {
         throw new Error("User data not found after authentication");
       }
+      
+      // Store session in localStorage (this is crucial for API headers)
+      localStorage.setItem('supabase.auth.token', JSON.stringify({
+        access_token: data.session?.access_token,
+        refresh_token: data.session?.refresh_token,
+      }));
+
+      // Set auth state
+      await signIn(data.session);
       
       // Immediately refresh profile data
       await refreshProfile();
@@ -162,6 +175,11 @@ const LoginForm = () => {
           toast.error("Login failed", {
             description: "Invalid email or password. Please try again.",
           });
+        } else if (error.message.includes("No API key found")) {
+          toast.error("API Configuration Error", {
+            description: "There's an issue with the API configuration. Please contact support.",
+          });
+          console.error("API Key Error:", error);
         } else {
           toast.error(`Login failed: ${error.message}`);
         }
@@ -170,6 +188,8 @@ const LoginForm = () => {
           description: "Please check your connection and try again."
         });
       }
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
@@ -178,6 +198,7 @@ const LoginForm = () => {
     schoolIndex = 0
   ) => {
     setLoginError(null);
+    setIsLoggingIn(true);
 
     try {
       // Direct login for test accounts
@@ -213,6 +234,8 @@ const LoginForm = () => {
     } catch (error: any) {
       setLoginError(`Failed to log in with test account: ${error.message}`);
       toast.error("Failed to log in with test account");
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
@@ -272,21 +295,24 @@ const LoginForm = () => {
                   <button
                     type="button"
                     onClick={() => handleQuickLogin("school")}
-                    className="text-sm text-blue-800 font-semibold hover:text-blue-900 bg-blue-100 px-3 py-1 rounded-full transition-colors duration-200"
+                    disabled={isLoggingIn}
+                    className="text-sm text-blue-800 font-semibold hover:text-blue-900 bg-blue-100 px-3 py-1 rounded-full transition-colors duration-200 disabled:opacity-50"
                   >
                     Admin Login
                   </button>
                   <button
                     type="button"
                     onClick={() => handleQuickLogin("teacher")}
-                    className="text-sm text-green-800 font-semibold hover:text-green-900 bg-green-100 px-3 py-1 rounded-full transition-colors duration-200"
+                    disabled={isLoggingIn}
+                    className="text-sm text-green-800 font-semibold hover:text-green-900 bg-green-100 px-3 py-1 rounded-full transition-colors duration-200 disabled:opacity-50"
                   >
                     Teacher Login
                   </button>
                   <button
                     type="button"
                     onClick={() => handleQuickLogin("student")}
-                    className="text-sm text-purple-800 font-semibold hover:text-purple-900 bg-purple-100 px-3 py-1 rounded-full transition-colors duration-200"
+                    disabled={isLoggingIn}
+                    className="text-sm text-purple-800 font-semibold hover:text-purple-900 bg-purple-100 px-3 py-1 rounded-full transition-colors duration-200 disabled:opacity-50"
                   >
                     Student Login
                   </button>
@@ -312,6 +338,7 @@ const LoginForm = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 autoComplete="email"
+                disabled={isLoggingIn}
               />
             </div>
             <div className="space-y-2">
@@ -321,6 +348,7 @@ const LoginForm = () => {
                   type="button"
                   onClick={handleResetPassword}
                   className="text-sm text-learnable-blue hover:underline"
+                  disabled={isLoggingIn}
                 >
                   Forgot password?
                 </button>
@@ -332,13 +360,22 @@ const LoginForm = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 autoComplete="current-password"
+                disabled={isLoggingIn}
               />
             </div>
             <Button
               type="submit"
               className="w-full gradient-bg"
+              disabled={isLoggingIn}
             >
-              Log in
+              {isLoggingIn ? (
+                <span className="flex items-center">
+                  <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-current border-r-transparent mr-2"></span>
+                  Logging in...
+                </span>
+              ) : (
+                "Log in"
+              )}
             </Button>
           </form>
         </CardContent>
