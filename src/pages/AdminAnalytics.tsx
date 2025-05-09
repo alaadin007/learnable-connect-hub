@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
@@ -145,13 +144,12 @@ const AdminAnalytics = () => {
       } else if (studyTimeResult) {
         // Transform to expected format with proper typing
         const transformedStudyTime: StudyTimeData[] = studyTimeResult.map(item => ({
-          student_id: item.user_id || 'unknown-id',  // Add student_id field
+          student_id: item.user_id || 'unknown-id',
           student_name: item.student_name || 'Unknown',
           studentName: item.student_name || 'Unknown',
           name: item.student_name || 'Unknown',
           total_minutes: Number(item.study_hours || 0) * 60,
-          // Convert any string values to numbers
-          week: `Week ${item.week_number || 1}`,
+          week: `Week ${item.week_number || 1}`, // Keep as string since we modified the type
           hours: Number(item.study_hours || 0),
           year: Number(item.year || new Date().getFullYear())
         }));
@@ -213,11 +211,56 @@ const AdminAnalytics = () => {
     
     if (studyTimeData.length === 0) {
       setStudyTimeData([
-        { student_id: "student-1", week: "Week 1", hours: 10.5, student_name: "Student Group", studentName: "Student Group", name: "Student Group", total_minutes: 630 },
-        { student_id: "student-2", week: "Week 2", hours: 12.2, student_name: "Student Group", studentName: "Student Group", name: "Student Group", total_minutes: 732 },
-        { student_id: "student-3", week: "Week 3", hours: 9.8, student_name: "Student Group", studentName: "Student Group", name: "Student Group", total_minutes: 588 },
-        { student_id: "student-4", week: "Week 4", hours: 14.1, student_name: "Student Group", studentName: "Student Group", name: "Student Group", total_minutes: 846 },
-        { student_id: "student-5", week: "Week 5", hours: 11.6, student_name: "Student Group", studentName: "Student Group", name: "Student Group", total_minutes: 696 }
+        { 
+          student_id: "student-1", 
+          week: "Week 1", 
+          hours: 10.5, 
+          student_name: "Student Group", 
+          studentName: "Student Group", 
+          name: "Student Group", 
+          total_minutes: 630,
+          year: 2023 
+        },
+        { 
+          student_id: "student-2", 
+          week: "Week 2", 
+          hours: 12.2, 
+          student_name: "Student Group", 
+          studentName: "Student Group", 
+          name: "Student Group", 
+          total_minutes: 732,
+          year: 2023 
+        },
+        { 
+          student_id: "student-3", 
+          week: "Week 3", 
+          hours: 9.8, 
+          student_name: "Student Group", 
+          studentName: "Student Group", 
+          name: "Student Group", 
+          total_minutes: 588,
+          year: 2023 
+        },
+        { 
+          student_id: "student-4", 
+          week: "Week 4", 
+          hours: 14.1, 
+          student_name: "Student Group", 
+          studentName: "Student Group", 
+          name: "Student Group", 
+          total_minutes: 846,
+          year: 2023 
+        },
+        { 
+          student_id: "student-5", 
+          week: "Week 5", 
+          hours: 11.6, 
+          student_name: "Student Group", 
+          studentName: "Student Group", 
+          name: "Student Group", 
+          total_minutes: 696,
+          year: 2023 
+        }
       ]);
     }
   };
@@ -238,10 +281,10 @@ const AdminAnalytics = () => {
       
       // Add summary section
       csvContent += "SUMMARY\n";
-      csvContent += `Active Students,${analyticsSummary.activeStudents}\n`;
-      csvContent += `Total Sessions,${analyticsSummary.totalSessions}\n`;
-      csvContent += `Total Queries,${analyticsSummary.totalQueries}\n`;
-      csvContent += `Average Session Minutes,${analyticsSummary.avgSessionMinutes}\n\n`;
+      csvContent += `Active Students,${Number(analyticsSummary.activeStudents)}\n`;
+      csvContent += `Total Sessions,${Number(analyticsSummary.totalSessions)}\n`;
+      csvContent += `Total Queries,${Number(analyticsSummary.totalQueries)}\n`;
+      csvContent += `Average Session Minutes,${Number(analyticsSummary.avgSessionMinutes)}\n\n`;
       
       // Add topics section
       csvContent += "TOPICS,COUNT\n";

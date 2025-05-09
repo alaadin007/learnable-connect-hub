@@ -61,7 +61,7 @@ export interface StudyTimeData {
   studentName?: string;
   name?: string;
   hours?: number;
-  week?: number;
+  week?: string | number; // Updated to accept both string and number type
   year?: number;
 }
 
