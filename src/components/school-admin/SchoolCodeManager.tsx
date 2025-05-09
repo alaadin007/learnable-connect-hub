@@ -36,10 +36,14 @@ const SchoolCodeManager: React.FC<SchoolCodeManagerProps> = ({
     }
 
     try {
+      console.log("Generating code for school ID:", schoolId);
       const newCode = await generateCode(schoolId);
+      console.log("Generated new code:", newCode);
+      
       if (newCode) {
         onCodeGenerated(newCode);
         setShowDialog(true);
+        toast.success("New school code generated successfully");
       }
     } catch (error) {
       console.error("Failed to generate code:", error);

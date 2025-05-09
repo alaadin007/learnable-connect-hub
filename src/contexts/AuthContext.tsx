@@ -1,8 +1,9 @@
+
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { Profile } from '@/types/profile';
-import { checkIfSchoolAdmin, getUserRoleWithFallback } from '@/utils/apiHelpers';
+import { getUserRoleWithFallback } from '@/utils/apiHelpers';
 
 export type UserRole = 'student' | 'teacher' | 'school' | 'school_admin' | null;
 
@@ -67,9 +68,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         if (currentSession?.user) {
           // Use setTimeout with 0ms to defer profile fetch without adding delay
-          setTimeout(() => {
-            fetchUserProfile(currentSession.user);
-          }, 0);
+          fetchUserProfile(currentSession.user);
         } else {
           setProfile(null);
           setUserRole(null);
@@ -102,20 +101,42 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
   }, []);
 
+  // Modified function to avoid infinite recursion
+  const checkIfUserIsSchoolAdmin = async (userId: string): Promise<boolean> => {
+    try {
+      // Direct database query instead of RPC to avoid recursion
+      const { data, error } = await supabase
+        .from('school_admins')
+        .select('id')
+        .eq('user_id', userId)
+        .maybeSingle();
+      
+      if (error) {
+        console.error("Error checking if user is school admin:", error);
+        return false;
+      }
+      
+      return !!data;
+    } catch (error) {
+      console.error("Exception checking if user is school admin:", error);
+      return false;
+    }
+  };
+
   const fetchUserProfile = async (currentUser: User) => {
     console.log("AuthContext: Fetching user profile for:", currentUser.id);
     try {
-      // Fetch profile data
+      // Fetch profile data directly to avoid RPC calls that might cause recursion
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('*')
+        .select('*, organization:school_id(*)')
         .eq('id', currentUser.id)
         .single();
 
       if (profileError) {
         console.error("Error fetching profile:", profileError);
         // Fallback to checking if user is a school admin
-        const isAdmin = await checkIfSchoolAdmin(currentUser.id);
+        const isAdmin = await checkIfUserIsSchoolAdmin(currentUser.id);
         setIsSuperviser(isAdmin);
       }
 
@@ -155,8 +176,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Set user role
       setUserRole(role as UserRole);
 
-      // Set isSuperviser
-      setIsSuperviser(fetchedProfile?.is_supervisor === true || await checkIfSchoolAdmin(currentUser.id));
+      // Set isSuperviser - avoid using checkIfSchoolAdmin and use local function
+      setIsSuperviser(fetchedProfile?.is_supervisor === true || await checkIfUserIsSchoolAdmin(currentUser.id));
     } catch (error) {
       console.error("Error fetching user profile or determining role:", error);
     } finally {

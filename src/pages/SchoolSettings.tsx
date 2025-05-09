@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Save } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import SchoolCodeManager from "@/components/school-admin/SchoolCodeManager";
@@ -37,7 +37,7 @@ interface SchoolData {
 }
 
 const SchoolSettings = () => {
-  const { profile, user, signOut } = useAuth();
+  const { profile, user, signOut, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const [schoolName, setSchoolName] = useState("");
   const [schoolCode, setSchoolCode] = useState("");
@@ -56,34 +56,25 @@ const SchoolSettings = () => {
       
       setIsLoading(true);
       try {
-        // First get basic school information from the RPC function
-        const { data: schoolBasicData, error: basicDataError } = await supabase
-          .rpc('get_school_by_id', {
-            school_id_param: profile.organization.id
-          });
-
-        if (basicDataError) throw basicDataError;
+        console.log("Fetching school data for ID:", profile.organization.id);
         
-        if (schoolBasicData && schoolBasicData.length > 0) {
-          const basicData = schoolBasicData[0];
-          setSchoolName(basicData.name || "");
-          setSchoolCode(basicData.code || "");
-          setContactEmail(basicData.contact_email || user?.email || "");
-          
-          // Now fetch the full school data with all fields we need
-          const { data: fullSchoolData, error: fullDataError } = await supabase
-            .from("schools")
-            .select("*")
-            .eq("id", profile.organization.id)
-            .single();
+        // Direct database query to avoid RPC calls that might cause recursion
+        const { data: schoolData, error } = await supabase
+          .from("schools")
+          .select("*")
+          .eq("id", profile.organization.id)
+          .single();
             
-          if (fullDataError) throw fullDataError;
+        if (error) throw error;
           
-          if (fullSchoolData) {
-            // Update the additional fields from the full data
-            setDescription(fullSchoolData.description || "");
-            setNotificationsEnabled(fullSchoolData.notifications_enabled !== false); // Default to true if undefined
-          }
+        console.log("Fetched school data:", schoolData);
+        
+        if (schoolData) {
+          setSchoolName(schoolData.name || "");
+          setSchoolCode(schoolData.code || "");
+          setContactEmail(schoolData.contact_email || user?.email || "");
+          setDescription(schoolData.description || "");
+          setNotificationsEnabled(schoolData.notifications_enabled !== false); // Default to true if undefined
         }
       } catch (error) {
         console.error("Error fetching school data:", error);
@@ -104,6 +95,8 @@ const SchoolSettings = () => {
     
     setIsSaving(true);
     try {
+      console.log("Saving school settings for ID:", profile.organization.id);
+      
       // Update school information
       const { error } = await supabase
         .from("schools")
@@ -117,6 +110,9 @@ const SchoolSettings = () => {
         .eq("id", profile.organization.id);
 
       if (error) throw error;
+      
+      // Refresh profile to get latest data
+      await refreshProfile();
       
       toast.success("School settings updated successfully!");
     } catch (error: any) {
@@ -177,6 +173,7 @@ const SchoolSettings = () => {
   };
 
   const handleCodeGenerated = (newCode: string) => {
+    console.log("New code generated:", newCode);
     setSchoolCode(newCode);
   };
 
@@ -207,7 +204,10 @@ const SchoolSettings = () => {
             </CardHeader>
             <CardContent>
               {isLoading ? (
-                <div>Loading school information...</div>
+                <div className="flex items-center justify-center py-8">
+                  <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-learnable-blue border-r-transparent align-[-0.125em]"></div>
+                  <span className="ml-3">Loading school information...</span>
+                </div>
               ) : (
                 <div className="space-y-6">
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -267,9 +267,19 @@ const SchoolSettings = () => {
                   <Button 
                     onClick={handleSaveSettings} 
                     disabled={isSaving}
-                    className="gradient-bg"
+                    className="gradient-bg flex items-center gap-2"
                   >
-                    {isSaving ? "Saving..." : "Save Settings"}
+                    {isSaving ? (
+                      <>
+                        <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-current border-r-transparent align-[-0.125em]"></span>
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="h-4 w-4" />
+                        Save Settings
+                      </>
+                    )}
                   </Button>
                 </div>
               )}

@@ -24,8 +24,9 @@ export function useSchoolCode(): UseSchoolCodeReturn {
 
     setIsGenerating(true);
     try {
-      const { data, error } = await supabase.rpc("generate_new_school_code", {
-        school_id_param: schoolId,
+      // Instead of using RPC that could trigger infinite recursion, use direct SQL function call
+      const { data, error } = await supabase.functions.invoke("generate-school-code", {
+        body: { schoolId }
       });
 
       if (error) {
@@ -34,7 +35,7 @@ export function useSchoolCode(): UseSchoolCodeReturn {
         return null;
       }
 
-      return data;
+      return data?.code || null;
     } catch (error) {
       console.error("Exception while generating school code:", error);
       toast.error("An unexpected error occurred");
@@ -49,9 +50,12 @@ export function useSchoolCode(): UseSchoolCodeReturn {
 
     setIsValidating(true);
     try {
-      const { data, error } = await supabase.rpc("verify_school_code", {
-        code,
-      });
+      // Direct validation without using RPC
+      const { data, error } = await supabase
+        .from("schools")
+        .select("id")
+        .eq("code", code)
+        .maybeSingle();
 
       if (error) {
         console.error("Error validating school code:", error);
