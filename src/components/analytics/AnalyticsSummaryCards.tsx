@@ -19,6 +19,7 @@ export function AnalyticsSummaryCards({ summary, isLoading, dateRange }: Analyti
         value={summary.activeStudents}
         description="Students engaged with the platform"
         icon={<Activity className="h-6 w-6 text-blue-500" />}
+        isLoading={isLoading}
       />
       
       <StatsCard
@@ -26,6 +27,7 @@ export function AnalyticsSummaryCards({ summary, isLoading, dateRange }: Analyti
         value={summary.totalSessions}
         description="Learning sessions conducted"
         icon={<LayoutGrid className="h-6 w-6 text-green-500" />}
+        isLoading={isLoading}
       />
       
       <StatsCard
@@ -33,6 +35,7 @@ export function AnalyticsSummaryCards({ summary, isLoading, dateRange }: Analyti
         value={summary.totalQueries}
         description="Questions asked by students"
         icon={<MessageSquare className="h-6 w-6 text-purple-500" />}
+        isLoading={isLoading}
       />
       
       <StatsCard
@@ -40,6 +43,7 @@ export function AnalyticsSummaryCards({ summary, isLoading, dateRange }: Analyti
         value={`${summary.avgSessionMinutes.toFixed(1)} min`}
         description="Average duration per session"
         icon={<Clock className="h-6 w-6 text-orange-500" />}
+        isLoading={isLoading}
       />
     </div>
   );

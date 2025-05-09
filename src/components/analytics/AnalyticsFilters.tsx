@@ -1,90 +1,66 @@
 
-import React from "react";
-import { DateRangePicker } from "./DateRangePicker";
-import StudentSelector from "./StudentSelector";
-import { TeacherSelector } from "./TeacherSelector";
-import { Card, CardContent } from "@/components/ui/card";
-import { Filter } from "lucide-react";
-import { AnalyticsFilters as FiltersType, DateRange } from "./types";
+import React, { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Calendar } from "lucide-react";
+import { DateRange } from "react-day-picker";
 
 interface AnalyticsFiltersProps {
-  filters: FiltersType;
-  onFiltersChange: (filters: FiltersType) => void;
-  showStudentSelector?: boolean;
-  showTeacherSelector?: boolean;
-  students?: { id: string; name: string }[];
+  dateRange?: DateRange;
+  onDateRangeChange?: (range: DateRange) => void;
 }
 
-export const AnalyticsFilters: React.FC<AnalyticsFiltersProps> = ({
-  filters,
-  onFiltersChange,
-  showStudentSelector = false,
-  showTeacherSelector = false,
-  students = []
-}) => {
-  const handleDateRangeChange = (range: DateRange | undefined) => {
-    onFiltersChange({
-      ...filters,
-      dateRange: range,
-    });
-  };
+export function AnalyticsFilters({ dateRange, onDateRangeChange }: AnalyticsFiltersProps) {
+  const [timeRange, setTimeRange] = useState<string>('30days');
 
-  const handleStudentChange = (studentId: string | null) => {
-    onFiltersChange({
-      ...filters,
-      studentId: studentId || undefined,
-    });
-  };
-
-  const handleTeacherChange = (teacherId: string | undefined) => {
-    onFiltersChange({
-      ...filters,
-      teacherId,
-    });
+  const handleTimeRangeChange = (value: string) => {
+    setTimeRange(value);
+    
+    if (!onDateRangeChange) return;
+    
+    const today = new Date();
+    let fromDate: Date | undefined;
+    const toDate = today;
+    
+    switch (value) {
+      case '7days':
+        fromDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 7);
+        break;
+      case '30days':
+        fromDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 30);
+        break;
+      case '90days':
+        fromDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 90);
+        break;
+      case 'thisWeek':
+        const day = today.getDay();
+        fromDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() - day);
+        break;
+      case 'thisMonth':
+        fromDate = new Date(today.getFullYear(), today.getMonth(), 1);
+        break;
+      default:
+        fromDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 30);
+    }
+    
+    onDateRangeChange({ from: fromDate, to: toDate });
   };
 
   return (
-    <Card className="mb-6">
-      <CardContent className="pt-6">
-        <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
-          <div className="flex items-center text-muted-foreground mb-2 md:mb-0">
-            <Filter className="w-4 h-4 mr-2" />
-            <span>Filter Analytics:</span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full">
-            <div>
-              <DateRangePicker
-                dateRange={filters.dateRange}
-                onDateRangeChange={handleDateRangeChange}
-              />
-            </div>
-
-            {showStudentSelector && (
-              <div>
-                <StudentSelector
-                  students={students.map(student => ({
-                    value: student.id,
-                    label: student.name
-                  }))}
-                  selectedStudent={filters.studentId || null}
-                  onSelectStudent={handleStudentChange}
-                />
-              </div>
-            )}
-
-            {showTeacherSelector && (
-              <div>
-                <TeacherSelector
-                  schoolId={typeof filters.schoolId === "string" ? filters.schoolId : ""}
-                  selectedTeacherId={filters.teacherId}
-                  onTeacherChange={handleTeacherChange}
-                />
-              </div>
-            )}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+    <div className="flex items-center space-x-4">
+      <Select value={timeRange} onValueChange={handleTimeRangeChange}>
+        <SelectTrigger className="w-[180px]">
+          <Calendar className="mr-2 h-4 w-4" />
+          <SelectValue placeholder="Select time range" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="7days">Last 7 days</SelectItem>
+          <SelectItem value="30days">Last 30 days</SelectItem>
+          <SelectItem value="90days">Last 90 days</SelectItem>
+          <SelectItem value="thisWeek">This week</SelectItem>
+          <SelectItem value="thisMonth">This month</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
   );
-};
+}

@@ -16,19 +16,11 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 
 // Fetch analytics summary data
-export const fetchAnalyticsSummary = async (schoolId: string, filters: AnalyticsFilters): Promise<AnalyticsSummary> => {
+export const fetchAnalyticsSummary = async (schoolId: string, filters: any): Promise<AnalyticsSummary> => {
   console.info("Fetching real analytics summary data for school:", schoolId);
   
   try {
-    // Check if this is a test ID
-    if (schoolId.startsWith('test-')) {
-      // Return mock data for test accounts
-      const mock = getMockAnalyticsData(schoolId);
-      return mock.summary;
-    }
-    
     // For real accounts, fetch from supabase
-    // Note: Using PostgreSQL function directly as RPC might not be available
     const { data, error } = await supabase
       .from('school_analytics_summary')
       .select('*')
@@ -56,7 +48,7 @@ export const fetchAnalyticsSummary = async (schoolId: string, filters: Analytics
     // Return default values on error
     return {
       activeStudents: 0,
-      totalSessions: 0,
+      totalSessions: 0, 
       totalQueries: 0,
       avgSessionMinutes: 0
     };
