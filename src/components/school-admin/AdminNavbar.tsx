@@ -26,51 +26,41 @@ interface AdminNavbarProps {
 const AdminNavbar = ({ navLinks = defaultNavLinks, className }: AdminNavbarProps) => {
   const location = useLocation();
   
-  // Function to determine if a link is active
-  const isLinkActive = (linkHref: string): boolean => {
-    // Special case for dashboard (exact match only)
-    if (linkHref === "/admin" && location.pathname === "/admin") {
-      return true;
-    }
-    
-    // For other pages, need to check parent paths
-    if (linkHref !== "/admin" && location.pathname.startsWith(linkHref)) {
-      // Make sure it's at path boundaries to avoid partial matches
-      const remainingPath = location.pathname.slice(linkHref.length);
-      return remainingPath === "" || remainingPath.startsWith("/");
-    }
-    
-    return false;
-  };
-  
-  // Extra check to ensure only one link is active when there are multiple matches
-  const getActiveLink = (): string => {
-    // First look for exact match
+  // Determine the single active link based on current path
+  const determineActiveLink = (): string => {
+    // Case 1: Exact match for any link (highest priority)
     const exactMatch = navLinks.find(link => link.href === location.pathname);
     if (exactMatch) return exactMatch.href;
     
-    // If no exact match, get the longest matching prefix (most specific match)
+    // Case 2: Special handling for root admin path
+    // Only highlight dashboard when exactly at /admin
+    if (location.pathname === "/admin") {
+      return "/admin";
+    }
+    
+    // Case 3: Find the most specific path match (longest prefix)
+    // Filter out the admin root path when we're on a subpage
     const matchingLinks = navLinks
-      .filter(link => location.pathname.startsWith(link.href))
       .filter(link => {
-        // Don't count the admin link as a match for subpages like /admin/settings
+        // Skip the dashboard link when on subpages
         if (link.href === "/admin" && location.pathname !== "/admin") {
           return false;
         }
-        return true;
+        
+        return location.pathname.startsWith(link.href);
       })
-      .sort((a, b) => b.href.length - a.href.length);
+      .sort((a, b) => b.href.length - a.href.length); // Sort by length descending
     
     return matchingLinks.length > 0 ? matchingLinks[0].href : "";
   };
   
-  const activeLink = getActiveLink();
+  const activeLink = determineActiveLink();
   
   return (
     <div className={cn("border-b mb-6", className)}>
       <nav className="flex space-x-4 overflow-x-auto pb-2">
         {navLinks.map((link) => {
-          const active = link.href === activeLink;
+          const isActive = link.href === activeLink;
           
           return (
             <Link
@@ -78,7 +68,7 @@ const AdminNavbar = ({ navLinks = defaultNavLinks, className }: AdminNavbarProps
               to={link.href}
               className={cn(
                 "px-4 py-2 text-sm font-medium transition-colors",
-                active
+                isActive
                   ? "border-b-2 border-blue-600 text-blue-600"
                   : "text-gray-600 hover:text-blue-600"
               )}
