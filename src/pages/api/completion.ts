@@ -68,11 +68,27 @@ export default async function handler(req: Request): Promise<Response> {
     } 
     else if (provider === 'gemini') {
       const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: 'gemini-1.0-pro' });
+      const geminiModel = genAI.getGenerativeModel({ model: 'gemini-1.0-pro' });
       
-      const result = await model.generateContentStream(prompt);
-      const stream = await OpenAIStream(result);
+      const result = await geminiModel.generateContentStream(prompt);
       
+      // Convert Gemini stream to a format compatible with OpenAIStream
+      // We need to create a custom adapter for the Gemini stream format
+      const stream = new ReadableStream({
+        async start(controller) {
+          // Process the Gemini stream
+          const encoder = new TextEncoder();
+          for await (const chunk of result.stream) {
+            const text = chunk.text();
+            if (text) {
+              controller.enqueue(encoder.encode(text));
+            }
+          }
+          controller.close();
+        },
+      });
+      
+      // Return a streaming response
       return new StreamingTextResponse(stream, { headers: corsHeaders });
     }
     
