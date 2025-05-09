@@ -29,7 +29,6 @@ const AdminTeacherManagement = () => {
             <h1 className="text-3xl font-bold">Teacher Management</h1>
           </div>
           
-          {/* Add the AdminNavbar component */}
           <AdminNavbar />
           
           <TeacherManagement />

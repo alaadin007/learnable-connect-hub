@@ -14,6 +14,9 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Mail, UserPlus } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
+import AdminNavbar from "@/components/school-admin/AdminNavbar";
 
 // Define the schema for teacher form
 const addTeacherSchema = z.object({
@@ -38,6 +41,7 @@ const AdminTeachers = () => {
   const { user, profile, isSuperviser } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [invites, setInvites] = useState<TeacherInvite[]>([]);
+  const navigate = useNavigate();
 
   const form = useForm<AddTeacherFormValues>({
     resolver: zodResolver(addTeacherSchema),
@@ -152,12 +156,20 @@ const AdminTeachers = () => {
       <Navbar />
       <main className="flex-grow bg-learnable-super-light py-8">
         <div className="container mx-auto px-4">
-          <div className="mb-6">
+          <div className="flex items-center gap-4 mb-6">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="flex items-center gap-1"
+              onClick={() => navigate('/admin', { state: { preserveContext: true } })}
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to Admin
+            </Button>
             <h1 className="text-3xl font-bold gradient-text mb-2">Teacher Management</h1>
-            <p className="text-learnable-gray">
-              Add or invite teachers to join your school
-            </p>
           </div>
+          
+          <AdminNavbar />
           
           <Card>
             <CardHeader>

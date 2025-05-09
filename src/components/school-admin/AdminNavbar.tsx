@@ -25,13 +25,16 @@ interface AdminNavbarProps {
 
 const AdminNavbar = ({ navLinks = defaultNavLinks, className }: AdminNavbarProps) => {
   const location = useLocation();
-
+  
   return (
     <div className={cn("border-b mb-6", className)}>
       <nav className="flex space-x-4 overflow-x-auto pb-2">
         {navLinks.map((link) => {
           // Check if the current path matches this link's path
-          const isActive = location.pathname === link.href;
+          // Use exact match for dashboard to prevent highlighting when on sub-routes
+          const isActive = link.href === "/admin" 
+            ? location.pathname === "/admin"
+            : location.pathname === link.href;
           
           return (
             <Link
