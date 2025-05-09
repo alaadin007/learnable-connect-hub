@@ -10,7 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
-import { Loader2, School } from 'lucide-react';
+import { School } from 'lucide-react';
 import { checkSessionStatus } from '@/utils/apiHelpers';
 
 const formSchema = z.object({
@@ -22,7 +22,6 @@ type FormValues = z.infer<typeof formSchema>;
 
 const LoginForm = () => {
   const { signIn } = useAuth();
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const navigate = useNavigate();
 
@@ -35,7 +34,6 @@ const LoginForm = () => {
   });
 
   const onSubmit = async (values: FormValues) => {
-    setIsSubmitting(true);
     setLoginError(null);
     
     try {
@@ -60,8 +58,6 @@ const LoginForm = () => {
       console.error("Login exception:", error);
       setLoginError(error.message || 'An unexpected error occurred');
       toast.error(error.message || 'An unexpected error occurred');
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -121,17 +117,9 @@ const LoginForm = () => {
 
           <Button 
             type="submit" 
-            className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-2" 
-            disabled={isSubmitting}
+            className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-2"
           >
-            {isSubmitting ? (
-              <div className="flex items-center justify-center">
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                <span>Logging in...</span>
-              </div>
-            ) : (
-              'Login'
-            )}
+            Login
           </Button>
           
           <div className="relative my-6">
