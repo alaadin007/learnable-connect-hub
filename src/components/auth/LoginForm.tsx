@@ -123,8 +123,8 @@ const LoginForm = () => {
         refresh_token: data.session?.refresh_token,
       }));
 
-      // Set auth state - Pass the entire session object
-      await signIn(data.session);
+      // Set auth state - Call signIn with email and password as expected
+      await signIn(email, password);
       
       // Immediately refresh profile data
       await refreshProfile();
