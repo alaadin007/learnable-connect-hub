@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address' }),
@@ -19,7 +20,7 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 const LoginForm = () => {
-  const { signIn, setTestUser, session } = useAuth();
+  const { signIn } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
 
@@ -61,7 +62,7 @@ const LoginForm = () => {
               <FormItem>
                 <FormLabel>Email</FormLabel>
                 <FormControl>
-                  <Input type="email" placeholder="john@example.com" {...field} />
+                  <Input type="email" placeholder="your.email@example.com" className="py-2" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -75,7 +76,7 @@ const LoginForm = () => {
               <FormItem>
                 <FormLabel>Password</FormLabel>
                 <FormControl>
-                  <Input type="password" placeholder="********" {...field} />
+                  <Input type="password" placeholder="••••••••" className="py-2" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -88,11 +89,15 @@ const LoginForm = () => {
             </Link>
           </div>
 
-          <Button type="submit" className="w-full gradient-bg" disabled={isSubmitting}>
+          <Button 
+            type="submit" 
+            className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-2" 
+            disabled={isSubmitting}
+          >
             {isSubmitting ? (
               <div className="flex items-center justify-center">
-                <div className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-current border-r-transparent align-[-0.125em]"></div>
-                <span className="ml-2">Logging in...</span>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <span>Logging in...</span>
               </div>
             ) : (
               'Login'
@@ -101,10 +106,10 @@ const LoginForm = () => {
         </form>
       </Form>
 
-      <div className="text-center">
-        <p className="text-sm text-muted-foreground">
+      <div className="text-center pt-3">
+        <p className="text-sm text-gray-600">
           Don't have an account?{' '}
-          <Link to="/register" className="text-blue-600 hover:underline">
+          <Link to="/register" className="text-blue-600 hover:underline font-medium">
             Create an account
           </Link>
         </p>
