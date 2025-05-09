@@ -9,16 +9,29 @@ import { useAuth } from "@/contexts/AuthContext";
 interface SchoolCodeGeneratorProps {
   onCodeGenerated?: (code: string) => void;
   className?: string;
+  variant?: 'school' | 'student';
+  label?: string;
+  description?: string;
 }
 
 const SchoolCodeGenerator: React.FC<SchoolCodeGeneratorProps> = ({ 
   onCodeGenerated, 
-  className 
+  className,
+  variant = 'school',
+  label = variant === 'school' ? 'School Code' : 'Student Invitation Code',
+  description = variant === 'school' 
+    ? 'This code can be used by teachers and students to join your school.'
+    : 'Share this code with students to join your class.'
 }) => {
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
   const [codeCopied, setCodeCopied] = useState(false);
   const { schoolId: contextSchoolId } = useAuth();
-  const { generateCode, isGenerating, fetchCurrentCode } = useSchoolCode();
+  const { 
+    generateCode, 
+    generateStudentInviteCode,
+    isGenerating, 
+    fetchCurrentCode 
+  } = useSchoolCode();
 
   // Fetch current code on component mount
   useEffect(() => {
@@ -26,19 +39,21 @@ const SchoolCodeGenerator: React.FC<SchoolCodeGeneratorProps> = ({
       const schoolId = contextSchoolId;
       if (!schoolId) return;
 
-      try {
-        const currentCode = await fetchCurrentCode(schoolId);
-        if (currentCode) {
-          setGeneratedCode(currentCode);
-          if (onCodeGenerated) onCodeGenerated(currentCode);
+      if (variant === 'school') {
+        try {
+          const currentCode = await fetchCurrentCode(schoolId);
+          if (currentCode) {
+            setGeneratedCode(currentCode);
+            if (onCodeGenerated) onCodeGenerated(currentCode);
+          }
+        } catch (error) {
+          console.error("Error fetching existing code:", error);
         }
-      } catch (error) {
-        console.error("Error fetching existing code:", error);
       }
     };
 
     getExistingCode();
-  }, [contextSchoolId, fetchCurrentCode, onCodeGenerated]);
+  }, [contextSchoolId, fetchCurrentCode, onCodeGenerated, variant]);
 
   const handleGenerateCode = async () => {
     const schoolId = contextSchoolId;
@@ -47,10 +62,17 @@ const SchoolCodeGenerator: React.FC<SchoolCodeGeneratorProps> = ({
       return;
     }
 
-    const newCode = await generateCode(schoolId);
+    let newCode: string | null = null;
+    
+    if (variant === 'school') {
+      newCode = await generateCode(schoolId);
+    } else {
+      newCode = await generateStudentInviteCode(schoolId);
+    }
+    
     if (newCode) {
       setGeneratedCode(newCode);
-      toast.success("New school code generated successfully");
+      toast.success(`New ${variant} code generated successfully`);
       if (onCodeGenerated) onCodeGenerated(newCode);
     }
   };
@@ -98,7 +120,7 @@ const SchoolCodeGenerator: React.FC<SchoolCodeGeneratorProps> = ({
                 Generating...
               </>
             ) : (
-              "Generate New Code"
+              `Generate New ${variant === 'school' ? 'School' : 'Student'} Code`
             )}
           </Button>
         </div>
@@ -114,13 +136,13 @@ const SchoolCodeGenerator: React.FC<SchoolCodeGeneratorProps> = ({
               Generating...
             </>
           ) : (
-            "Generate School Code"
+            `Generate ${label}`
           )}
         </Button>
       )}
       <p className="text-xs text-muted-foreground mt-2">
-        This code can be used by teachers and students to join your school.
-        Generating a new code will invalidate the previous one.
+        {description}
+        {variant === 'school' && " Generating a new code will invalidate the previous one."}
       </p>
     </div>
   );

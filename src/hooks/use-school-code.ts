@@ -91,21 +91,37 @@ export const useSchoolCode = () => {
     }
 
     setIsGenerating(true);
-
+    
     try {
-      // Try to use the edge function
+      console.log("Generating student invitation code for school:", schoolId);
+      
+      // Try to use the edge function first
       const { data, error } = await supabase.functions.invoke('invite-student', {
         body: { method: 'code', schoolId }
       });
 
-      if (error) throw error;
-
-      if (data && data.code) {
-        setLastGeneratedCode(data.code);
-        return data.code;
+      if (error) {
+        console.error("Edge function error:", error);
+        throw error;
       }
 
-      // If edge function doesn't return a code, try the RPC function
+      // Check if we got a valid code from the edge function
+      if (data && data.data && data.data.code) {
+        const generatedCode = data.data.code;
+        console.log("Generated code:", generatedCode);
+        setLastGeneratedCode(generatedCode);
+        toast.success("Student invitation code generated successfully");
+        return generatedCode;
+      } else if (data && data.code) {
+        // Handle direct code return format
+        const generatedCode = data.code;
+        console.log("Generated code (alternate format):", generatedCode);
+        setLastGeneratedCode(generatedCode);
+        toast.success("Student invitation code generated successfully");
+        return generatedCode;
+      }
+
+      // Fallback to RPC function if needed
       const { data: rpcData, error: rpcError } = await supabase.rpc('create_student_invitation', { 
         school_id_param: schoolId 
       });
@@ -114,6 +130,7 @@ export const useSchoolCode = () => {
 
       if (rpcData && rpcData.length > 0) {
         const code = rpcData[0].code;
+        console.log("Generated code from RPC:", code);
         setLastGeneratedCode(code);
         return code;
       }

@@ -11,6 +11,7 @@ const corsHeaders = {
 interface InviteStudentBody {
   method: "code" | "email";
   email?: string;
+  schoolId?: string; // Added schoolId parameter support
 }
 
 function generateInviteCode(): string {
@@ -71,43 +72,11 @@ serve(async (req) => {
       );
     }
 
-    // Get the school_id of the logged in user
-    const { data: schoolIdData, error: schoolIdError } = await supabaseClient
-      .rpc("get_user_school_id");
-
-    // If RPC fails, try to get school_id directly from profiles
-    let schoolId: string | null = null;
-    if (schoolIdError || !schoolIdData) {
-      console.warn("RPC failed to get school_id, falling back to direct query:", schoolIdError);
-      
-      const { data: profileData, error: profileError } = await supabaseClient
-        .from("profiles")
-        .select("school_id")
-        .eq("id", user.id)
-        .single();
-        
-      if (profileError || !profileData?.school_id) {
-        console.error("Could not determine school ID:", profileError);
-        return new Response(
-          JSON.stringify({ error: "Configuration Error", message: "Could not determine your school ID" }),
-          { 
-            status: 400,
-            headers: { "Content-Type": "application/json", ...corsHeaders },
-          }
-        );
-      }
-      
-      schoolId = profileData.school_id;
-    } else {
-      schoolId = schoolIdData;
-    }
-    
-    console.log("School ID for invitation:", schoolId);
-
     // Parse the request body
     let requestBody: InviteStudentBody;
     try {
       requestBody = await req.json() as InviteStudentBody;
+      console.log("Request body:", requestBody);
     } catch (e) {
       console.error("Error parsing request body:", e);
       return new Response(
@@ -119,8 +88,58 @@ serve(async (req) => {
       );
     }
     
-    const { method, email } = requestBody;
-    console.log("Invite method:", method, "Email:", email);
+    const { method, email, schoolId: requestSchoolId } = requestBody;
+    console.log("Invite method:", method, "Email:", email, "School ID:", requestSchoolId);
+
+    // Get the school_id from parameter or from user profile
+    let schoolId: string | null = requestSchoolId || null;
+    
+    if (!schoolId) {
+      try {
+        // Try to get school_id from user profile
+        const { data: schoolIdData, error: schoolIdError } = await supabaseClient
+          .rpc("get_user_school_id");
+
+        if (!schoolIdError && schoolIdData) {
+          schoolId = schoolIdData;
+          console.log("School ID from RPC:", schoolId);
+        }
+      } catch (error) {
+        console.error("Error getting school_id from RPC:", error);
+      }
+      
+      // If RPC fails, try to get school_id directly from profiles
+      if (!schoolId) {
+        try {
+          const { data: profileData, error: profileError } = await supabaseClient
+            .from("profiles")
+            .select("school_id, organization->id")
+            .eq("id", user.id)
+            .single();
+            
+          if (!profileError && profileData) {
+            // Try organization.id first then fall back to school_id
+            schoolId = (profileData.organization?.id as string) || profileData.school_id;
+            console.log("School ID from profile:", schoolId);
+          }
+        } catch (error) {
+          console.error("Error getting school_id from profile:", error);
+        }
+      }
+    }
+
+    if (!schoolId) {
+      console.error("Could not determine school ID");
+      return new Response(
+        JSON.stringify({ error: "Configuration Error", message: "Could not determine your school ID" }),
+        { 
+          status: 400,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
+    
+    console.log("Final school ID for invitation:", schoolId);
 
     // Handle invite by code
     if (method === "code") {
