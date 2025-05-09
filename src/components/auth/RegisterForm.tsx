@@ -60,7 +60,7 @@ const RegisterForm = () => {
         throw new Error(schoolCodeError.message || "Invalid school code. Please check and try again.");
       }
 
-      if (!schoolCodeData || schoolCodeData.length === 0) {
+      if (!schoolCodeData) {
         throw new Error("Invalid school code. Please check and try again.");
       }
 
@@ -72,6 +72,18 @@ const RegisterForm = () => {
         console.error("Error getting school name:", schoolNameError);
       }
       
+      // Get the school ID from the school code
+      const { data: schoolInfo, error: schoolInfoError } = await supabase
+        .from("school_codes")
+        .select("id, school_name")
+        .eq("code", data.schoolCode)
+        .eq("active", true)
+        .single();
+      
+      if (schoolInfoError) {
+        console.error("Error getting school info:", schoolInfoError);
+      }
+      
       // Register user with Supabase
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: data.email,
@@ -80,9 +92,9 @@ const RegisterForm = () => {
           data: {
             full_name: data.fullName,
             school_code: data.schoolCode,
-            school_name: schoolName || "Unknown School",
+            school_name: schoolName || schoolInfo?.school_name || "Unknown School",
             user_type: 'student', // Default to student role
-            school_id: schoolCodeData[0]?.id // Include the school_id from verify_school_code
+            school_id: schoolInfo?.id // Include the school_id from school_codes table
           }
         }
       });
