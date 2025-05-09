@@ -44,21 +44,16 @@ type StudentInvite = {
 };
 
 const AdminStudents = () => {
-  const { user, profile, schoolId: authSchoolId } = useAuth();
+  const { profile, schoolId: authSchoolId } = useAuth();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [invites, setInvites] = useState<StudentInvite[]>([]);
   const [generatedCode, setGeneratedCode] = useState("");
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   
-  console.log("AdminStudents: User profile:", profile);
-  console.log("AdminStudents: School ID from auth context:", authSchoolId);
-  console.log("AdminStudents: Organization ID from profile:", profile?.organization?.id);
+  // Get the schoolId properly without waiting for auth
+  const schoolId = authSchoolId || profile?.organization?.id || '';
   
-  // Get the schoolId properly
-  const schoolId = authSchoolId || profile?.organization?.id || null;
-  console.log("AdminStudents: Using school ID:", schoolId);
-
   const form = useForm<AddStudentFormValues>({
     resolver: zodResolver(addStudentSchema),
     defaultValues: {
@@ -73,13 +68,10 @@ const AdminStudents = () => {
   useEffect(() => {
     const fetchInvites = async () => {
       if (!schoolId) {
-        console.log("No school ID available, cannot fetch invites");
         return;
       }
       
       try {
-        console.log("Fetching invites for school ID:", schoolId);
-        
         // Try to fetch from student_invites table
         const { data: studentInvites, error: studentInviteError } = await supabase
           .from("student_invites")
@@ -89,11 +81,8 @@ const AdminStudents = () => {
           .limit(10);
           
         if (studentInvites && studentInvites.length > 0) {
-          console.log("Found student invites:", studentInvites);
           setInvites(studentInvites as StudentInvite[]);
           return;
-        } else {
-          console.log("No student invites found or error:", studentInviteError);
         }
         
         // Fallback to teacher_invitations table for display
@@ -118,7 +107,6 @@ const AdminStudents = () => {
           status: invite.status
         }));
         
-        console.log("Using teacher invitations as fallback:", studentInviteData);
         setInvites(studentInviteData);
       } catch (error: any) {
         console.error("Error fetching student invites:", error);
@@ -132,7 +120,7 @@ const AdminStudents = () => {
   }, [schoolId, refreshTrigger]);
 
   const onSubmit = async (values: AddStudentFormValues) => {
-    if (!user || !schoolId) {
+    if (!schoolId) {
       toast.error("You must be logged in with a school account to invite students");
       return;
     }
@@ -150,7 +138,7 @@ const AdminStudents = () => {
             .insert({
               email: values.email,
               school_id: schoolId,
-              created_by: user.id,
+              created_by: profile?.id,
               status: "pending"
             })
             .select();
@@ -170,7 +158,7 @@ const AdminStudents = () => {
             .insert({
               email: values.email,
               school_id: schoolId,
-              created_by: user.id,
+              created_by: profile?.id,
               status: "pending",
               invitation_token: Math.random().toString(36).substring(2, 15)
             })
@@ -197,7 +185,7 @@ const AdminStudents = () => {
             .insert({
               code: inviteCode,
               school_id: schoolId,
-              created_by: user.id,
+              created_by: profile?.id,
               status: "pending"
             });
           
