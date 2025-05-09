@@ -49,7 +49,7 @@ export async function invokeEdgeFunction<T>(
       });
 
       // Race the function invocation against the timeout
-      const response = await Promise.race([functionPromise, timeoutPromise]);
+      const response = await Promise.race([functionPromise, timeoutPromise]) as { data: T; error: { message: string } | null };
       
       if ('error' in response && response.error) {
         console.error(`Error invoking ${functionName}:`, response.error);

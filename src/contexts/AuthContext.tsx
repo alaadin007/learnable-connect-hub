@@ -186,8 +186,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Set school ID
       setSchoolId(fetchedProfile?.organization_id || fetchedProfile?.school_id || null);
 
-      // Determine user role - pass the User object to getUserRoleWithFallback
-      const role = await getUserRoleWithFallback(currentUser);
+      // Determine user role - without passing any arguments
+      const role = await getUserRoleWithFallback();
       
       // Set user role
       setUserRole(role as UserRole);
