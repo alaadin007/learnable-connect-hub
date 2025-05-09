@@ -11,6 +11,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
 import { School } from 'lucide-react';
+import { testSupabaseConnection } from '@/utils/apiHelpers';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address' }),
@@ -22,6 +23,7 @@ type FormValues = z.infer<typeof formSchema>;
 const LoginForm = () => {
   const { signIn, session } = useAuth();
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
   const form = useForm<FormValues>({
@@ -34,8 +36,15 @@ const LoginForm = () => {
 
   const onSubmit = async (values: FormValues) => {
     setLoginError(null);
+    setIsLoading(true);
     
     try {
+      // First, test the connection to make sure Supabase is reachable
+      const connectionTest = await testSupabaseConnection();
+      if (!connectionTest.success) {
+        throw new Error(`Connection to database failed: ${connectionTest.error}`);
+      }
+      
       console.log(`Attempting login with email: ${values.email}`);
       const result = await signIn(values.email, values.password);
       
@@ -52,6 +61,8 @@ const LoginForm = () => {
       console.error("Login exception:", error);
       setLoginError(error.message || 'An unexpected error occurred');
       toast.error(error.message || 'An unexpected error occurred');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -61,6 +72,10 @@ const LoginForm = () => {
       navigate('/dashboard');
     }
   }, [session, navigate]);
+
+  const handleTestAccounts = () => {
+    navigate('/test-accounts');
+  };
 
   return (
     <div className="space-y-6">
@@ -119,8 +134,9 @@ const LoginForm = () => {
           <Button 
             type="submit" 
             className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-2"
+            disabled={isLoading}
           >
-            Login
+            {isLoading ? "Signing in..." : "Login"}
           </Button>
           
           <div className="relative my-6">
@@ -128,20 +144,18 @@ const LoginForm = () => {
               <span className="w-full border-t"></span>
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-white px-2 text-gray-500">School Login Options</span>
+              <span className="bg-white px-2 text-gray-500">Testing Options</span>
             </div>
           </div>
           
           <Button
             type="button"
             variant="outline"
-            className="w-full flex items-center justify-center gap-2 border border-gray-300 py-2"
-            onClick={() => {
-              navigate('/school-registration');
-            }}
+            className="w-full flex items-center justify-center gap-2 border border-amber-300 text-amber-700 py-2 hover:bg-amber-50"
+            onClick={handleTestAccounts}
           >
             <School className="h-4 w-4" />
-            <span>Register Your School</span>
+            <span>Use Test Accounts</span>
           </Button>
         </form>
       </Form>

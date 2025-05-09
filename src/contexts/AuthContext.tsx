@@ -16,7 +16,7 @@ interface AuthContextProps {
   signUp: (email: string, password: string, userData: any) => Promise<{success: boolean, error?: string}>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
-  setTestUser?: (email: string) => Promise<void>;
+  setTestUser: (email: string) => Promise<void>;
   session: any;
 }
 
@@ -270,7 +270,38 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Set test user function (for development only)
   const setTestUser = async (email: string) => {
-    // Implementation for test accounts if needed
+    try {
+      console.log(`Setting test user to: ${email}`);
+      
+      // Invoke the create test accounts edge function
+      const { data, error } = await supabase.functions.invoke('create-test-accounts', {
+        body: { createAccounts: true }
+      });
+      
+      if (error) {
+        console.error("Error creating test accounts:", error);
+        toast.error("Failed to create test accounts");
+        throw error;
+      }
+      
+      console.log("Test accounts function response:", data);
+      toast.success("Test accounts created successfully");
+      
+      // Now sign in with the test email
+      await signOut(); // Sign out current user if any
+      
+      const result = await signIn(email, email === "school.test@learnable.edu" ? "school123" : 
+                                        email === "teacher.test@learnable.edu" ? "teacher123" : "student123");
+      
+      if (result.success) {
+        toast.success(`Signed in as test user: ${email}`);
+      } else {
+        toast.error(`Failed to sign in as test user: ${result.error}`);
+      }
+    } catch (error: any) {
+      console.error("Error setting test user:", error);
+      toast.error(error.message || "An unexpected error occurred");
+    }
   };
 
   // Sign out function
