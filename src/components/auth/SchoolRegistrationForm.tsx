@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -99,7 +98,7 @@ const SchoolRegistrationForm = () => {
         throw new Error("Failed to create school record");
       }
 
-      // Create school code record
+      // Create school code record with reference to the school
       const { error: schoolCodeError } = await supabase
         .from("school_codes")
         .insert({
@@ -130,7 +129,8 @@ const SchoolRegistrationForm = () => {
             full_name: data.adminFullName,
             school_code: schoolCode,
             user_type: 'school_admin',
-            school_id: school.id
+            school_id: school.id,
+            school_name: data.schoolName
           },
           emailRedirectTo: `${window.location.origin}/login`
         }
@@ -153,31 +153,12 @@ const SchoolRegistrationForm = () => {
         throw new Error(userError.message || "Failed to create admin user");
       }
 
-      // Manually create the school_admin record
+      // Call our edge function to set up the user
       if (userData.user) {
-        const { error: adminError } = await supabase
-          .from("school_admins")
-          .insert({
-            id: userData.user.id,
-            school_id: school.id
-          });
-
-        if (adminError) {
-          console.error("Error creating school admin record:", adminError);
-          // We don't throw here as the user is already created
-        }
-
-        // Insert into user_roles table for proper role management
-        const { error: roleError } = await supabase
-          .from("user_roles")
-          .insert({
-            user_id: userData.user.id,
-            role: 'school_admin'
-          });
-
-        if (roleError) {
-          console.error("Error setting user role:", roleError);
-          // We don't throw here as the user is already created
+        const { error: setupError } = await supabase.functions.invoke("verify-and-setup-user");
+        if (setupError) {
+          console.warn("Admin setup warning:", setupError);
+          // Continue despite this warning
         }
       }
 

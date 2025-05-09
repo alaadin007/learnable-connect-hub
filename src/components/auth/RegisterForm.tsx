@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -57,29 +56,24 @@ const RegisterForm = () => {
   const onSubmit = async (data: FormData) => {
     setIsLoading(true);
     try {
-      // First verify if the school code is valid
-      const { data: isValidSchoolCode, error: schoolCodeError } = await supabase
-        .rpc('verify_school_code', { code: data.schoolCode });
+      // First verify if the school code is valid using our new function
+      const { data: schoolValidation, error: validationError } = await supabase
+        .rpc('verify_and_link_school_code', { code: data.schoolCode });
       
-      if (schoolCodeError) {
-        console.error("Error verifying school code:", schoolCodeError);
-        throw new Error(schoolCodeError.message || "Invalid school code. Please check and try again.");
+      if (validationError) {
+        console.error("Error verifying school code:", validationError);
+        throw new Error(validationError.message || "Invalid school code. Please check and try again.");
       }
 
-      if (!isValidSchoolCode) {
+      if (!schoolValidation || !schoolValidation.valid) {
         throw new Error("Invalid school code. Please check and try again.");
       }
 
-      // Get the school information from the school code
-      const { data: schoolInfo, error: schoolInfoError } = await supabase
-        .from("school_codes")
-        .select("id, school_name")
-        .eq("code", data.schoolCode)
-        .eq("active", true)
-        .single();
+      // Extract the school details from the validation result
+      const schoolId = schoolValidation.school_id;
+      const schoolName = schoolValidation.school_name;
       
-      if (schoolInfoError || !schoolInfo) {
-        console.error("Error getting school info:", schoolInfoError);
+      if (!schoolId) {
         throw new Error("Could not find school information. Please check your school code.");
       }
       
@@ -91,9 +85,9 @@ const RegisterForm = () => {
           data: {
             full_name: data.fullName,
             school_code: data.schoolCode,
-            school_name: schoolInfo?.school_name || "Unknown School",
+            school_name: schoolName || "Unknown School",
             user_type: data.userType, // Use selected user type
-            school_id: schoolInfo?.id // Use the id from school_codes as school_id
+            school_id: schoolId // Use the school_id from our validation function
           }
         }
       });

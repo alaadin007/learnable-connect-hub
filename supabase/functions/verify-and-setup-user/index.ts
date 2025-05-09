@@ -46,6 +46,31 @@ serve(async (req) => {
     const userType = userMetadata.user_type;
     const schoolId = userMetadata.school_id;
     const schoolCode = userMetadata.school_code;
+    const schoolName = userMetadata.school_name;
+    
+    // Ensure profile has the correct details
+    const { error: profileError } = await supabaseClient
+      .from("profiles")
+      .upsert({
+        id: user.id,
+        user_type: userType,
+        school_id: schoolId,
+        school_code: schoolCode,
+        school_name: schoolName,
+        full_name: userMetadata.full_name,
+        email: user.email
+      });
+    
+    if (profileError) {
+      console.error("Error updating profile:", profileError);
+      return new Response(
+        JSON.stringify({ error: "Failed to update profile" }),
+        {
+          status: 500,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
     
     // Verify if user should be a teacher or student
     if (userType === "teacher") {
@@ -70,6 +95,13 @@ serve(async (req) => {
           }
         );
       }
+      
+      // Add teacher role
+      await supabaseClient.rpc('assign_role', { 
+        user_id_param: user.id, 
+        role_param: 'teacher'
+      });
+      
     } else if (userType === "student") {
       // Add user to students table
       const { data: studentData, error: studentError } = await supabaseClient
@@ -92,27 +124,49 @@ serve(async (req) => {
           }
         );
       }
-    }
-    
-    // Ensure the profile has the correct details
-    const { error: profileError } = await supabaseClient
-      .from("profiles")
-      .update({
-        user_type: userType,
-        school_id: schoolId,
-        school_code: schoolCode
-      })
-      .eq("id", user.id);
-    
-    if (profileError) {
-      console.error("Error updating profile:", profileError);
-      return new Response(
-        JSON.stringify({ error: "Failed to update profile" }),
-        {
-          status: 500,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        }
-      );
+      
+      // Add student role
+      await supabaseClient.rpc('assign_role', { 
+        user_id_param: user.id, 
+        role_param: 'student'
+      });
+      
+    } else if (userType === "school_admin" || userType === "school") {
+      // Add user to school_admins table
+      const { data: adminData, error: adminError } = await supabaseClient
+        .from("school_admins")
+        .insert({
+          id: user.id,
+          school_id: schoolId
+        })
+        .select()
+        .single();
+      
+      if (adminError && adminError.code !== "23505") {  // Ignore unique constraint violations
+        console.error("Error creating school admin record:", adminError);
+        return new Response(
+          JSON.stringify({ error: "Failed to create school admin record" }),
+          {
+            status: 500,
+            headers: { "Content-Type": "application/json", ...corsHeaders },
+          }
+        );
+      }
+      
+      // Add school_admin role
+      await supabaseClient.rpc('assign_role', { 
+        user_id_param: user.id, 
+        role_param: 'school_admin'
+      });
+      
+      // Set teacher as supervisor
+      await supabaseClient
+        .from("teachers")
+        .upsert({
+          id: user.id,
+          school_id: schoolId,
+          is_supervisor: true
+        });
     }
     
     return new Response(

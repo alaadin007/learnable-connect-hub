@@ -565,6 +565,7 @@ export type Database = {
           code: string
           created_at: string
           id: string
+          school_id: string | null
           school_name: string
         }
         Insert: {
@@ -572,6 +573,7 @@ export type Database = {
           code: string
           created_at?: string
           id?: string
+          school_id?: string | null
           school_name: string
         }
         Update: {
@@ -579,9 +581,39 @@ export type Database = {
           code?: string
           created_at?: string
           id?: string
+          school_id?: string | null
           school_name?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "school_codes_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_analytics_summary"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "school_codes_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_improvement_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "school_codes_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_performance_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "school_codes_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       schools: {
         Row: {
@@ -1729,6 +1761,14 @@ export type Database = {
           show_sources_param: boolean
         }
         Returns: boolean
+      }
+      verify_and_link_school_code: {
+        Args: { code: string }
+        Returns: {
+          valid: boolean
+          school_id: string
+          school_name: string
+        }[]
       }
       verify_school_code: {
         Args: { code: string }
