@@ -1,63 +1,110 @@
-
 import { supabase } from "@/integrations/supabase/client";
+import { Session } from "@supabase/supabase-js";
+
+// Types
+interface EdgeFunctionResponse<T = any> {
+  data: T;
+  error: Error | null;
+}
+
+interface EdgeFunctionOptions {
+  requireAuth?: boolean;
+  retryCount?: number;
+  timeout?: number;
+}
+
+interface NetworkStatus {
+  isOnline: boolean;
+  lastChecked: Date;
+}
+
+// Constants
+const DEFAULT_RETRY_COUNT = 3;
+const DEFAULT_TIMEOUT = 30000; // 30 seconds
+const RETRY_DELAY = 1000; // 1 second
 
 /**
  * Helper function to invoke Supabase Edge Functions with proper authentication and CORS handling
  * @param functionName The name of the edge function to invoke
  * @param payload The payload to send to the function
+ * @param options Additional options for the function invocation
  * @returns The response from the edge function
+ * @throws Error if the function invocation fails
  */
-export async function invokeEdgeFunction<T = any>(functionName: string, payload?: any): Promise<T> {
-  try {
-    console.log(`Attempting to invoke edge function: ${functionName}`);
-    
-    // Get the current session without waiting for refresh
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    // Define headers - will add authorization if available
-    const headers: Record<string, string> = {
-      "Origin": window.location.origin,
-      "Content-Type": "application/json"
-    };
-    
-    // If we have a session, add the authorization header
-    if (session?.access_token) {
-      headers.Authorization = `Bearer ${session.access_token}`;
-      console.log(`Found active session, using auth token for ${functionName}`);
-    } else {
-      console.log(`No active session found for ${functionName} invocation`);
+export async function invokeEdgeFunction<T = any>(
+  functionName: string, 
+  payload?: any,
+  options: EdgeFunctionOptions = {}
+): Promise<T> {
+  const {
+    requireAuth = true,
+    retryCount = DEFAULT_RETRY_COUNT,
+    timeout = DEFAULT_TIMEOUT
+  } = options;
+
+  let attempts = 0;
+  let lastError: Error | null = null;
+
+  while (attempts < retryCount) {
+    try {
+      // Check network status
+      if (!navigator.onLine) {
+        throw new Error("No internet connection");
+      }
+
+      // Get the current session
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      // Validate authentication if required
+      if (requireAuth && !session?.access_token) {
+        throw new Error("Authentication required");
+      }
+
+      // Prepare headers
+      const headers = await prepareHeaders(session);
+      
+      // Log request details
+      logRequestDetails(functionName, headers, payload);
+
+      // Create abort controller for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+      // Invoke the function
+      const { data, error } = await supabase.functions.invoke<T>(functionName, {
+        body: payload,
+        headers,
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (error) {
+        throw error;
+      }
+
+      // Log success
+      console.log(`Successfully invoked ${functionName}`);
+      return data;
+
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      
+      // Log error details
+      logErrorDetails(functionName, lastError, attempts);
+
+      // Check if we should retry
+      if (shouldRetry(lastError, attempts, retryCount)) {
+        attempts++;
+        await delay(RETRY_DELAY * attempts); // Exponential backoff
+        continue;
+      }
+
+      throw lastError;
     }
-    
-    // Log network request attempt
-    console.log(`Sending request to edge function: ${functionName}`, { 
-      hasHeaders: Object.keys(headers).length,
-      hasPayload: !!payload,
-      origin: window.location.origin,
-      connectionStatus: navigator.onLine ? "Online" : "Offline"
-    });
-    
-    // Invoke the function with explicit authorization header if available
-    const { data, error } = await supabase.functions.invoke(functionName, {
-      body: payload,
-      headers
-    });
-    
-    if (error) {
-      console.error(`Error invoking ${functionName}:`, error);
-      throw error;
-    }
-    
-    console.log(`Successfully invoked ${functionName}`);
-    return data as T;
-  } catch (error) {
-    console.error(`Failed to invoke ${functionName}:`, error);
-    // Log more details about the error
-    if (error instanceof Error) {
-      console.error(`Error details: ${error.name}, ${error.message}`);
-      console.error(`Error stack: ${error.stack}`);
-    }
-    throw error; // Rethrow to allow proper error handling by caller
   }
+
+  throw lastError || new Error(`Failed to invoke ${functionName} after ${retryCount} attempts`);
 }
 
 /**
@@ -67,8 +114,16 @@ export async function invokeEdgeFunction<T = any>(functionName: string, payload?
 export async function isAuthenticated(): Promise<boolean> {
   try {
     const { data: { session } } = await supabase.auth.getSession();
-    console.log("Authentication check:", !!session ? "User is authenticated" : "No active session");
-    return !!session;
+    const isAuth = !!session;
+    
+    // Log authentication status
+    console.log("Authentication check:", {
+      isAuthenticated: isAuth,
+      timestamp: new Date().toISOString(),
+      userId: session?.user?.id
+    });
+    
+    return isAuth;
   } catch (error) {
     console.error("Error checking authentication:", error);
     return false;
@@ -76,158 +131,101 @@ export async function isAuthenticated(): Promise<boolean> {
 }
 
 /**
- * Helper to get the current user's authentication token
- * @returns The current JWT token or null if not authenticated
+ * Gets the current session if available
+ * @returns The current session or null
  */
-export async function getAuthToken(): Promise<string | null> {
+export async function getCurrentSession(): Promise<Session | null> {
   try {
     const { data: { session } } = await supabase.auth.getSession();
-    return session?.access_token || null;
+    return session;
   } catch (error) {
-    console.error("Error getting auth token:", error);
+    console.error("Error getting session:", error);
     return null;
   }
 }
 
-/**
- * Helper to check the validity of a Supabase session
- * This can be used to verify if authentication is working correctly
- * @returns Object with session status information
- */
-export async function checkSessionStatus(): Promise<{
-  hasSession: boolean;
-  hasUser: boolean;
-  userId: string | null;
-  expiresAt: number | null;
-  error?: string;
-}> {
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    if (session) {
-      console.log("Session details:", {
-        userId: session.user.id,
-        expiresAt: session.expires_at,
-        provider: session.user.app_metadata.provider,
-        email: session.user.email
-      });
-    }
-    
-    return {
-      hasSession: !!session,
-      hasUser: !!session?.user,
-      userId: session?.user?.id || null,
-      expiresAt: session?.expires_at || null
-    };
-  } catch (error) {
-    console.error("Error checking session status:", error);
-    return {
-      hasSession: false,
-      hasUser: false,
-      userId: null,
-      expiresAt: null,
-      error: error instanceof Error ? error.message : String(error)
-    };
+// Helper functions
+async function prepareHeaders(session: Session | null): Promise<Record<string, string>> {
+  const headers: Record<string, string> = {
+    "Origin": window.location.origin,
+    "Content-Type": "application/json"
+  };
+
+  if (session?.access_token) {
+    headers.Authorization = `Bearer ${session.access_token}`;
   }
+
+  return headers;
 }
 
-/**
- * Checks if a school admin account exists in the database for the specified user
- * Used as a fallback when the profile table data is unavailable
- * @param userId The user ID to check
- * @returns Boolean indicating if user is a school admin
- */
-export async function checkIfSchoolAdmin(userId: string): Promise<boolean> {
-  try {
-    // Check if user is in teachers table with is_supervisor flag
-    const { data, error } = await supabase
-      .from('teachers')
-      .select('is_supervisor')
-      .eq('id', userId)
-      .single();
-    
-    if (error) {
-      console.error("Error checking school admin status:", error);
-      return false;
-    }
-    
-    return data?.is_supervisor === true;
-  } catch (error) {
-    console.error("Exception checking school admin status:", error);
-    return false;
-  }
+function logRequestDetails(
+  functionName: string, 
+  headers: Record<string, string>, 
+  payload?: any
+): void {
+  console.log(`Sending request to edge function: ${functionName}`, {
+    hasHeaders: Object.keys(headers).length,
+    hasPayload: !!payload,
+    origin: window.location.origin,
+    connectionStatus: navigator.onLine ? "Online" : "Offline",
+    timestamp: new Date().toISOString()
+  });
 }
 
-/**
- * Helper function to safely get the user's role from metadata or database
- * Provides fallbacks if the standard auth flow fails
- */
-export async function getUserRoleWithFallback(user: any): Promise<string | null> {
-  if (!user) return null;
-  
-  try {
-    // First try getting from metadata
-    if (user.user_metadata?.user_type) {
-      const metaType = user.user_metadata.user_type;
-      
-      // Normalize school admin roles
-      if (metaType === "school_admin" || metaType === "school") {
-        return "school";
-      }
-      
-      return metaType;
-    }
-    
-    // Try fetching from profile
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("user_type")
-      .eq("id", user.id)
-      .single();
-      
-    if (profile?.user_type) {
-      // Normalize school admin roles
-      if (profile.user_type === "school_admin" || profile.user_type === "school") {
-        return "school";
-      }
-      
-      return profile.user_type;
-    }
-    
-    // Check if in teachers table
-    const { data: teacher } = await supabase
-      .from("teachers")
-      .select("id")
-      .eq("id", user.id)
-      .maybeSingle();
-      
-    if (teacher) {
-      return "teacher";
-    }
-    
-    // Check if in students table
-    const { data: student } = await supabase
-      .from("students")
-      .select("id")
-      .eq("id", user.id)
-      .maybeSingle();
-      
-    if (student) {
-      return "student";
-    }
-    
-    // Last resort - check email patterns
-    if (user.email) {
-      if (user.email.startsWith('school') || user.email.startsWith('admin')) {
-        return "school";
-      } else if (user.email.startsWith('teacher')) {
-        return "teacher";
-      }
-    }
-    
-    return "student"; // Default fallback
-  } catch (error) {
-    console.error("Error in getUserRoleWithFallback:", error);
-    return null;
-  }
+function logErrorDetails(
+  functionName: string, 
+  error: Error, 
+  attempt: number
+): void {
+  console.error(`Error invoking ${functionName} (attempt ${attempt + 1}):`, {
+    name: error.name,
+    message: error.message,
+    stack: error.stack,
+    timestamp: new Date().toISOString()
+  });
+}
+
+function shouldRetry(error: Error, attempts: number, maxRetries: number): boolean {
+  // Don't retry if we've reached max attempts
+  if (attempts >= maxRetries) return false;
+
+  // Don't retry authentication errors
+  if (error.message === "Authentication required") return false;
+
+  // Don't retry network errors if offline
+  if (error.message === "No internet connection") return false;
+
+  // Retry other errors
+  return true;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Network status monitoring
+let networkStatus: NetworkStatus = {
+  isOnline: navigator.onLine,
+  lastChecked: new Date()
+};
+
+window.addEventListener('online', () => {
+  networkStatus = {
+    isOnline: true,
+    lastChecked: new Date()
+  };
+  console.log('Network status: Online');
+});
+
+window.addEventListener('offline', () => {
+  networkStatus = {
+    isOnline: false,
+    lastChecked: new Date()
+  };
+  console.log('Network status: Offline');
+});
+
+// Export network status getter
+export function getNetworkStatus(): NetworkStatus {
+  return { ...networkStatus };
 }
