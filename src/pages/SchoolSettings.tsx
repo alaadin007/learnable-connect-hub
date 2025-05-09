@@ -99,7 +99,7 @@ const SchoolSettings = () => {
       console.log("Saving school settings for ID:", schoolId);
       
       // Update school information
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from("schools")
         .update({
           name: schoolName,
@@ -114,8 +114,6 @@ const SchoolSettings = () => {
         console.error("Error in supabase update:", error);
         throw error;
       }
-      
-      console.log("School settings update response:", data);
       
       // Refresh profile to get latest data
       await refreshProfile();
@@ -137,34 +135,27 @@ const SchoolSettings = () => {
     
     setIsDeleting(true);
     try {
-      // First, delete students and teachers associated with the school
-      // This approach ensures we don't have orphaned records
+      const schoolId = profile.organization.id;
       
-      // 1. Delete students linked to the school
-      const { error: studentsError } = await supabase
-        .from("students")
-        .delete()
-        .eq("school_id", profile.organization.id);
+      // Use the delete-school-data edge function to handle the complex deletion
+      const { data, error } = await supabase.functions.invoke("delete-school-data", {
+        body: { school_id: schoolId }
+      });
+
+      if (error) {
+        console.error("Error invoking delete-school-data function:", error);
+        throw new Error(error.message || "Failed to delete school data");
+      }
       
-      if (studentsError) throw studentsError;
-      
-      // 2. Delete teachers linked to the school
-      const { error: teachersError } = await supabase
-        .from("teachers")
-        .delete()
-        .eq("school_id", profile.organization.id);
-      
-      if (teachersError) throw teachersError;
-      
-      // 3. Delete the school itself
+      // Delete the school itself
       const { error: schoolError } = await supabase
         .from("schools")
         .delete()
-        .eq("id", profile.organization.id);
+        .eq("id", schoolId);
       
       if (schoolError) throw schoolError;
       
-      // 4. Sign out the user after deletion is complete
+      // Sign out the user after deletion is complete
       await signOut();
       
       toast.success("School account successfully deleted");
