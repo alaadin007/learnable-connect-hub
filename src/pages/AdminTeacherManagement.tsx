@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import TeacherManagement from "@/components/school-admin/TeacherManagement";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
+import AdminNavbar from "@/components/school-admin/AdminNavbar";
 
 const AdminTeacherManagement = () => {
   const navigate = useNavigate();
@@ -27,6 +28,9 @@ const AdminTeacherManagement = () => {
             </Button>
             <h1 className="text-3xl font-bold">Teacher Management</h1>
           </div>
+          
+          {/* Add the AdminNavbar component */}
+          <AdminNavbar />
           
           <TeacherManagement />
         </div>
