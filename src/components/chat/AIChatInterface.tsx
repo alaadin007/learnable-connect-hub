@@ -67,12 +67,11 @@ const AIChatInterface = () => {
     stop,
   } = useCompletion({
     api: "/api/completion",
-    // Remove model property as it's not supported
-    temperature: settings?.temperature || 0.5,
-    // Send maxTokens as part of the request payload instead of configuration option
+    // Move all configuration options to the body property
     body: {
       maxTokens: settings?.maxTokens || 400,
-      model: settings?.model || "gpt-3.5-turbo"
+      model: settings?.model || "gpt-3.5-turbo",
+      temperature: settings?.temperature || 0.5
     },
     // Track session and usage
     onFinish: () => {
