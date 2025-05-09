@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -52,63 +51,58 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [schoolId, setSchoolId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // Fix the auth initialization and subscription setup
+  // Optimized auth initialization
   useEffect(() => {
-    const loadSession = async () => {
-      setIsLoading(true);
-      try {
-        console.log("AuthContext: Loading initial session");
+    console.log("AuthContext: Starting auth initialization");
+    setIsLoading(true);
+    
+    // Set up auth state listener FIRST
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, currentSession) => {
+        console.log("AuthContext: Auth state change event:", event);
         
-        // Fix: Set up auth state listener FIRST to ensure we don't miss any auth events
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(
-          async (event, currentSession) => {
-            console.log("AuthContext: Auth state change event:", event);
-            
-            // IMPORTANT: Update session and user synchronously
-            setSession(currentSession);
-            setUser(currentSession?.user || null);
+        // Update session and user synchronously
+        setSession(currentSession);
+        setUser(currentSession?.user || null);
 
-            if (currentSession?.user) {
-              // Use setTimeout to defer the profile fetch to prevent potential deadlocks
-              setTimeout(() => {
-                fetchUserProfile(currentSession.user);
-              }, 0);
-            } else {
-              setProfile(null);
-              setUserRole(null);
-              setIsSuperviser(false);
-              setSchoolId(null);
-            }
-          }
-        );
-
-        // THEN check for existing session
-        const { data: { session: initialSession } } = await supabase.auth.getSession();
-        console.log("AuthContext: Initial session check:", initialSession ? "Session exists" : "No session");
-        
-        setSession(initialSession);
-        setUser(initialSession?.user || null);
-
-        if (initialSession?.user) {
-          await fetchUserProfile(initialSession.user);
+        if (currentSession?.user) {
+          // Use setTimeout with 0ms to defer profile fetch without adding delay
+          setTimeout(() => {
+            fetchUserProfile(currentSession.user);
+          }, 0);
         } else {
-          setIsLoading(false); // No session, we can stop loading
+          setProfile(null);
+          setUserRole(null);
+          setIsSuperviser(false);
+          setSchoolId(null);
+          setIsLoading(false);
         }
+      }
+    );
 
-        return () => {
-          subscription?.unsubscribe();
-        };
-      } catch (error) {
-        console.error("AuthContext: Session load error:", error);
+    // Check for existing session
+    const checkSession = async () => {
+      const { data: { session: initialSession } } = await supabase.auth.getSession();
+      console.log("AuthContext: Initial session check:", initialSession ? "Session exists" : "No session");
+      
+      setSession(initialSession);
+      setUser(initialSession?.user || null);
+
+      if (initialSession?.user) {
+        await fetchUserProfile(initialSession.user);
+      } else {
         setIsLoading(false);
       }
     };
 
-    loadSession();
+    checkSession();
+
+    return () => {
+      subscription?.unsubscribe();
+    };
   }, []);
 
   const fetchUserProfile = async (currentUser: User) => {
-    setIsLoading(true);
     console.log("AuthContext: Fetching user profile for:", currentUser.id);
     try {
       // Fetch profile data
@@ -125,21 +119,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setIsSuperviser(isAdmin);
       }
 
-      // Fix for TS2322 error by explicitly converting the profileData to Profile type
+      // Convert the profileData to Profile type
       const fetchedProfile: Profile | null = profileData ? {
         id: profileData.id,
         full_name: profileData.full_name,
         email: profileData.email,
         user_type: profileData.user_type,
         is_supervisor: profileData.is_supervisor,
-        organization_id: profileData.school_id, // Using school_id as organization_id
+        organization_id: profileData.school_id,
         school_id: profileData.school_id,
         school_code: profileData.school_code,
         school_name: profileData.school_name,
         is_active: profileData.is_active,
         created_at: profileData.created_at,
         updated_at: profileData.updated_at,
-        // Convert the organization from Json to expected format
         organization: typeof profileData.organization === 'object' && profileData.organization !== null ? 
           {
             id: (profileData.organization as Record<string, any>)?.id,
@@ -152,17 +145,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.log("AuthContext: Fetched profile:", fetchedProfile);
       setProfile(fetchedProfile);
 
-      // Set school ID from profile or null
+      // Set school ID
       setSchoolId(fetchedProfile?.organization_id || fetchedProfile?.school_id || null);
 
       // Determine user role
       const role = await getUserRoleWithFallback(currentUser);
       console.log("AuthContext: User role determined:", role);
       
-      // Fix type issue here - convert string to UserRole type using type assertion
+      // Set user role
       setUserRole(role as UserRole);
 
-      // Set isSuperviser based on profile or fallback
+      // Set isSuperviser
       setIsSuperviser(fetchedProfile?.is_supervisor === true || await checkIfSchoolAdmin(currentUser.id));
     } catch (error) {
       console.error("Error fetching user profile or determining role:", error);
@@ -223,8 +216,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setIsLoading(false);
     }
   };
-
-  // Add the missing functions that cause TypeScript errors
+  
   const refreshProfile = async () => {
     if (!user) {
       console.log("AuthContext: Cannot refresh profile - no user");
@@ -247,8 +239,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Log out any existing user first
       await supabase.auth.signOut();
       
-      // For test accounts, we'll set up mock data
-      // Fix TS2352 error by first defining a partial mock object and then casting it as any then User
+      // Set up mock data
       const mockUserData = {
         id: `test-${accountType}-${Date.now()}`,
         email: `${accountType}.test@learnable.edu`,
@@ -273,9 +264,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         organization: {
           id: accountType === "school" ? `school-org-${schoolIndex}` : `school-org-0`,
           name: `Test School ${schoolIndex}`,
-          code: `TEST${schoolIndex}` // Adding code property for SchoolAdmin component
+          code: `TEST${schoolIndex}`
         },
-        school_name: `Test School ${schoolIndex}` // Adding school_name for SchoolAdmin component
+        school_name: `Test School ${schoolIndex}`
       };
       
       // Update context state

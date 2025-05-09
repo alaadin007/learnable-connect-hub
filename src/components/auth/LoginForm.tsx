@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,12 +14,12 @@ const LoginForm = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [authChecked, setAuthChecked] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [loginAttemptInProgress, setLoginAttemptInProgress] = useState(false);
+  
   const { signIn, setTestUser, userRole, refreshProfile, session, user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [loginError, setLoginError] = useState<string | null>(null);
-  const [loginAttemptInProgress, setLoginAttemptInProgress] = useState(false);
   
   // Show success toast for registration and email verification
   useEffect(() => {
@@ -36,42 +35,34 @@ const LoginForm = () => {
     }
   }, [searchParams]);
 
-  // Check authentication status on component mount
+  // Check if user is already authenticated and redirect immediately
   useEffect(() => {
-    console.log("LoginForm: Checking authentication status");
-    const checkAuthStatus = async () => {
-      try {
-        // First check if there's already an active session in the component
-        if (session && user) {
-          console.log("LoginForm: User already has an active session in context");
-          setAuthChecked(true);
-          return;
-        }
-        
-        // If not found in context, check directly with Supabase
-        const { data } = await supabase.auth.getSession();
-        
-        if (data.session) {
-          console.log("LoginForm: Found active session via direct Supabase check");
-          // This will trigger the onAuthStateChange listener in AuthContext
-          await refreshProfile();
-        } else {
-          console.log("LoginForm: No active session found");
-        }
-        
-        setAuthChecked(true);
-      } catch (error) {
-        console.error("LoginForm: Error checking auth status:", error);
-        setAuthChecked(true);
-      }
-    };
+    console.log("LoginForm: Checking if user is already authenticated");
     
-    checkAuthStatus();
-  }, [refreshProfile, session, user]);
+    if (user && session && userRole) {
+      console.log("LoginForm: User is authenticated, redirecting based on role:", userRole);
+      
+      let redirectPath = "/dashboard";
+      if (userRole === "school" || userRole === "school_admin") {
+        redirectPath = "/admin";
+      } else if (userRole === "teacher") {
+        redirectPath = "/teacher/analytics";
+      }
+      
+      navigate(redirectPath, { 
+        replace: true, 
+        state: { 
+          preserveContext: true,
+          timestamp: Date.now()
+        } 
+      });
+    }
+  }, [user, session, userRole, navigate]);
 
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
     setLoginError(null);
+    console.log("LoginForm: Login attempt started");
 
     if (!email || !password) {
       toast.error("Please enter both email and password");
@@ -96,6 +87,7 @@ const LoginForm = () => {
         else if (email.startsWith("teacher")) type = "teacher";
 
         await setTestUser(type);
+        console.log(`Test user set: ${type}`);
 
         const redirectPath = type === "school"
           ? "/admin"
@@ -119,7 +111,7 @@ const LoginForm = () => {
             fromTestAccounts: true, 
             accountType: type,
             preserveContext: true,
-            timestamp: Date.now() // Add timestamp to prevent stale routes
+            timestamp: Date.now()
           } 
         });
         return;
@@ -145,7 +137,15 @@ const LoginForm = () => {
 
       console.log("Login successful, user data:", data.user);
       
-      // Extract role information from user metadata
+      // Immediately refresh profile data
+      await refreshProfile();
+      console.log("Profile refreshed after login");
+      
+      toast.success("Login successful", {
+        description: `Welcome back, ${data.user.user_metadata?.full_name || email}!`,
+      });
+
+      // Extract role information
       const userType = data.user.user_metadata?.user_type;
       let isSchoolAdmin = userType === "school" || userType === "school_admin";
       
@@ -156,14 +156,7 @@ const LoginForm = () => {
         }
       }
 
-      // Ensure we have the latest profile data
-      await refreshProfile();
-      
-      toast.success("Login successful", {
-        description: `Welcome back, ${data.user.user_metadata?.full_name || email}!`,
-      });
-
-      // Redirect based on user type
+      // Immediate redirect based on user type
       if (isSchoolAdmin) {
         navigate("/admin", { 
           state: { preserveContext: true, timestamp: Date.now() }, 
@@ -212,6 +205,7 @@ const LoginForm = () => {
     type: "school" | "teacher" | "student",
     schoolIndex = 0
   ) => {
+    console.log(`Quick login attempt for ${type}`);
     // Prevent double submission
     if (loginAttemptInProgress) {
       return;
@@ -224,6 +218,7 @@ const LoginForm = () => {
     try {
       // Direct login for test accounts
       await setTestUser(type, schoolIndex);
+      console.log(`Test user set for quick login: ${type}`);
 
       // Define redirect paths
       let redirectPath = "/dashboard";
@@ -249,7 +244,7 @@ const LoginForm = () => {
           fromTestAccounts: true,
           accountType: type,
           preserveContext: true,
-          timestamp: Date.now() // Add timestamp to prevent stale routes
+          timestamp: Date.now()
         }
       });
     } catch (error: any) {
@@ -288,28 +283,6 @@ const LoginForm = () => {
       setIsLoading(false);
     }
   };
-
-  // Explicitly check if the user is already logged in - belt and suspenders approach
-  useEffect(() => {
-    if (authChecked && user && session && userRole && !loginAttemptInProgress) {
-      console.log("LoginForm: User authenticated, redirecting based on role:", userRole);
-      
-      let redirectPath = "/dashboard";
-      if (userRole === "school" || userRole === "school_admin") {
-        redirectPath = "/admin";
-      } else if (userRole === "teacher") {
-        redirectPath = "/teacher/analytics";
-      }
-      
-      navigate(redirectPath, { 
-        replace: true, 
-        state: { 
-          preserveContext: true,
-          timestamp: Date.now() // Add timestamp to prevent stale routes 
-        } 
-      });
-    }
-  }, [authChecked, user, session, userRole, navigate, loginAttemptInProgress]);
 
   return (
     <div className="max-w-md w-full mx-auto p-4">
