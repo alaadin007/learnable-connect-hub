@@ -55,76 +55,73 @@ export function useSchoolCode(): UseSchoolCodeReturn {
     try {
       console.log("Generating school code for schoolId:", schoolId);
       
-      // First try using direct database query with RPC to avoid recursion issues
+      // Try direct database function call first (most reliable)
       try {
-        const { data: directData, error: directError } = await supabase
+        const { data: rpcData, error: rpcError } = await supabase
           .rpc("generate_new_school_code", { school_id_param: schoolId });
           
-        if (!directError && directData) {
-          console.log("Generated code via RPC:", directData);
+        if (!rpcError && rpcData) {
+          console.log("Generated code via RPC:", rpcData);
           toast.success("School code generated successfully");
-          return directData;
+          return rpcData;
+        } else {
+          console.warn("RPC approach returned error:", rpcError);
         }
-        
-        console.log("RPC approach failed or returned empty, trying edge function next", directError);
       } catch (rpcError) {
         console.error("RPC call failed:", rpcError);
       }
       
       // Try with the edge function next
-      console.log("Calling generate-school-code edge function");
-      const data = await invokeEdgeFunction<SchoolCodeResponse>("generate-school-code", {
-        schoolId: schoolId
-      }, {
-        requireAuth: true,
-        retryCount: 2,
-        timeout: 10000
-      });
+      try {
+        console.log("Calling generate-school-code edge function");
+        const data = await invokeEdgeFunction<SchoolCodeResponse>("generate-school-code", {
+          schoolId: schoolId
+        }, {
+          requireAuth: true,
+          retryCount: 2,
+          timeout: 10000
+        });
+        
+        console.log("Response from edge function:", data);
+  
+        if (data?.code) {
+          // Validate the received code format
+          if (validateCodeFormat(data.code)) {
+            toast.success("School code generated successfully");
+            return data.code;
+          }
+        }
+      } catch (edgeError) {
+        console.error("Edge function failed:", edgeError);
+      }
+
+      // Last resort - direct table update
+      console.log("Trying direct table update as fallback");
+      const newCode = `SCH${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
       
-      console.log("Response from edge function:", data);
-
-      if (!data?.code) {
-        throw new Error("Failed to generate code from both approaches");
+      const { data, error: updateError } = await supabase
+        .from('schools')
+        .update({ 
+          code: newCode,
+          code_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+        })
+        .eq('id', schoolId)
+        .select('code')
+        .single();
+      
+      if (!updateError && data?.code) {
+        console.log("Generated code via direct update:", data.code);
+        toast.success("School code generated successfully");
+        return data.code;
       }
 
-      // Validate the received code format
-      if (!validateCodeFormat(data.code)) {
-        throw new Error("Invalid code format received from server");
-      }
-
-      toast.success("School code generated successfully");
-      return data.code;
+      throw new Error("Failed to generate code through all available methods");
 
     } catch (error) {
       console.error("Exception while generating school code:", error);
       const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
       setError(errorMessage);
       toast.error(`Failed to generate school code: ${errorMessage}`);
-      
-      // Try direct update as last resort
-      try {
-        console.log("Trying direct table update as fallback");
-        const newCode = `SCH${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-        
-        const { data, error: updateError } = await supabase
-          .from('schools')
-          .update({ 
-            code: newCode,
-            code_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-          })
-          .eq('id', schoolId)
-          .select('code')
-          .single();
-        
-        if (!updateError && data?.code) {
-          console.log("Generated code via direct update:", data.code);
-          toast.success("School code generated successfully");
-          return data.code;
-        }
-      } catch (fallbackError) {
-        console.error("All code generation methods failed:", fallbackError);
-      }
-      
       return null;
     } finally {
       setIsGenerating(false);

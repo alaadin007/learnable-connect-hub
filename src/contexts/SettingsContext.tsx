@@ -1,6 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 // Define settings types
 export interface Settings {
@@ -16,7 +17,7 @@ export interface Settings {
 // Define context type
 interface SettingsContextType {
   settings: Settings;
-  updateSettings: (newSettings: Partial<Settings>) => void;
+  updateSettings: (newSettings: Partial<Settings>) => Promise<boolean>;
   isLoading: boolean;
 }
 
@@ -31,7 +32,7 @@ const SettingsContext = createContext<SettingsContextType>({
     openAiKey: '',
     geminiKey: '',
   },
-  updateSettings: () => {},
+  updateSettings: async () => false,
   isLoading: false,
 });
 
@@ -101,20 +102,20 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Function to update settings
-  const updateSettings = async (newSettings: Partial<Settings>) => {
-    const updatedSettings = { ...settings, ...newSettings };
-    setSettings(updatedSettings);
-    
-    // Store in localStorage
-    localStorage.setItem('user-settings', JSON.stringify(updatedSettings));
-    
-    // Save to database if user is authenticated
+  const updateSettings = async (newSettings: Partial<Settings>): Promise<boolean> => {
     try {
+      const updatedSettings = { ...settings, ...newSettings };
+      setSettings(updatedSettings);
+      
+      // Store in localStorage
+      localStorage.setItem('user-settings', JSON.stringify(updatedSettings));
+      
+      // Save to database if user is authenticated
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         // If updating AI provider or API keys, save to user_api_keys table
         if (newSettings.aiProvider === 'openai' && newSettings.openAiKey) {
-          await supabase
+          const { error } = await supabase
             .from('user_api_keys')
             .upsert({
               user_id: session.user.id,
@@ -123,10 +124,16 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
             }, {
               onConflict: 'user_id,provider'
             });
+            
+          if (error) {
+            console.error('Error saving OpenAI key:', error);
+            toast.error('Failed to save OpenAI API key');
+            return false;
+          }
         }
         
         if (newSettings.aiProvider === 'gemini' && newSettings.geminiKey) {
-          await supabase
+          const { error } = await supabase
             .from('user_api_keys')
             .upsert({
               user_id: session.user.id,
@@ -135,10 +142,20 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
             }, {
               onConflict: 'user_id,provider'
             });
+            
+          if (error) {
+            console.error('Error saving Gemini key:', error);
+            toast.error('Failed to save Gemini API key');
+            return false;
+          }
         }
       }
+      
+      return true;
     } catch (error) {
       console.error('Error saving settings:', error);
+      toast.error('Failed to save settings');
+      return false;
     }
   };
 

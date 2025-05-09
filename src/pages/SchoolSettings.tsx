@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -94,10 +95,11 @@ const SchoolSettings = () => {
     
     setIsSaving(true);
     try {
-      console.log("Saving school settings for ID:", profile.organization.id);
+      const schoolId = profile.organization.id;
+      console.log("Saving school settings for ID:", schoolId);
       
       // Update school information
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("schools")
         .update({
           name: schoolName,
@@ -106,9 +108,14 @@ const SchoolSettings = () => {
           notifications_enabled: notificationsEnabled,
           updated_at: new Date().toISOString()
         })
-        .eq("id", profile.organization.id);
+        .eq("id", schoolId);
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error in supabase update:", error);
+        throw error;
+      }
+      
+      console.log("School settings update response:", data);
       
       // Refresh profile to get latest data
       await refreshProfile();
