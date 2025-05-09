@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +28,7 @@ import { Copy, Loader2, UserPlus, Mail, Clock, AlertCircle, Check, X } from 'luc
 import { Badge } from "@/components/ui/badge";
 import { format } from 'date-fns';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useSchoolCode } from '@/hooks/use-school-code';
 
 type Student = {
   id: string;
@@ -150,30 +152,39 @@ const StudentManagement = () => {
   const generateInviteCode = async () => {
     setIsGeneratingCode(true);
     try {
-      // First try the edge function
-      console.log("Generating invite code via edge function");
-      const { data, error } = await supabase.functions.invoke('invite-student', {
-        body: { method: 'code' }
-      });
+      // First try to use the edge function
+      try {
+        console.log("Generating invite code via edge function");
+        const { data, error } = await supabase.functions.invoke('invite-student', {
+          body: { method: 'code' }
+        });
 
-      if (error) throw error;
-      
-      if (data && data.code) {
-        console.log("Code generated successfully:", data.code);
-        setGeneratedCode(data.code);
-        toast.success("Invite code generated successfully");
-        fetchInvites();
-        return;
+        if (error) throw error;
+        
+        if (data && data.code) {
+          console.log("Code generated successfully:", data.code);
+          setGeneratedCode(data.code);
+          toast.success("Invite code generated successfully");
+          fetchInvites();
+          return;
+        }
+      } catch (edgeFnError) {
+        console.error("Edge function error:", edgeFnError);
       }
       
       // Fallback to direct database insertion
       console.log("Falling back to direct database insertion");
+      
+      // Generate a random code with SCH prefix
+      const randomCode = `SCH${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+      
       const { data: inviteData, error: insertError } = await supabase
         .from('student_invites')
         .insert({
-          code: Math.random().toString(36).substring(2, 10).toUpperCase(),
+          code: randomCode,
           school_id: effectiveSchoolId,
-          status: 'pending'
+          status: 'pending',
+          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
         })
         .select('code')
         .single();
@@ -200,23 +211,27 @@ const StudentManagement = () => {
     setIsSending(true);
     try {
       // Try the edge function first
-      console.log("Sending email invite via edge function");
-      const { data, error } = await supabase.functions.invoke('invite-student', {
-        body: {
-          method: 'email',
-          email: newStudentEmail.trim()
-        }
-      });
+      try {
+        console.log("Sending email invite via edge function");
+        const { data, error } = await supabase.functions.invoke('invite-student', {
+          body: {
+            method: 'email',
+            email: newStudentEmail.trim()
+          }
+        });
 
-      if (error) throw error;
-      
-      if (data) {
-        console.log("Invitation created:", data);
-        toast.success(`Invitation created for ${newStudentEmail}`);
-        setNewStudentEmail('');
-        setDialogOpen(false);
-        fetchInvites();
-        return;
+        if (error) throw error;
+        
+        if (data) {
+          console.log("Invitation created:", data);
+          toast.success(`Invitation created for ${newStudentEmail}`);
+          setNewStudentEmail('');
+          setDialogOpen(false);
+          fetchInvites();
+          return;
+        }
+      } catch (edgeFnError) {
+        console.error("Edge function error:", edgeFnError);
       }
       
       // Fallback to direct database insertion
@@ -226,7 +241,8 @@ const StudentManagement = () => {
         .insert({
           email: newStudentEmail.trim(),
           school_id: effectiveSchoolId,
-          status: 'pending'
+          status: 'pending',
+          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
         });
         
       if (insertError) throw insertError;
@@ -255,17 +271,20 @@ const StudentManagement = () => {
 
     try {
       // Try the edge function first
-      console.log("Revoking student access via edge function");
-      const { error } = await supabase.functions.invoke('revoke-student-access', {
-        body: { student_id: studentId }
-      });
+      try {
+        console.log("Revoking student access via edge function");
+        const { error } = await supabase.functions.invoke('revoke-student-access', {
+          body: { student_id: studentId }
+        });
 
-      if (error) throw error;
+        if (error) throw error;
 
-      toast.success(`Student access revoked successfully`);
-      fetchStudents();
-    } catch (error: any) {
-      console.error('Error revoking student access:', error);
+        toast.success(`Student access revoked successfully`);
+        fetchStudents();
+        return;
+      } catch (edgeFnError) {
+        console.error("Edge function error:", edgeFnError);
+      }
       
       // Fallback to direct database update
       try {
@@ -283,6 +302,9 @@ const StudentManagement = () => {
         console.error('Fallback also failed:', fallbackError);
         toast.error(fallbackError.message || 'Failed to revoke student access');
       }
+    } catch (error: any) {
+      console.error('Error revoking student access:', error);
+      toast.error(error.message || 'Failed to revoke student access');
     }
   };
 

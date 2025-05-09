@@ -13,7 +13,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Mail, User, ArrowLeft, Copy, UserPlus, RefreshCw } from "lucide-react";
+import { Mail, User, ArrowLeft, Copy, UserPlus, RefreshCw, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
   Table,
@@ -51,7 +51,7 @@ const AdminStudents = () => {
   const [invites, setInvites] = useState<StudentInvite[]>([]);
   const [generatedCode, setGeneratedCode] = useState("");
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const { generateCode } = useSchoolCode();
+  const { generateCode, isGenerating: isGeneratingSchoolCode } = useSchoolCode();
   
   // Ensure we have a school ID even if auth context is slow to load
   const schoolId = authSchoolId || 
@@ -340,7 +340,7 @@ const AdminStudents = () => {
                   <Button 
                     type="submit" 
                     className="gradient-bg" 
-                    disabled={isLoading}
+                    disabled={isLoading || isGeneratingSchoolCode}
                   >
                     {selectedMethod === "invite" ? (
                       <>
@@ -350,7 +350,14 @@ const AdminStudents = () => {
                     ) : (
                       <>
                         <UserPlus className="mr-2 h-4 w-4" />
-                        {isLoading ? "Generating..." : "Generate Code"}
+                        {isGeneratingSchoolCode ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Generating...
+                          </>
+                        ) : (
+                          "Generate Code"
+                        )}
                       </>
                     )}
                   </Button>
