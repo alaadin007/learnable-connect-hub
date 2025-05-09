@@ -167,14 +167,10 @@ const SchoolRegistrationForm: React.FC = () => {
     setExistingUserRole(null);
     
     try {
-      // Display toast notification that registration is in progress
-      const loadingToast = toast.loading("Registering your school...");
-      
       // Check if email already exists
       const emailExists = await checkIfEmailExists(data.adminEmail);
       
       if (emailExists) {
-        toast.dismiss(loadingToast);
         setExistingEmailError(data.adminEmail);
         
         const roleMessage = existingUserRole 
@@ -202,9 +198,6 @@ const SchoolRegistrationForm: React.FC = () => {
           adminFullName: data.adminFullName,
         },
       });
-
-      // Dismiss the loading toast
-      toast.dismiss(loadingToast);
 
       if (error) {
         console.error("School registration error:", error);

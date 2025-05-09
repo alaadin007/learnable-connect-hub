@@ -36,7 +36,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [profile, setProfile] = useState<any | null>(null);
   const [schoolId, setSchoolId] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false); // Change default to false to avoid spinner
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isSuperviser, setIsSuperviser] = useState(false);
   const [session, setSession] = useState<any | null>(null);
@@ -132,74 +132,62 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     console.log("Initializing auth state...");
     
-    const initializeAuthState = async () => {
-      setIsLoading(true);
-      
-      try {
-        // Set up auth state listener FIRST
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(
-          async (event, session) => {
-            console.log("Auth state changed:", event, session?.user?.id);
-            setSession(session);
-            
-            if (event === 'SIGNED_IN' && session?.user) {
-              setUser(session.user);
-              setIsAuthenticated(true);
-              
-              // Defer profile fetch to avoid deadlocks
-              setTimeout(async () => {
-                const profileData = await fetchProfileData(session.user.id);
-                if (profileData) {
-                  setProfile(profileData);
-                  setSchoolId(profileData.school_id || profileData.organization?.id || null);
-                  setUserRole(profileData.user_type || null);
-                  setIsSuperviser(profileData.is_supervisor || false);
-                }
-              }, 0);
-            } else if (event === 'SIGNED_OUT') {
-              setUser(null);
-              setProfile(null);
-              setSchoolId(null);
-              setUserRole(null);
-              setIsAuthenticated(false);
-              setIsSuperviser(false);
-            }
-          }
-        );
+    // First set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log("Auth state changed:", event, session?.user?.id);
+        setSession(session);
         
-        // THEN check for existing session
-        const { data: sessionData } = await supabase.auth.getSession();
-        console.log("Session data:", sessionData);
-        
-        if (sessionData?.session) {
-          setSession(sessionData.session);
-          setUser(sessionData.session.user);
+        if (event === 'SIGNED_IN' && session?.user) {
+          setUser(session.user);
           setIsAuthenticated(true);
           
-          // Fetch profile data
-          const profileData = await fetchProfileData(sessionData.session.user.id);
+          // Fetch profile synchronously to avoid delays
+          const profileData = await fetchProfileData(session.user.id);
           if (profileData) {
             setProfile(profileData);
             setSchoolId(profileData.school_id || profileData.organization?.id || null);
             setUserRole(profileData.user_type || null);
             setIsSuperviser(profileData.is_supervisor || false);
-            console.log("Profile data set:", profileData);
-            console.log("User role set:", profileData.user_type);
-            console.log("School ID set:", profileData.school_id || profileData.organization?.id || null);
           }
+        } else if (event === 'SIGNED_OUT') {
+          setUser(null);
+          setProfile(null);
+          setSchoolId(null);
+          setUserRole(null);
+          setIsAuthenticated(false);
+          setIsSuperviser(false);
         }
+      }
+    );
+    
+    // Then check for existing session
+    const getInitialSession = async () => {
+      const { data: sessionData } = await supabase.auth.getSession();
+      console.log("Initial session data:", sessionData);
+      
+      if (sessionData?.session) {
+        setSession(sessionData.session);
+        setUser(sessionData.session.user);
+        setIsAuthenticated(true);
         
-        return () => {
-          subscription?.unsubscribe();
-        };
-      } catch (error) {
-        console.error("Error initializing auth state:", error);
-      } finally {
-        setIsLoading(false);
+        // Fetch profile data
+        const profileData = await fetchProfileData(sessionData.session.user.id);
+        if (profileData) {
+          setProfile(profileData);
+          setSchoolId(profileData.school_id || profileData.organization?.id || null);
+          setUserRole(profileData.user_type || null);
+          setIsSuperviser(profileData.is_supervisor || false);
+          console.log("Initial profile data set:", profileData);
+        }
       }
     };
     
-    initializeAuthState();
+    getInitialSession();
+    
+    return () => {
+      subscription?.unsubscribe();
+    };
   }, [fetchProfileData]);
 
   // Sign in function
@@ -222,12 +210,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       console.log("Sign in successful:", data);
       
-      // Explicitly set authenticated state
+      // Explicitly set authenticated state immediately
       setUser(data.user);
       setSession(data.session);
       setIsAuthenticated(true);
       
-      // Manual navigation handled in the form component
+      // Also fetch profile immediately to avoid delays
+      if (data.user) {
+        const profileData = await fetchProfileData(data.user.id);
+        if (profileData) {
+          setProfile(profileData);
+          setSchoolId(profileData.school_id || profileData.organization?.id || null);
+          setUserRole(profileData.user_type || null);
+          setIsSuperviser(profileData.is_supervisor || false);
+        }
+      }
+      
       return { success: true };
     } catch (error: any) {
       console.error("Unexpected sign in error:", error);

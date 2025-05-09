@@ -42,7 +42,6 @@ const LoginForm = () => {
       
       if (result.success) {
         console.log("Login successful, redirecting to dashboard");
-        toast.success('Login successful!');
         navigate('/dashboard');
       } else {
         console.error("Login failed:", result.error);
@@ -55,9 +54,6 @@ const LoginForm = () => {
       toast.error(error.message || 'An unexpected error occurred');
     }
   };
-
-  // Debug info
-  console.log("Current session status:", session);
 
   return (
     <div className="space-y-6">
