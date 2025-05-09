@@ -1,11 +1,10 @@
-
 import React, { useEffect } from "react";
 import LoginForm from "@/components/auth/LoginForm";
 import Footer from "@/components/landing/Footer";
 import { Link, useNavigate } from "react-router-dom";
 import { AlertCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase, refreshAuthSession } from "@/integrations/supabase/client";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 const Login = () => {

@@ -80,7 +80,7 @@ const LoginForm = () => {
       if (userType === 'school_admin' || userType === 'school') {
         navigate("/admin");
       } else if (userType === 'teacher') {
-        navigate("/dashboard");
+        navigate("/teacher/analytics");
       } else {
         navigate("/dashboard");
       }

@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { Session, User } from "@supabase/supabase-js";
-import { supabase, isTestAccount, refreshAuthSession } from "@/integrations/supabase/client";
+import { supabase } from "@/integrations/supabase/client";
 import { Database } from "@/integrations/supabase/types";
 
 // Define types for user roles based on the actual application structure
@@ -75,53 +75,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [schoolId, setSchoolId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load session from localStorage on mount
   useEffect(() => {
-    const getSession = async () => {
-      try {
-        setIsLoading(true);
-        // First check for existing session
-        const { data, error } = await supabase.auth.getSession();
-        if (error) {
-          console.error("Session retrieval error:", error);
-          
-          // Try to refresh the session
-          const freshSession = await refreshAuthSession();
-          if (freshSession) {
-            handleSession(freshSession);
-            return;
-          }
-          
-          throw error;
-        }
-
-        // Handle session data
-        if (data.session) {
-          handleSession(data.session);
-        } else {
-          console.log("No active session found");
-          // Try to restore from localStorage as fallback
-          restoreFromLocalStorage();
-        }
-      } catch (err) {
-        console.error("Error retrieving session:", err);
-        restoreFromLocalStorage();
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    getSession();
-
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("Auth state changed:", event, !!session);
-      if (session) {
-        await handleSession(session);
+    // Set up auth state listener FIRST - critical for avoiding deadlocks
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
+      console.log("Auth state changed:", event, !!newSession);
+      setSession(newSession);
+      setUser(newSession?.user ?? null);
+      
+      // Don't make any Supabase calls directly in the callback
+      if (newSession?.user) {
+        // Use setTimeout to ensure we don't create a Supabase deadlock
+        setTimeout(() => {
+          fetchUserProfile(newSession.user.id);
+        }, 0);
       } else if (event === 'SIGNED_OUT') {
         // Clear all auth state
-        setSession(null);
-        setUser(null);
         setProfile(null);
         setUserRole(null);
         setIsSuperviser(false);
@@ -129,10 +97,122 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     });
 
+    // THEN check for existing session
+    loadInitialSession();
+    
     return () => {
       subscription.unsubscribe();
     };
   }, []);
+  
+  const loadInitialSession = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Get current session
+      const { data, error } = await supabase.auth.getSession();
+      
+      if (error) {
+        console.error("Initial session error:", error);
+        throw error;
+      }
+      
+      if (data.session) {
+        // Update state with session data
+        setSession(data.session);
+        setUser(data.session.user);
+        
+        // Fetch additional user information
+        await fetchUserProfile(data.session.user.id);
+      } else {
+        // No active session, try to restore from localStorage
+        restoreFromLocalStorage();
+      }
+    } catch (err) {
+      console.error("Error loading initial session:", err);
+      restoreFromLocalStorage();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Fetch user profile data including role and school information
+  const fetchUserProfile = async (userId: string) => {
+    try {
+      console.log("Fetching profile for user:", userId);
+      
+      // First check if user is a school admin
+      const { data: adminData } = await supabase
+        .from('school_admins')
+        .select('id')
+        .eq('id', userId);
+
+      if (adminData && adminData.length > 0) {
+        setIsSuperviser(true);
+        
+        // Get schoolId from teachers table for school admins
+        const { data: teacherData } = await supabase
+          .from('teachers')
+          .select('school_id')
+          .eq('id', userId)
+          .single();
+          
+        if (teacherData) {
+          setSchoolId(teacherData.school_id);
+          localStorage.setItem('schoolId', teacherData.school_id);
+        }
+        
+        setUserRole('school');
+        localStorage.setItem('userRole', 'school');
+      } else {
+        // If not found as admin, check in teachers table
+        const { data: teacherData } = await supabase
+          .from('teachers')
+          .select('school_id, is_supervisor')
+          .eq('id', userId)
+          .single();
+          
+        if (teacherData) {
+          setSchoolId(teacherData.school_id);
+          localStorage.setItem('schoolId', teacherData.school_id);
+          
+          setIsSuperviser(teacherData.is_supervisor || false);
+          localStorage.setItem('isSuperviser', (teacherData.is_supervisor || false).toString());
+          
+          setUserRole('teacher');
+          localStorage.setItem('userRole', 'teacher');
+        } else {
+          // Finally check in students table
+          const { data: studentData } = await supabase
+            .from('students')
+            .select('school_id')
+            .eq('id', userId)
+            .single();
+            
+          if (studentData) {
+            setSchoolId(studentData.school_id);
+            localStorage.setItem('schoolId', studentData.school_id);
+            
+            setUserRole('student');
+            localStorage.setItem('userRole', 'student');
+          }
+        }
+      }
+      
+      // Get user profile data
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+        
+      if (profileData) {
+        setProfile(profileData);
+      }
+    } catch (error) {
+      console.error("Error fetching user profile:", error);
+    }
+  };
 
   // Restore user, profile, and role from localStorage if available
   const restoreFromLocalStorage = () => {
@@ -161,58 +241,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Handle session data
-  const handleSession = async (newSession: Session) => {
-    try {
-      setSession(newSession);
-      setUser(newSession.user);
-      
-      // Ensure API key is correctly set in future requests
-      supabase.auth.setSession({
-        access_token: newSession.access_token,
-        refresh_token: newSession.refresh_token || '',
-      });
-      
-      // Determine user role from metadata
-      const userData = newSession.user;
-
-      if (userData) {
-        // Check if this is a test account
-        const email = userData.email || '';
-        if (isTestAccount(email)) {
-          // For test accounts, restore from local storage
-          restoreFromLocalStorage();
-        } else {
-          // For real users, determine role from metadata
-          const metadata = userData.user_metadata;
-          const userType = metadata?.user_type as UserRole || "student";
-          const isAdmin = userType === 'school' || userType === 'school_admin';
-
-          // Update state
-          setUserRole(userType);
-          setIsSuperviser(isAdmin);
-          localStorage.setItem('userRole', userType);
-          localStorage.setItem('isSuperviser', isAdmin.toString());
-
-          // Try to fetch profile to get school ID
-          await refreshProfile();
-        }
-      }
-    } catch (error) {
-      console.error("Error handling session:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const signIn = async (email: string, password: string) => {
     try {
       const response = await supabase.auth.signInWithPassword({ email, password });
-      
-      if (response.data.session) {
-        await handleSession(response.data.session);
-      }
-      
       return response;
     } catch (error) {
       console.error("Error signing in:", error);
@@ -259,81 +290,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Refresh user profile data
   const refreshProfile = async () => {
-    try {
-      if (!user) return;
-
-      // Try to get schoolId from different sources
-      let userSchoolId: string | null = null;
-      let userIsSuperviser = false;
-      
-      try {
-        // First check if user is a school admin
-        const { data: adminData, error: adminError } = await supabase
-          .from('school_admins')
-          .select('id')
-          .eq('id', user.id);
-
-        if (!adminError && adminData && adminData.length > 0) {
-          userIsSuperviser = true;
-          
-          // Get schoolId from teachers table for school admins
-          const { data: teacherData } = await supabase
-            .from('teachers')
-            .select('school_id')
-            .eq('id', user.id)
-            .single();
-            
-          if (teacherData) {
-            userSchoolId = teacherData.school_id;
-          }
-        }
-        
-        if (!userSchoolId) {
-          // If not found as admin, check in teachers table
-          const { data: teacherData } = await supabase
-            .from('teachers')
-            .select('school_id, is_supervisor')
-            .eq('id', user.id)
-            .single();
-            
-          if (teacherData) {
-            userSchoolId = teacherData.school_id;
-            userIsSuperviser = teacherData.is_supervisor || false;
-          } else {
-            // Finally check in students table
-            const { data: studentData } = await supabase
-              .from('students')
-              .select('school_id')
-              .eq('id', user.id)
-              .single();
-              
-            if (studentData) {
-              userSchoolId = studentData.school_id;
-            }
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching school ID:", error);
-      }
-
-      // Update local state
-      setSchoolId(userSchoolId);
-      setIsSuperviser(userIsSuperviser);
-
-      // Store in localStorage for persistence
-      if (userSchoolId) {
-        localStorage.setItem('schoolId', userSchoolId);
-      }
-      localStorage.setItem('isSuperviser', userIsSuperviser.toString());
-      
-      // Extract user role from metadata and store it
-      if (user.user_metadata?.user_type) {
-        const role = user.user_metadata.user_type as UserRole;
-        setUserRole(role);
-        localStorage.setItem('userRole', role);
-      }
-    } catch (error) {
-      console.error("Error refreshing profile:", error);
+    if (user) {
+      await fetchUserProfile(user.id);
     }
   };
 

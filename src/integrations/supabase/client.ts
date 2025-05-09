@@ -12,6 +12,7 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
+    storage: localStorage,
     storageKey: 'supabase.auth.token'
   },
   global: {
@@ -27,16 +28,4 @@ export const TEST_SCHOOL_CODE = "SCHTEST0"
 // Helper function to check if an account is a test account
 export function isTestAccount(email: string): boolean {
   return email.includes(".test@learnable.edu") || email.startsWith("test-");
-}
-
-// Helper to ensure auth state is restored properly 
-export async function refreshAuthSession() {
-  const { data, error } = await supabase.auth.refreshSession();
-  
-  if (error) {
-    console.error("Failed to refresh auth session:", error);
-    return null;
-  }
-  
-  return data.session;
 }
