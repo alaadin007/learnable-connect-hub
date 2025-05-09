@@ -52,21 +52,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [schoolId, setSchoolId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
+  // Fix the auth initialization and subscription setup
   useEffect(() => {
     const loadSession = async () => {
       setIsLoading(true);
       try {
         console.log("AuthContext: Loading initial session");
         
-        // Set up auth state listener FIRST
+        // Fix: Set up auth state listener FIRST to ensure we don't miss any auth events
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
           async (event, currentSession) => {
-            console.log("AuthContext: Auth state change:", event, !!currentSession);
+            console.log("AuthContext: Auth state change event:", event);
+            
+            // IMPORTANT: Update session and user synchronously
             setSession(currentSession);
             setUser(currentSession?.user || null);
 
             if (currentSession?.user) {
-              await fetchUserProfile(currentSession.user);
+              // Use setTimeout to defer the profile fetch to prevent potential deadlocks
+              setTimeout(() => {
+                fetchUserProfile(currentSession.user);
+              }, 0);
             } else {
               setProfile(null);
               setUserRole(null);
@@ -78,7 +84,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         // THEN check for existing session
         const { data: { session: initialSession } } = await supabase.auth.getSession();
-        console.log("AuthContext: Initial session:", !!initialSession);
+        console.log("AuthContext: Initial session check:", initialSession ? "Session exists" : "No session");
         
         setSession(initialSession);
         setUser(initialSession?.user || null);

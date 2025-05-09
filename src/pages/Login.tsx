@@ -1,5 +1,5 @@
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import LoginForm from "@/components/auth/LoginForm";
 import Footer from "@/components/landing/Footer";
 import { Link, useNavigate } from "react-router-dom";
@@ -9,30 +9,56 @@ import { useAuth } from "@/contexts/AuthContext";
 const Login = () => {
   const { user, userRole, session, isLoading } = useAuth();
   const navigate = useNavigate();
+  const [authChecked, setAuthChecked] = useState(false);
   
-  // Redirect authenticated users
+  // Redirect authenticated users with improved timing and reliability
   useEffect(() => {
-    if (!isLoading && user && session && userRole) {
-      console.log("Login.tsx: Redirecting authenticated user with role:", userRole);
+    // Only proceed with redirection if auth state is loaded
+    if (!isLoading) {
+      console.log("Login.tsx: Auth state loaded. User:", !!user, "Session:", !!session, "Role:", userRole);
+      setAuthChecked(true);
       
-      let redirectPath;
-      
-      if (userRole === "school" || userRole === "school_admin") {
-        redirectPath = "/admin";
-      } else if (userRole === "teacher") {
-        redirectPath = "/teacher/analytics"; 
-      } else {
-        redirectPath = "/dashboard";
+      // If we have all the required information for an authenticated user
+      if (user && session && userRole) {
+        console.log("Login.tsx: Redirecting authenticated user with role:", userRole);
+        
+        let redirectPath;
+        
+        if (userRole === "school" || userRole === "school_admin") {
+          redirectPath = "/admin";
+        } else if (userRole === "teacher") {
+          redirectPath = "/teacher/analytics"; 
+        } else {
+          redirectPath = "/dashboard";
+        }
+        
+        // Add a small timeout to ensure context is fully loaded
+        const timeoutId = setTimeout(() => {
+          navigate(redirectPath, { 
+            replace: true, 
+            state: { 
+              preserveContext: true,
+              timestamp: Date.now() // Add timestamp to force route update
+            }
+          });
+        }, 100);
+        
+        return () => clearTimeout(timeoutId);
       }
-      
-      // Adding a small timeout to ensure context is fully loaded
-      const timeoutId = setTimeout(() => {
-        navigate(redirectPath, { replace: true });
-      }, 100);
-      
-      return () => clearTimeout(timeoutId);
     }
   }, [user, userRole, navigate, session, isLoading]);
+
+  // Render a loading state while checking auth
+  if (isLoading && !authChecked) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-learnable-super-light">
+        <div className="text-center">
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-learnable-blue border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]"></div>
+          <p className="mt-4 text-gray-600">Checking authentication status...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
