@@ -1,162 +1,104 @@
 
-import React, { useState, useEffect } from "react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { supabase } from "@/integrations/supabase/client";
-import { Loader2 } from "lucide-react";
-import { toast } from "sonner";
-import { useAuth } from "@/contexts/AuthContext";
-import { invokeEdgeFunction } from "@/utils/apiHelpers";
+import React, { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Button } from '@/components/ui/button';
+import { Check, ChevronsUpDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface TeacherSelectorProps {
-  schoolId: string;
-  selectedTeacherId?: string;
-  onTeacherChange: (teacherId: string | undefined) => void;
+  value: string | null;
+  onChange: (value: string) => void;
 }
 
-interface Teacher {
+type Teacher = {
   id: string;
-  name: string;
-}
+  full_name: string;
+};
 
-export function TeacherSelector({
-  schoolId,
-  selectedTeacherId,
-  onTeacherChange,
-}: TeacherSelectorProps) {
+const TeacherSelector: React.FC<TeacherSelectorProps> = ({ value, onChange }) => {
+  const { schoolId } = useAuth();
+  const [open, setOpen] = useState(false);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [loadAttempts, setLoadAttempts] = useState(0);
-  const { user, session } = useAuth();
 
   useEffect(() => {
     const fetchTeachers = async () => {
-      if (!schoolId) {
-        setTeachers([]);
-        return;
-      }
-
+      if (!schoolId) return;
+      
       setIsLoading(true);
       try {
-        console.log(`TeacherSelector: Fetching teachers for school ${schoolId}`);
-        
-        // First check if we have an active session
-        if (!session) {
-          console.warn("TeacherSelector: No active session when fetching teachers");
-          throw new Error("Authentication required");
-        }
-        
-        // Use the get_teachers_for_school database function instead of querying teachers directly
-        // This avoids the infinite recursion in RLS policies
         const { data, error } = await supabase
-          .rpc('get_teachers_for_school', { school_id_param: schoolId });
+          .from('teachers')
+          .select('id, profiles:id (full_name)')
+          .eq('school_id', schoolId);
 
-        if (error) {
-          console.error("Error fetching teachers:", error);
-          throw new Error(`Failed to load teachers: ${error.message}`);
-        }
+        if (error) throw error;
 
-        if (!data || data.length === 0) {
-          console.log("TeacherSelector: No teachers found");
-          setTeachers([]);
-          setIsLoading(false);
-          return;
-        }
-
-        const formattedTeachers: Teacher[] = data.map((teacher: any) => ({
-          id: teacher.id,
-          name: teacher.full_name || "Unknown Teacher",
+        const formattedTeachers = data.map((t: any) => ({
+          id: t.id,
+          full_name: t.profiles?.full_name || 'Unknown Teacher'
         }));
 
-        console.log(`TeacherSelector: Found ${formattedTeachers.length} teachers`);
         setTeachers(formattedTeachers);
-      } catch (error: any) {
-        console.error("Error in TeacherSelector:", error);
-        
-        // If specifically an auth error, show a friendly message
-        if (error.message?.includes("Authentication") || error.message?.includes("Authorization")) {
-          toast.error("Please log in to view teachers", {
-            description: "Your session may have expired"
-          });
-        } 
-        // Fall back to using a dedicated edge function for test accounts
-        else if (schoolId === 'test' || schoolId.includes('test')) {
-          try {
-            console.log("TeacherSelector: Falling back to mock data for test school");
-            // Create mock teacher data for test schools
-            const mockTeachers = [
-              { id: "test-teacher-1", name: "Test Teacher 1" },
-              { id: "test-teacher-2", name: "Test Teacher 2" }
-            ];
-            setTeachers(mockTeachers);
-          } catch (fallbackError) {
-            console.error("Error with fallback:", fallbackError);
-            setTeachers([]);
-          }
-        }
-        // Implement retry logic for transient errors
-        else if (loadAttempts < 2) {
-          console.log(`TeacherSelector: Retrying... Attempt ${loadAttempts + 1}`);
-          setLoadAttempts(prev => prev + 1);
-          setTimeout(() => fetchTeachers(), 1000); // Retry after 1 second
-        } else {
-          toast.error("Failed to load teachers. Please refresh the page.");
-          setTeachers([]);
-        }
+      } catch (error) {
+        console.error('Error fetching teachers:', error);
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchTeachers();
-  }, [schoolId, loadAttempts, session, user]);
+  }, [schoolId]);
 
-  const labelId = "teacher-selector-label";
+  const selectedTeacher = teachers.find(teacher => teacher.id === value);
 
   return (
-    <div className="space-y-2">
-      <label id={labelId} className="text-sm font-medium">
-        Filter by Teacher:
-      </label>
-      <Select
-        value={selectedTeacherId ?? "all"}
-        onValueChange={(value) =>
-          onTeacherChange(value === "all" ? undefined : value)
-        }
-        disabled={isLoading}
-        aria-labelledby={labelId}
-      >
-        <SelectTrigger className="w-full">
-          <SelectValue placeholder="Select teacher..." />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All Teachers</SelectItem>
-
-          {isLoading ? (
-            <SelectItem disabled value="loading" className="cursor-default">
-              <div className="flex items-center justify-center space-x-2 py-1">
-                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">Loading...</span>
-              </div>
-            </SelectItem>
-          ) : teachers.length === 0 ? (
-            <SelectItem disabled value="none" className="cursor-default">
-              No teachers found
-            </SelectItem>
-          ) : (
-            teachers.map((teacher) => (
-              <SelectItem key={teacher.id} value={teacher.id}>
-                {teacher.name}
-              </SelectItem>
-            ))
-          )}
-        </SelectContent>
-      </Select>
-    </div>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="w-full justify-between"
+          disabled={isLoading}
+        >
+          {value && selectedTeacher
+            ? selectedTeacher.full_name
+            : "Select teacher..."}
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-full p-0">
+        <Command>
+          <CommandInput placeholder="Search teachers..." />
+          <CommandEmpty>No teacher found.</CommandEmpty>
+          <CommandGroup>
+            {teachers.map((teacher) => (
+              <CommandItem
+                key={teacher.id}
+                value={teacher.id}
+                onSelect={() => {
+                  onChange(teacher.id === value ? '' : teacher.id);
+                  setOpen(false);
+                }}
+              >
+                <Check
+                  className={cn(
+                    "mr-2 h-4 w-4",
+                    value === teacher.id ? "opacity-100" : "opacity-0"
+                  )}
+                />
+                {teacher.full_name}
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
-}
+};
+
+export default TeacherSelector;

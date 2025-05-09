@@ -11,14 +11,21 @@ interface AuthContextProps {
   userRole: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  isSuperviser: boolean;
   signIn: (email: string, password: string) => Promise<{success: boolean, error?: string}>;
+  signUp: (email: string, password: string, userData: any) => Promise<{success: boolean, error?: string}>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  setTestUser?: (email: string) => Promise<void>;
+  session: any;
 }
 
 interface AuthProviderProps {
   children: ReactNode;
 }
+
+// User role type for protected routes
+export type UserRole = 'student' | 'teacher' | 'school' | 'school_admin' | 'any';
 
 // Create the context
 const AuthContext = createContext<AuthContextProps | undefined>(undefined);
@@ -31,6 +38,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isSuperviser, setIsSuperviser] = useState(false);
+  const [session, setSession] = useState<any | null>(null);
 
   // Fetch profile data without using RPC to avoid recursion
   const fetchProfileData = useCallback(async (userId: string) => {
@@ -73,10 +82,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       }
       
+      // Check if user is a supervisor
+      let isSupervisor = false;
+      const { data: teacherData, error: teacherError } = await supabase
+        .from("teachers")
+        .select("is_supervisor")
+        .eq("id", userId)
+        .single();
+        
+      if (!teacherError && teacherData) {
+        isSupervisor = teacherData.is_supervisor || false;
+      }
+      
       // Merge the data
       const enrichedProfile = {
         ...profileData,
-        organization: schoolData
+        organization: schoolData,
+        is_supervisor: isSupervisor
       };
       
       return enrichedProfile;
@@ -98,6 +120,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setProfile(profileData);
         setSchoolId(profileData.school_id || profileData.organization?.id || null);
         setUserRole(profileData.user_type || null);
+        setIsSuperviser(profileData.is_supervisor || false);
         console.log("Profile refreshed successfully:", profileData);
       }
     } catch (error) {
@@ -118,6 +141,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         if (sessionData?.session) {
           const { data: userData } = await supabase.auth.getUser();
+          setSession(sessionData.session);
           
           if (userData?.user) {
             console.log("User authenticated:", userData.user);
@@ -130,6 +154,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               setProfile(profileData);
               setSchoolId(profileData.school_id || profileData.organization?.id || null);
               setUserRole(profileData.user_type || null);
+              setIsSuperviser(profileData.is_supervisor || false);
               console.log("Profile data set:", profileData);
               console.log("User role set:", profileData.user_type);
               console.log("School ID set:", profileData.school_id || profileData.organization?.id || null);
@@ -147,6 +172,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log("Auth state changed:", event, session?.user?.id);
+        setSession(session);
         
         if (event === 'SIGNED_IN' && session?.user) {
           setUser(session.user);
@@ -158,6 +184,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             setProfile(profileData);
             setSchoolId(profileData.school_id || profileData.organization?.id || null);
             setUserRole(profileData.user_type || null);
+            setIsSuperviser(profileData.is_supervisor || false);
           }
         } else if (event === 'SIGNED_OUT') {
           setUser(null);
@@ -165,6 +192,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setSchoolId(null);
           setUserRole(null);
           setIsAuthenticated(false);
+          setIsSuperviser(false);
         }
       }
     );
@@ -205,6 +233,43 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  // Sign up function
+  const signUp = async (email: string, password: string, userData: any): Promise<{success: boolean, error?: string}> => {
+    console.log("Attempting to sign up with email:", email);
+    
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: userData
+        }
+      });
+      
+      if (error) {
+        console.error("Sign up error:", error);
+        return {
+          success: false,
+          error: error.message
+        };
+      }
+      
+      console.log("Sign up successful:", data);
+      return { success: true };
+    } catch (error: any) {
+      console.error("Unexpected sign up error:", error);
+      return {
+        success: false,
+        error: error.message || "An unexpected error occurred during sign up"
+      };
+    }
+  };
+
+  // Set test user function (for development only)
+  const setTestUser = async (email: string) => {
+    // Implementation for test accounts if needed
+  };
+
   // Sign out function
   const signOut = async () => {
     console.log("Signing out...");
@@ -218,6 +283,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setSchoolId(null);
       setUserRole(null);
       setIsAuthenticated(false);
+      setIsSuperviser(false);
+      setSession(null);
       
       console.log("Sign out successful");
     } catch (error) {
@@ -234,9 +301,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     userRole,
     isLoading,
     isAuthenticated,
+    isSuperviser,
     signIn,
+    signUp,
     signOut,
-    refreshProfile
+    refreshProfile,
+    session,
+    setTestUser
   };
 
   return (

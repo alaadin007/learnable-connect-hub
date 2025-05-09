@@ -52,7 +52,10 @@ const SchoolSettings = () => {
   useEffect(() => {
     // Load initial school data
     const fetchSchoolData = async () => {
-      if (!profile?.organization?.id) return;
+      if (!profile?.organization?.id) {
+        console.log("No school ID found in profile:", profile);
+        return;
+      }
       
       setIsLoading(true);
       try {
@@ -65,7 +68,10 @@ const SchoolSettings = () => {
           .eq("id", profile.organization.id)
           .single();
             
-        if (error) throw error;
+        if (error) {
+          console.error("Error fetching school data:", error);
+          throw error;
+        }
           
         console.log("Fetched school data:", schoolData);
         
@@ -101,6 +107,12 @@ const SchoolSettings = () => {
     setIsSaving(true);
     try {
       console.log("Saving school settings for ID:", profile.organization.id);
+      console.log("Settings to save:", {
+        name: schoolName.trim(),
+        contact_email: contactEmail.trim(),
+        description: description.trim(),
+        notifications_enabled: notificationsEnabled
+      });
       
       // Update school information
       const { error } = await supabase
@@ -114,7 +126,12 @@ const SchoolSettings = () => {
         })
         .eq("id", profile.organization.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error during update:", error);
+        throw error;
+      }
+      
+      console.log("School settings updated successfully");
       
       // Refresh profile to get latest data
       await refreshProfile();
@@ -249,8 +266,8 @@ const SchoolSettings = () => {
                     />
                   </div>
                   
-                  <div className="space-y-2">
-                    <Label>School Code</Label>
+                  <div className="space-y-4">
+                    <Label className="block mb-2">School Code</Label>
                     {profile?.organization?.id && (
                       <SchoolCodeManager 
                         schoolId={profile.organization.id} 

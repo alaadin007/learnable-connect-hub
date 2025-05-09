@@ -1,109 +1,115 @@
-import React, { useEffect, useState } from "react";
-import LoginForm from "@/components/auth/LoginForm";
-import Footer from "@/components/landing/Footer";
-import { Link, useNavigate } from "react-router-dom";
-import { AlertCircle } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
+import React, { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { useAuth } from '@/contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
+import { Link } from 'react-router-dom';
 
-const Login = () => {
-  const { user, userRole, session, isLoading } = useAuth();
+const formSchema = z.object({
+  email: z.string().email({ message: 'Please enter a valid email address' }),
+  password: z.string().min(1, { message: 'Password is required' }),
+});
+
+type FormValues = z.infer<typeof formSchema>;
+
+const LoginForm = () => {
+  const { signIn, setTestUser, session = null } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
-  
-  // Immediately redirect authenticated users without delay
-  useEffect(() => {
-    // Only proceed with redirection if auth state is loaded
-    if (!isLoading) {
-      console.log("Login.tsx: Auth state loaded. User:", !!user, "Session:", !!session, "Role:", userRole);
-      
-      // If we have all the required information for an authenticated user
-      if (user && session && userRole) {
-        console.log("Login.tsx: Redirecting authenticated user with role:", userRole);
-        
-        let redirectPath;
-        
-        if (userRole === "school" || userRole === "school_admin") {
-          redirectPath = "/admin";
-        } else if (userRole === "teacher") {
-          redirectPath = "/teacher/analytics"; 
-        } else {
-          redirectPath = "/dashboard";
-        }
-        
-        // Immediate redirect with no timeout
-        navigate(redirectPath, { 
-          replace: true, 
-          state: { 
-            preserveContext: true,
-            timestamp: Date.now()
-          }
-        });
-      }
-    }
-  }, [user, userRole, navigate, session, isLoading]);
 
-  // Render a loading state while checking auth - keep it minimal
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-learnable-super-light">
-        <div className="text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-learnable-blue border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]"></div>
-          <p className="mt-4 text-gray-600">Checking auth status...</p>
-        </div>
-      </div>
-    );
-  }
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      email: '',
+      password: '',
+    },
+  });
+
+  const onSubmit = async (values: FormValues) => {
+    setIsSubmitting(true);
+    try {
+      const result = await signIn(values.email, values.password);
+      
+      if (result.success) {
+        toast.success('Login successful!');
+        // Navigate to appropriate dashboard based on user type
+        // This will happen automatically through auth state change
+      } else {
+        toast.error(result.error || 'Login failed');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'An unexpected error occurred');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="container mx-auto px-4 sm:px-6">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex-shrink-0">
-              <Link to="/" className="flex items-center">
-                <span className="ml-2 text-xl font-bold gradient-text">LearnAble</span>
-              </Link>
-            </div>
-            
-            <div className="flex space-x-4">
-              <Link to="/test-accounts" className="text-sm font-medium text-gray-600 hover:text-gray-900">
-                Test Accounts
-              </Link>
-            </div>
+    <div className="space-y-6">
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <FormField
+            control={form.control}
+            name="email"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Email</FormLabel>
+                <FormControl>
+                  <Input type="email" placeholder="john@example.com" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="password"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Password</FormLabel>
+                <FormControl>
+                  <Input type="password" placeholder="********" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <div className="flex justify-between items-center">
+            <Link to="/forgot-password" className="text-sm text-blue-600 hover:underline">
+              Forgot password?
+            </Link>
           </div>
-        </div>
-      </header>
-      
-      <main className="flex-grow bg-learnable-super-light flex flex-col items-center justify-center py-10">
-        <div className="max-w-md w-full mx-auto mb-6">
-          <div className="bg-amber-100 border-l-4 border-amber-500 p-4 rounded-md shadow">
-            <div className="flex items-start">
-              <div className="flex-shrink-0">
-                <AlertCircle className="h-5 w-5 text-amber-500" />
+
+          <Button type="submit" className="w-full gradient-bg" disabled={isSubmitting}>
+            {isSubmitting ? (
+              <div className="flex items-center justify-center">
+                <div className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-current border-r-transparent align-[-0.125em]"></div>
+                <span className="ml-2">Logging in...</span>
               </div>
-              <div className="ml-3">
-                <p className="text-sm text-amber-800 font-medium">
-                  Testing the application?
-                </p>
-                <p className="mt-1 text-sm text-amber-700">
-                  You can quickly create test accounts for all user roles (school admin, teacher, student) on our dedicated test page.
-                </p>
-                <div className="mt-2">
-                  <Link 
-                    to="/test-accounts" 
-                    className="text-sm text-amber-800 font-semibold hover:text-amber-900 bg-amber-200 px-3 py-1 rounded-full transition-colors duration-200"
-                  >
-                    Access Test Accounts →
-                  </Link>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <LoginForm />
-      </main>
-      <Footer />
+            ) : (
+              'Login'
+            )}
+          </Button>
+        </form>
+      </Form>
+
+      <div className="text-center">
+        <p className="text-sm text-muted-foreground">
+          Don't have an account?{' '}
+          <Link to="/register" className="text-blue-600 hover:underline">
+            Create an account
+          </Link>
+        </p>
+      </div>
     </div>
   );
 };
 
-export default Login;
+export default LoginForm;

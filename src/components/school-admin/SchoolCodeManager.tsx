@@ -75,7 +75,7 @@ const SchoolCodeManager: React.FC<SchoolCodeManagerProps> = ({
           variant="outline"
           onClick={handleGenerateCode}
           disabled={isGenerating}
-          className="flex items-center gap-2"
+          className="flex items-center gap-2 bg-primary text-white hover:bg-primary/90"
         >
           {isGenerating ? (
             <>
