@@ -14,6 +14,8 @@ export const checkSessionStatus = async () => {
       return { error: error.message };
     }
     
+    console.log("Current session data:", data);
+    
     return {
       session: data.session ? {
         expires_at: data.session.expires_at,

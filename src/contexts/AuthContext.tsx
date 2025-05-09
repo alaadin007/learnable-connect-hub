@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
 import { supabase, isTestAccount } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -135,31 +136,62 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setIsLoading(true);
       
       try {
+        // Set up auth state listener FIRST
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+          async (event, session) => {
+            console.log("Auth state changed:", event, session?.user?.id);
+            setSession(session);
+            
+            if (event === 'SIGNED_IN' && session?.user) {
+              setUser(session.user);
+              setIsAuthenticated(true);
+              
+              // Defer profile fetch to avoid deadlocks
+              setTimeout(async () => {
+                const profileData = await fetchProfileData(session.user.id);
+                if (profileData) {
+                  setProfile(profileData);
+                  setSchoolId(profileData.school_id || profileData.organization?.id || null);
+                  setUserRole(profileData.user_type || null);
+                  setIsSuperviser(profileData.is_supervisor || false);
+                }
+              }, 0);
+            } else if (event === 'SIGNED_OUT') {
+              setUser(null);
+              setProfile(null);
+              setSchoolId(null);
+              setUserRole(null);
+              setIsAuthenticated(false);
+              setIsSuperviser(false);
+            }
+          }
+        );
+        
+        // THEN check for existing session
         const { data: sessionData } = await supabase.auth.getSession();
         console.log("Session data:", sessionData);
         
         if (sessionData?.session) {
-          const { data: userData } = await supabase.auth.getUser();
           setSession(sessionData.session);
+          setUser(sessionData.session.user);
+          setIsAuthenticated(true);
           
-          if (userData?.user) {
-            console.log("User authenticated:", userData.user);
-            setUser(userData.user);
-            setIsAuthenticated(true);
-            
-            // Fetch profile data
-            const profileData = await fetchProfileData(userData.user.id);
-            if (profileData) {
-              setProfile(profileData);
-              setSchoolId(profileData.school_id || profileData.organization?.id || null);
-              setUserRole(profileData.user_type || null);
-              setIsSuperviser(profileData.is_supervisor || false);
-              console.log("Profile data set:", profileData);
-              console.log("User role set:", profileData.user_type);
-              console.log("School ID set:", profileData.school_id || profileData.organization?.id || null);
-            }
+          // Fetch profile data
+          const profileData = await fetchProfileData(sessionData.session.user.id);
+          if (profileData) {
+            setProfile(profileData);
+            setSchoolId(profileData.school_id || profileData.organization?.id || null);
+            setUserRole(profileData.user_type || null);
+            setIsSuperviser(profileData.is_supervisor || false);
+            console.log("Profile data set:", profileData);
+            console.log("User role set:", profileData.user_type);
+            console.log("School ID set:", profileData.school_id || profileData.organization?.id || null);
           }
         }
+        
+        return () => {
+          subscription?.unsubscribe();
+        };
       } catch (error) {
         console.error("Error initializing auth state:", error);
       } finally {
@@ -167,40 +199,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     };
     
-    // Set up auth state change listener
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log("Auth state changed:", event, session?.user?.id);
-        setSession(session);
-        
-        if (event === 'SIGNED_IN' && session?.user) {
-          setUser(session.user);
-          setIsAuthenticated(true);
-          
-          // Fetch profile data
-          const profileData = await fetchProfileData(session.user.id);
-          if (profileData) {
-            setProfile(profileData);
-            setSchoolId(profileData.school_id || profileData.organization?.id || null);
-            setUserRole(profileData.user_type || null);
-            setIsSuperviser(profileData.is_supervisor || false);
-          }
-        } else if (event === 'SIGNED_OUT') {
-          setUser(null);
-          setProfile(null);
-          setSchoolId(null);
-          setUserRole(null);
-          setIsAuthenticated(false);
-          setIsSuperviser(false);
-        }
-      }
-    );
-    
     initializeAuthState();
-    
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
   }, [fetchProfileData]);
 
   // Sign in function
@@ -222,6 +221,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
       
       console.log("Sign in successful:", data);
+      
+      // Explicitly set authenticated state
+      setUser(data.user);
+      setSession(data.session);
+      setIsAuthenticated(true);
+      
+      // Manual navigation handled in the form component
       return { success: true };
     } catch (error: any) {
       console.error("Unexpected sign in error:", error);

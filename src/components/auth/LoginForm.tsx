@@ -21,7 +21,7 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 const LoginForm = () => {
-  const { signIn } = useAuth();
+  const { signIn, session } = useAuth();
   const [loginError, setLoginError] = useState<string | null>(null);
   const navigate = useNavigate();
 
@@ -41,14 +41,9 @@ const LoginForm = () => {
       const result = await signIn(values.email, values.password);
       
       if (result.success) {
+        console.log("Login successful, redirecting to dashboard");
         toast.success('Login successful!');
-        
-        // Check session status to debug
-        const sessionStatus = await checkSessionStatus();
-        console.log("Session status after login:", sessionStatus);
-        
-        // Navigate based on user role will happen through auth state change in AuthContext
-        // No need for manual navigation here
+        navigate('/dashboard');
       } else {
         console.error("Login failed:", result.error);
         setLoginError(result.error || 'Login failed. Please check your credentials.');
@@ -60,6 +55,9 @@ const LoginForm = () => {
       toast.error(error.message || 'An unexpected error occurred');
     }
   };
+
+  // Debug info
+  console.log("Current session status:", session);
 
   return (
     <div className="space-y-6">
@@ -136,8 +134,6 @@ const LoginForm = () => {
             variant="outline"
             className="w-full flex items-center justify-center gap-2 border border-gray-300 py-2"
             onClick={() => {
-              form.setValue('email', '');
-              form.setValue('password', '');
               navigate('/school-registration');
             }}
           >
