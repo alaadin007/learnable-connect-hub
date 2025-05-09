@@ -107,21 +107,45 @@ const SchoolCodeGenerator: React.FC<SchoolCodeGeneratorProps> = ({
   };
 
   return (
-    <div className={className}>
-      {generatedCode ? (
-        <div className="space-y-3">
-          <div className="p-4 bg-blue-50 rounded-md border border-blue-200 flex items-center justify-between">
-            <code className="font-mono text-lg font-bold text-blue-700">{generatedCode}</code>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={copyCode}
-              className={`ml-2 ${codeCopied ? "text-green-600" : ""}`}
-            >
-              {codeCopied ? <CheckCircle className="h-4 w-4 mr-1" /> : <Copy className="h-4 w-4 mr-1" />}
-              {codeCopied ? "Copied!" : "Copy"}
-            </Button>
+    <div className={`${className} space-y-6`}>
+      {!generatedCode ? (
+        <Button
+          onClick={handleGenerateCode}
+          disabled={isGenerating}
+          className="w-full bg-blue-600 hover:bg-blue-700"
+        >
+          {isGenerating ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              Generating...
+            </>
+          ) : (
+            `Generate ${label}`
+          )}
+        </Button>
+      ) : (
+        <div className="space-y-6">
+          <div className="rounded-md overflow-hidden border border-gray-200">
+            <div className="bg-gray-50 p-3 border-b flex justify-between items-center">
+              <h3 className="font-medium text-gray-700">{label}</h3>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={copyCode}
+                className={codeCopied ? "text-green-600" : ""}
+              >
+                {codeCopied ? <CheckCircle className="h-4 w-4 mr-1" /> : <Copy className="h-4 w-4 mr-1" />}
+                {codeCopied ? "Copied!" : "Copy"}
+              </Button>
+            </div>
+            
+            <div className="p-6">
+              <div className="p-4 bg-blue-50 rounded-md border border-blue-200 flex items-center justify-center">
+                <code className="font-mono text-xl font-bold text-blue-700">{generatedCode}</code>
+              </div>
+            </div>
           </div>
+
           <Button
             onClick={handleGenerateCode}
             disabled={isGenerating}
@@ -138,23 +162,8 @@ const SchoolCodeGenerator: React.FC<SchoolCodeGeneratorProps> = ({
             )}
           </Button>
         </div>
-      ) : (
-        <Button
-          onClick={handleGenerateCode}
-          disabled={isGenerating}
-          className="w-full bg-blue-600 hover:bg-blue-700"
-        >
-          {isGenerating ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              Generating...
-            </>
-          ) : (
-            `Generate ${label}`
-          )}
-        </Button>
       )}
-      <p className="text-xs text-muted-foreground mt-2">
+      <p className="text-xs text-muted-foreground">
         {description}
         {variant === 'school' && " Generating a new code will invalidate the previous one."}
       </p>

@@ -63,9 +63,14 @@ export async function getUserSchoolId(): Promise<string | null> {
       return profileData.school_id;
     }
     
-    if (profileData?.organization?.id) {
-      console.log("Found school ID in organization data:", profileData.organization.id);
-      return profileData.organization.id;
+    // Fixed TypeScript errors by safely checking organization properties
+    if (profileData?.organization) {
+      const org = profileData.organization;
+      // Check if organization is an object with an id property
+      if (typeof org === 'object' && org !== null && 'id' in org) {
+        console.log("Found school ID in organization data:", org.id);
+        return String(org.id);
+      }
     }
     
     console.warn("No school ID found for user");
