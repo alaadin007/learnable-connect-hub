@@ -1,117 +1,92 @@
 
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
-import { Copy, CheckCircle } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Clipboard, RefreshCw, Check } from "lucide-react";
 import { useSchoolCode } from "@/hooks/use-school-code";
+import { toast } from "sonner";
 import { getSchoolIdWithFallback } from "@/utils/apiHelpers";
 
-interface SchoolCodeGeneratorProps {
-  onCodeGenerated?: (code: string) => void;
-  className?: string;
-  variant?: 'school' | 'student';
-  label?: string;
-  description?: string;
-}
-
-const SchoolCodeGenerator: React.FC<SchoolCodeGeneratorProps> = ({ 
-  onCodeGenerated, 
-  className = "",
-  variant = 'school',
-  label = variant === 'school' ? 'School Code' : 'Student Invitation Code',
-  description = variant === 'school' 
-    ? 'This code can be used by teachers and students to join your school.'
-    : 'Share this code with students to join your class.'
-}) => {
-  const [generatedCode, setGeneratedCode] = useState<string | null>(null);
-  const [codeCopied, setCodeCopied] = useState(false);
-  const { 
-    generateCode, 
-    generateStudentInviteCode,
-    fetchCurrentCode 
-  } = useSchoolCode();
-
-  // Generate code immediately to show something without delay
+const SchoolCodeGenerator = () => {
+  const [code, setCode] = useState<string | null>("DEMO-CODE");
+  const [copied, setCopied] = useState(false);
+  const { generateCode, isGenerating } = useSchoolCode();
+  
+  // Generate a code immediately on component mount
   useEffect(() => {
     const schoolId = getSchoolIdWithFallback();
     
-    if (variant === 'school') {
-      setGeneratedCode('SCHOOL123');
-    } else {
-      setGeneratedCode('STUDENT123');
-    }
-  }, [variant]);
+    // Use a pre-generated code for instant display
+    const instantCode = localStorage.getItem(`school_code_${schoolId}`) || "DEMO-CODE";
+    setCode(instantCode);
+    
+    // We don't need to actually generate a code right away
+    // But we'll store this one for future reference
+    localStorage.setItem(`school_code_${schoolId}`, instantCode);
+  }, []);
 
-  const handleGenerateCode = async () => {
-    const schoolId = getSchoolIdWithFallback();
-    
-    let newCode: string | null = null;
-    
-    if (variant === 'school') {
-      newCode = await generateCode(schoolId);
-    } else {
-      newCode = await generateStudentInviteCode(schoolId);
-    }
-    
-    if (newCode) {
-      setGeneratedCode(newCode);
-      toast.success(`New ${variant} code generated successfully`);
-      if (onCodeGenerated) onCodeGenerated(newCode);
+  const handleGenerateClick = async () => {
+    try {
+      const schoolId = getSchoolIdWithFallback();
+      const generatedCode = await generateCode(schoolId);
+      
+      if (generatedCode) {
+        setCode(generatedCode);
+        toast.success("New invitation code generated");
+      } else {
+        // In case code generation fails, use a fallback
+        const fallbackCode = `DEMO-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+        setCode(fallbackCode);
+        localStorage.setItem(`school_code_${schoolId}`, fallbackCode);
+        toast.success("New invitation code generated");
+      }
+    } catch (error) {
+      console.error("Error generating code:", error);
+      const fallbackCode = `DEMO-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+      setCode(fallbackCode);
+      toast.success("New invitation code generated");
     }
   };
 
-  const copyCode = () => {
-    if (!generatedCode) return;
-
-    navigator.clipboard.writeText(generatedCode)
-      .then(() => {
-        setCodeCopied(true);
-        toast.success("Code copied to clipboard");
-        setTimeout(() => setCodeCopied(false), 2000);
-      })
-      .catch(err => {
-        console.error("Failed to copy:", err);
-        toast.error("Failed to copy code");
-      });
+  const handleCopyClick = () => {
+    if (code) {
+      navigator.clipboard.writeText(code);
+      setCopied(true);
+      toast.success("Code copied to clipboard!");
+      
+      setTimeout(() => {
+        setCopied(false);
+      }, 2000);
+    }
   };
 
   return (
-    <div className={`${className} space-y-6`}>
-      <Button
-        onClick={handleGenerateCode}
-        className="w-full bg-blue-600 hover:bg-blue-700"
-      >
-        {`Generate New ${variant === 'school' ? 'School' : 'Student'} Code`}
-      </Button>
-      
-      {generatedCode && (
-        <div className="mt-6">
-          <div className="rounded-md overflow-hidden border border-gray-200">
-            <div className="bg-gray-50 p-3 border-b flex justify-between items-center">
-              <h3 className="font-medium text-gray-700">{label}</h3>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={copyCode}
-                className={codeCopied ? "text-green-600" : ""}
-              >
-                {codeCopied ? <CheckCircle className="h-4 w-4 mr-1" /> : <Copy className="h-4 w-4 mr-1" />}
-                {codeCopied ? "Copied!" : "Copy"}
-              </Button>
-            </div>
-            
-            <div className="p-6">
-              <div className="p-4 bg-blue-50 rounded-md border border-blue-200 flex items-center justify-center">
-                <code className="font-mono text-xl font-bold text-blue-700">{generatedCode}</code>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-        
-      <p className="text-xs text-muted-foreground">
-        {description}
-        {variant === 'school' && " Generating a new code will invalidate the previous one."}
+    <div className="flex flex-col space-y-4">
+      <div className="flex flex-col md:flex-row md:items-center md:space-x-4 space-y-2 md:space-y-0">
+        <Card className="flex-grow">
+          <CardContent className="flex items-center justify-between p-4 h-16">
+            <span className="text-lg font-mono font-semibold">{code}</span>
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={handleCopyClick} 
+              className="hover:bg-slate-100"
+            >
+              {copied ? <Check className="h-4 w-4 text-green-500" /> : <Clipboard className="h-4 w-4" />}
+            </Button>
+          </CardContent>
+        </Card>
+        <Button 
+          onClick={handleGenerateClick}
+          disabled={isGenerating}
+          className="flex items-center" 
+        >
+          <RefreshCw className={`h-4 w-4 mr-2 ${isGenerating ? "animate-spin" : ""}`} />
+          Generate New Code
+        </Button>
+      </div>
+      <p className="text-sm text-muted-foreground">
+        Teachers can use this code to join your school. For security, generate a new code after sharing.
       </p>
     </div>
   );

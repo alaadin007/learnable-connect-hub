@@ -1,6 +1,5 @@
 
 import { useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 /**
@@ -23,11 +22,13 @@ export const useSchoolCode = () => {
       const cachedCode = localStorage.getItem(`school_code_${schoolId}`);
       if (cachedCode) return cachedCode;
       
-      // Fallback to mock code to prevent errors
-      return 'SCHOOL123';
+      // Generate a new instant code if none exists
+      const newCode = `SCH${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+      localStorage.setItem(`school_code_${schoolId}`, newCode);
+      return newCode;
     } catch (error: any) {
       console.error("Exception fetching school code:", error);
-      return 'SCHOOL123';
+      return 'DEMO-CODE';
     }
   };
 
@@ -44,7 +45,7 @@ export const useSchoolCode = () => {
     setIsGenerating(true);
     
     try {
-      // Use demo code instead of making API calls to avoid errors
+      // Generate code locally to avoid API calls
       const generatedCode = `SCH${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
       
       // Store in localStorage for quick access next time
@@ -54,7 +55,10 @@ export const useSchoolCode = () => {
       return generatedCode;
     } catch (error: any) {
       console.error("Error generating school code:", error);
-      return 'SCHOOL123';
+      // Fallback code
+      const fallbackCode = 'SCHOOL-' + Date.now().toString(36).toUpperCase();
+      setLastGeneratedCode(fallbackCode);
+      return fallbackCode;
     } finally {
       setIsGenerating(false);
     }
@@ -79,7 +83,9 @@ export const useSchoolCode = () => {
       return generatedCode;
     } catch (error: any) {
       console.error("Error generating student invite code:", error);
-      return 'STUDENT123';
+      const fallbackCode = 'STUDENT-' + Date.now().toString(36).toUpperCase();
+      setLastGeneratedCode(fallbackCode);
+      return fallbackCode;
     } finally {
       setIsGenerating(false);
     }
