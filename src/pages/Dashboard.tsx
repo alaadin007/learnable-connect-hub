@@ -20,6 +20,15 @@ const Dashboard = () => {
     }
   }, [userRole, navigate]);
 
+  // If we're still rendering this component for a school admin user,
+  // it means the redirection hasn't happened yet or there was an issue
+  // Let's log this for debugging purposes
+  useEffect(() => {
+    if (userRole === 'school' || userRole === 'school_admin') {
+      console.log('School admin still on Dashboard page, should be redirected to /admin');
+    }
+  }, [userRole]);
+
   return (
     <>
       <Navbar />

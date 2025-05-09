@@ -38,6 +38,14 @@ const ProtectedRoute = ({
   const effectiveUserRole = userRole || fallbackRole;
   const effectiveSchoolId = userSchoolId || fallbackSchoolId;
 
+  // Debug logging
+  console.log('ProtectedRoute check:', { 
+    effectiveUserRole, 
+    requiredUserType, 
+    allowedRoles,
+    path: location.pathname
+  });
+
   // If no user or session, redirect to login
   if (!user && !session && !isPreservedContext) {
     console.log("No user or session, redirecting to login");
