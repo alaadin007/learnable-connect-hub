@@ -36,30 +36,30 @@ const ProtectedRoute = ({
   // If we require a specific user type and the user doesn't have it
   if (requiredUserType && userRole !== requiredUserType) {
     console.log(`ProtectedRoute: User role ${userRole} doesn't match required ${requiredUserType}`);
-    // Redirect based on user role instead of generic dashboard
-    const redirectPath = userRole === 'school' ? '/admin' : 
-                        userRole === 'teacher' ? '/teacher/analytics' : 
-                        '/dashboard';
+    // Redirect based on user role
+    const redirectPath = userRole === 'school' ? "/admin" : 
+                        userRole === 'teacher' ? "/teacher/analytics" : 
+                        "/dashboard";
     return <Navigate to={redirectPath} replace />;
   }
 
   // If we require specific roles and the user doesn't have one of them
   if (allowedRoles && userRole && !allowedRoles.includes(userRole)) {
     console.log(`ProtectedRoute: User role ${userRole} not in allowed roles`);
-    // Redirect based on user role instead of generic dashboard
-    const redirectPath = userRole === 'school' ? '/admin' : 
-                        userRole === 'teacher' ? '/teacher/analytics' : 
-                        '/dashboard';
+    // Redirect based on user role
+    const redirectPath = userRole === 'school' ? "/admin" : 
+                        userRole === 'teacher' ? "/teacher/analytics" : 
+                        "/dashboard";
     return <Navigate to={redirectPath} replace />;
   }
 
   // If we require supervisor access and the user isn't a supervisor
   if (requireSupervisor && !isSuperviser) {
     console.log("ProtectedRoute: User is not a supervisor");
-    // Redirect based on user role instead of generic dashboard
-    const redirectPath = userRole === 'school' ? '/admin' : 
-                        userRole === 'teacher' ? '/teacher/analytics' : 
-                        '/dashboard';
+    // Redirect based on user role
+    const redirectPath = userRole === 'school' ? "/admin" : 
+                        userRole === 'teacher' ? "/teacher/analytics" : 
+                        "/dashboard";
     return <Navigate to={redirectPath} replace />;
   }
 
@@ -67,9 +67,9 @@ const ProtectedRoute = ({
   if (requireSameSchool && schoolId && userSchoolId && schoolId !== userSchoolId) {
     console.log(`ProtectedRoute: School ID mismatch - user: ${userSchoolId}, required: ${schoolId}`);
     // Redirect based on user role
-    const redirectPath = userRole === 'school' ? '/admin' : 
-                        userRole === 'teacher' ? '/teacher/analytics' : 
-                        '/dashboard';
+    const redirectPath = userRole === 'school' ? "/admin" : 
+                        userRole === 'teacher' ? "/teacher/analytics" : 
+                        "/dashboard";
     return <Navigate to={redirectPath} replace />;
   }
 

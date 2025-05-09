@@ -5,7 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import TeacherManagement from "@/components/school-admin/TeacherManagement";
 import Navbar from "@/components/layout/Navbar";
-import Footer from "@/components/landing/Footer";
+import Footer from "@/components/layout/Footer";
 
 const AdminTeacherManagement = () => {
   const navigate = useNavigate();
@@ -25,7 +25,7 @@ const AdminTeacherManagement = () => {
               <ArrowLeft className="h-4 w-4" />
               Back to Admin
             </Button>
-            <h1 className="text-3xl font-bold gradient-text">Teacher Management</h1>
+            <h1 className="text-3xl font-bold">Teacher Management</h1>
           </div>
           
           <TeacherManagement />

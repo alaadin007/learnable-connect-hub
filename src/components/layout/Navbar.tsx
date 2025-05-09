@@ -8,7 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 const Navbar = () => {
-  const { user, signOut, profile } = useAuth();
+  const { user, signOut, profile, userRole } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
@@ -40,9 +40,6 @@ const Navbar = () => {
     location.pathname === path || location.pathname.startsWith("/invitation/")
   );
   const isLoggedIn = !!user && !isPublicPage && !isAuthPage;
-
-  const profileUserType = profile?.user_type ?? null;
-
   const isTestAccountsPage = location.pathname === "/test-accounts";
 
   const getNavLinks = useCallback(() => {
@@ -59,55 +56,58 @@ const Navbar = () => {
     }
 
     // Determine correct dashboard path based on user role
-    const dashboardPath = profileUserType === "school" ? "/admin" : 
-                         profileUserType === "teacher" ? "/teacher/analytics" :
+    const dashboardPath = userRole === 'school' ? "/admin" : 
+                         userRole === 'teacher' ? "/teacher/analytics" :
                          "/dashboard";
 
-    switch (profileUserType) {
-      case "school":
-        return [
-          { name: "Dashboard", href: "/admin" }, // School admin goes to /admin for dashboard
-          { name: "School Admin", href: "/admin" },
-          { name: "Teachers", href: "/admin/teacher-management" },
-          { name: "Analytics", href: "/admin/analytics" },
-          { name: "Chat", href: "/chat" },
-          { name: "Documents", href: "/documents" },
-        ];
-      case "teacher":
-        return [
-          { name: "Dashboard", href: "/teacher/analytics" }, // Teachers go to analytics as their dashboard
-          { name: "Students", href: "/teacher/students" },
-          { name: "Analytics", href: "/teacher/analytics" },
-          { name: "Chat", href: "/chat" },
-          { name: "Documents", href: "/documents" },
-        ];
-      default:
-        // student or other user types
-        return [
-          { name: "Dashboard", href: "/dashboard" }, // Students go to /dashboard
-          { name: "Chat", href: "/chat" },
-          { name: "Documents", href: "/documents" },
-        ];
+    // For school admin role, show specific navigation
+    if (userRole === "school" || userRole === "school_admin") {
+      return [
+        { name: "Dashboard", href: "/admin" },
+        { name: "School Admin", href: "/admin" }, 
+        { name: "Teachers", href: "/admin/teacher-management" },
+        { name: "Analytics", href: "/admin/analytics" },
+        { name: "Chat", href: "/chat" },
+        { name: "Documents", href: "/documents" },
+      ];
+    } 
+    // For teacher role
+    else if (userRole === "teacher") {
+      return [
+        { name: "Dashboard", href: "/teacher/analytics" },
+        { name: "Students", href: "/teacher/students" },
+        { name: "Analytics", href: "/teacher/analytics" },
+        { name: "Chat", href: "/chat" },
+        { name: "Documents", href: "/documents" },
+      ];
+    } 
+    // Student or other user types
+    else {
+      return [
+        { name: "Dashboard", href: "/dashboard" },
+        { name: "Chat", href: "/chat" },
+        { name: "Documents", href: "/documents" },
+      ];
     }
-  }, [profileUserType, isLoggedIn, isTestAccountsPage]);
+  }, [userRole, isLoggedIn, isTestAccountsPage]);
 
   const navLinks = getNavLinks();
 
   const isActiveLink = useCallback((href: string): boolean => {
     const currentPath = location.pathname;
 
+    // Special case for School Admin section
+    if (href === "/admin" && (currentPath === "/admin" || currentPath.startsWith("/admin/"))) {
+      return true;
+    }
+
     switch (href) {
       case "/dashboard":
         return currentPath === "/dashboard";
-      case "/admin":
-        // Active for /admin exactly but not for known subpaths handled separately
-        return currentPath === "/admin";
       case "/admin/teacher-management":
+        return currentPath === "/admin/teacher-management" || currentPath === "/admin/teachers";
       case "/admin/analytics":
-      case "/admin/students":
-      case "/teacher/students":
-      case "/teacher/analytics":
-        return currentPath === href;
+        return currentPath === "/admin/analytics";
       case "/chat":
         return currentPath === "/chat" || currentPath.startsWith("/chat/");
       case "/documents":
@@ -123,19 +123,17 @@ const Navbar = () => {
       return;
     }
     
-    // Add state to prevent redirection loops and preserve navigation context
     navigate(path, { 
       state: { 
         fromNavigation: true,
         preserveContext: true,
-        timestamp: Date.now() // Add timestamp to ensure state is unique
+        timestamp: Date.now()
       } 
     });
     setIsOpen(false);
   }, [location.pathname, navigate]);
 
   if (isTestAccountsPage) {
-    // optionally hide navbar entirely on test accounts page:
     return null;
   }
 
@@ -145,7 +143,6 @@ const Navbar = () => {
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="container mx-auto px-4 sm:px-6">
           <div className="flex justify-between items-center h-16">
-            {/* Minimal placeholder during initial load */}
             <div className="flex-shrink-0">
               <span className="ml-2 text-xl font-bold gradient-text">LearnAble</span>
             </div>
@@ -185,8 +182,8 @@ const Navbar = () => {
                 key={link.name}
                 onClick={() => handleNavigation(link.href)}
                 className={cn(
-                  "text-learnable-gray hover:text-learnable-blue font-medium transition-colors duration-200",
-                  isActiveLink(link.href) && "text-learnable-blue font-bold"
+                  "text-learnable-gray hover:text-learnable-blue font-medium transition-colors duration-200 px-4 py-2 rounded-md",
+                  isActiveLink(link.href) && "text-learnable-blue bg-blue-50 font-semibold"
                 )}
               >
                 {link.name}
@@ -259,7 +256,7 @@ const Navbar = () => {
         aria-label="Mobile menu"
       >
         <div className="px-4 space-y-4 divide-y divide-gray-100 h-full overflow-y-auto">
-          <div className="space-y-1">
+          <div className="space-y-1 py-4">
             {navLinks.map((link) => (
               <button
                 key={link.name}
@@ -267,7 +264,7 @@ const Navbar = () => {
                 className={cn(
                   "block w-full text-left px-3 py-2 text-base font-medium rounded-md",
                   isActiveLink(link.href)
-                    ? "bg-learnable-super-light text-learnable-blue"
+                    ? "bg-blue-50 text-learnable-blue"
                     : "text-learnable-dark hover:bg-learnable-super-light"
                 )}
               >
@@ -332,4 +329,3 @@ const Navbar = () => {
 };
 
 export default Navbar;
-

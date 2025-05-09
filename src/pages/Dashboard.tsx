@@ -77,7 +77,7 @@ const Dashboard = () => {
         
         // If we still have no determination, check email pattern
         if (!isSchoolAdmin && user.email) {
-          if (user.email.startsWith('school') || user.email.startsWith('admin')) {
+          if (user.email.includes('school') || user.email.includes('admin')) {
             console.log("Dashboard: School admin detected from email pattern");
             isSchoolAdmin = true;
           }
