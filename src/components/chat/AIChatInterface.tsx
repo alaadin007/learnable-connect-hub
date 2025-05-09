@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -68,10 +67,13 @@ const AIChatInterface = () => {
     stop,
   } = useCompletion({
     api: "/api/completion",
-    model: settings?.model,
+    // Remove model property as it's not supported
     temperature: settings?.temperature || 0.5,
-    // The AI SDK changed the property name from maxTokens to max_tokens
-    max_tokens: settings?.maxTokens || 400,  
+    // Send maxTokens as part of the request payload instead of configuration option
+    body: {
+      maxTokens: settings?.maxTokens || 400,
+      model: settings?.model || "gpt-3.5-turbo"
+    },
     // Track session and usage
     onFinish: () => {
       if (activeSessionId) {
