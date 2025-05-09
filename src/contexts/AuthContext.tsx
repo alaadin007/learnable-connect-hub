@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -17,7 +18,6 @@ export interface AuthContextType {
   signIn: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
   updateProfile: (updates: any) => Promise<void>;
-  // Add missing properties
   refreshProfile: () => Promise<void>;
   setTestUser: (accountType: "school" | "teacher" | "student", schoolIndex?: number) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
@@ -34,7 +34,6 @@ const AuthContext = createContext<AuthContextType>({
   signIn: async () => {},
   signOut: async () => {},
   updateProfile: async () => {},
-  // Add missing properties to default context
   refreshProfile: async () => {},
   setTestUser: async () => {},
   signUp: async () => {},
@@ -57,46 +56,54 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const loadSession = async () => {
       setIsLoading(true);
       try {
+        console.log("AuthContext: Loading initial session");
+        
+        // Set up auth state listener FIRST
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+          async (event, currentSession) => {
+            console.log("AuthContext: Auth state change:", event, !!currentSession);
+            setSession(currentSession);
+            setUser(currentSession?.user || null);
+
+            if (currentSession?.user) {
+              await fetchUserProfile(currentSession.user);
+            } else {
+              setProfile(null);
+              setUserRole(null);
+              setIsSuperviser(false);
+              setSchoolId(null);
+            }
+          }
+        );
+
+        // THEN check for existing session
         const { data: { session: initialSession } } = await supabase.auth.getSession();
+        console.log("AuthContext: Initial session:", !!initialSession);
+        
         setSession(initialSession);
         setUser(initialSession?.user || null);
 
         if (initialSession?.user) {
           await fetchUserProfile(initialSession.user);
+        } else {
+          setIsLoading(false); // No session, we can stop loading
         }
+
+        return () => {
+          subscription?.unsubscribe();
+        };
       } catch (error) {
-        console.error("Session load error:", error);
-      } finally {
+        console.error("AuthContext: Session load error:", error);
         setIsLoading(false);
       }
     };
 
     loadSession();
-
-    // Subscribe to auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, currentSession) => {
-        setSession(currentSession);
-        setUser(currentSession?.user || null);
-
-        if (currentSession?.user) {
-          await fetchUserProfile(currentSession.user);
-        } else {
-          setProfile(null);
-          setUserRole(null);
-          setIsSuperviser(false);
-          setSchoolId(null);
-        }
-      }
-    );
-
-    return () => {
-      subscription?.unsubscribe();
-    };
   }, []);
 
   const fetchUserProfile = async (currentUser: User) => {
     setIsLoading(true);
+    console.log("AuthContext: Fetching user profile for:", currentUser.id);
     try {
       // Fetch profile data
       const { data: profileData, error: profileError } = await supabase
@@ -136,6 +143,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           undefined
       } : null;
       
+      console.log("AuthContext: Fetched profile:", fetchedProfile);
       setProfile(fetchedProfile);
 
       // Set school ID from profile or null
@@ -143,6 +151,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       // Determine user role
       const role = await getUserRoleWithFallback(currentUser);
+      console.log("AuthContext: User role determined:", role);
+      
       // Fix type issue here - convert string to UserRole type using type assertion
       setUserRole(role as UserRole);
 
@@ -167,6 +177,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const signOut = async () => {
     try {
+      console.log("AuthContext: Attempting to sign out");
       await supabase.auth.signOut();
       
       // Clear all auth-related state
@@ -177,11 +188,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setIsSuperviser(false);
       setSchoolId(null);
       
-      console.log("User successfully signed out");
+      console.log("AuthContext: User successfully signed out");
       
       // Navigate is handled by the component calling this function
     } catch (error) {
-      console.error("Error signing out:", error);
+      console.error("AuthContext: Error signing out:", error);
       throw error; // Rethrow to allow component to handle the error
     }
   };
@@ -209,13 +220,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Add the missing functions that cause TypeScript errors
   const refreshProfile = async () => {
-    if (!user) return;
+    if (!user) {
+      console.log("AuthContext: Cannot refresh profile - no user");
+      return;
+    }
     
     try {
+      console.log("AuthContext: Refreshing profile for user:", user.id);
       setIsLoading(true);
       await fetchUserProfile(user);
     } catch (error) {
-      console.error("Error refreshing user profile:", error);
+      console.error("AuthContext: Error refreshing user profile:", error);
     } finally {
       setIsLoading(false);
     }

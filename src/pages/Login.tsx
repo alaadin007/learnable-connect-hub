@@ -7,12 +7,14 @@ import { AlertCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 const Login = () => {
-  const { user, userRole } = useAuth();
+  const { user, userRole, session, isLoading } = useAuth();
   const navigate = useNavigate();
   
   // Redirect authenticated users
   useEffect(() => {
-    if (user && userRole) {
+    if (!isLoading && user && session && userRole) {
+      console.log("Login.tsx: Redirecting authenticated user with role:", userRole);
+      
       let redirectPath;
       
       if (userRole === "school" || userRole === "school_admin") {
@@ -30,7 +32,7 @@ const Login = () => {
       
       return () => clearTimeout(timeoutId);
     }
-  }, [user, userRole, navigate]);
+  }, [user, userRole, navigate, session, isLoading]);
 
   return (
     <div className="min-h-screen flex flex-col">

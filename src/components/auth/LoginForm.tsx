@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +16,8 @@ const LoginForm = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const { signIn, setTestUser, userRole, refreshProfile } = useAuth();
+  const [authChecked, setAuthChecked] = useState(false);
+  const { signIn, setTestUser, userRole, refreshProfile, session } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [loginError, setLoginError] = useState<string | null>(null);
@@ -34,9 +36,30 @@ const LoginForm = () => {
     }
   }, [searchParams]);
 
-  // Immediate redirect if user role already set
+  // Check authentication status on component mount
   useEffect(() => {
-    if (userRole) {
+    const checkAuthStatus = async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        
+        if (data.session) {
+          console.log("User already has an active session");
+          await refreshProfile();
+        }
+        
+        setAuthChecked(true);
+      } catch (error) {
+        console.error("Error checking auth status:", error);
+        setAuthChecked(true);
+      }
+    };
+    
+    checkAuthStatus();
+  }, [refreshProfile]);
+
+  // Redirect if user is already logged in
+  useEffect(() => {
+    if (authChecked && session && userRole) {
       console.log("User already logged in with role:", userRole);
       
       // Handle school admin role with better fallback checks
@@ -52,7 +75,7 @@ const LoginForm = () => {
         replace: true
       });
     }
-  }, [userRole, navigate]);
+  }, [authChecked, userRole, navigate, session]);
 
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -116,10 +139,7 @@ const LoginForm = () => {
 
       if (!data?.user) {
         console.error("Login successful but no user data returned");
-        toast.error("Login failed", {
-          description: "User data not found after authentication"
-        });
-        return;
+        throw new Error("User data not found after authentication");
       }
 
       console.log("Login successful, user data:", data.user);
