@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -26,28 +25,17 @@ import {
 } from "@/components/ui/alert-dialog";
 import AdminNavbar from "@/components/school-admin/AdminNavbar";
 
-interface SchoolData {
-  id: string;
-  name: string;
-  code: string;
-  created_at?: string;
-  updated_at?: string;
-  contact_email?: string;
-  description?: string;
-  notifications_enabled?: boolean;
-}
-
 const SchoolSettings = () => {
   const { profile, user, signOut, refreshProfile } = useAuth();
   const navigate = useNavigate();
-  
+
   // Form state
   const [schoolName, setSchoolName] = useState("");
   const [schoolCode, setSchoolCode] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [description, setDescription] = useState("");
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  
+
   // UI state
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -60,35 +48,26 @@ const SchoolSettings = () => {
   useEffect(() => {
     const fetchSchoolData = async () => {
       if (!profile?.organization?.id) return;
-      
+
       setIsLoading(true);
       try {
-        console.log("Fetching school data for ID:", profile.organization.id);
-        
-        // Direct database query to avoid RPC calls that might cause recursion
         const { data: schoolData, error } = await supabase
           .from("schools")
           .select("*")
           .eq("id", profile.organization.id)
           .single();
-            
-        if (error) {
-          console.error("Error fetching school data:", error);
-          throw error;
-        }
-          
-        console.log("Fetched school data:", schoolData);
-        
+
+        if (error) throw error;
+
         if (schoolData) {
           setSchoolName(schoolData.name || "");
           setSchoolCode(schoolData.code || "");
           setContactEmail(schoolData.contact_email || user?.email || "");
           setDescription(schoolData.description || "");
-          setNotificationsEnabled(schoolData.notifications_enabled !== false); // Default to true if undefined
+          setNotificationsEnabled(schoolData.notifications_enabled !== false);
           setInitialLoaded(true);
         }
       } catch (error) {
-        console.error("Error fetching school data:", error);
         toast.error("Could not load school information");
       } finally {
         setIsLoading(false);
@@ -103,19 +82,15 @@ const SchoolSettings = () => {
       toast.error("No school ID found. Please refresh the page or contact support.");
       return;
     }
-    
     if (!schoolName.trim()) {
       toast.error("School name cannot be empty");
       return;
     }
-    
+
     setSaveSuccess(false);
     setIsSaving(true);
     try {
       const schoolId = profile.organization.id;
-      console.log("Saving school settings for ID:", schoolId);
-      
-      // Update school information
       const { error } = await supabase
         .from("schools")
         .update({
@@ -127,26 +102,15 @@ const SchoolSettings = () => {
         })
         .eq("id", schoolId);
 
-      if (error) {
-        console.error("Error in supabase update:", error);
-        throw error;
-      }
-      
-      // Wait for a moment to ensure DB update is processed
+      if (error) throw error;
+
       await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Refresh profile to get latest data
       await refreshProfile();
-      
+
       setSaveSuccess(true);
       toast.success("School settings updated successfully!");
-      
-      // Reset success indicator after 2 seconds
-      setTimeout(() => {
-        setSaveSuccess(false);
-      }, 2000);
+      setTimeout(() => setSaveSuccess(false), 2000);
     } catch (error: any) {
-      console.error("Error updating school settings:", error);
       toast.error(error.message || "Failed to update school settings");
     } finally {
       setIsSaving(false);
@@ -158,36 +122,30 @@ const SchoolSettings = () => {
       toast.error("No school ID found. Cannot delete account.");
       return;
     }
-    
+
     setIsDeleting(true);
     try {
       const schoolId = profile.organization.id;
-      
+
       // Use the delete-school-data edge function to handle the complex deletion
-      const { data, error } = await supabase.functions.invoke("delete-school-data", {
+      const { error } = await supabase.functions.invoke("delete-school-data", {
         body: { school_id: schoolId }
       });
 
-      if (error) {
-        console.error("Error invoking delete-school-data function:", error);
-        throw new Error(error.message || "Failed to delete school data");
-      }
-      
+      if (error) throw new Error(error.message || "Failed to delete school data");
+
       // Delete the school itself
       const { error: schoolError } = await supabase
         .from("schools")
         .delete()
         .eq("id", schoolId);
-      
+
       if (schoolError) throw schoolError;
-      
-      // Sign out the user after deletion is complete
+
       await signOut();
-      
       toast.success("School account successfully deleted");
       navigate("/");
     } catch (error: any) {
-      console.error("Error deleting school account:", error);
       toast.error(error.message || "Failed to delete school account");
     } finally {
       setShowDeleteDialog(false);
@@ -196,7 +154,6 @@ const SchoolSettings = () => {
   };
 
   const handleCodeGenerated = (newCode: string) => {
-    console.log("New code generated:", newCode);
     setSchoolCode(newCode);
   };
 
@@ -217,11 +174,9 @@ const SchoolSettings = () => {
             </Button>
             <h1 className="text-3xl font-bold gradient-text">School Settings</h1>
           </div>
-          
-          {/* Admin Navigation Bar */}
           <AdminNavbar className="mb-8" />
-          
-          {/* School Code Card - Moved to top for prominence */}
+
+          {/* School Code Card */}
           <Card className="mb-6">
             <CardHeader>
               <CardTitle>School Code Management</CardTitle>
@@ -239,7 +194,7 @@ const SchoolSettings = () => {
               )}
             </CardContent>
           </Card>
-          
+
           <Card className="mb-6">
             <CardHeader>
               <CardTitle>School Information</CardTitle>
@@ -266,7 +221,6 @@ const SchoolSettings = () => {
                         required
                       />
                     </div>
-                    
                     <div className="space-y-2">
                       <Label htmlFor="contactEmail">Contact Email</Label>
                       <Input 
@@ -278,7 +232,6 @@ const SchoolSettings = () => {
                       />
                     </div>
                   </div>
-                  
                   <div className="space-y-2">
                     <Label htmlFor="description">School Description</Label>
                     <Textarea 
@@ -289,7 +242,6 @@ const SchoolSettings = () => {
                       rows={3}
                     />
                   </div>
-                  
                   <div className="flex items-center space-x-2">
                     <Switch 
                       id="notifications"
@@ -298,7 +250,6 @@ const SchoolSettings = () => {
                     />
                     <Label htmlFor="notifications">Enable email notifications</Label>
                   </div>
-                  
                   <Button 
                     onClick={handleSaveSettings} 
                     disabled={isSaving || !initialLoaded}
@@ -325,7 +276,7 @@ const SchoolSettings = () => {
               )}
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardHeader>
               <CardTitle>Advanced Settings</CardTitle>
