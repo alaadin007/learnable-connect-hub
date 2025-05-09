@@ -68,6 +68,9 @@ export interface StudyTimeData {
 export interface Student {
   id: string;
   name: string;
+  // Additional fields that may be used by AdminStudents.tsx
+  status?: string;
+  role?: string;
 }
 
 export interface Teacher {

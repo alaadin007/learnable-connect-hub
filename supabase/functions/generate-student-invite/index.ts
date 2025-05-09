@@ -9,7 +9,7 @@ const corsHeaders = {
 };
 
 interface GenerateInviteBody {
-  schoolId: string;
+  school_id: string;
   method?: "code" | "email";
   email?: string;
 }
@@ -66,9 +66,9 @@ serve(async (req) => {
       );
     }
 
-    const { schoolId, method = "code", email } = requestBody;
+    const { school_id, method = "code", email } = requestBody;
 
-    if (!schoolId) {
+    if (!school_id) {
       return new Response(
         JSON.stringify({ error: "Bad Request", details: "School ID is required" }),
         {
@@ -84,7 +84,7 @@ serve(async (req) => {
       .from("teachers")
       .select("school_id")
       .eq("id", user.id)
-      .eq("school_id", schoolId)
+      .eq("school_id", school_id)
       .single();
 
     if ((permError || !permData) && !teacherData) {
@@ -99,7 +99,7 @@ serve(async (req) => {
 
     // Generate a unique invitation code using the Supabase RPC function
     const { data: inviteData, error: inviteError } = await supabaseClient.rpc(
-      'create_student_invitation', { school_id_param: schoolId }
+      'create_student_invitation', { school_id_param: school_id }
     );
 
     if (inviteError) {
@@ -117,7 +117,7 @@ serve(async (req) => {
     if (method === "email" && email) {
       const { error: updateError } = await supabaseClient
         .from("student_invites")
-        .update({ email: email })
+        .update({ email: email, teacher_id: user.id })
         .eq("id", inviteData[0].invite_id);
 
       if (updateError) {

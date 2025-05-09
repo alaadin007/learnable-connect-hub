@@ -90,6 +90,17 @@ export const useSchoolCode = () => {
             .from("schools")
             .update({ code: generatedCode })
             .eq("id", schoolId);
+            
+          // Also update in school_codes table for proper tracking
+          await supabase
+            .from("school_codes")
+            .insert({ 
+              code: generatedCode,
+              school_name: localStorage.getItem('school_name') || 'Unknown School',
+              school_id: schoolId,
+              active: true
+            })
+            .select();
         }
       } catch (dbError) {
         console.error("Error updating code in database:", dbError);
