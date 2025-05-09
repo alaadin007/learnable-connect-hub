@@ -1,4 +1,3 @@
-
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth, UserRole } from "@/contexts/AuthContext";
 import { getUserRoleWithFallback, getSchoolIdWithFallback, isSchoolAdmin } from "@/utils/apiHelpers";

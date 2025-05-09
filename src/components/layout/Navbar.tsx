@@ -124,6 +124,8 @@ const Navbar = () => {
         { name: "Students", href: "/admin/students" },
         { name: "Analytics", href: "/admin/analytics" },
         { name: "Settings", href: "/admin/settings" },
+        { name: "Chat", href: "/chat" },
+        { name: "Documents", href: "/documents" },
       ];
     } 
     // For teacher role
