@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -169,14 +168,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const signOut = async () => {
     try {
       await supabase.auth.signOut();
+      
+      // Clear all auth-related state
       setSession(null);
       setUser(null);
       setProfile(null);
       setUserRole(null);
       setIsSuperviser(false);
       setSchoolId(null);
+      
+      console.log("User successfully signed out");
+      
+      // Navigate is handled by the component calling this function
     } catch (error) {
       console.error("Error signing out:", error);
+      throw error; // Rethrow to allow component to handle the error
     }
   };
 

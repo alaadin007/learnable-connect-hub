@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -23,15 +22,25 @@ const Navbar = () => {
   const toggleMenu = () => setIsOpen((open) => !open);
 
   const handleLogout = useCallback(async () => {
-    await signOut();
-    navigate("/");
-    setIsOpen(false);
+    try {
+      await signOut();
+      // Always navigate to the home page after logout
+      navigate("/", { replace: true }); 
+      setIsOpen(false);
+    } catch (error) {
+      console.error("Logout failed:", error);
+      alert("Failed to log out. Please try again.");
+    }
   }, [signOut, navigate]);
 
   const handleBackToTestAccounts = useCallback(async () => {
-    await signOut();
-    navigate("/test-accounts");
-    setIsOpen(false);
+    try {
+      await signOut();
+      navigate("/test-accounts", { replace: true });
+      setIsOpen(false);
+    } catch (error) {
+      console.error("Navigation to test accounts failed:", error);
+    }
   }, [signOut, navigate]);
 
   const isTestAccount = user?.email?.includes(".test@learnable.edu") || user?.id?.startsWith("test-");
