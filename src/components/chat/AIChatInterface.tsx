@@ -127,6 +127,7 @@ const AIChatInterface = () => {
   
   // Check for API key on component mount
   useEffect(() => {
+    // Always show API key dialog if no key is found
     if (!isApiKeyConfigured) {
       setShowApiKeyDialog(true);
     }
@@ -198,7 +199,7 @@ const AIChatInterface = () => {
   
   const onApiKeySubmit = async (values: z.infer<typeof ApiKeySchema>) => {
     try {
-      // Update settings based on provider
+      // Update settings based on provider and save to localStorage
       if (values.provider === 'openai') {
         updateSettings({
           aiProvider: 'openai',

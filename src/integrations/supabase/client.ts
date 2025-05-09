@@ -57,3 +57,37 @@ export async function verifySchoolCode(code: string): Promise<{
     return { valid: false };
   }
 }
+
+// API Key localStorage helpers
+export const API_KEY_STORAGE = {
+  OPENAI: 'openai_api_key',
+  GEMINI: 'gemini_api_key',
+  PROVIDER: 'ai_provider'
+};
+
+// Get API key from localStorage
+export function getApiKey(provider: 'openai' | 'gemini'): string | null {
+  return localStorage.getItem(
+    provider === 'openai' ? API_KEY_STORAGE.OPENAI : API_KEY_STORAGE.GEMINI
+  );
+}
+
+// Save API key to localStorage
+export function saveApiKey(provider: 'openai' | 'gemini', key: string): void {
+  localStorage.setItem(
+    provider === 'openai' ? API_KEY_STORAGE.OPENAI : API_KEY_STORAGE.GEMINI, 
+    key
+  );
+  localStorage.setItem(API_KEY_STORAGE.PROVIDER, provider);
+}
+
+// Get preferred AI provider
+export function getAiProvider(): 'openai' | 'gemini' {
+  return (localStorage.getItem(API_KEY_STORAGE.PROVIDER) as 'openai' | 'gemini') || 'openai';
+}
+
+// Check if API key is configured
+export function isApiKeyConfigured(provider?: 'openai' | 'gemini'): boolean {
+  const activeProvider = provider || getAiProvider();
+  return !!getApiKey(activeProvider);
+}

@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, getApiKey, saveApiKey, getAiProvider } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 // Define settings types
@@ -43,41 +43,59 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     temperature: 0.5,
     model: 'gpt-3.5-turbo',
     showSources: true,
-    aiProvider: 'openai',
-    openAiKey: '',
-    geminiKey: '',
+    aiProvider: getAiProvider(),
+    openAiKey: getApiKey('openai') || '',
+    geminiKey: getApiKey('gemini') || '',
   });
   const [isLoading, setIsLoading] = useState(false);
 
-  // Load settings from database
+  // Load settings
   useEffect(() => {
     async function loadSettings() {
       setIsLoading(true);
       try {
-        // Get settings from database if user is authenticated
+        // First, load from localStorage
+        const localAiProvider = getAiProvider();
+        const localOpenAiKey = getApiKey('openai') || '';
+        const localGeminiKey = getApiKey('gemini') || '';
+        
+        // Update settings with localStorage values
+        setSettings(prevSettings => ({
+          ...prevSettings,
+          aiProvider: localAiProvider,
+          openAiKey: localOpenAiKey,
+          geminiKey: localGeminiKey,
+        }));
+        
+        // If user is authenticated, also try to get server-stored API keys
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
-          // Check if the user_api_keys table exists
           try {
-            // Use the function that returns properly typed data
+            // Check if the user_api_keys table exists
             const { data, error } = await supabase
               .from('user_api_keys')
               .select('provider, api_key')
               .eq('user_id', session.user.id);
             
             if (data && !error) {
-              // Create settings object from user API keys
-              const openaiKey = data.find(key => key.provider === 'openai')?.api_key || '';
-              const geminiKey = data.find(key => key.provider === 'gemini')?.api_key || '';
+              // If server has keys and localStorage doesn't, use server keys
+              const openaiKey = data.find(key => key.provider === 'openai')?.api_key || localOpenAiKey;
+              const geminiKey = data.find(key => key.provider === 'gemini')?.api_key || localGeminiKey;
               
-              const dbSettings: Settings = {
-                ...settings,
-                aiProvider: openaiKey ? 'openai' : geminiKey ? 'gemini' : 'openai',
-                openAiKey: openaiKey,
-                geminiKey: geminiKey,
-              };
-              
-              setSettings(dbSettings);
+              // Only update if we got keys from server that aren't in localStorage yet
+              if ((openaiKey && !localOpenAiKey) || (geminiKey && !localGeminiKey)) {
+                // Save to localStorage
+                if (openaiKey && !localOpenAiKey) saveApiKey('openai', openaiKey);
+                if (geminiKey && !localGeminiKey) saveApiKey('gemini', geminiKey);
+                
+                // Update settings
+                setSettings(prevSettings => ({
+                  ...prevSettings,
+                  aiProvider: openaiKey ? 'openai' : geminiKey ? 'gemini' : prevSettings.aiProvider,
+                  openAiKey: openaiKey || localOpenAiKey,
+                  geminiKey: geminiKey || localGeminiKey,
+                }));
+              }
             }
           } catch (dbError) {
             console.warn('User settings error:', dbError);
@@ -98,6 +116,24 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     try {
       const updatedSettings = { ...settings, ...newSettings };
       setSettings(updatedSettings);
+      
+      // Always save API provider choice to localStorage
+      if (newSettings.aiProvider) {
+        saveApiKey(newSettings.aiProvider, 
+          newSettings.aiProvider === 'openai' ? 
+            (newSettings.openAiKey || settings.openAiKey || '') : 
+            (newSettings.geminiKey || settings.geminiKey || '')
+        );
+      }
+      
+      // Save API keys to localStorage
+      if (newSettings.aiProvider === 'openai' && newSettings.openAiKey) {
+        saveApiKey('openai', newSettings.openAiKey);
+      }
+      
+      if (newSettings.aiProvider === 'gemini' && newSettings.geminiKey) {
+        saveApiKey('gemini', newSettings.geminiKey);
+      }
       
       // Save to database if user is authenticated
       const { data: { session } } = await supabase.auth.getSession();
