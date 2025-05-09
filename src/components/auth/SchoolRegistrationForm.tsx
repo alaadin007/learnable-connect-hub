@@ -17,6 +17,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { AlertCircle } from "lucide-react";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 const formSchema = z.object({
   schoolName: z.string().min(2, { message: "School name must be at least 2 characters" }),
@@ -36,6 +38,7 @@ type FormData = z.infer<typeof formSchema>;
 const SchoolRegistrationForm = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -51,13 +54,16 @@ const SchoolRegistrationForm = () => {
 
   const onSubmit = async (data: FormData) => {
     setIsLoading(true);
+    setErrorMessage(null);
+    
     try {
-      // First register the school
+      // Register school and admin user together via edge function
       const { data: schoolData, error: schoolError } = await supabase.functions.invoke('register-school', {
         body: { 
           schoolName: data.schoolName,
           adminEmail: data.adminEmail,
           adminFullName: data.adminFullName,
+          adminPassword: data.password,
           contactEmail: data.contactEmail || data.adminEmail
         }
       });
@@ -67,51 +73,28 @@ const SchoolRegistrationForm = () => {
         throw new Error(schoolError.message || "Failed to register school");
       }
 
-      if (!schoolData || !schoolData.school_id || !schoolData.school_code) {
-        throw new Error("Invalid response from school registration");
+      if (!schoolData || !schoolData.success) {
+        throw new Error(schoolData?.error || "Invalid response from school registration");
       }
-
+      
       console.log("School registration successful:", schoolData);
-
-      // Now sign up the admin user
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: data.adminEmail,
-        password: data.password,
-        options: {
-          data: {
-            full_name: data.adminFullName,
-            school_code: schoolData.school_code,
-            user_type: 'school_admin'
-          }
-        }
-      });
-
-      if (authError) {
-        console.error("Admin registration error:", authError);
-        throw new Error(authError.message);
-      }
-
-      if (!authData.user) {
-        throw new Error("Admin registration failed");
-      }
-
-      console.log("Admin registration successful:", authData);
       
       // Show success message with school code
       toast.success(
         <div>
           <h3>School Registration Successful!</h3>
           <p>Your school code is: <strong>{schoolData.school_code}</strong></p>
-          <p>Please check your email to verify your account.</p>
+          <p>Use this code to invite teachers and students to your school.</p>
         </div>,
         { duration: 10000 }
       );
       
-      // Redirect to login page
+      // Redirect to login page after successful registration
       setTimeout(() => navigate("/login"), 3000);
       
     } catch (error: any) {
       console.error("Registration error:", error);
+      setErrorMessage(error.message || "Registration failed. Please try again.");
       toast.error(error.message || "Registration failed. Please try again.");
     } finally {
       setIsLoading(false);
@@ -121,6 +104,16 @@ const SchoolRegistrationForm = () => {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 bg-white p-6 rounded-lg shadow">
+        {errorMessage && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Registration Failed</AlertTitle>
+            <AlertDescription>
+              {errorMessage}
+            </AlertDescription>
+          </Alert>
+        )}
+      
         <h2 className="text-xl font-semibold mb-4">School Details</h2>
         
         <FormField

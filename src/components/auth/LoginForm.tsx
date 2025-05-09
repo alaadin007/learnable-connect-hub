@@ -16,6 +16,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { AlertCircle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Invalid email address" }),
@@ -28,6 +30,7 @@ const LoginForm = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [isLoading, setIsLoading] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
   
   // Check if we have a invitation token in the URL query params
   const searchParams = new URLSearchParams(location.search);
@@ -43,6 +46,8 @@ const LoginForm = () => {
 
   const onSubmit = async (data: FormData) => {
     setIsLoading(true);
+    setLoginError(null);
+    
     try {
       const { data: authData, error } = await supabase.auth.signInWithPassword({
         email: data.email,
@@ -82,6 +87,7 @@ const LoginForm = () => {
       
     } catch (error: any) {
       console.error("Login error:", error);
+      setLoginError(error.message || "Login failed. Please try again.");
       toast.error(error.message || "Login failed. Please try again.");
     } finally {
       setIsLoading(false);
@@ -115,6 +121,13 @@ const LoginForm = () => {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        {loginError && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{loginError}</AlertDescription>
+          </Alert>
+        )}
+
         <FormField
           control={form.control}
           name="email"

@@ -40,9 +40,9 @@ serve(async (req) => {
       }
     );
 
-    const { schoolName, adminEmail, adminFullName, contactEmail } = await req.json();
+    const { schoolName, adminEmail, adminFullName, adminPassword, contactEmail } = await req.json();
 
-    if (!schoolName || !adminEmail || !adminFullName) {
+    if (!schoolName || !adminEmail || !adminFullName || !adminPassword) {
       return new Response(
         JSON.stringify({ error: "Missing required fields" }),
         { 
@@ -115,10 +115,42 @@ serve(async (req) => {
         school_id: school.id
       });
 
-    console.log("Successfully registered school:", {
+    // Now create the admin user
+    const { data: userData, error: userError } = await supabaseClient.auth.admin.createUser({
+      email: adminEmail,
+      password: adminPassword,
+      email_confirm: true,  // Auto-confirm email for admin
+      user_metadata: {
+        full_name: adminFullName,
+        school_code: schoolCode,
+        user_type: 'school_admin',
+        school_id: school.id
+      }
+    });
+
+    if (userError) {
+      console.error("Error creating admin user:", userError);
+      
+      // If user creation fails, clean up the school record to avoid orphaned data
+      await supabaseClient
+        .from("schools")
+        .delete()
+        .eq("id", school.id);
+        
+      return new Response(
+        JSON.stringify({ error: userError.message || "Failed to create admin user" }),
+        { 
+          status: 500,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
+
+    console.log("Successfully registered school and admin:", {
       school_id: school.id,
       school_code: schoolCode,
-      school_name: schoolName
+      school_name: schoolName,
+      admin_id: userData.user.id
     });
 
     return new Response(
@@ -126,7 +158,8 @@ serve(async (req) => {
         success: true,
         school_id: school.id,
         school_code: schoolCode,
-        school_name: schoolName
+        school_name: schoolName,
+        admin_id: userData.user.id
       }),
       { 
         status: 200,
