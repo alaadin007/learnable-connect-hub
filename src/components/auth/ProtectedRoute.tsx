@@ -38,11 +38,12 @@ const ProtectedRoute = ({
   const effectiveUserRole = userRole || fallbackRole;
   const effectiveSchoolId = userSchoolId || fallbackSchoolId;
 
-  // Debug logging
+  // Enhanced debug logging
   console.log('ProtectedRoute check:', { 
     effectiveUserRole, 
     requiredUserType, 
     allowedRoles,
+    isSchoolAdmin: effectiveUserRole === 'school' || effectiveUserRole === 'school_admin',
     path: location.pathname
   });
 
@@ -50,6 +51,13 @@ const ProtectedRoute = ({
   if (!user && !session && !isPreservedContext) {
     console.log("No user or session, redirecting to login");
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+  
+  // Special case: If user is school/school_admin and trying to access /dashboard, redirect to /admin
+  if ((effectiveUserRole === 'school' || effectiveUserRole === 'school_admin') && 
+      location.pathname === '/dashboard') {
+    console.log("School admin accessing /dashboard, redirecting to /admin");
+    return <Navigate to="/admin" state={{ preserveContext: true }} replace />;
   }
 
   // If we require a specific user type and the user doesn't have it
