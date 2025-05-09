@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -195,6 +194,25 @@ const SchoolSettings = () => {
             <h1 className="text-3xl font-bold gradient-text">School Settings</h1>
           </div>
           
+          {/* School Code Card - Moved to top for prominence */}
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>School Code Management</CardTitle>
+              <CardDescription>
+                Generate and manage the code teachers and students need to join your school
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {profile?.organization?.id && (
+                <SchoolCodeManager 
+                  schoolId={profile.organization.id} 
+                  currentCode={schoolCode} 
+                  onCodeGenerated={handleCodeGenerated}
+                />
+              )}
+            </CardContent>
+          </Card>
+          
           <Card className="mb-6">
             <CardHeader>
               <CardTitle>School Information</CardTitle>
@@ -242,17 +260,6 @@ const SchoolSettings = () => {
                       placeholder="Brief description of your school" 
                       rows={3}
                     />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label>School Code</Label>
-                    {profile?.organization?.id && (
-                      <SchoolCodeManager 
-                        schoolId={profile.organization.id} 
-                        currentCode={schoolCode} 
-                        onCodeGenerated={handleCodeGenerated}
-                      />
-                    )}
                   </div>
                   
                   <div className="flex items-center space-x-2">

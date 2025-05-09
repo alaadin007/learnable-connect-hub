@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { RefreshCcw, Copy, CheckCircle, AlertCircle, Info } from "lucide-react";
+import { RefreshCcw, Copy, CheckCircle, AlertCircle, Info, HelpCircle } from "lucide-react";
 import { useSchoolCode } from "@/hooks/use-school-code";
 import {
   Dialog,
@@ -12,7 +12,13 @@ import {
   DialogTitle,
   DialogFooter,
   DialogClose,
+  DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
@@ -35,6 +41,7 @@ const SchoolCodeManager: React.FC<SchoolCodeManagerProps> = ({
 }) => {
   const { generateCode, isGenerating } = useSchoolCode();
   const [showDialog, setShowDialog] = useState(false);
+  const [showHelpDialog, setShowHelpDialog] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
   const [codeInfo, setCodeInfo] = useState<SchoolCodeInfo | null>(null);
   
@@ -172,35 +179,132 @@ const SchoolCodeManager: React.FC<SchoolCodeManagerProps> = ({
   };
 
   return (
-    <div>
-      <div className="flex items-center space-x-2">
-        <code className="bg-background p-3 rounded border flex-1 text-center font-mono">
-          {currentCode || "No code available"}
-        </code>
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-medium flex items-center">
+          School Code
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-auto p-1">
+                <HelpCircle className="h-4 w-4 text-muted-foreground" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80 text-sm">
+              <p>This code is required for teachers and students to register and join your school.</p>
+              <ul className="list-disc pl-4 mt-2 space-y-1">
+                <li>Share this code with your teachers and students</li>
+                <li>Codes expire after 24 hours for security</li>
+                <li>Generating a new code invalidates the old one</li>
+              </ul>
+            </PopoverContent>
+          </Popover>
+        </h3>
         <Button
           variant="outline"
+          size="sm"
+          onClick={() => setShowHelpDialog(true)}
+          className="text-xs"
+        >
+          How to use
+        </Button>
+      </div>
+      
+      <div className="flex items-center space-x-2">
+        <div className="flex-1 bg-muted rounded-md border overflow-hidden">
+          <div className="flex items-center justify-between p-2">
+            <code className="bg-background px-2 py-1 rounded font-mono text-sm">
+              {currentCode || "No code available"}
+            </code>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={copyToClipboard}
+              disabled={!currentCode}
+              className="h-7 px-2"
+            >
+              {codeCopied ? (
+                <CheckCircle className="h-4 w-4 text-green-500" />
+              ) : (
+                <Copy className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+        </div>
+        <Button
+          variant="secondary"
           onClick={handleGenerateCode}
           disabled={isGenerating}
-          className="flex items-center gap-2"
+          className="flex items-center gap-1"
         >
           {isGenerating ? (
             <>
               <RefreshCcw className="h-4 w-4 animate-spin" />
-              Generating...
+              <span>Generating...</span>
             </>
           ) : (
             <>
               <RefreshCcw className="h-4 w-4" />
-              Generate New
+              <span>Generate New</span>
             </>
           )}
         </Button>
       </div>
+      
       {getExpiryStatus()}
-      <p className="text-sm text-muted-foreground mt-2">
-        This code is used by teachers and students to join your school.
-        Generating a new code will invalidate the old one.
-      </p>
+
+      {/* Help dialog */}
+      <Dialog open={showHelpDialog} onOpenChange={setShowHelpDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>How School Codes Work</DialogTitle>
+            <DialogDescription>
+              Understanding how to use and share school codes for registration
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="rounded-md bg-blue-50 p-4 border border-blue-100">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <Info className="h-5 w-5 text-blue-400" />
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-blue-700">What are school codes?</h3>
+                  <p className="mt-2 text-sm text-blue-600">
+                    School codes are unique identifiers that connect teachers and students to your school during registration.
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <div>
+              <h4 className="text-sm font-medium mb-2">How to use your school code:</h4>
+              <ol className="list-decimal pl-5 space-y-2 text-sm">
+                <li>Generate a new code (codes expire after 24 hours)</li>
+                <li>Copy the code and share it with teachers or students who need to register</li>
+                <li>Teachers and students will enter this code during the registration process</li>
+                <li>Once registered, they will be automatically connected to your school</li>
+              </ol>
+            </div>
+            
+            <div>
+              <h4 className="text-sm font-medium mb-2">Important notes:</h4>
+              <ul className="list-disc pl-5 space-y-1 text-sm text-gray-600">
+                <li>For security reasons, codes automatically expire after 24 hours</li>
+                <li>Generating a new code invalidates any previous codes</li>
+                <li>You may regenerate codes as often as needed</li>
+                <li>Share codes only with individuals you want to join your school</li>
+              </ul>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button>Close</Button>
+            </DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog to show the new code */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
@@ -234,31 +338,46 @@ const SchoolCodeManager: React.FC<SchoolCodeManagerProps> = ({
               </Button>
             </div>
           </div>
-          {codeInfo?.expiresAt && (
-            <div className="bg-blue-50 border border-blue-200 rounded-md p-4 text-blue-800 mb-4">
+          
+          <div className="space-y-4">
+            {codeInfo?.expiresAt && (
+              <div className="bg-blue-50 border border-blue-200 rounded-md p-4 text-blue-800">
+                <div className="flex items-start gap-2">
+                  <Info className="h-5 w-5 text-blue-600 mt-0.5" />
+                  <div>
+                    <h4 className="font-semibold mb-1">Expiration</h4>
+                    <p className="text-sm">
+                      This code will expire on {formatExpiryDate(codeInfo.expiresAt)}.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            <div className="bg-amber-50 border border-amber-200 rounded-md p-4 text-amber-800">
               <div className="flex items-start gap-2">
-                <Info className="h-5 w-5 text-blue-600 mt-0.5" />
+                <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5" />
                 <div>
-                  <h4 className="font-semibold mb-1">Expiration</h4>
+                  <h4 className="font-semibold mb-1">Important</h4>
                   <p className="text-sm">
-                    This code will expire on {formatExpiryDate(codeInfo.expiresAt)}.
+                    This action has invalidated your previous school code. Anyone using the old code 
+                    will no longer be able to join your school.
                   </p>
                 </div>
               </div>
             </div>
-          )}
-          <div className="bg-amber-50 border border-amber-200 rounded-md p-4 text-amber-800">
-            <div className="flex items-start gap-2">
-              <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5" />
-              <div>
-                <h4 className="font-semibold mb-1">Important</h4>
-                <p className="text-sm">
-                  This action has invalidated your previous school code. Anyone using the old code 
-                  will no longer be able to join your school.
-                </p>
-              </div>
+            
+            <div className="space-y-1">
+              <h4 className="font-semibold">Next steps:</h4>
+              <ol className="list-decimal pl-5 text-sm space-y-1">
+                <li>Copy this code and keep it secure</li>
+                <li>Share it with teachers who need to register</li>
+                <li>Teachers will enter this code during registration</li>
+                <li>You can generate a new code anytime if needed</li>
+              </ol>
             </div>
           </div>
+          
           <DialogFooter>
             <DialogClose asChild>
               <Button className="w-full sm:w-auto">Close</Button>

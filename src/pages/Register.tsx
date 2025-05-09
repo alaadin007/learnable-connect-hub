@@ -6,7 +6,22 @@ import Footer from "@/components/landing/Footer";
 import { Link } from "react-router-dom";
 import { Toaster } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle, Info } from "lucide-react";
+import { 
+  AlertCircle, 
+  Info, 
+  HelpCircle 
+} from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogTrigger,
+  DialogClose
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 const Register = () => {
   return (
@@ -28,19 +43,78 @@ const Register = () => {
         {/* School code help info */}
         <div className="max-w-md w-full mx-auto mb-6">
           <Alert className="bg-blue-50 border-blue-200 text-blue-800">
-            <Info className="h-5 w-5 text-blue-500" />
-            <AlertTitle>Need a School Code?</AlertTitle>
-            <AlertDescription className="text-blue-700">
-              <p className="mb-2">Teachers and students need a school code to register. You can obtain this code:</p>
-              <ul className="list-disc pl-5 space-y-1">
-                <li>From your school administrator who registered the school</li>
-                <li>From another teacher at your school who already has an account</li>
-                <li>By asking your IT department who manages educational accounts</li>
-              </ul>
-              <p className="mt-2 text-sm italic">
-                School administrators must first <Link to="/school-registration" className="font-medium underline">register their school</Link> to generate a code.
-              </p>
-            </AlertDescription>
+            <div className="flex justify-between items-start">
+              <div className="flex items-start">
+                <Info className="h-5 w-5 text-blue-500 mt-0.5" />
+                <div>
+                  <AlertTitle>Need a School Code?</AlertTitle>
+                  <AlertDescription className="text-blue-700 mt-1">
+                    Teachers and students need a valid school code to register.
+                  </AlertDescription>
+                </div>
+              </div>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="mt-0 h-8">
+                    <HelpCircle className="h-3.5 w-3.5 mr-1" />
+                    <span className="text-xs">How to get a code</span>
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-lg">
+                  <DialogHeader>
+                    <DialogTitle>How to Get a School Code</DialogTitle>
+                    <DialogDescription>
+                      School codes connect you to your school during registration
+                    </DialogDescription>
+                  </DialogHeader>
+                  
+                  <div className="space-y-4 py-2">
+                    <div>
+                      <h3 className="font-medium mb-2">For Teachers</h3>
+                      <ul className="list-disc pl-5 space-y-1.5">
+                        <li>Ask your school administrator who has already registered the school</li>
+                        <li>They can generate a code from the School Settings page</li>
+                        <li>Codes expire after 24 hours, so make sure to use it promptly</li>
+                        <li>If a code expires, the administrator can generate a new one</li>
+                      </ul>
+                    </div>
+                    
+                    <div>
+                      <h3 className="font-medium mb-2">For Students</h3>
+                      <ul className="list-disc pl-5 space-y-1.5">
+                        <li>Ask your teacher or school administrator for your school code</li>
+                        <li>Your teacher can get the code from the school administrator</li>
+                        <li>Enter the code during registration to connect to your school</li>
+                      </ul>
+                    </div>
+                    
+                    <div className="bg-amber-50 border border-amber-200 p-4 rounded-md">
+                      <div className="flex gap-2">
+                        <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <h4 className="font-medium text-amber-800">Important Note</h4>
+                          <p className="text-sm text-amber-700 mt-1">
+                            School codes are unique to each school and are required for registration. 
+                            Without a valid code, you won't be able to complete the registration process.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <DialogFooter>
+                    <DialogClose asChild>
+                      <Button>Close</Button>
+                    </DialogClose>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
+            <ul className="list-disc pl-5 space-y-1 mt-3 text-blue-700 text-sm">
+              <li>For teachers: Get this code from your school administrator</li>
+              <li>For students: Get this code from your teacher</li>
+              <li>School administrators must first <Link to="/school-registration" className="font-medium underline">register their school</Link> to generate a code</li>
+            </ul>
           </Alert>
         </div>
 

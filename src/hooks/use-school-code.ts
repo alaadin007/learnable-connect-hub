@@ -49,7 +49,6 @@ export function useSchoolCode(): UseSchoolCodeReturn {
       return null;
     }
 
-    // Check if user has permission (simplified for now to ensure it works)
     setIsGenerating(true);
     setError(null);
 
@@ -61,15 +60,15 @@ export function useSchoolCode(): UseSchoolCodeReturn {
         schoolId: schoolId
       }, {
         requireAuth: true,
-        retryCount: 2,
-        timeout: 15000
+        retryCount: 3,
+        timeout: 20000
       });
       
       console.log("Response from edge function:", data);
 
       if (!data?.code) {
         // Fallback to direct RPC call if edge function fails
-        console.log("Edge function failed, trying direct DB query");
+        console.log("Edge function failed or returned empty code, trying direct DB query");
         const { data: directData, error: directError } = await supabase
           .rpc("generate_new_school_code", { school_id_param: schoolId });
           
@@ -83,10 +82,7 @@ export function useSchoolCode(): UseSchoolCodeReturn {
 
       // Validate the received code format
       if (!validateCodeFormat(data.code)) {
-        const errorMessage = "Invalid code format received";
-        setError(errorMessage);
-        toast.error(errorMessage);
-        return null;
+        throw new Error("Invalid code format received from server");
       }
 
       toast.success("School code generated successfully");
@@ -96,7 +92,7 @@ export function useSchoolCode(): UseSchoolCodeReturn {
       console.error("Exception while generating school code:", error);
       const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
       setError(errorMessage);
-      toast.error(errorMessage);
+      toast.error(`Failed to generate school code: ${errorMessage}`);
       return null;
     } finally {
       setIsGenerating(false);
@@ -114,7 +110,7 @@ export function useSchoolCode(): UseSchoolCodeReturn {
     if (!validateCodeFormat(code)) {
       return {
         isValid: false,
-        error: "Invalid code format"
+        error: "Invalid code format. School codes should start with 'SCH' followed by 6 characters."
       };
     }
 
@@ -140,7 +136,7 @@ export function useSchoolCode(): UseSchoolCodeReturn {
       if (!data) {
         return {
           isValid: false,
-          error: "Invalid school code"
+          error: "Invalid school code. Please check and try again."
         };
       }
 
@@ -150,7 +146,7 @@ export function useSchoolCode(): UseSchoolCodeReturn {
         if (expiresAt < new Date()) {
           return {
             isValid: false,
-            error: "School code has expired"
+            error: "This school code has expired. Please contact your school administrator for a new code."
           };
         }
       }
@@ -165,7 +161,7 @@ export function useSchoolCode(): UseSchoolCodeReturn {
       console.error("Exception while validating school code:", error);
       return {
         isValid: false,
-        error: "An unexpected error occurred"
+        error: "An unexpected error occurred while validating the school code"
       };
     } finally {
       setIsValidating(false);
