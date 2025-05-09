@@ -75,7 +75,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false); // Start with false to prevent flicker
   const [isSuperviser, setIsSuperviser] = useState(false);
   const [schoolId, setSchoolId] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
@@ -83,35 +83,34 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
 
   useEffect(() => {
     const getInitialSession = async () => {
-      setIsLoading(true);
       try {
         const {
           data: { session: initialSession },
         } = await supabase.auth.getSession();
 
         setSession(initialSession);
-        setUser(initialSession?.user || null);
-
+        
         if (initialSession?.user) {
+          setUser(initialSession.user);
           await fetchProfile(initialSession.user.id);
         }
       } catch (error) {
         console.error("Error getting initial session:", error);
-        toast.error("Failed to retrieve session. Please try again.");
-      } finally {
-        setIsLoading(false);
       }
     };
 
-    getInitialSession();
-
+    // First set up auth listeners, then check session to prevent race conditions
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event: AuthChangeEvent, currentSession: Session | null) => {
+      (event: AuthChangeEvent, currentSession: Session | null) => {
         setSession(currentSession);
-        setUser(currentSession?.user || null);
-
+        
         if (currentSession?.user) {
-          await fetchProfile(currentSession.user.id);
+          setUser(currentSession.user);
+          
+          // Use setTimeout to prevent recursive calls to Supabase auth
+          setTimeout(() => {
+            fetchProfile(currentSession.user.id);
+          }, 0);
         } else {
           setProfile(null);
           setUserRole(null);
@@ -121,213 +120,148 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
       }
     );
 
+    // Then check for existing session
+    getInitialSession();
+
     return () => subscription.unsubscribe();
   }, []);
 
   const fetchProfile = async (userId: string) => {
-    try {
-      console.log("AuthContext: Fetching profile for user ID:", userId);
-      
-      // Try to determine user role from auth metadata first
+    try {      
+      // Determine user role from metadata first - this is the fastest route
       let determinedUserType: UserRole | null = null;
       let determinedSchoolId: string | null = null;
 
-      // If user has raw_user_metadata, try to extract user_type
-      if (user && user.user_metadata) {
+      if (user?.user_metadata?.user_type) {
         determinedUserType = user.user_metadata.user_type as UserRole;
-        console.log("AuthContext: Found user type in metadata:", determinedUserType);
+        
+        // Normalize role value for consistency
+        if (determinedUserType === "school_admin") {
+          determinedUserType = "school";
+        }
       }
       
-      try {
-        // Try to get profile data directly
-        const { data: profileData, error: profileError } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", userId)
-          .single();
+      // Fetch profile data directly
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .single();
 
-        if (profileError) {
-          console.error("Error fetching profile:", profileError);
-          // We'll continue with metadata-based approach
-        } else if (profileData) {
-          console.log("AuthContext: Raw profile data:", profileData);
-
-          // Initialize the profile with available data
-          let safeProfileData: UserProfile = {
-            id: profileData.id,
-            user_type: profileData.user_type,
-            full_name: profileData.full_name,
-            organization: null,
-            school_code: profileData.school_code
-          };
-          
-          // Process organization data if it exists in the profile
-          if (profileData.organization && isNonNullObject(profileData.organization)) {
-            // Type check and safely convert organization data
-            if (isValidOrganization(profileData.organization)) {
-              safeProfileData.organization = {
-                id: profileData.organization.id,
-                name: profileData.organization.name,
-                code: profileData.organization.code
-              };
-              determinedSchoolId = profileData.organization.id;
-            } else {
-              console.warn("AuthContext: Invalid organization structure in profile data", profileData.organization);
-            }
-          } 
-          // Or fetch school data separately if we have a school_id
-          else if (profileData.school_id) {
-            determinedSchoolId = profileData.school_id;
-            try {
-              const { data: schoolData, error: schoolError } = await supabase
-                .from("schools")
-                .select("id, name, code")
-                .eq("id", profileData.school_id)
-                .single();
-
-              if (!schoolError && schoolData) {
-                safeProfileData.organization = {
-                  id: schoolData.id,
-                  name: schoolData.name,
-                  code: schoolData.code
-                };
-              } else {
-                console.log("AuthContext: No school data found or error:", schoolError);
-              }
-            } catch (schoolFetchError) {
-              console.error("Error fetching school data:", schoolFetchError);
-            }
+      if (!profileError && profileData) {
+        // Initialize the profile with available data
+        let safeProfileData: UserProfile = {
+          id: profileData.id,
+          user_type: profileData.user_type,
+          full_name: profileData.full_name,
+          organization: null,
+          school_code: profileData.school_code
+        };
+        
+        // Process organization data if it exists
+        if (profileData.organization && isNonNullObject(profileData.organization)) {
+          if (isValidOrganization(profileData.organization)) {
+            safeProfileData.organization = {
+              id: profileData.organization.id,
+              name: profileData.organization.name,
+              code: profileData.organization.code
+            };
+            determinedSchoolId = profileData.organization.id;
           }
-
-          setProfile(safeProfileData);
+        } 
+        // Or fetch school data separately if we have a school_id
+        else if (profileData.school_id) {
+          determinedSchoolId = profileData.school_id;
           
-          // Set user type from profile
+          const { data: schoolData } = await supabase
+            .from("schools")
+            .select("id, name, code")
+            .eq("id", profileData.school_id)
+            .single();
+
+          if (schoolData) {
+            safeProfileData.organization = {
+              id: schoolData.id,
+              name: schoolData.name,
+              code: schoolData.code
+            };
+          }
+        }
+
+        setProfile(safeProfileData);
+        
+        // Set user type from profile
+        if (!determinedUserType) {
           determinedUserType = profileData.user_type as UserRole;
         }
-      } catch (profileFetchError) {
-        console.error("Error during profile fetch attempt:", profileFetchError);
       }
       
-      // If profile fetch failed or couldn't determine user type, let's try teachers/students tables
-      if (!determinedUserType || !determinedSchoolId) {
-        try {
-          // Try teachers table
-          const { data: teacherData } = await supabase
-            .from("teachers")
-            .select("school_id, is_supervisor")
+      // If we still don't have a role, check tables directly
+      if (!determinedUserType) {
+        // Try teachers table
+        const { data: teacherData } = await supabase
+          .from("teachers")
+          .select("school_id, is_supervisor")
+          .eq("id", userId)
+          .single();
+          
+        if (teacherData) {
+          determinedUserType = "teacher";
+          determinedSchoolId = teacherData.school_id;
+          setIsSuperviser(teacherData.is_supervisor || false);
+        } else {
+          // Try students table
+          const { data: studentData } = await supabase
+            .from("students")
+            .select("school_id, status")
             .eq("id", userId)
             .single();
             
-          if (teacherData) {
-            console.log("AuthContext: Found user in teachers table:", teacherData);
-            determinedUserType = "teacher";
-            determinedSchoolId = teacherData.school_id;
-            setIsSuperviser(teacherData.is_supervisor || false);
-          } else {
-            // Try students table
-            const { data: studentData } = await supabase
-              .from("students")
-              .select("school_id, status")
-              .eq("id", userId)
-              .single();
-              
-            if (studentData) {
-              console.log("AuthContext: Found user in students table:", studentData);
-              determinedUserType = "student";
-              determinedSchoolId = studentData.school_id;
-            }
-          }
-        } catch (tablesError) {
-          console.error("Error checking teachers/students tables:", tablesError);
-        }
-      }
-      
-      // Final fallback: if we still don't have a role, check user metadata
-      if (!determinedUserType && user) {
-        // Check user metadata for clues about user type
-        if (user.user_metadata) {
-          if (user.user_metadata.user_type === "school_admin" || user.user_metadata.user_type === "school") {
-            determinedUserType = "school";
-          } else if (user.user_metadata.user_type === "teacher") {
-            determinedUserType = "teacher";
-          } else if (user.user_metadata.user_type === "student") {
+          if (studentData) {
             determinedUserType = "student";
-          }
-        }
-        
-        // Last resort: check email for patterns like "school@" or "teacher@"
-        if (!determinedUserType && user.email) {
-          if (user.email.startsWith('school') || user.email.startsWith('admin')) {
-            determinedUserType = "school";
-          } else if (user.email.startsWith('teacher')) {
-            determinedUserType = "teacher";
-          } else {
-            determinedUserType = "student"; // Default fallback
+            determinedSchoolId = studentData.school_id;
           }
         }
       }
       
-      // Normalize school admin roles for consistency
+      // Final fallback: check email patterns
+      if (!determinedUserType && user?.email) {
+        if (user.email.startsWith('school') || user.email.startsWith('admin')) {
+          determinedUserType = "school";
+          setIsSuperviser(true);
+        } else if (user.email.startsWith('teacher')) {
+          determinedUserType = "teacher";
+        } else {
+          determinedUserType = "student"; // Default fallback
+        }
+      }
+      
+      // Normalize school admin roles
       if (determinedUserType === "school_admin") {
         determinedUserType = "school";
       }
-      
-      // Set the determined role and school ID
-      console.log("AuthContext: Final determined role:", determinedUserType);
-      console.log("AuthContext: Final determined school ID:", determinedSchoolId);
-      
-      setUserRole(determinedUserType);
-      setSchoolId(determinedSchoolId);
       
       // Special handling for school admins
       if (determinedUserType === "school") {
         setIsSuperviser(true);
       }
       
-      // If we have incomplete profile info, try to update it
-      if (profile === null && user) {
+      // Set the determined values
+      setUserRole(determinedUserType);
+      setSchoolId(determinedSchoolId);
+      
+      // If we still have incomplete profile info, create minimal one
+      if (!profile && user) {
         const minimalProfile: UserProfile = {
           id: userId,
           user_type: determinedUserType || "student",
           full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || "User",
         };
         setProfile(minimalProfile);
-        
-        // Try to update the profile in the database with what we know
-        try {
-          await supabase.from("profiles").upsert({
-            id: userId,
-            user_type: determinedUserType,
-            full_name: user.user_metadata?.full_name || user.email?.split('@')[0],
-            email: user.email
-          });
-        } catch (updateError) {
-          console.error("Error updating profile:", updateError);
-        }
       }
 
-      // Test account special handling for session logs
-      if (user && isTestAccount(user.email || '')) {
-        console.log("AuthContext: Test account detected");
-        
-        // Populate test data for appropriate user types
-        if (determinedUserType === "student") {
-          try {
-            await sessionLogger.startSession("Test Session", userId);
-          } catch (e) {
-            console.error("Failed to start test session", e);
-          }
-        } else if (determinedUserType === "teacher" && determinedSchoolId) {
-          try {
-            await populateTestAccountWithSessions(userId, determinedSchoolId);
-          } catch (e) {
-            console.error("Error populating test data for teacher:", e);
-          }
-        }
-      }
     } catch (error) {
       console.error("Error fetching profile:", error);
-      toast.error("Failed to retrieve profile. Using fallback user information.");
     }
   };
 

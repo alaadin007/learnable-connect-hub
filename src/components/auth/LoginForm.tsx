@@ -34,7 +34,7 @@ const LoginForm = () => {
     }
   }, [searchParams]);
 
-  // Redirect if user role already set
+  // Immediate redirect if user role already set
   useEffect(() => {
     if (userRole) {
       console.log("User already logged in with role:", userRole);
@@ -46,8 +46,10 @@ const LoginForm = () => {
         ? "/teacher/analytics"
         : "/dashboard";
 
+      // Use replace instead of push to prevent back button issues
       navigate(redirectPath, { 
-        state: { preserveContext: true }
+        state: { preserveContext: true },
+        replace: true
       });
     }
   }, [userRole, navigate]);
@@ -63,11 +65,6 @@ const LoginForm = () => {
     setIsLoading(true);
 
     try {
-      // Check network connection
-      if (!navigator.onLine) {
-        throw new Error("You appear to be offline. Please check your internet connection.");
-      }
-      
       // Handle test accounts - direct login without authentication
       if (email.includes(".test@learnable.edu")) {
         console.log(`Using test account login flow for ${email}`);
@@ -105,10 +102,8 @@ const LoginForm = () => {
       }
 
       console.log(`Attempting to login with email: ${email}`);
-      console.log("Network status check:", navigator.onLine ? "Online" : "Offline");
       
       // Regular user login flow - using direct Supabase auth
-      console.log("Sending auth request to Supabase...");
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
@@ -116,11 +111,6 @@ const LoginForm = () => {
 
       if (error) {
         console.error("Supabase authentication error:", error);
-        console.error("Error details:", {
-          status: error.status,
-          name: error.name,
-          message: error.message
-        });
         throw error;
       }
 
@@ -134,16 +124,6 @@ const LoginForm = () => {
 
       console.log("Login successful, user data:", data.user);
       
-      // Verify session was created correctly
-      const sessionStatus = await checkSessionStatus();
-      console.log("Session status after login:", sessionStatus);
-      
-      if (!sessionStatus.hasSession) {
-        console.warn("Login succeeded but no active session detected");
-        // Force refresh the session
-        await supabase.auth.refreshSession();
-      }
-
       // Extract role information from user metadata
       const userType = data.user.user_metadata?.user_type;
       let isSchoolAdmin = userType === "school" || userType === "school_admin";
@@ -164,42 +144,30 @@ const LoginForm = () => {
 
       // Redirect based on user type
       if (isSchoolAdmin) {
-        navigate("/admin", { state: { preserveContext: true } });
+        navigate("/admin", { state: { preserveContext: true }, replace: true });
       } else if (userType === "teacher") {
-        navigate("/teacher/analytics", { state: { preserveContext: true } });
+        navigate("/teacher/analytics", { state: { preserveContext: true }, replace: true });
       } else {
-        navigate("/dashboard", { state: { preserveContext: true } });
+        navigate("/dashboard", { state: { preserveContext: true }, replace: true });
       }
     } catch (error: any) {
       console.error("Login error:", error);
-      console.error("Login error details:", {
-        status: error.status,
-        name: error.name,
-        message: error.message,
-        code: error.code
-      });
       setLoginError(error.message);
 
-      // More detailed logging
       if (error.message) {
         if (error.message.includes("Email not confirmed")) {
-          console.log("Email verification error detected");
           toast.error("Email not verified", {
             description:
               "Please check your inbox and spam folder for the verification email.",
           });
         } else if (error.message.includes("Invalid login credentials")) {
-          console.log("Invalid credentials provided:", { email, passwordLength: password.length });
           toast.error("Login failed", {
             description: "Invalid email or password. Please try again.",
           });
         } else {
-          console.log("Unknown login error:", error.message);
           toast.error(`Login failed: ${error.message}`);
         }
       } else {
-        // Network related errors
-        console.log("Network or unknown error during login", error);
         toast.error("Login failed due to network issue", {
           description: "Please check your connection and try again."
         });

@@ -13,14 +13,14 @@ const AdminTeacherManagement = () => {
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
-      <main className="flex-grow bg-learnable-super-light py-8">
+      <main className="flex-grow bg-gray-50 py-8">
         <div className="container mx-auto px-4">
           <div className="flex items-center gap-4 mb-6">
             <Button 
               variant="outline" 
               size="sm" 
               className="flex items-center gap-1"
-              onClick={() => navigate('/admin')}
+              onClick={() => navigate('/admin', { state: { preserveContext: true } })}
             >
               <ArrowLeft className="h-4 w-4" />
               Back to Admin
