@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -37,13 +36,14 @@ const AdminStudents = () => {
   const [generatedCode, setGeneratedCode] = useState("");
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const { generateCode, isGenerating: isGeneratingSchoolCode } = useSchoolCode();
-  
+
   // Ensure we have a school ID even if auth context is slow to load
   const schoolId = authSchoolId || profile?.school_id || profile?.organization?.id;
-  
+
   // Load student invites
   useEffect(() => {
     fetchInvites();
+    // eslint-disable-next-line
   }, [schoolId, refreshTrigger]);
 
   const fetchInvites = async () => {
@@ -51,36 +51,28 @@ const AdminStudents = () => {
       console.log("No school ID available to fetch invites");
       return;
     }
-    
+
     setIsLoading(true);
     try {
-      console.log("Fetching student invites for school:", schoolId);
-      
       // Try to fetch from student_invites table
-      const { data: studentInvites, error: studentInviteError } = await supabase
+      const { data: studentInvites } = await supabase
         .from("student_invites")
         .select("*")
         .eq("school_id", schoolId)
         .order("created_at", { ascending: false })
         .limit(10);
-        
+
       if (studentInvites && studentInvites.length > 0) {
-        console.log("Found student invites:", studentInvites);
         setInvites(studentInvites as StudentInvite[]);
       } else {
         // Fallback to teacher_invitations table for display
-        const { data, error } = await supabase
+        const { data } = await supabase
           .from("teacher_invitations")
           .select("*")
           .eq("school_id", schoolId)
           .order("created_at", { ascending: false })
           .limit(10);
 
-        if (error) {
-          console.error("Error fetching teacher invitations:", error);
-          throw error;
-        }
-        
         // Convert teacher_invitations to our StudentInvite type
         const studentInviteData: StudentInvite[] = (data || []).map(invite => ({
           id: invite.id,
@@ -89,8 +81,7 @@ const AdminStudents = () => {
           expires_at: invite.expires_at,
           status: invite.status
         }));
-        
-        console.log("Using teacher invitations as fallback:", studentInviteData);
+
         setInvites(studentInviteData);
       }
     } catch (error: any) {
@@ -106,26 +97,19 @@ const AdminStudents = () => {
       toast.error("You must be logged in with a school account to generate codes");
       return;
     }
-    
+
     setIsLoading(true);
-    
+
     try {
-      console.log("Generating code for school:", schoolId);
-      
       // Try to use the Edge Function first
       try {
-        console.log("Invoking invite-student edge function for code generation");
         const { data, error } = await supabase.functions.invoke('invite-student', {
           body: { method: 'code' }
         });
-        
-        if (error) {
-          console.error("Error from invite-student function:", error);
-          throw error;
-        }
-        
+
+        if (error) throw error;
+
         if (data && data.code) {
-          console.log("Successfully generated code via edge function:", data);
           setGeneratedCode(data.code);
           toast.success("Student invitation code generated");
           setRefreshTrigger(prev => prev + 1);
@@ -134,12 +118,11 @@ const AdminStudents = () => {
       } catch (edgeFnError: any) {
         console.error("Edge function error for code generation:", edgeFnError);
       }
-      
+
       // Generate school code using the hook as fallback
       const code = await generateCode(schoolId);
-      
+
       if (code) {
-        console.log("Generated code successfully:", code);
         setGeneratedCode(code);
         toast.success("Student invitation code generated");
         setRefreshTrigger(prev => prev + 1);
@@ -160,7 +143,7 @@ const AdminStudents = () => {
       toast.success("Code copied to clipboard!");
     }
   };
-  
+
   const handleRefresh = () => {
     setRefreshTrigger(prev => prev + 1);
     toast.success("Refreshing invitations...");
@@ -172,9 +155,9 @@ const AdminStudents = () => {
       <main className="flex-grow bg-learnable-super-light py-8">
         <div className="container mx-auto px-4">
           <div className="flex items-center gap-4 mb-6">
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               className="flex items-center gap-1"
               onClick={() => navigate('/admin', { state: { preserveContext: true } })}
             >
@@ -183,9 +166,9 @@ const AdminStudents = () => {
             </Button>
             <h1 className="text-3xl font-bold gradient-text">Student Management</h1>
           </div>
-          
+
           <AdminNavbar className="mb-8" />
-          
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Left column - Generate Code */}
             <Card className="md:col-span-1">
@@ -196,7 +179,7 @@ const AdminStudents = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <Button 
+                <Button
                   onClick={generateInviteCode}
                   disabled={isLoading || isGeneratingSchoolCode}
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white"
@@ -210,7 +193,7 @@ const AdminStudents = () => {
                     "Generate Code"
                   )}
                 </Button>
-                
+
                 {generatedCode && (
                   <div className="mt-4 p-4 bg-muted rounded-lg border">
                     <p className="font-semibold mb-2">Invitation Code:</p>
@@ -229,7 +212,7 @@ const AdminStudents = () => {
                 )}
               </CardContent>
             </Card>
-            
+
             {/* Right column - Invites Table */}
             <Card className="md:col-span-2">
               <CardHeader className="flex flex-row items-center justify-between">
@@ -263,10 +246,10 @@ const AdminStudents = () => {
                         {invites.map((invite) => (
                           <TableRow key={invite.id}>
                             <TableCell>
-                              {invite.email || 
-                               <code className="bg-muted p-1 rounded text-xs font-mono">
-                                 {invite.code || 'N/A'}
-                               </code>
+                              {invite.email ||
+                                <code className="bg-muted p-1 rounded text-xs font-mono">
+                                  {invite.code || 'N/A'}
+                                </code>
                               }
                             </TableCell>
                             <TableCell>
@@ -277,8 +260,8 @@ const AdminStudents = () => {
                                 invite.status === "pending"
                                   ? "bg-yellow-100 text-yellow-800"
                                   : invite.status === "accepted" || invite.status === "used"
-                                  ? "bg-green-100 text-green-800"
-                                  : "bg-red-100 text-red-800"
+                                    ? "bg-green-100 text-green-800"
+                                    : "bg-red-100 text-red-800"
                               }`}>
                                 {invite.status?.charAt(0).toUpperCase() + invite.status?.slice(1) || 'Unknown'}
                               </span>
