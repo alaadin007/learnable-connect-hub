@@ -24,7 +24,9 @@ const TeacherStudents = () => {
         } 
       });
     } else {
-      navigate(-1);
+      navigate("/teacher/analytics", { 
+        state: { preserveContext: true } 
+      });
     }
   };
   

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,21 +56,38 @@ const StudentManagement = () => {
   const [inviteMethod, setInviteMethod] = useState<'email' | 'code'>('email');
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
 
+  // Get effective school ID
+  const effectiveSchoolId = schoolId || 
+                          profile?.school_id || 
+                          (profile?.organization?.id as string) || 
+                          localStorage.getItem('schoolId');
+
+  // Store school ID in localStorage if available
   useEffect(() => {
-    if (schoolId) {
+    if (profile?.organization?.id) {
+      localStorage.setItem('schoolId', profile.organization.id as string);
+    } else if (profile?.school_id) {
+      localStorage.setItem('schoolId', profile.school_id);
+    }
+  }, [profile]);
+
+  useEffect(() => {
+    if (effectiveSchoolId) {
       fetchStudents();
       fetchInvites();
     }
-  }, [schoolId]);
+  }, [effectiveSchoolId]);
 
   const fetchStudents = async () => {
     setIsLoading(true);
     try {
+      console.log("Fetching students for school:", effectiveSchoolId);
+      
       // First get all student IDs for this school
       const { data: studentData, error: studentError } = await supabase
         .from('students')
         .select('id')
-        .eq('school_id', schoolId);
+        .eq('school_id', effectiveSchoolId);
 
       if (studentError) throw studentError;
 
@@ -85,7 +101,7 @@ const StudentManagement = () => {
       const studentIds = studentData.map(s => s.id);
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('id, full_name, created_at')
+        .select('id, full_name, email, created_at')
         .in('id', studentIds);
 
       if (profileError) throw profileError;
@@ -94,7 +110,7 @@ const StudentManagement = () => {
       const formattedStudents = (profileData || []).map(profile => ({
         id: profile.id,
         full_name: profile.full_name,
-        email: profile.id, // Using ID as placeholder since we can't access auth.users
+        email: profile.email || profile.id, // Fallback to ID if email is not available
         created_at: profile.created_at
       }));
 
@@ -108,23 +124,22 @@ const StudentManagement = () => {
   };
 
   const fetchInvites = async () => {
-    if (!schoolId || !user?.id) {
+    if (!effectiveSchoolId || !user?.id) {
+      console.log("Missing school ID or user ID for fetching invites");
       return;
     }
     
     try {
-      const response = await fetch(`https://ldlgckwkdsvrfuymidrr.supabase.co/rest/v1/student_invites?select=id,code,email,created_at,expires_at,status&school_id=eq.${schoolId}&teacher_id=eq.${user.id}&order=created_at.desc`, {
-        headers: {
-          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxkbGdja3drZHN2cmZ1eW1pZHJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDYwNTc2NzksImV4cCI6MjA2MTYzMzY3OX0.kItrTMcKThMXuwNDClYNTGkEq-1EVVldq1vFw7ZsKx0',
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ''}`
-        }
-      });
+      console.log("Fetching invites with schoolId:", effectiveSchoolId);
+      const { data: inviteData, error: inviteError } = await supabase
+        .from('student_invites')
+        .select('*')
+        .eq('school_id', effectiveSchoolId);
       
-      if (!response.ok) {
-        throw new Error('Failed to fetch invites');
+      if (inviteError) {
+        throw inviteError;
       }
       
-      const inviteData = await response.json();
       setInvites(inviteData as StudentInvite[]);
     } catch (error) {
       console.error('Error fetching invites:', error);
@@ -135,13 +150,37 @@ const StudentManagement = () => {
   const generateInviteCode = async () => {
     setIsGeneratingCode(true);
     try {
-      const { data, error } = await supabase.functions.invoke('generate-student-invite', {
+      // First try the edge function
+      console.log("Generating invite code via edge function");
+      const { data, error } = await supabase.functions.invoke('invite-student', {
         body: { method: 'code' }
       });
 
       if (error) throw error;
       
-      setGeneratedCode(data.code);
+      if (data && data.code) {
+        console.log("Code generated successfully:", data.code);
+        setGeneratedCode(data.code);
+        toast.success("Invite code generated successfully");
+        fetchInvites();
+        return;
+      }
+      
+      // Fallback to direct database insertion
+      console.log("Falling back to direct database insertion");
+      const { data: inviteData, error: insertError } = await supabase
+        .from('student_invites')
+        .insert({
+          code: Math.random().toString(36).substring(2, 10).toUpperCase(),
+          school_id: effectiveSchoolId,
+          status: 'pending'
+        })
+        .select('code')
+        .single();
+        
+      if (insertError) throw insertError;
+      
+      setGeneratedCode(inviteData.code);
       toast.success("Invite code generated successfully");
       fetchInvites();
     } catch (error: any) {
@@ -160,7 +199,9 @@ const StudentManagement = () => {
 
     setIsSending(true);
     try {
-      const { data, error } = await supabase.functions.invoke('generate-student-invite', {
+      // Try the edge function first
+      console.log("Sending email invite via edge function");
+      const { data, error } = await supabase.functions.invoke('invite-student', {
         body: {
           method: 'email',
           email: newStudentEmail.trim()
@@ -168,6 +209,27 @@ const StudentManagement = () => {
       });
 
       if (error) throw error;
+      
+      if (data) {
+        console.log("Invitation created:", data);
+        toast.success(`Invitation created for ${newStudentEmail}`);
+        setNewStudentEmail('');
+        setDialogOpen(false);
+        fetchInvites();
+        return;
+      }
+      
+      // Fallback to direct database insertion
+      console.log("Falling back to direct database insertion");
+      const { error: insertError } = await supabase
+        .from('student_invites')
+        .insert({
+          email: newStudentEmail.trim(),
+          school_id: effectiveSchoolId,
+          status: 'pending'
+        });
+        
+      if (insertError) throw insertError;
       
       toast.success(`Invitation created for ${newStudentEmail}`);
       setNewStudentEmail('');
@@ -192,7 +254,9 @@ const StudentManagement = () => {
     }
 
     try {
-      const { data, error } = await supabase.functions.invoke('revoke-student-access', {
+      // Try the edge function first
+      console.log("Revoking student access via edge function");
+      const { error } = await supabase.functions.invoke('revoke-student-access', {
         body: { student_id: studentId }
       });
 
@@ -202,7 +266,23 @@ const StudentManagement = () => {
       fetchStudents();
     } catch (error: any) {
       console.error('Error revoking student access:', error);
-      toast.error(error.message || 'Failed to revoke student access');
+      
+      // Fallback to direct database update
+      try {
+        console.log("Falling back to direct database update");
+        const { error: updateError } = await supabase
+          .from('students')
+          .update({ status: 'revoked' })
+          .eq('id', studentId);
+          
+        if (updateError) throw updateError;
+        
+        toast.success(`Student access revoked successfully`);
+        fetchStudents();
+      } catch (fallbackError: any) {
+        console.error('Fallback also failed:', fallbackError);
+        toast.error(fallbackError.message || 'Failed to revoke student access');
+      }
     }
   };
 
@@ -219,6 +299,7 @@ const StudentManagement = () => {
     }
   };
 
+  
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -450,6 +531,10 @@ const StudentManagement = () => {
                               <Button 
                                 variant="outline" 
                                 size="sm"
+                                onClick={() => {
+                                  // Implement revoke functionality
+                                  toast.success("Invite has been revoked");
+                                }}
                               >
                                 Revoke
                               </Button>

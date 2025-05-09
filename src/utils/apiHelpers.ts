@@ -1,281 +1,97 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { Session, User } from "@supabase/supabase-js";
 
-// Types
-interface EdgeFunctionResponse<T = any> {
-  data: T;
-  error: Error | null;
-}
-
-interface EdgeFunctionOptions {
+interface FunctionOptions {
   requireAuth?: boolean;
   retryCount?: number;
   timeout?: number;
 }
 
-interface NetworkStatus {
-  isOnline: boolean;
-  lastChecked: Date;
-}
-
-// Constants
-const DEFAULT_RETRY_COUNT = 3;
-const DEFAULT_TIMEOUT = 30000; // 30 seconds
-const RETRY_DELAY = 1000; // 1 second
-
-/**
- * Helper function to invoke Supabase Edge Functions with proper authentication and CORS handling
- * @param functionName The name of the edge function to invoke
- * @param payload The payload to send to the function
- * @param options Additional options for the function invocation
- * @returns The response from the edge function
- * @throws Error if the function invocation fails
- */
-export async function invokeEdgeFunction<T = any>(
-  functionName: string, 
-  payload?: any,
-  options: EdgeFunctionOptions = {}
-): Promise<T> {
-  const {
-    requireAuth = true,
-    retryCount = DEFAULT_RETRY_COUNT,
-    timeout = DEFAULT_TIMEOUT
-  } = options;
-
-  let attempts = 0;
-  let lastError: Error | null = null;
-
-  while (attempts < retryCount) {
-    try {
-      // Check network status
-      if (!navigator.onLine) {
-        throw new Error("No internet connection");
-      }
-
-      // Get the current session
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      // Validate authentication if required
-      if (requireAuth && !session?.access_token) {
-        throw new Error("Authentication required");
-      }
-
-      // Prepare headers
-      const headers = await prepareHeaders(session);
-      
-      // Log request details
-      logRequestDetails(functionName, headers, payload);
-
-      // Create abort controller for timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-      // Invoke the function with proper options formatting
-      const response = await supabase.functions.invoke<T>(functionName, {
-        body: payload,
-        headers
-      });
-
-      clearTimeout(timeoutId);
-
-      if (response.error) {
-        throw response.error;
-      }
-
-      // Log success
-      console.log(`Successfully invoked ${functionName}`);
-      return response.data;
-
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error));
-      
-      // Log error details
-      logErrorDetails(functionName, lastError, attempts);
-
-      // Check if we should retry
-      if (shouldRetry(lastError, attempts, retryCount)) {
-        attempts++;
-        await delay(RETRY_DELAY * attempts); // Exponential backoff
-        continue;
-      }
-
-      throw lastError;
-    }
-  }
-
-  throw lastError || new Error(`Failed to invoke ${functionName} after ${retryCount} attempts`);
-}
-
-/**
- * Gets the user's role with a fallback to user_type from profile if roles are not available
- * @param user Optional user object. If not provided, will attempt to get the current session.
- * @returns The user's role or null if not found
- */
-export async function getUserRoleWithFallback(user?: User): Promise<string | null> {
-  try {
-    // Use provided user or get from current session
-    let userId: string | undefined;
-    
-    if (user) {
-      userId = user.id;
-    } else {
-      // Get current session if user not provided
-      const { data: { session } } = await supabase.auth.getSession();
-      userId = session?.user?.id;
-    }
-    
-    if (!userId) return null;
-    
-    // Try to get role from user_roles table
-    const { data: roles } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', userId);
-
-    if (roles && roles.length > 0) {
-      return roles[0].role;
-    }
-    
-    // Fallback to checking profile user_type
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('user_type')
-      .eq('id', userId)
-      .single();
-    
-    return profile?.user_type || null;
-    
-  } catch (error) {
-    console.error("Error getting user role:", error);
-    return null;
-  }
-}
-
-/**
- * Checks if a user is currently authenticated with Supabase
- * @returns Boolean indicating if user is authenticated
- */
-export async function isAuthenticated(): Promise<boolean> {
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    const isAuth = !!session;
-    
-    // Log authentication status
-    console.log("Authentication check:", {
-      isAuthenticated: isAuth,
-      timestamp: new Date().toISOString(),
-      userId: session?.user?.id
-    });
-    
-    return isAuth;
-  } catch (error) {
-    console.error("Error checking authentication:", error);
-    return false;
-  }
-}
-
-/**
- * Gets the current session if available
- * @returns The current session or null
- */
-export async function getCurrentSession(): Promise<Session | null> {
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    return session;
-  } catch (error) {
-    console.error("Error getting session:", error);
-    return null;
-  }
-}
-
-// Helper functions to enhance edge function calls
-async function prepareHeaders(session: Session | null): Promise<Record<string, string>> {
-  const headers: Record<string, string> = {
-    "Origin": window.location.origin,
-    "Content-Type": "application/json"
-  };
-
-  if (session?.access_token) {
-    headers.Authorization = `Bearer ${session.access_token}`;
-  }
-
-  // Add additional client info for better debugging
-  headers["x-client-info"] = `${navigator.userAgent}`;
-
-  return headers;
-}
-
-function logRequestDetails(
-  functionName: string, 
-  headers: Record<string, string>, 
-  payload?: any
-): void {
-  console.log(`Sending request to edge function: ${functionName}`, {
-    hasHeaders: Object.keys(headers).length,
-    headersProvided: Object.keys(headers),
-    hasPayload: !!payload,
-    payloadSize: payload ? JSON.stringify(payload).length : 0,
-    origin: window.location.origin,
-    connectionStatus: navigator.onLine ? "Online" : "Offline",
-    timestamp: new Date().toISOString()
-  });
-}
-
-function logErrorDetails(
-  functionName: string, 
-  error: Error, 
-  attempt: number
-): void {
-  console.error(`Error invoking ${functionName} (attempt ${attempt + 1}):`, {
-    name: error.name,
-    message: error.message,
-    stack: error.stack,
-    timestamp: new Date().toISOString()
-  });
-}
-
-function shouldRetry(error: Error, attempts: number, maxRetries: number): boolean {
-  // Don't retry if we've reached max attempts
-  if (attempts >= maxRetries) return false;
-
-  // Don't retry authentication errors
-  if (error.message === "Authentication required") return false;
-
-  // Don't retry network errors if offline
-  if (error.message === "No internet connection") return false;
-
-  // Retry other errors
-  return true;
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-// Network status monitoring
-let networkStatus: NetworkStatus = {
-  isOnline: navigator.onLine,
-  lastChecked: new Date()
+const defaultOptions: FunctionOptions = {
+  requireAuth: true,
+  retryCount: 1,
+  timeout: 10000,
 };
 
-window.addEventListener('online', () => {
-  networkStatus = {
-    isOnline: true,
-    lastChecked: new Date()
-  };
-  console.log('Network status: Online');
-});
+/**
+ * Invoke a Supabase Edge Function with typed response
+ */
+export async function invokeEdgeFunction<T>(
+  functionName: string,
+  payload: object,
+  options?: FunctionOptions
+): Promise<T> {
+  const opts = { ...defaultOptions, ...options };
+  let attempts = 0;
 
-window.addEventListener('offline', () => {
-  networkStatus = {
-    isOnline: false,
-    lastChecked: new Date()
-  };
-  console.log('Network status: Offline');
-});
+  while (attempts <= (opts.retryCount || 0)) {
+    try {
+      console.log(`Invoking edge function: ${functionName} (attempt ${attempts + 1})`);
 
-// Export network status getter
-export function getNetworkStatus(): NetworkStatus {
-  return { ...networkStatus };
+      // Get the current session token if authentication is required
+      let headers = {};
+      if (opts.requireAuth) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) {
+          console.error('No authentication token available');
+          throw new Error('Authentication required but no token available');
+        }
+      }
+
+      // Set up the function invocation with timeout
+      const functionPromise = supabase.functions.invoke<{ data: T }>(functionName, {
+        body: payload,
+      });
+
+      // Create a timeout promise
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error(`Function invocation timed out after ${opts.timeout}ms`)), opts.timeout);
+      });
+
+      // Race the function invocation against the timeout
+      const response = await Promise.race([functionPromise, timeoutPromise]);
+      
+      if ('error' in response && response.error) {
+        console.error(`Error invoking ${functionName}:`, response.error);
+        throw new Error(response.error.message || `Error invoking ${functionName}`);
+      }
+
+      if (!('data' in response) || response.data === null) {
+        console.error(`Invalid response from ${functionName}:`, response);
+        throw new Error(`Invalid response from ${functionName}`);
+      }
+
+      return response.data as unknown as T;
+    } catch (error) {
+      attempts++;
+      console.error(`Function invocation failed (attempt ${attempts}):`, error);
+      
+      // If we've reached max retries, throw the error
+      if (attempts > (opts.retryCount || 0)) {
+        throw error;
+      }
+      
+      // Wait before retrying (exponential backoff)
+      const backoffMs = Math.min(1000 * Math.pow(2, attempts), 10000);
+      await new Promise(resolve => setTimeout(resolve, backoffMs));
+    }
+  }
+
+  throw new Error(`Failed to invoke ${functionName} after ${opts.retryCount} retries`);
+}
+
+/**
+ * Helper function to get user role with fallback to localStorage
+ */
+export function getUserRoleWithFallback(): string | null {
+  const storedRole = localStorage.getItem('userRole');
+  return storedRole;
+}
+
+/**
+ * Helper function to get school ID with fallback to localStorage
+ */
+export function getSchoolIdWithFallback(): string | null {
+  const storedSchoolId = localStorage.getItem('schoolId');
+  return storedSchoolId;
 }

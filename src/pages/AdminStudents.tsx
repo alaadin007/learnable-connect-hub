@@ -23,6 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useSchoolCode } from "@/hooks/use-school-code";
 
 // Define the schema for student invite form
 const addStudentSchema = z.object({
@@ -44,15 +45,29 @@ type StudentInvite = {
 };
 
 const AdminStudents = () => {
-  const { profile, schoolId: authSchoolId } = useAuth();
+  const { profile, user, schoolId: authSchoolId } = useAuth();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [invites, setInvites] = useState<StudentInvite[]>([]);
   const [generatedCode, setGeneratedCode] = useState("");
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const { generateCode } = useSchoolCode();
   
-  // Get the schoolId properly without waiting for auth
-  const schoolId = authSchoolId || profile?.organization?.id || '';
+  // Ensure we have a school ID even if auth context is slow to load
+  const schoolId = authSchoolId || 
+                  profile?.school_id || 
+                  (profile?.organization?.id as string) || 
+                  localStorage.getItem('schoolId') || 
+                  '';
+  
+  useEffect(() => {
+    // Store school ID in localStorage if available
+    if (profile?.organization?.id) {
+      localStorage.setItem('schoolId', profile.organization.id as string);
+    } else if (profile?.school_id) {
+      localStorage.setItem('schoolId', profile.school_id);
+    }
+  }, [profile]);
   
   const form = useForm<AddStudentFormValues>({
     resolver: zodResolver(addStudentSchema),
@@ -68,10 +83,13 @@ const AdminStudents = () => {
   useEffect(() => {
     const fetchInvites = async () => {
       if (!schoolId) {
+        console.log("No school ID available to fetch invites");
         return;
       }
       
       try {
+        console.log("Fetching student invites for school:", schoolId);
+        
         // Try to fetch from student_invites table
         const { data: studentInvites, error: studentInviteError } = await supabase
           .from("student_invites")
@@ -81,6 +99,7 @@ const AdminStudents = () => {
           .limit(10);
           
         if (studentInvites && studentInvites.length > 0) {
+          console.log("Found student invites:", studentInvites);
           setInvites(studentInvites as StudentInvite[]);
           return;
         }
@@ -107,6 +126,7 @@ const AdminStudents = () => {
           status: invite.status
         }));
         
+        console.log("Using teacher invitations as fallback:", studentInviteData);
         setInvites(studentInviteData);
       } catch (error: any) {
         console.error("Error fetching student invites:", error);
@@ -138,7 +158,7 @@ const AdminStudents = () => {
             .insert({
               email: values.email,
               school_id: schoolId,
-              created_by: profile?.id,
+              created_by: profile?.id || user?.id,
               status: "pending"
             })
             .select();
@@ -158,7 +178,7 @@ const AdminStudents = () => {
             .insert({
               email: values.email,
               school_id: schoolId,
-              created_by: profile?.id,
+              created_by: profile?.id || user?.id,
               status: "pending",
               invitation_token: Math.random().toString(36).substring(2, 15)
             })
@@ -173,32 +193,26 @@ const AdminStudents = () => {
         toast.success(`Invitation sent to ${values.email}`);
         form.reset();
       } else {
-        // Generate invite code
-        const inviteCode = Math.random().toString(36).substring(2, 10).toUpperCase();
-        console.log("Generated invitation code:", inviteCode);
-        setGeneratedCode(inviteCode);
-        
-        // Try to store in student_invites if it exists
+        // Generate school code using the hook
         try {
-          const { data, error } = await supabase
-            .from("student_invites")
-            .insert({
-              code: inviteCode,
-              school_id: schoolId,
-              created_by: profile?.id,
-              status: "pending"
-            });
-          
-          if (error) {
-            console.warn("Could not store code in student_invites:", error);
-          } else {
-            console.log("Successfully stored code in student_invites");
+          if (!schoolId) {
+            throw new Error("School ID is required to generate a code");
           }
-        } catch (error) {
-          console.warn("Could not store code in database, but will still display it to user");
+          
+          console.log("Generating code for school:", schoolId);
+          const code = await generateCode(schoolId);
+          
+          if (code) {
+            console.log("Generated code:", code);
+            setGeneratedCode(code);
+            toast.success("Student invitation code generated");
+          } else {
+            throw new Error("Failed to generate invitation code");
+          }
+        } catch (error: any) {
+          console.error("Error generating code:", error);
+          toast.error(error.message || "Failed to generate invitation code");
         }
-        
-        toast.success("Student invitation code generated");
       }
       
       // Refresh the invites list
@@ -232,7 +246,7 @@ const AdminStudents = () => {
               variant="outline" 
               size="sm" 
               className="flex items-center gap-1"
-              onClick={() => navigate('/admin')}
+              onClick={() => navigate('/admin', { state: { preserveContext: true } })}
             >
               <ArrowLeft className="h-4 w-4" />
               Back to Admin
