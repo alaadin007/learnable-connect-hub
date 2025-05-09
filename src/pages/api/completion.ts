@@ -60,8 +60,8 @@ export default async function handler(req: Request): Promise<Response> {
         stream: true,
       });
       
-      // Create a stream from the OpenAI response
-      const stream = OpenAIStream(response);
+      // Create a stream by manually adapting the OpenAI response to the expected format
+      const stream = OpenAIStream(response as any);
       
       // Return a streaming response
       return new StreamingTextResponse(stream, { headers: corsHeaders });
@@ -72,19 +72,22 @@ export default async function handler(req: Request): Promise<Response> {
       
       const result = await geminiModel.generateContentStream(prompt);
       
-      // Convert Gemini stream to a format compatible with OpenAIStream
-      // We need to create a custom adapter for the Gemini stream format
+      // Convert Gemini stream to a format compatible with StreamingTextResponse
       const stream = new ReadableStream({
         async start(controller) {
-          // Process the Gemini stream
           const encoder = new TextEncoder();
-          for await (const chunk of result.stream) {
-            const text = chunk.text();
-            if (text) {
-              controller.enqueue(encoder.encode(text));
+          try {
+            for await (const chunk of result.stream) {
+              const text = chunk.text();
+              if (text) {
+                controller.enqueue(encoder.encode(text));
+              }
             }
+            controller.close();
+          } catch (error) {
+            console.error("Error processing Gemini stream:", error);
+            controller.error(error);
           }
-          controller.close();
         },
       });
       
