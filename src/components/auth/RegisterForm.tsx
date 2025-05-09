@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -57,7 +58,7 @@ const RegisterForm = () => {
     setIsLoading(true);
     try {
       // First verify if the school code is valid using our new function
-      const { data: schoolValidation, error: validationError } = await supabase
+      const { data: schoolInfo, error: validationError } = await supabase
         .rpc('verify_and_link_school_code', { code: data.schoolCode });
       
       if (validationError) {
@@ -65,13 +66,14 @@ const RegisterForm = () => {
         throw new Error(validationError.message || "Invalid school code. Please check and try again.");
       }
 
-      if (!schoolValidation || !schoolValidation.valid) {
+      // schoolInfo is an array, so we need to get the first element
+      if (!schoolInfo || !schoolInfo[0] || !schoolInfo[0].valid) {
         throw new Error("Invalid school code. Please check and try again.");
       }
 
-      // Extract the school details from the validation result
-      const schoolId = schoolValidation.school_id;
-      const schoolName = schoolValidation.school_name;
+      // Extract the school details from the validation result (from first element of array)
+      const schoolId = schoolInfo[0].school_id;
+      const schoolName = schoolInfo[0].school_name;
       
       if (!schoolId) {
         throw new Error("Could not find school information. Please check your school code.");
