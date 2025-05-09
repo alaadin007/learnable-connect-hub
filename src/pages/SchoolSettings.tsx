@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Save, Loader2 } from "lucide-react";
+import { ArrowLeft, Save, Loader2, Check } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import SchoolCodeManager from "@/components/school-admin/SchoolCodeManager";
@@ -54,6 +54,7 @@ const SchoolSettings = () => {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [initialLoaded, setInitialLoaded] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   // Load initial school data
   useEffect(() => {
@@ -108,6 +109,7 @@ const SchoolSettings = () => {
       return;
     }
     
+    setSaveSuccess(false);
     setIsSaving(true);
     try {
       const schoolId = profile.organization.id;
@@ -136,7 +138,13 @@ const SchoolSettings = () => {
       // Refresh profile to get latest data
       await refreshProfile();
       
+      setSaveSuccess(true);
       toast.success("School settings updated successfully!");
+      
+      // Reset success indicator after 2 seconds
+      setTimeout(() => {
+        setSaveSuccess(false);
+      }, 2000);
     } catch (error: any) {
       console.error("Error updating school settings:", error);
       toast.error(error.message || "Failed to update school settings");
@@ -300,6 +308,11 @@ const SchoolSettings = () => {
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
                         Saving...
+                      </>
+                    ) : saveSuccess ? (
+                      <>
+                        <Check className="h-4 w-4" />
+                        Saved!
                       </>
                     ) : (
                       <>
