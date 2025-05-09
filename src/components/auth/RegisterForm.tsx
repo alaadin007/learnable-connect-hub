@@ -221,6 +221,45 @@ const RegisterForm = () => {
       if (setupError) {
         console.warn("User profile setup warning:", setupError);
         // Continue despite this error - it's not critical for the registration
+        
+        // Make a direct fallback attempt to update the profiles table
+        try {
+          await supabase
+            .from('profiles')
+            .upsert({
+              id: authData.user.id,
+              user_type: data.userType,
+              full_name: data.fullName,
+              email: data.email,
+              school_id: schoolId,
+              school_code: data.schoolCode,
+              school_name: schoolName || "Unknown School"
+            });
+            
+          // If user is a student, also create a student record
+          if (data.userType === 'student') {
+            await supabase
+              .from('students')
+              .insert({
+                id: authData.user.id,
+                school_id: schoolId,
+                status: 'pending' // Students start as pending
+              });
+          }
+          
+          // If user is a teacher, also create a teacher record
+          if (data.userType === 'teacher') {
+            await supabase
+              .from('teachers')
+              .insert({
+                id: authData.user.id,
+                school_id: schoolId,
+                is_supervisor: false // Regular teachers are not supervisors
+              });
+          }
+        } catch (fallbackErr) {
+          console.error("Fallback profile creation failed:", fallbackErr);
+        }
       }
       
       // Save the used code to the history if it's not already there
@@ -230,6 +269,13 @@ const RegisterForm = () => {
         if (!currentHistory.includes(data.schoolCode)) {
           localStorage.setItem(historyKey, JSON.stringify([data.schoolCode, ...currentHistory].slice(0, 10)));
         }
+        
+        // Also store the school name for future reference
+        localStorage.setItem(`school_name_${schoolId}`, schoolName || 'Unknown School');
+        
+        // Store user role in localStorage to help with authentication
+        localStorage.setItem('userRole', data.userType);
+        localStorage.setItem('schoolId', schoolId);
       } catch (error) {
         console.error("Error updating code history:", error);
       }

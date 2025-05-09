@@ -45,20 +45,6 @@ const ProtectedRoute = ({
   console.log('ProtectedRoute: Is school admin:', isSchoolAdmin(userRole));
   console.log('ProtectedRoute: Location state:', locationState);
 
-  // IMPORTANT: Fixed admin route access logic
-  // If we're on an admin route and either:
-  // 1. We have a user with school admin role, OR
-  // 2. We're in preview mode with no role but on an admin page, OR
-  // 3. We have preserved context
-  if (location.pathname.startsWith('/admin')) {
-    if (isSchoolAdmin(userRole) || 
-        (!userRole && location.pathname.startsWith('/admin')) || 
-        locationState?.preserveContext === true) {
-      console.log('Admin access granted - school admin or preview mode or preserved context');
-      return <>{children}</>;
-    }
-  }
-
   // Check for special navigation states or preserved context
   const isPreservedContext = locationState?.fromTestAccounts || locationState?.preserveContext;
   
@@ -74,12 +60,57 @@ const ProtectedRoute = ({
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  // IMPORTANT: Fixed admin route access logic
+  // If we're on an admin route and either:
+  // 1. We have a user with school admin role, OR
+  // 2. We're in preview mode with no role but on an admin page, OR
+  // 3. We have preserved context
+  if (location.pathname.startsWith('/admin')) {
+    if (isSchoolAdmin(userRole) || 
+        (!userRole && location.pathname.startsWith('/admin')) || 
+        locationState?.preserveContext === true) {
+      console.log('Admin access granted - school admin or preview mode or preserved context');
+      return <>{children}</>;
+    }
+    
+    // If not a school admin but trying to access admin routes, redirect to appropriate dashboard
+    if (userRole === 'teacher') {
+      return <Navigate to="/teacher/students" state={{ preserveContext: true }} replace />;
+    } else if (userRole === 'student') {
+      return <Navigate to="/dashboard" state={{ preserveContext: true }} replace />;
+    }
+    
+    return <Navigate to="/dashboard" state={{ preserveContext: true }} replace />;
+  }
+
   // HIGHEST PRIORITY CHECK:
   // If user is on /dashboard and they're a school admin, ALWAYS redirect to /admin
   if (location.pathname === '/dashboard' && isSchoolAdmin(userRole)) {
     console.log("PROTECTED ROUTE: School admin detected on /dashboard, forcing redirect to /admin");
     // Use replace: true to prevent back button from returning to /dashboard
     return <Navigate to="/admin" state={{ preserveContext: true, adminRedirect: true }} replace />;
+  }
+  
+  // Student-specific dashboard checking
+  if (userRole === 'student' && location.pathname === '/dashboard') {
+    console.log("Student on dashboard - rendering dashboard view");
+    return <>{children}</>;
+  }
+
+  // Student trying to access teacher or admin pages
+  if (userRole === 'student' && 
+     (location.pathname.startsWith('/admin') || 
+      location.pathname.startsWith('/teacher'))) {
+    console.log("Student attempting to access restricted teacher/admin area, redirecting to student dashboard");
+    toast.error("You don't have permission to access that area");
+    return <Navigate to="/dashboard" state={{ preserveContext: true }} replace />;
+  }
+  
+  // Teacher trying to access admin pages
+  if (userRole === 'teacher' && location.pathname.startsWith('/admin')) {
+    console.log("Teacher attempting to access restricted admin area, redirecting to teacher dashboard");
+    toast.error("You don't have permission to access that area");
+    return <Navigate to="/teacher/students" state={{ preserveContext: true }} replace />;
   }
   
   // Also check for other dashboard-like paths

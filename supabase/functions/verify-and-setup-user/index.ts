@@ -32,6 +32,7 @@ serve(async (req) => {
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
     
     if (userError || !user) {
+      console.error("Error getting user:", userError);
       return new Response(
         JSON.stringify({ error: "Unauthorized" }),
         {
@@ -71,7 +72,7 @@ serve(async (req) => {
     if (profileError) {
       console.error("Error updating profile:", profileError);
       return new Response(
-        JSON.stringify({ error: "Failed to update profile" }),
+        JSON.stringify({ error: "Failed to update profile", details: profileError }),
         {
           status: 500,
           headers: { "Content-Type": "application/json", ...corsHeaders },
@@ -92,22 +93,33 @@ serve(async (req) => {
         .select()
         .single();
       
-      if (teacherError && teacherError.code !== "23505") {  // Ignore unique constraint violations
-        console.error("Error creating teacher record:", teacherError);
-        return new Response(
-          JSON.stringify({ error: "Failed to create teacher record" }),
-          {
-            status: 500,
-            headers: { "Content-Type": "application/json", ...corsHeaders },
-          }
-        );
+      if (teacherError) {
+        // Check if it's a unique constraint violation (already exists)
+        if (teacherError.code !== "23505") {  // Not a unique constraint violation
+          console.error("Error creating teacher record:", teacherError);
+          return new Response(
+            JSON.stringify({ error: "Failed to create teacher record", details: teacherError }),
+            {
+              status: 500,
+              headers: { "Content-Type": "application/json", ...corsHeaders },
+            }
+          );
+        } else {
+          console.log("Teacher record already exists, skipping creation");
+        }
+      } else {
+        console.log("Created teacher record:", teacherData);
       }
       
       // Add teacher role
-      await supabaseClient.rpc('assign_role', { 
+      const { error: roleError } = await supabaseClient.rpc('assign_role', { 
         user_id_param: user.id, 
         role_param: 'teacher'
       });
+      
+      if (roleError) {
+        console.error("Error assigning teacher role:", roleError);
+      }
       
     } else if (userType === "student") {
       // Add user to students table
@@ -121,22 +133,33 @@ serve(async (req) => {
         .select()
         .single();
       
-      if (studentError && studentError.code !== "23505") {  // Ignore unique constraint violations
-        console.error("Error creating student record:", studentError);
-        return new Response(
-          JSON.stringify({ error: "Failed to create student record" }),
-          {
-            status: 500,
-            headers: { "Content-Type": "application/json", ...corsHeaders },
-          }
-        );
+      if (studentError) {
+        // Check if it's a unique constraint violation (already exists)
+        if (studentError.code !== "23505") {  // Not a unique constraint violation
+          console.error("Error creating student record:", studentError);
+          return new Response(
+            JSON.stringify({ error: "Failed to create student record", details: studentError }),
+            {
+              status: 500,
+              headers: { "Content-Type": "application/json", ...corsHeaders },
+            }
+          );
+        } else {
+          console.log("Student record already exists, skipping creation");
+        }
+      } else {
+        console.log("Created student record:", studentData);
       }
       
       // Add student role
-      await supabaseClient.rpc('assign_role', { 
+      const { error: roleError } = await supabaseClient.rpc('assign_role', { 
         user_id_param: user.id, 
         role_param: 'student'
       });
+      
+      if (roleError) {
+        console.error("Error assigning student role:", roleError);
+      }
       
     } else if (userType === "school_admin" || userType === "school") {
       // Add user to school_admins table
@@ -149,31 +172,46 @@ serve(async (req) => {
         .select()
         .single();
       
-      if (adminError && adminError.code !== "23505") {  // Ignore unique constraint violations
-        console.error("Error creating school admin record:", adminError);
-        return new Response(
-          JSON.stringify({ error: "Failed to create school admin record" }),
-          {
-            status: 500,
-            headers: { "Content-Type": "application/json", ...corsHeaders },
-          }
-        );
+      if (adminError) {
+        // Check if it's a unique constraint violation (already exists)
+        if (adminError.code !== "23505") {  // Not a unique constraint violation
+          console.error("Error creating school admin record:", adminError);
+          return new Response(
+            JSON.stringify({ error: "Failed to create school admin record", details: adminError }),
+            {
+              status: 500,
+              headers: { "Content-Type": "application/json", ...corsHeaders },
+            }
+          );
+        } else {
+          console.log("School admin record already exists, skipping creation");
+        }
+      } else {
+        console.log("Created school admin record:", adminData);
       }
       
       // Add school_admin role
-      await supabaseClient.rpc('assign_role', { 
+      const { error: roleError } = await supabaseClient.rpc('assign_role', { 
         user_id_param: user.id, 
         role_param: 'school_admin'
       });
       
+      if (roleError) {
+        console.error("Error assigning school_admin role:", roleError);
+      }
+      
       // Set teacher as supervisor
-      await supabaseClient
+      const { error: supervisorError } = await supabaseClient
         .from("teachers")
         .upsert({
           id: user.id,
           school_id: schoolId,
           is_supervisor: true
         });
+        
+      if (supervisorError) {
+        console.error("Error setting teacher as supervisor:", supervisorError);
+      }
     }
     
     return new Response(
@@ -186,7 +224,7 @@ serve(async (req) => {
   } catch (error) {
     console.error("Error processing request:", error);
     return new Response(
-      JSON.stringify({ error: "Internal server error" }),
+      JSON.stringify({ error: "Internal server error", details: error.message }),
       {
         status: 500,
         headers: { "Content-Type": "application/json", ...corsHeaders },

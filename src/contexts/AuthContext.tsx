@@ -157,7 +157,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setProfile({
             id: userId,
             full_name: metadata.full_name || metadata.name || 'User',
-            email: user.email
+            email: user.email,
+            user_type: metadata.user_type
           });
 
           // Try to determine user role from metadata
@@ -169,21 +170,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             
             // Set supervisor status for school admins
             setIsSuperviser(role === 'school');
+
+            // Also store in localStorage for backup access
+            localStorage.setItem('userRole', role);
+            if (metadata.school_id) {
+              localStorage.setItem('schoolId', metadata.school_id);
+              setSchoolId(metadata.school_id);
+            }
           } else {
-            // Default to school admin for now in case of error
-            console.log("No user_type in metadata, defaulting to school admin role");
-            setUserRole('school');
-            setIsSuperviser(true);
+            // Default to student if user_type isn't specified
+            console.log("No user_type in metadata, defaulting to student role");
+            setUserRole('student');
+            setIsSuperviser(false);
+            localStorage.setItem('userRole', 'student');
           }
           
-          toast.warning("Using limited functionality due to database connection issues");
+          toast.info("Using profile data from account metadata");
           return;
         }
 
-        // Emergency fallback - set as school admin
-        console.log("No metadata available, using emergency fallback to school admin role");
-        setUserRole('school');
-        setIsSuperviser(true);
+        // Emergency fallback - set as student
+        console.log("No metadata available, using emergency fallback to student role");
+        setUserRole('student');
+        setIsSuperviser(false);
+        localStorage.setItem('userRole', 'student');
         toast.error("Failed to load user profile. Some features may be limited.");
         return;
       }
@@ -196,13 +206,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (adminError) {
         console.error("Error checking admin status:", adminError);
-        // If we get an error, default to school admin role for admin pages to work
-        console.log("Error in admin check, defaulting to school admin role");
-        setUserRole('school');
-        setIsSuperviser(true);
+        // If we get an error, try to use the metadata
+        if (user?.user_metadata?.user_type) {
+          const role = user.user_metadata.user_type as UserRole;
+          console.log("Using metadata role:", role);
+          setUserRole(role);
+          localStorage.setItem('userRole', role);
+          if (role === 'school' || role === 'school_admin') {
+            setIsSuperviser(true);
+          }
+        } else {
+          // Default to student role if we can't determine
+          setUserRole('student');
+          localStorage.setItem('userRole', 'student');
+        }
       } else if (adminData && adminData.length > 0) {
         console.log("User found in school_admins table, setting as school admin");
         setIsSuperviser(true);
+        localStorage.setItem('userRole', 'school');
         
         // Get schoolId from teachers table for school admins
         const { data: teacherData } = await supabase
@@ -213,6 +234,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           
         if (teacherData) {
           setSchoolId(teacherData.school_id);
+          localStorage.setItem('schoolId', teacherData.school_id);
         }
         
         setUserRole('school');
@@ -226,24 +248,47 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           
         if (teacherData) {
           setSchoolId(teacherData.school_id);
+          localStorage.setItem('schoolId', teacherData.school_id);
           setIsSuperviser(teacherData.is_supervisor || false);
           setUserRole('teacher');
+          localStorage.setItem('userRole', 'teacher');
         } else {
           // Finally check in students table
           const { data: studentData } = await supabase
             .from('students')
-            .select('school_id')
+            .select('school_id, status')
             .eq('id', userId)
             .single();
             
           if (studentData) {
             setSchoolId(studentData.school_id);
+            localStorage.setItem('schoolId', studentData.school_id);
             setUserRole('student');
+            localStorage.setItem('userRole', 'student');
+            
+            // Log the student status - important for debugging
+            console.log("Student status:", studentData.status);
+            
+            // If student is pending approval, show a toast
+            if (studentData.status === 'pending') {
+              toast.warning("Your account is pending teacher approval", {
+                duration: 5000,
+                description: "You can continue using the app, but some features may be limited until approved."
+              });
+            }
           } else {
-            // If no role found, default to school admin for admin access
-            console.log("No role found in database, defaulting to school admin");
-            setUserRole('school');
-            setIsSuperviser(true);
+            // If no role found in database, check user metadata
+            if (user?.user_metadata?.user_type) {
+              const role = user.user_metadata.user_type as UserRole;
+              console.log("Using metadata role (no DB record):", role);
+              setUserRole(role);
+              localStorage.setItem('userRole', role);
+            } else {
+              // Last resort: default to student
+              console.log("No role found anywhere, defaulting to student");
+              setUserRole('student');
+              localStorage.setItem('userRole', 'student');
+            }
           }
         }
       }
@@ -257,15 +302,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         
       if (profileData) {
         setProfile(profileData);
+      } else if (user?.user_metadata) {
+        // Use metadata to create fallback profile
+        setProfile({
+          id: userId,
+          full_name: user.user_metadata.full_name || 'User',
+          email: user.email,
+          user_type: userRole || user.user_metadata.user_type
+        });
       }
     } catch (error) {
       console.error("Error fetching user profile:", error);
       
-      // Set fallback role if we couldn't determine the role
-      if (!userRole) {
-        console.log("Setting fallback school admin role due to error");
-        setUserRole('school');
-        setIsSuperviser(true);
+      // Set fallback role from metadata if we couldn't determine the role
+      if (!userRole && user?.user_metadata?.user_type) {
+        const role = user.user_metadata.user_type as UserRole;
+        console.log("Setting fallback role from metadata due to error:", role);
+        setUserRole(role);
+        localStorage.setItem('userRole', role);
+      } else if (!userRole) {
+        // Final fallback - default to student
+        console.log("Setting fallback student role due to error");
+        setUserRole('student');
+        localStorage.setItem('userRole', 'student');
       }
     }
   };
@@ -306,6 +365,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUserRole(null);
       setIsSuperviser(false);
       setSchoolId(null);
+      localStorage.removeItem('userRole');
+      localStorage.removeItem('schoolId');
     } catch (error) {
       console.error("Error signing out:", error);
     }
@@ -354,6 +415,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUserRole(testUser.role as UserRole);
       setIsSuperviser(testUser.isSuperviser);
       setSchoolId(testUser.schoolId);
+      localStorage.setItem('userRole', testUser.role);
+      localStorage.setItem('schoolId', testUser.schoolId);
     } catch (error) {
       console.error("Error setting test user:", error);
       throw error;

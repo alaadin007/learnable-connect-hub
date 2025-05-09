@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -20,41 +21,51 @@ const Dashboard = () => {
     const fallbackRole = getUserRoleWithFallback();
     const effectiveRole = userRole || fallbackRole;
     
-    // More comprehensive check for school admin roles
-    const isAdmin = isSchoolAdmin(effectiveRole);
+    console.log("Dashboard detected user role:", effectiveRole);
     
-    if (isAdmin) {
+    // More comprehensive check for school admin roles
+    if (isSchoolAdmin(effectiveRole)) {
       console.log(`DASHBOARD REDIRECT: School admin (${effectiveRole}) detected, redirecting to /admin`);
       setIsRedirecting(true);
       
       // Show toast notification
       toast.info("Redirecting to School Admin Dashboard...");
       
-      // Force immediate hard redirect to prevent any back-button issues
-      window.location.replace("/admin");
-      return; // Early return to prevent the rest of the component from rendering
+      // Use navigate instead of window.location for smoother experience
+      navigate("/admin", { state: { preserveContext: true, adminRedirect: true }, replace: true });
+      return;
+    } else if (effectiveRole === 'teacher') {
+      console.log(`DASHBOARD REDIRECT: Teacher (${effectiveRole}) detected, redirecting to /teacher/students`);
+      setIsRedirecting(true);
+      
+      // Show toast notification
+      toast.info("Redirecting to Teacher Dashboard...");
+      
+      // Redirect to teacher dashboard
+      navigate("/teacher/students", { state: { preserveContext: true }, replace: true });
+      return;
     } else {
-      console.log(`Dashboard component rendering for non-admin user: ${effectiveRole}`);
+      console.log(`Dashboard component rendering for student user: ${effectiveRole}`);
     }
   }, [userRole, navigate]);
 
   // If we're redirecting or user is a school admin, show loading state
-  if (isRedirecting || isSchoolAdmin(userRole) || isSchoolAdmin(getUserRoleWithFallback())) {
+  if (isRedirecting || isSchoolAdmin(userRole) || isSchoolAdmin(getUserRoleWithFallback()) || userRole === 'teacher') {
     return (
       <div className="h-screen flex flex-col items-center justify-center">
-        <p className="text-xl mb-4">Redirecting to School Admin Dashboard...</p>
+        <p className="text-xl mb-4">Redirecting to appropriate dashboard...</p>
         <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-600"></div>
       </div>
     );
   }
 
-  // Standard student/teacher dashboard below - this will never render for school admins
+  // Standard student dashboard below
   return (
     <>
       <Navbar />
       <main className="container mx-auto px-4 py-8 min-h-screen">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Welcome, {profile?.full_name || "User"}</h1>
+          <h1 className="text-3xl font-bold mb-2">Welcome, {profile?.full_name || user?.user_metadata?.full_name || "Student"}</h1>
           <p className="text-gray-600">
             Access your learning resources and complete your assessments
           </p>

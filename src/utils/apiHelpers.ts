@@ -24,6 +24,11 @@ export async function getUserSchoolId(): Promise<string | null> {
         return null;
       }
       
+      // Try to get from user metadata
+      if (session.user.user_metadata?.school_id) {
+        return session.user.user_metadata.school_id;
+      }
+      
       // Return a default value if we can't get the real one to prevent errors
       return 'demo-school-id';
     } catch (error) {
@@ -45,11 +50,17 @@ export async function getUserRole(): Promise<UserRole | null> {
       return storedRole;
     }
     
+    // Try to get from the session
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user?.user_metadata?.user_type) {
+      return session.user.user_metadata.user_type as UserRole;
+    }
+    
     // Return default role to prevent errors
-    return 'school';
+    return 'student';
   } catch (error) {
     console.error("Error getting user role:", error);
-    return 'school';
+    return 'student';
   }
 }
 
@@ -88,9 +99,35 @@ export async function invokeEdgeFunction<T = any>(
 
 // These functions always return values to prevent errors
 export function getUserRoleWithFallback(): UserRole {
-  return localStorage.getItem('userRole') as UserRole || 'school';
+  const role = localStorage.getItem('userRole') as UserRole;
+  if (role) return role;
+  
+  // Check if we can get it from the session
+  try {
+    const userMeta = JSON.parse(localStorage.getItem('supabase.auth.token') || '{}');
+    if (userMeta?.currentSession?.user?.user_metadata?.user_type) {
+      return userMeta.currentSession.user.user_metadata.user_type;
+    }
+  } catch (e) {
+    console.error("Error parsing local session:", e);
+  }
+  
+  return 'student'; // Default to student if no role found
 }
 
 export function getSchoolIdWithFallback(): string {
-  return localStorage.getItem('schoolId') || 'demo-school-id';
+  const schoolId = localStorage.getItem('schoolId');
+  if (schoolId) return schoolId;
+  
+  // Check if we can get it from the session
+  try {
+    const userMeta = JSON.parse(localStorage.getItem('supabase.auth.token') || '{}');
+    if (userMeta?.currentSession?.user?.user_metadata?.school_id) {
+      return userMeta.currentSession.user.user_metadata.school_id;
+    }
+  } catch (e) {
+    console.error("Error parsing local session:", e);
+  }
+  
+  return 'demo-school-id';
 }
