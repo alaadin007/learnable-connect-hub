@@ -11,7 +11,6 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
 import { School } from 'lucide-react';
-import { checkSessionStatus } from '@/utils/apiHelpers';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address' }),
@@ -42,6 +41,7 @@ const LoginForm = () => {
       
       if (result.success) {
         console.log("Login successful, redirecting to dashboard");
+        toast.success("Login successful!");
         navigate('/dashboard');
       } else {
         console.error("Login failed:", result.error);
@@ -54,6 +54,13 @@ const LoginForm = () => {
       toast.error(error.message || 'An unexpected error occurred');
     }
   };
+
+  // If session exists, redirect to dashboard
+  React.useEffect(() => {
+    if (session) {
+      navigate('/dashboard');
+    }
+  }, [session, navigate]);
 
   return (
     <div className="space-y-6">

@@ -32,3 +32,28 @@ export const checkSessionStatus = async () => {
     return { error: "Failed to check session status" };
   }
 };
+
+/**
+ * Test connection to Supabase to ensure API is working
+ * @returns Success status and connection details
+ */
+export const testSupabaseConnection = async () => {
+  try {
+    // Simple query to test connection
+    const { data, error } = await supabase.from('profiles').select('count(*)', { count: 'exact' }).limit(0);
+    
+    if (error) {
+      return { success: false, error: error.message };
+    }
+    
+    return { 
+      success: true, 
+      message: "Successfully connected to Supabase"
+    };
+  } catch (error: any) {
+    return { 
+      success: false, 
+      error: error.message || "Failed to connect to Supabase" 
+    };
+  }
+};
