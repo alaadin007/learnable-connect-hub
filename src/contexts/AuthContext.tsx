@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -92,22 +91,34 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
   }, []);
 
-  // Modified function to avoid infinite recursion
+  // Fixed function to avoid using a non-existent table and prevent recursive type issues
   const checkIfUserIsSchoolAdmin = async (userId: string): Promise<boolean> => {
     try {
-      // Direct database query instead of RPC to avoid recursion
-      const { data, error } = await supabase
-        .from('school_admins')
-        .select('id')
-        .eq('user_id', userId)
+      // Check if user has a profile with supervisor status
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('is_supervisor')
+        .eq('id', userId)
         .maybeSingle();
       
-      if (error) {
-        console.error("Error checking if user is school admin:", error);
+      if (profileError) {
+        console.error("Error checking if user is school admin:", profileError);
         return false;
       }
       
-      return !!data;
+      // Check if user is in teachers table with supervisor flag
+      const { data: teacherData, error: teacherError } = await supabase
+        .from('teachers')
+        .select('is_supervisor')
+        .eq('id', userId)
+        .maybeSingle();
+      
+      if (teacherError) {
+        console.error("Error checking teacher supervisor status:", teacherError);
+      }
+      
+      // User is considered admin if either profile or teacher record indicates supervisor status
+      return (profileData?.is_supervisor === true) || (teacherData?.is_supervisor === true);
     } catch (error) {
       console.error("Exception checking if user is school admin:", error);
       return false;
