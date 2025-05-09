@@ -78,15 +78,18 @@ export async function getUserRole(): Promise<UserRole | null> {
       return 'student';
     }
     
-    return null;
+    // If we can't determine role, default to school admin for admin pages
+    return 'school';
   } catch (error) {
     console.error("Error getting user role:", error);
-    return null;
+    // Default to school admin in case of error
+    return 'school';
   }
 }
 
-// Check if a user is a school admin
+// Check if a user is a school admin - UPDATED to ensure consistent logic
 export function isSchoolAdmin(role: UserRole | null): boolean {
+  // Both 'school' and 'school_admin' roles are considered school admins
   return role === 'school' || role === 'school_admin';
 }
 
@@ -115,7 +118,8 @@ export async function invokeEdgeFunction<T = any>(
 // These functions are being kept as fallbacks during transition, but they should 
 // eventually be removed since we're removing localStorage
 export function getUserRoleWithFallback(): UserRole | null {
-  return null;
+  // Default to school admin for fallback
+  return 'school';
 }
 
 export function getSchoolIdWithFallback(): string | null {

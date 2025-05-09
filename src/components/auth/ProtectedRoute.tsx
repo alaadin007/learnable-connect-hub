@@ -23,6 +23,11 @@ interface ProtectedRouteProps {
   allowedRoles?: Array<UserRole>;
 }
 
+// Moved this helper function to the top level for clarity
+const isSchoolAdmin = (role: UserRole | null): boolean => {
+  return role === 'school' || role === 'school_admin';
+};
+
 const ProtectedRoute = ({ 
   children, 
   requiredUserType,
@@ -40,13 +45,16 @@ const ProtectedRoute = ({
   console.log('ProtectedRoute: Is school admin:', isSchoolAdmin(userRole));
   console.log('ProtectedRoute: Location state:', locationState);
 
-  // IMPORTANT: Special case for admin routes 
+  // IMPORTANT: Fixed admin route access logic
+  // If we're on an admin route and either:
+  // 1. We have a user with school admin role, OR
+  // 2. We're in preview mode with no role but on an admin page, OR
+  // 3. We have preserved context
   if (location.pathname.startsWith('/admin')) {
-    // If we're in a preview or test environment (no user role but on admin page)
-    // OR if we have preserved context, allow access to admin routes
-    if ((!userRole && location.pathname.startsWith('/admin')) || 
+    if (isSchoolAdmin(userRole) || 
+        (!userRole && location.pathname.startsWith('/admin')) || 
         locationState?.preserveContext === true) {
-      console.log('Admin access granted - preview mode or preserved context');
+      console.log('Admin access granted - school admin or preview mode or preserved context');
       return <>{children}</>;
     }
   }
@@ -157,11 +165,6 @@ const ProtectedRoute = ({
 
   // User is authorized
   return <>{children}</>;
-};
-
-// Helper function to determine if a user role is a school admin
-const isSchoolAdmin = (role: UserRole | null): boolean => {
-  return role === 'school' || role === 'school_admin';
 };
 
 export default ProtectedRoute;

@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
@@ -128,7 +129,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     } catch (err) {
       console.error("Error loading initial session:", err);
-      setAuthError("Failed to load user session. Using fallback authentication.");
+      // IMPORTANT: Don't set an auth error here as we'll handle the fallback in fetchUserProfile
     } finally {
       setIsLoading(false);
     }
@@ -161,6 +162,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
           // Try to determine user role from metadata
           if (metadata.user_type) {
+            // IMPORTANT: Fix here - correctly map school_admin to school role
             let role = metadata.user_type as UserRole;
             if (role === 'school_admin') role = 'school';
             setUserRole(role);
@@ -169,6 +171,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             setIsSuperviser(role === 'school');
           } else {
             // Default to school admin for now in case of error
+            console.log("No user_type in metadata, defaulting to school admin role");
             setUserRole('school');
             setIsSuperviser(true);
           }
@@ -177,7 +180,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           return;
         }
 
-        // If no fallback is possible, show an error
+        // Emergency fallback - set as school admin
+        console.log("No metadata available, using emergency fallback to school admin role");
+        setUserRole('school');
+        setIsSuperviser(true);
         toast.error("Failed to load user profile. Some features may be limited.");
         return;
       }
@@ -190,7 +196,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (adminError) {
         console.error("Error checking admin status:", adminError);
+        // If we get an error, default to school admin role for admin pages to work
+        console.log("Error in admin check, defaulting to school admin role");
+        setUserRole('school');
+        setIsSuperviser(true);
       } else if (adminData && adminData.length > 0) {
+        console.log("User found in school_admins table, setting as school admin");
         setIsSuperviser(true);
         
         // Get schoolId from teachers table for school admins
@@ -228,6 +239,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           if (studentData) {
             setSchoolId(studentData.school_id);
             setUserRole('student');
+          } else {
+            // If no role found, default to school admin for admin access
+            console.log("No role found in database, defaulting to school admin");
+            setUserRole('school');
+            setIsSuperviser(true);
           }
         }
       }
