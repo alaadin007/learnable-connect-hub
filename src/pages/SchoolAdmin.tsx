@@ -24,11 +24,6 @@ const SchoolAdmin = () => {
   const [codeExpanded, setCodeExpanded] = useState(false);
   const { generateCode, isGenerating } = useSchoolCode();
 
-  // For debugging - log state changes
-  useEffect(() => {
-    console.log("showCodePopup state changed:", showCodePopup);
-  }, [showCodePopup]);
-
   // Fetch the current school code on component mount
   useEffect(() => {
     const fetchSchoolCode = async () => {
@@ -71,6 +66,8 @@ const SchoolAdmin = () => {
     });
     // Show expanded code section when code is generated
     setCodeExpanded(true);
+    // Show success notification
+    toast.success("New school code generated successfully");
   };
 
   const generateSchoolCode = async () => {
@@ -116,14 +113,8 @@ const SchoolAdmin = () => {
     }
   };
 
-  // Function to toggle the code expanded state
-  const toggleCodeExpanded = () => {
-    setCodeExpanded(!codeExpanded);
-  };
-
-  // Function to handle opening the popup - now only used for the view details option
+  // Function to open the code popup with detailed view
   const handleOpenCodePopup = () => {
-    console.log("Opening code popup, currentCode:", currentCode);
     if (!currentCode) {
       toast.error("No code available. Please generate a code first.");
       return;
@@ -133,7 +124,6 @@ const SchoolAdmin = () => {
 
   // Function to handle closing the popup
   const handleCloseCodePopup = () => {
-    console.log("Closing code popup");
     setShowCodePopup(false);
   };
 
@@ -162,101 +152,55 @@ const SchoolAdmin = () => {
               </p>
               
               <div className="space-y-4">
-                {!currentCode ? (
-                  <Button
-                    onClick={generateSchoolCode}
-                    disabled={isGenerating}
-                    className="w-full bg-blue-600 hover:bg-blue-700"
-                  >
-                    {isGenerating ? "Generating..." : "Generate School Code"}
-                  </Button>
-                ) : (
-                  <>
-                    <Button
-                      onClick={generateSchoolCode}
-                      disabled={isGenerating}
-                      className="w-full bg-blue-600 hover:bg-blue-700"
-                    >
-                      {isGenerating ? "Generating..." : "Generate New School Code"}
-                    </Button>
-                    
-                    <div className="border rounded-md overflow-hidden">
-                      <div className="bg-muted p-3 border-b flex items-center justify-between">
-                        <h4 className="font-medium">School Invitation Code</h4>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          onClick={toggleCodeExpanded}
-                          className="h-6 w-6 p-0"
+                <Button
+                  onClick={generateSchoolCode}
+                  disabled={isGenerating}
+                  className="w-full bg-blue-600 hover:bg-blue-700"
+                >
+                  {isGenerating ? "Generating..." : currentCode ? "Generate New School Code" : "Generate School Code"}
+                </Button>
+                
+                {currentCode && (
+                  <div className="border rounded-md overflow-hidden mt-4">
+                    <div className="p-4 bg-gray-50 border-b">
+                      <h4 className="text-sm font-medium text-gray-700">Your School Code</h4>
+                    </div>
+                    <div className="p-4">
+                      <div className="flex items-center justify-between p-3 bg-white border rounded-md">
+                        <code className="font-mono text-lg font-bold">{currentCode}</code>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={copyCodeToClipboard}
+                          className={codeCopied ? "text-green-600" : ""}
                         >
-                          {codeExpanded ? 
-                            <X className="h-4 w-4" /> : 
-                            <div className="h-4 w-4 flex items-center justify-center">
-                              <span className="text-xs font-bold">+</span>
-                            </div>
-                          }
+                          {codeCopied ? (
+                            <CheckCircle className="h-4 w-4" />
+                          ) : (
+                            <Copy className="h-4 w-4" />
+                          )}
                         </Button>
                       </div>
                       
-                      {codeExpanded && (
-                        <div className="p-3 space-y-3">
-                          <div className="p-3 bg-muted rounded-md border flex items-center justify-between">
-                            <code className="font-mono text-lg">{currentCode}</code>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={copyCodeToClipboard}
-                              className={codeCopied ? "text-green-600" : ""}
-                            >
-                              {codeCopied ? (
-                                <CheckCircle className="h-4 w-4" />
-                              ) : (
-                                <Copy className="h-4 w-4" />
-                              )}
-                            </Button>
-                          </div>
-                          
-                          {codeInfo.expiresAt && (
-                            <div className="bg-amber-50 border border-amber-200 rounded-md p-2 text-amber-800 flex items-start gap-2">
-                              <AlertCircle className="h-4 w-4 text-amber-500 flex-shrink-0 mt-0.5" />
-                              <p className="text-xs">
-                                Expires: {formatExpiryDate(codeInfo.expiresAt)}
-                              </p>
-                            </div>
-                          )}
-                          
-                          <div className="flex items-center space-x-2">
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={copyCodeToClipboard}
-                              className="flex-1"
-                            >
-                              {codeCopied ? (
-                                <>
-                                  <CheckCircle className="h-3.5 w-3.5 mr-1" />
-                                  <span>Copied!</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Copy className="h-3.5 w-3.5 mr-1" />
-                                  <span>Copy Code</span>
-                                </>
-                              )}
-                            </Button>
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={handleOpenCodePopup}
-                              className="flex-1"
-                            >
-                              View Details
-                            </Button>
-                          </div>
+                      {codeInfo.expiresAt && (
+                        <div className="mt-3 bg-amber-50 border border-amber-200 rounded-md p-2 text-amber-800 flex items-start gap-2 text-xs">
+                          <AlertCircle className="h-4 w-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                          <span>Expires: {formatExpiryDate(codeInfo.expiresAt)}</span>
                         </div>
                       )}
+                      
+                      <div className="mt-3">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={handleOpenCodePopup}
+                          className="w-full"
+                        >
+                          View Complete Details
+                        </Button>
+                      </div>
                     </div>
-                  </>
+                  </div>
                 )}
               </div>
               

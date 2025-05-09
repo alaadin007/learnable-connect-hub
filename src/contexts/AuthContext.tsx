@@ -1,8 +1,8 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { Database } from "@/integrations/supabase/types";
+import { toast } from "sonner";
 
 // Define types for user roles based on the actual application structure
 export type UserRole = "school" | "school_admin" | "teacher" | "student";
@@ -74,6 +74,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isSuperviser, setIsSuperviser] = useState(false);
   const [schoolId, setSchoolId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
     // Set up auth state listener FIRST - critical for avoiding deadlocks
@@ -127,6 +128,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     } catch (err) {
       console.error("Error loading initial session:", err);
+      setAuthError("Failed to load user session. Using fallback authentication.");
     } finally {
       setIsLoading(false);
     }
@@ -136,14 +138,59 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const fetchUserProfile = async (userId: string) => {
     try {
       console.log("Fetching profile for user:", userId);
+
+      // Check for database access issues
+      const { error: testError } = await supabase
+        .from('profiles')
+        .select('count')
+        .limit(1);
+
+      if (testError) {
+        console.error("Database access test failed:", testError);
+        
+        // Use metadata from the session as a fallback if available
+        if (user?.user_metadata) {
+          const metadata = user.user_metadata;
+          
+          // Set fallback values from metadata
+          setProfile({
+            id: userId,
+            full_name: metadata.full_name || metadata.name || 'User',
+            email: user.email
+          });
+
+          // Try to determine user role from metadata
+          if (metadata.user_type) {
+            let role = metadata.user_type as UserRole;
+            if (role === 'school_admin') role = 'school';
+            setUserRole(role);
+            
+            // Set supervisor status for school admins
+            setIsSuperviser(role === 'school');
+          } else {
+            // Default to school admin for now in case of error
+            setUserRole('school');
+            setIsSuperviser(true);
+          }
+          
+          toast.warning("Using limited functionality due to database connection issues");
+          return;
+        }
+
+        // If no fallback is possible, show an error
+        toast.error("Failed to load user profile. Some features may be limited.");
+        return;
+      }
       
       // First check if user is a school admin
-      const { data: adminData } = await supabase
+      const { data: adminData, error: adminError } = await supabase
         .from('school_admins')
         .select('id')
         .eq('id', userId);
 
-      if (adminData && adminData.length > 0) {
+      if (adminError) {
+        console.error("Error checking admin status:", adminError);
+      } else if (adminData && adminData.length > 0) {
         setIsSuperviser(true);
         
         // Get schoolId from teachers table for school admins
@@ -197,6 +244,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     } catch (error) {
       console.error("Error fetching user profile:", error);
+      
+      // Set fallback role if we couldn't determine the role
+      if (!userRole) {
+        console.log("Setting fallback school admin role due to error");
+        setUserRole('school');
+        setIsSuperviser(true);
+      }
     }
   };
 
