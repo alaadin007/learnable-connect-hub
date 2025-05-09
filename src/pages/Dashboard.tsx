@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import { Button } from "@/components/ui/button";
@@ -12,8 +12,13 @@ const Dashboard = () => {
   const { user, profile, userRole } = useAuth();
   const navigate = useNavigate();
   
-  // This component is now rendered only after the Protected Route has validated the user
-  // So we don't need complex redirection logic here
+  // Add redirect for school/school_admin users to the admin dashboard
+  useEffect(() => {
+    if (userRole === 'school' || userRole === 'school_admin') {
+      navigate('/admin', { state: { preserveContext: true }, replace: true });
+      return;
+    }
+  }, [userRole, navigate]);
 
   return (
     <>
