@@ -90,6 +90,28 @@ export function isSchoolAdmin(role: UserRole | null): boolean {
   return role === 'school' || role === 'school_admin';
 }
 
+// Generic function to invoke edge functions in a consistent manner
+export async function invokeEdgeFunction<T = any>(
+  functionName: string, 
+  payload?: any
+): Promise<{ data: T | null; error: Error | null }> {
+  try {
+    const { data, error } = await supabase.functions.invoke(functionName, {
+      body: payload || {}
+    });
+    
+    if (error) {
+      console.error(`Error invoking edge function ${functionName}:`, error);
+      return { data: null, error };
+    }
+    
+    return { data, error: null };
+  } catch (error: any) {
+    console.error(`Exception invoking edge function ${functionName}:`, error);
+    return { data: null, error };
+  }
+}
+
 // These functions are being kept as fallbacks during transition, but they should 
 // eventually be removed since we're removing localStorage
 export function getUserRoleWithFallback(): UserRole | null {

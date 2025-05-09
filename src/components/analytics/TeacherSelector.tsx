@@ -11,7 +11,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import { invokeEdgeFunction } from "@/utils/apiHelpers";
 
 interface TeacherSelectorProps {
   schoolId: string;
