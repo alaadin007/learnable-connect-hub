@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -12,7 +11,6 @@ import {
   DialogTitle,
   DialogFooter,
   DialogClose,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   Popover,
@@ -44,13 +42,14 @@ const SchoolCodeManager: React.FC<SchoolCodeManagerProps> = ({
   const [showHelpDialog, setShowHelpDialog] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
   const [codeInfo, setCodeInfo] = useState<SchoolCodeInfo | null>(null);
-  
+
   useEffect(() => {
     if (currentCode) {
       fetchCodeInfo();
     }
-  }, [currentCode]);
-  
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentCode, schoolId]);
+
   const fetchCodeInfo = async () => {
     try {
       // Get code expiration and generation time
@@ -59,12 +58,12 @@ const SchoolCodeManager: React.FC<SchoolCodeManagerProps> = ({
         .select("code, code_expires_at")
         .eq("id", schoolId)
         .single();
-        
+
       if (error) {
         console.error("Failed to fetch code info:", error);
         return;
       }
-      
+
       // Get the most recent generation timestamp from logs
       const { data: logData } = await supabase
         .from("school_code_logs")
@@ -74,17 +73,17 @@ const SchoolCodeManager: React.FC<SchoolCodeManagerProps> = ({
         .order("generated_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      
+
       setCodeInfo({
         code: data.code,
         expiresAt: data.code_expires_at,
-        generatedAt: logData?.generated_at || null
+        generatedAt: logData?.generated_at || null,
       });
     } catch (error) {
       console.error("Error fetching code info:", error);
     }
   };
-  
+
   const handleGenerateCode = async () => {
     if (!schoolId) {
       toast.error("School ID is required to generate a code");
@@ -92,16 +91,12 @@ const SchoolCodeManager: React.FC<SchoolCodeManagerProps> = ({
     }
 
     try {
-      console.log("Generating code for school ID:", schoolId);
       const newCode = await generateCode(schoolId);
-      console.log("Generated new code:", newCode);
-      
+
       if (newCode) {
         onCodeGenerated(newCode);
         setShowDialog(true);
         toast.success("New school code generated successfully");
-        
-        // Fetch updated code info
         await fetchCodeInfo();
       }
     } catch (error) {
@@ -112,8 +107,9 @@ const SchoolCodeManager: React.FC<SchoolCodeManagerProps> = ({
 
   const copyToClipboard = () => {
     if (!currentCode) return;
-    
-    navigator.clipboard.writeText(currentCode)
+
+    navigator.clipboard
+      .writeText(currentCode)
       .then(() => {
         setCodeCopied(true);
         setTimeout(() => setCodeCopied(false), 2000);
@@ -123,10 +119,9 @@ const SchoolCodeManager: React.FC<SchoolCodeManagerProps> = ({
         toast.error("Failed to copy code to clipboard");
       });
   };
-  
+
   const formatExpiryDate = (dateString: string | null) => {
     if (!dateString) return "No expiration set";
-    
     try {
       const date = new Date(dateString);
       return date.toLocaleString();
@@ -134,15 +129,17 @@ const SchoolCodeManager: React.FC<SchoolCodeManagerProps> = ({
       return "Invalid date";
     }
   };
-  
+
   const getExpiryStatus = () => {
     if (!codeInfo?.expiresAt) return null;
-    
+
     try {
       const expiryDate = new Date(codeInfo.expiresAt);
       const now = new Date();
-      const hoursRemaining = Math.round((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60));
-      
+      const hoursRemaining = Math.round(
+        (expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60)
+      );
+
       if (expiryDate < now) {
         return (
           <Alert variant="destructive" className="mt-2">
@@ -153,7 +150,7 @@ const SchoolCodeManager: React.FC<SchoolCodeManagerProps> = ({
           </Alert>
         );
       }
-      
+
       if (hoursRemaining < 6) {
         return (
           <Alert className="mt-2 border-yellow-200 bg-yellow-50 text-yellow-800">
@@ -164,7 +161,7 @@ const SchoolCodeManager: React.FC<SchoolCodeManagerProps> = ({
           </Alert>
         );
       }
-      
+
       return (
         <Alert className="mt-2 bg-green-50">
           <Info className="h-4 w-4" />
@@ -208,7 +205,7 @@ const SchoolCodeManager: React.FC<SchoolCodeManagerProps> = ({
           How to use
         </Button>
       </div>
-      
+
       <div className="flex items-center space-x-2">
         <div className="flex-1 bg-muted rounded-md border overflow-hidden">
           <div className="flex items-center justify-between p-2">
@@ -249,7 +246,7 @@ const SchoolCodeManager: React.FC<SchoolCodeManagerProps> = ({
           )}
         </Button>
       </div>
-      
+
       {getExpiryStatus()}
 
       {/* Help dialog */}
@@ -261,7 +258,7 @@ const SchoolCodeManager: React.FC<SchoolCodeManagerProps> = ({
               Understanding how to use and share school codes for registration
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-4">
             <div className="rounded-md bg-blue-50 p-4 border border-blue-100">
               <div className="flex">
@@ -276,7 +273,7 @@ const SchoolCodeManager: React.FC<SchoolCodeManagerProps> = ({
                 </div>
               </div>
             </div>
-            
+
             <div>
               <h4 className="text-sm font-medium mb-2">How to use your school code:</h4>
               <ol className="list-decimal pl-5 space-y-2 text-sm">
@@ -286,7 +283,7 @@ const SchoolCodeManager: React.FC<SchoolCodeManagerProps> = ({
                 <li>Once registered, they will be automatically connected to your school</li>
               </ol>
             </div>
-            
+
             <div>
               <h4 className="text-sm font-medium mb-2">Important notes:</h4>
               <ul className="list-disc pl-5 space-y-1 text-sm text-gray-600">
@@ -297,7 +294,7 @@ const SchoolCodeManager: React.FC<SchoolCodeManagerProps> = ({
               </ul>
             </div>
           </div>
-          
+
           <DialogFooter>
             <DialogClose asChild>
               <Button>Close</Button>
@@ -338,7 +335,7 @@ const SchoolCodeManager: React.FC<SchoolCodeManagerProps> = ({
               </Button>
             </div>
           </div>
-          
+
           <div className="space-y-4">
             {codeInfo?.expiresAt && (
               <div className="bg-blue-50 border border-blue-200 rounded-md p-4 text-blue-800">
@@ -353,7 +350,7 @@ const SchoolCodeManager: React.FC<SchoolCodeManagerProps> = ({
                 </div>
               </div>
             )}
-            
+
             <div className="bg-amber-50 border border-amber-200 rounded-md p-4 text-amber-800">
               <div className="flex items-start gap-2">
                 <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5" />
@@ -366,7 +363,7 @@ const SchoolCodeManager: React.FC<SchoolCodeManagerProps> = ({
                 </div>
               </div>
             </div>
-            
+
             <div className="space-y-1">
               <h4 className="font-semibold">Next steps:</h4>
               <ol className="list-decimal pl-5 text-sm space-y-1">
@@ -377,7 +374,7 @@ const SchoolCodeManager: React.FC<SchoolCodeManagerProps> = ({
               </ol>
             </div>
           </div>
-          
+
           <DialogFooter>
             <DialogClose asChild>
               <Button className="w-full sm:w-auto">Close</Button>
