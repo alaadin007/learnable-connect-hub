@@ -1,5 +1,6 @@
+
 import { supabase } from "@/integrations/supabase/client";
-import { Session } from "@supabase/supabase-js";
+import { Session, User } from "@supabase/supabase-js";
 
 // Types
 interface EdgeFunctionResponse<T = any> {
@@ -108,20 +109,29 @@ export async function invokeEdgeFunction<T = any>(
 
 /**
  * Gets the user's role with a fallback to user_type from profile if roles are not available
+ * @param user Optional user object. If not provided, will attempt to get the current session.
  * @returns The user's role or null if not found
  */
-export async function getUserRoleWithFallback(): Promise<string | null> {
+export async function getUserRoleWithFallback(user?: User): Promise<string | null> {
   try {
-    // First try to get the session
-    const { data: { session } } = await supabase.auth.getSession();
+    // Use provided user or get from current session
+    let userId: string | undefined;
     
-    if (!session?.user) return null;
+    if (user) {
+      userId = user.id;
+    } else {
+      // Get current session if user not provided
+      const { data: { session } } = await supabase.auth.getSession();
+      userId = session?.user?.id;
+    }
+    
+    if (!userId) return null;
     
     // Try to get role from user_roles table
     const { data: roles } = await supabase
       .from('user_roles')
       .select('role')
-      .eq('user_id', session.user.id);
+      .eq('user_id', userId);
 
     if (roles && roles.length > 0) {
       return roles[0].role;
@@ -131,7 +141,7 @@ export async function getUserRoleWithFallback(): Promise<string | null> {
     const { data: profile } = await supabase
       .from('profiles')
       .select('user_type')
-      .eq('id', session.user.id)
+      .eq('id', userId)
       .single();
     
     return profile?.user_type || null;
