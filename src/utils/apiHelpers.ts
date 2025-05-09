@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 interface FunctionOptions {
@@ -109,4 +108,3 @@ export function getSchoolIdWithFallback(): string | null {
 export function isSchoolAdmin(role: string | null): boolean {
   return role === 'school' || role === 'school_admin';
 }
-

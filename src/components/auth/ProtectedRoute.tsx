@@ -1,7 +1,7 @@
 
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth, UserRole } from "@/contexts/AuthContext";
-import { getUserRoleWithFallback, getSchoolIdWithFallback } from "@/utils/apiHelpers";
+import { getUserRoleWithFallback, isSchoolAdmin } from "@/utils/apiHelpers";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -23,6 +23,17 @@ const ProtectedRoute = ({
   const { user, profile, isSuperviser, userRole, schoolId: userSchoolId, session } = useAuth();
   const location = useLocation();
 
+  // Try to get role and school ID from localStorage if not available from auth context
+  const fallbackRole = getUserRoleWithFallback();
+  const effectiveUserRole = userRole || fallbackRole;
+  
+  // CRITICAL CHECK: If user is school admin, force redirect to admin dashboard when on /dashboard
+  // This is the highest priority check - it happens before ANY other checks
+  if (isSchoolAdmin(effectiveUserRole) && location.pathname === '/dashboard') {
+    console.log("PROTECTED ROUTE: School admin detected on /dashboard, forcing redirect to /admin");
+    return <Navigate to="/admin" state={{ preserveContext: true, adminRedirect: true }} replace />;
+  }
+
   // Check for special navigation states or preserved context
   const isPreservedContext = location.state?.fromTestAccounts || location.state?.preserveContext;
   
@@ -31,11 +42,7 @@ const ProtectedRoute = ({
     return <>{children}</>;
   }
 
-  // Try to get role and school ID from localStorage if not available from auth context
-  const fallbackRole = getUserRoleWithFallback();
   const fallbackSchoolId = getSchoolIdWithFallback();
-  
-  const effectiveUserRole = userRole || fallbackRole;
   const effectiveSchoolId = userSchoolId || fallbackSchoolId;
 
   // Enhanced debug logging
@@ -43,7 +50,7 @@ const ProtectedRoute = ({
     effectiveUserRole, 
     requiredUserType, 
     allowedRoles,
-    isSchoolAdmin: effectiveUserRole === 'school' || effectiveUserRole === 'school_admin',
+    isSchoolAdmin: isSchoolAdmin(effectiveUserRole),
     path: location.pathname
   });
 
@@ -52,14 +59,6 @@ const ProtectedRoute = ({
     console.log("No user or session, redirecting to login");
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
-  
-  // HIGH PRIORITY: If user is school/school_admin and trying to access /dashboard, redirect to /admin
-  // This check happens before any other redirect logic to ensure consistent behavior
-  if ((effectiveUserRole === 'school' || effectiveUserRole === 'school_admin') && 
-      location.pathname === '/dashboard') {
-    console.log("School admin accessing /dashboard, redirecting to /admin");
-    return <Navigate to="/admin" state={{ preserveContext: true }} replace />;
-  }
 
   // If we require a specific user type and the user doesn't have it
   if (requiredUserType && effectiveUserRole !== requiredUserType) {
@@ -67,7 +66,7 @@ const ProtectedRoute = ({
     
     // Determine where to redirect based on user role
     let redirectPath;
-    if (effectiveUserRole === 'school' || effectiveUserRole === 'school_admin') {
+    if (isSchoolAdmin(effectiveUserRole)) {
       redirectPath = "/admin";
     } else if (effectiveUserRole === 'teacher') {
       redirectPath = "/teacher/analytics";
@@ -84,7 +83,7 @@ const ProtectedRoute = ({
     
     // Determine where to redirect based on user role
     let redirectPath;
-    if (effectiveUserRole === 'school' || effectiveUserRole === 'school_admin') {
+    if (isSchoolAdmin(effectiveUserRole)) {
       redirectPath = "/admin";
     } else if (effectiveUserRole === 'teacher') {
       redirectPath = "/teacher/analytics";

@@ -1,5 +1,5 @@
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import { Button } from "@/components/ui/button";
@@ -7,33 +7,36 @@ import { MessageSquare, FileText, BarChart3, Settings } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
 import Footer from "@/components/layout/Footer";
+import { isSchoolAdmin } from "@/utils/apiHelpers";
 
 const Dashboard = () => {
   const { user, profile, userRole } = useAuth();
   const navigate = useNavigate();
+  const [isRedirecting, setIsRedirecting] = useState(false);
   
-  // Immediate and priority redirect for school/school_admin users to the admin dashboard
+  // Immediate redirect for school admin users
   useEffect(() => {
-    // Add a stronger check to ensure we redirect school admins
-    if (userRole === 'school' || userRole === 'school_admin') {
-      console.log(`Priority redirect: School admin (${userRole}) from Dashboard to /admin`);
-      // Using replace: true ensures history is replaced (back button won't bring user back here)
-      navigate('/admin', { state: { preserveContext: true }, replace: true });
-    }
-  }, [userRole, navigate]);
-
-  // If somehow we're still on this page as a school admin, log it
-  useEffect(() => {
-    console.log('Dashboard component rendering with userRole:', userRole);
+    // More comprehensive check for school admin roles
+    const isAdmin = isSchoolAdmin(userRole);
     
-    if (userRole === 'school' || userRole === 'school_admin') {
-      console.log('WARNING: School admin still on Dashboard page after redirect attempt');
+    if (isAdmin) {
+      console.log(`DASHBOARD REDIRECT: School admin (${userRole}) detected, redirecting to /admin`);
+      setIsRedirecting(true);
+      // Force immediate hard redirect to prevent any back-button issues
+      window.location.replace("/admin");
+    } else {
+      console.log(`Dashboard component rendering for non-admin user: ${userRole}`);
     }
   }, [userRole]);
 
-  // If we got here as a school admin, we'll show a blank page briefly before redirect happens
-  if (userRole === 'school' || userRole === 'school_admin') {
-    return <div className="h-screen flex items-center justify-center">Redirecting to admin dashboard...</div>;
+  // If we're redirecting or user is a school admin, show loading state
+  if (isRedirecting || isSchoolAdmin(userRole)) {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center">
+        <p className="text-xl mb-4">Redirecting to School Admin Dashboard...</p>
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-600"></div>
+      </div>
+    );
   }
 
   return (
