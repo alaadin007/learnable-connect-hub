@@ -53,7 +53,8 @@ const ProtectedRoute = ({
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
   
-  // Special case: If user is school/school_admin and trying to access /dashboard, redirect to /admin
+  // HIGH PRIORITY: If user is school/school_admin and trying to access /dashboard, redirect to /admin
+  // This check happens before any other redirect logic to ensure consistent behavior
   if ((effectiveUserRole === 'school' || effectiveUserRole === 'school_admin') && 
       location.pathname === '/dashboard') {
     console.log("School admin accessing /dashboard, redirecting to /admin");

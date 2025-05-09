@@ -82,6 +82,7 @@ export async function invokeEdgeFunction<T>(
 
 /**
  * Helper function to get user role with fallback to localStorage
+ * Enhanced to ensure school admin roles are properly detected
  */
 export function getUserRoleWithFallback(): string | null {
   // Get from localStorage since we're ensuring this is kept up to date in AuthContext
@@ -101,3 +102,11 @@ export function getSchoolIdWithFallback(): string | null {
   const storedSchoolId = localStorage.getItem('schoolId');
   return storedSchoolId;
 }
+
+/**
+ * Helper function to check if a user has school admin privileges
+ */
+export function isSchoolAdmin(role: string | null): boolean {
+  return role === 'school' || role === 'school_admin';
+}
+

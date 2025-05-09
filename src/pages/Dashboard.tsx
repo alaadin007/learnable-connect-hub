@@ -12,22 +12,29 @@ const Dashboard = () => {
   const { user, profile, userRole } = useAuth();
   const navigate = useNavigate();
   
-  // Immediate redirect for school/school_admin users to the admin dashboard
+  // Immediate and priority redirect for school/school_admin users to the admin dashboard
   useEffect(() => {
+    // Add a stronger check to ensure we redirect school admins
     if (userRole === 'school' || userRole === 'school_admin') {
-      console.log(`Redirecting school admin (${userRole}) from Dashboard to /admin`);
+      console.log(`Priority redirect: School admin (${userRole}) from Dashboard to /admin`);
+      // Using replace: true ensures history is replaced (back button won't bring user back here)
       navigate('/admin', { state: { preserveContext: true }, replace: true });
     }
   }, [userRole, navigate]);
 
-  // Extra logging for debugging
+  // If somehow we're still on this page as a school admin, log it
   useEffect(() => {
-    console.log('Dashboard rendering with userRole:', userRole);
+    console.log('Dashboard component rendering with userRole:', userRole);
     
     if (userRole === 'school' || userRole === 'school_admin') {
-      console.log('School admin still on Dashboard page, should be redirected to /admin');
+      console.log('WARNING: School admin still on Dashboard page after redirect attempt');
     }
   }, [userRole]);
+
+  // If we got here as a school admin, we'll show a blank page briefly before redirect happens
+  if (userRole === 'school' || userRole === 'school_admin') {
+    return <div className="h-screen flex items-center justify-center">Redirecting to admin dashboard...</div>;
+  }
 
   return (
     <>
