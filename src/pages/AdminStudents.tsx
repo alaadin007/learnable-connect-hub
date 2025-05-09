@@ -56,18 +56,20 @@ const AdminStudents = () => {
   // Ensure we have a school ID even if auth context is slow to load
   const schoolId = authSchoolId || 
                   profile?.school_id || 
-                  (profile?.organization?.id as string) || 
+                  profile?.organization?.id || 
                   localStorage.getItem('schoolId') || 
                   '';
   
   useEffect(() => {
-    // Store school ID in localStorage if available
+    // Store school ID in localStorage if available for persistence
     if (profile?.organization?.id) {
-      localStorage.setItem('schoolId', profile.organization.id as string);
+      localStorage.setItem('schoolId', profile.organization.id);
     } else if (profile?.school_id) {
       localStorage.setItem('schoolId', profile.school_id);
     }
-  }, [profile]);
+    
+    console.log("AdminStudents - Current school ID:", schoolId);
+  }, [profile, schoolId]);
   
   const form = useForm<AddStudentFormValues>({
     resolver: zodResolver(addStudentSchema),
@@ -203,7 +205,7 @@ const AdminStudents = () => {
           const code = await generateCode(schoolId);
           
           if (code) {
-            console.log("Generated code:", code);
+            console.log("Generated code successfully:", code);
             setGeneratedCode(code);
             toast.success("Student invitation code generated");
           } else {

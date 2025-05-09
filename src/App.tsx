@@ -69,7 +69,7 @@ function App() {
             </ProtectedRoute>
           } />
 
-          {/* School admin routes */}
+          {/* School admin routes - Note: Using allowedRoles instead of requiredUserType to be more flexible */}
           <Route path="/admin" element={
             <ProtectedRoute allowedRoles={["school", "school_admin"]}>
               <SchoolAdmin />

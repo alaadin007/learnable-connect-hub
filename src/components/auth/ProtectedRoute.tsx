@@ -1,3 +1,4 @@
+
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth, UserRole } from "@/contexts/AuthContext";
 import { getUserRoleWithFallback, getSchoolIdWithFallback, isSchoolAdmin } from "@/utils/apiHelpers";
@@ -43,6 +44,21 @@ const ProtectedRoute = ({
   console.log('ProtectedRoute: Is school admin:', isSchoolAdmin(effectiveUserRole));
   console.log('ProtectedRoute: Location state:', locationState);
 
+  // Check for special navigation states or preserved context
+  const isPreservedContext = locationState?.fromTestAccounts || locationState?.preserveContext;
+  
+  // If we have preserved context, allow access immediately regardless of auth state
+  if (isPreservedContext) {
+    console.log('ProtectedRoute: Access granted due to preserved context');
+    return <>{children}</>;
+  }
+
+  // If no user or session, redirect to login
+  if (!user && !session) {
+    console.log("No user or session, redirecting to login");
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
   // HIGHEST PRIORITY CHECK:
   // If user is on /dashboard and they're a school admin, ALWAYS redirect to /admin
   if (location.pathname === '/dashboard' && isSchoolAdmin(effectiveUserRole)) {
@@ -77,14 +93,6 @@ const ProtectedRoute = ({
     }
   }
 
-  // Check for special navigation states or preserved context
-  const isPreservedContext = locationState?.fromTestAccounts || locationState?.preserveContext;
-  
-  // If we have preserved context, allow access
-  if (isPreservedContext) {
-    return <>{children}</>;
-  }
-
   const fallbackSchoolId = getSchoolIdWithFallback();
   const effectiveSchoolId = userSchoolId || fallbackSchoolId;
 
@@ -96,12 +104,6 @@ const ProtectedRoute = ({
     isSchoolAdmin: isSchoolAdmin(effectiveUserRole),
     path: location.pathname
   });
-
-  // If no user or session, redirect to login
-  if (!user && !session && !isPreservedContext) {
-    console.log("No user or session, redirecting to login");
-    return <Navigate to="/login" state={{ from: location }} replace />;
-  }
 
   // If we require a specific user type and the user doesn't have it
   if (requiredUserType && effectiveUserRole !== requiredUserType) {

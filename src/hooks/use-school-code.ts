@@ -36,11 +36,11 @@ function validateCodeFormat(code: string): boolean {
 }
 
 export function useSchoolCode(): UseSchoolCodeReturn {
-  const { profile } = useAuth();
+  const { user, profile, userRole } = useAuth();
   const [isGenerating, setIsGenerating] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
+  
   const generateCode = useCallback(async (schoolId: string): Promise<string | null> => {
     if (!schoolId) {
       const errorMessage = "No school ID provided";
@@ -57,6 +57,7 @@ export function useSchoolCode(): UseSchoolCodeReturn {
       
       // Try direct database function call first (most reliable)
       try {
+        console.log("Trying RPC function call...");
         const { data: rpcData, error: rpcError } = await supabase
           .rpc("generate_new_school_code", { school_id_param: schoolId });
           
@@ -97,7 +98,9 @@ export function useSchoolCode(): UseSchoolCodeReturn {
 
       // Last resort - direct table update
       console.log("Trying direct table update as fallback");
-      const newCode = `SCH${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+      
+      // Generate a code that matches the pattern
+      const newCode = `SCH${Math.random().toString(36).substring(2, 8).toUpperCase().replace(/[^A-Z0-9]/g, '0')}`;
       
       const { data, error: updateError } = await supabase
         .from('schools')
@@ -113,9 +116,10 @@ export function useSchoolCode(): UseSchoolCodeReturn {
         console.log("Generated code via direct update:", data.code);
         toast.success("School code generated successfully");
         return data.code;
+      } else {
+        console.error("Direct update failed:", updateError);
+        throw new Error(updateError?.message || "Failed to update school code directly");
       }
-
-      throw new Error("Failed to generate code through all available methods");
 
     } catch (error) {
       console.error("Exception while generating school code:", error);
