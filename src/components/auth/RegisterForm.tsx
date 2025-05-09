@@ -52,7 +52,7 @@ const RegisterForm = () => {
     setIsLoading(true);
     try {
       // First verify if the school code is valid
-      const { data: schoolCodeValid, error: schoolCodeError } = await supabase
+      const { data: schoolCodeData, error: schoolCodeError } = await supabase
         .rpc('verify_school_code', { code: data.schoolCode });
       
       if (schoolCodeError) {
@@ -60,7 +60,7 @@ const RegisterForm = () => {
         throw new Error(schoolCodeError.message || "Invalid school code. Please check and try again.");
       }
 
-      if (!schoolCodeValid || !schoolCodeValid.length) {
+      if (!schoolCodeData || schoolCodeData.length === 0) {
         throw new Error("Invalid school code. Please check and try again.");
       }
 
@@ -82,7 +82,7 @@ const RegisterForm = () => {
             school_code: data.schoolCode,
             school_name: schoolName || "Unknown School",
             user_type: 'student', // Default to student role
-            school_id: schoolCodeValid[0]?.id // Include the school_id from verify_school_code
+            school_id: schoolCodeData[0]?.id // Include the school_id from verify_school_code
           }
         }
       });
