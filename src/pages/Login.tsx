@@ -13,13 +13,22 @@ const Login = () => {
   // Redirect authenticated users
   useEffect(() => {
     if (user && userRole) {
-      const redirectPath = userRole === "school" || userRole === "school_admin" 
-        ? "/admin"
-        : userRole === "teacher" 
-        ? "/teacher/analytics" 
-        : "/dashboard";
-        
-      navigate(redirectPath, { replace: true });
+      let redirectPath;
+      
+      if (userRole === "school" || userRole === "school_admin") {
+        redirectPath = "/admin";
+      } else if (userRole === "teacher") {
+        redirectPath = "/teacher/analytics"; 
+      } else {
+        redirectPath = "/dashboard";
+      }
+      
+      // Adding a small timeout to ensure context is fully loaded
+      const timeoutId = setTimeout(() => {
+        navigate(redirectPath, { replace: true });
+      }, 100);
+      
+      return () => clearTimeout(timeoutId);
     }
   }, [user, userRole, navigate]);
 

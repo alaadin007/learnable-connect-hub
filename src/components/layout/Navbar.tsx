@@ -42,6 +42,17 @@ const Navbar = () => {
   const isLoggedIn = !!user && !isPublicPage && !isAuthPage;
   const isTestAccountsPage = location.pathname === "/test-accounts";
 
+  // Determine default dashboard path based on user role
+  const getDashboardPath = useCallback(() => {
+    if (userRole === 'school' || userRole === 'school_admin') {
+      return '/admin';
+    } else if (userRole === 'teacher') {
+      return '/teacher/analytics';
+    } else {
+      return '/dashboard';
+    }
+  }, [userRole]);
+
   const getNavLinks = useCallback(() => {
     if (isTestAccountsPage) return [];
 
@@ -55,16 +66,13 @@ const Navbar = () => {
       ];
     }
 
-    // Determine correct dashboard path based on user role
-    const dashboardPath = userRole === 'school' ? "/admin" : 
-                         userRole === 'teacher' ? "/teacher/analytics" :
-                         "/dashboard";
+    // Get the dashboard path based on user role
+    const dashboardPath = getDashboardPath();
 
     // For school admin role, show specific navigation
     if (userRole === "school" || userRole === "school_admin") {
       return [
-        { name: "Dashboard", href: "/admin" },
-        { name: "School Admin", href: "/admin" }, 
+        { name: "Dashboard", href: dashboardPath },
         { name: "Teachers", href: "/admin/teacher-management" },
         { name: "Analytics", href: "/admin/analytics" },
         { name: "Chat", href: "/chat" },
@@ -74,7 +82,7 @@ const Navbar = () => {
     // For teacher role
     else if (userRole === "teacher") {
       return [
-        { name: "Dashboard", href: "/teacher/analytics" },
+        { name: "Dashboard", href: dashboardPath },
         { name: "Students", href: "/teacher/students" },
         { name: "Analytics", href: "/teacher/analytics" },
         { name: "Chat", href: "/chat" },
@@ -84,26 +92,24 @@ const Navbar = () => {
     // Student or other user types
     else {
       return [
-        { name: "Dashboard", href: "/dashboard" },
+        { name: "Dashboard", href: dashboardPath },
         { name: "Chat", href: "/chat" },
         { name: "Documents", href: "/documents" },
       ];
     }
-  }, [userRole, isLoggedIn, isTestAccountsPage]);
+  }, [userRole, isLoggedIn, isTestAccountsPage, getDashboardPath]);
 
   const navLinks = getNavLinks();
 
   const isActiveLink = useCallback((href: string): boolean => {
     const currentPath = location.pathname;
-
-    // Special case for School Admin section
-    if (href === "/admin" && (currentPath === "/admin" || currentPath.startsWith("/admin/"))) {
+    
+    // Special case for Dashboard link
+    if (href === getDashboardPath() && (currentPath === getDashboardPath() || currentPath.startsWith(`${getDashboardPath()}/`))) {
       return true;
     }
 
     switch (href) {
-      case "/dashboard":
-        return currentPath === "/dashboard";
       case "/admin/teacher-management":
         return currentPath === "/admin/teacher-management" || currentPath === "/admin/teachers";
       case "/admin/analytics":
@@ -115,7 +121,7 @@ const Navbar = () => {
       default:
         return currentPath === href;
     }
-  }, [location.pathname]);
+  }, [location.pathname, getDashboardPath]);
 
   const handleNavigation = useCallback((path: string) => {
     if (location.pathname === path) {
