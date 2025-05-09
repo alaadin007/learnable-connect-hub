@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -31,7 +32,6 @@ const Dashboard = () => {
       toast.info("Redirecting to School Admin Dashboard...");
       
       // Force immediate hard redirect to prevent any back-button issues
-      // This is a stronger approach than navigate() as it completely replaces the URL
       window.location.replace("/admin");
       return; // Early return to prevent the rest of the component from rendering
     } else {

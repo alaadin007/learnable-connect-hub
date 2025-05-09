@@ -116,22 +116,20 @@ const Navbar = () => {
       ];
     }
 
-    // Get the dashboard path based on user role - ensures school admin always uses /admin
-    const dashboardPath = getDashboardPath();
-
-    // For school admin role, show the specific links as requested
+    // For school admin role, show specific admin links
     if (isAdmin) {
-      console.log('Rendering school admin links with dashboard path:', dashboardPath);
       return [
-        { name: "Dashboard", href: dashboardPath },
-        { name: "Chat", href: "/chat" },
-        { name: "Documents", href: "/documents" },
+        { name: "Dashboard", href: "/admin" },
+        { name: "Teacher Management", href: "/admin/teacher-management" },
+        { name: "Students", href: "/admin/students" },
+        { name: "Analytics", href: "/admin/analytics" },
+        { name: "Settings", href: "/admin/settings" },
       ];
     } 
     // For teacher role
     else if (effectiveUserRole === "teacher") {
       return [
-        { name: "Dashboard", href: dashboardPath },
+        { name: "Dashboard", href: "/teacher/analytics" },
         { name: "Students", href: "/teacher/students" },
         { name: "Analytics", href: "/teacher/analytics" },
         { name: "Chat", href: "/chat" },
@@ -141,12 +139,12 @@ const Navbar = () => {
     // Student or other user types
     else {
       return [
-        { name: "Dashboard", href: dashboardPath },
+        { name: "Dashboard", href: "/dashboard" },
         { name: "Chat", href: "/chat" },
         { name: "Documents", href: "/documents" },
       ];
     }
-  }, [effectiveUserRole, isLoggedIn, isTestAccountsPage, getDashboardPath, isAdmin]);
+  }, [effectiveUserRole, isLoggedIn, isTestAccountsPage, isAdmin]);
 
   const navLinks = getNavLinks();
 
@@ -168,8 +166,12 @@ const Navbar = () => {
     switch (href) {
       case "/admin/teacher-management":
         return currentPath === "/admin/teacher-management" || currentPath === "/admin/teachers";
+      case "/admin/students":
+        return currentPath === "/admin/students";
       case "/admin/analytics":
         return currentPath === "/admin/analytics";
+      case "/admin/settings":
+        return currentPath === "/admin/settings";
       case "/chat":
         return currentPath === "/chat" || currentPath.startsWith("/chat/");
       case "/documents":
@@ -186,43 +188,7 @@ const Navbar = () => {
       return;
     }
     
-    // Special case for navigation to Dashboard
-    if (path === "/dashboard" || path === "/admin") {
-      // If school admin, ensure we always go to /admin
-      if (isSchoolAdmin(effectiveUserRole)) {
-        console.log('Navbar: School admin clicking on Dashboard, redirecting to /admin');
-        
-        // Create navigation state with proper typing
-        const navState: NavigationState = {
-          fromNavigation: true,
-          preserveContext: true,
-          timestamp: Date.now(),
-          adminRedirect: true,
-          schoolAdminReturn: true
-        };
-        
-        navigate('/admin', { state: navState, replace: true });
-        setIsOpen(false);
-        return;
-      }
-    }
-    
-    // For Chat and Documents paths with school admin users
-    if ((path === "/chat" || path === "/documents") && isSchoolAdmin(effectiveUserRole)) {
-      // Create navigation state with proper typing that will help when returning to admin
-      const navState: NavigationState = {
-        fromNavigation: true,
-        preserveContext: true,
-        timestamp: Date.now(),
-        schoolAdminReturn: true
-      };
-      
-      navigate(path, { state: navState });
-      setIsOpen(false);
-      return;
-    }
-    
-    // For other paths or non-admin users
+    // Create navigation state with proper typing
     const navState: NavigationState = {
       fromNavigation: true,
       preserveContext: true,
@@ -232,11 +198,17 @@ const Navbar = () => {
     // If we're a school admin, add the return flag
     if (isAdmin) {
       navState.schoolAdminReturn = true;
+      
+      // Force redirection to /admin if trying to access dashboard
+      if (path === "/dashboard") {
+        path = "/admin";
+        navState.adminRedirect = true;
+      }
     }
     
     navigate(path, { state: navState });
     setIsOpen(false);
-  }, [location.pathname, navigate, isAdmin, effectiveUserRole]);
+  }, [location.pathname, navigate, isAdmin]);
 
   if (isTestAccountsPage) {
     return null;
