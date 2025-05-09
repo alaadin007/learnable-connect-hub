@@ -9,12 +9,15 @@ interface UseSchoolCodeReturn {
   validateCode: (code: string) => Promise<boolean>;
   isGenerating: boolean;
   isValidating: boolean;
+  generateStudentCode: () => Promise<string | null>;
+  isGeneratingStudentCode: boolean;
 }
 
 export function useSchoolCode(): UseSchoolCodeReturn {
   const { profile } = useAuth();
   const [isGenerating, setIsGenerating] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
+  const [isGeneratingStudentCode, setIsGeneratingStudentCode] = useState(false);
 
   const generateCode = useCallback(async (schoolId: string): Promise<string | null> => {
     if (!schoolId) {
@@ -24,7 +27,7 @@ export function useSchoolCode(): UseSchoolCodeReturn {
 
     setIsGenerating(true);
     try {
-      // Instead of using RPC that could trigger infinite recursion, use direct SQL function call
+      // Instead of using RPC that could trigger infinite recursion, use direct function invocation
       const { data, error } = await supabase.functions.invoke("generate-school-code", {
         body: { schoolId }
       });
@@ -71,10 +74,39 @@ export function useSchoolCode(): UseSchoolCodeReturn {
     }
   }, []);
 
+  const generateStudentCode = useCallback(async (): Promise<string | null> => {
+    setIsGeneratingStudentCode(true);
+    try {
+      console.log("Generating student invite code");
+      
+      // Call the generate-student-invite edge function
+      const { data, error } = await supabase.functions.invoke("generate-student-invite", {
+        body: { method: "code" }
+      });
+
+      if (error) {
+        console.error("Error generating student invite code:", error);
+        toast.error("Failed to generate student invite code");
+        return null;
+      }
+
+      console.log("Student code generated successfully:", data);
+      return data?.code || null;
+    } catch (error) {
+      console.error("Exception while generating student code:", error);
+      toast.error("An unexpected error occurred");
+      return null;
+    } finally {
+      setIsGeneratingStudentCode(false);
+    }
+  }, []);
+
   return {
     generateCode,
     validateCode,
     isGenerating,
     isValidating,
+    generateStudentCode,
+    isGeneratingStudentCode
   };
 }

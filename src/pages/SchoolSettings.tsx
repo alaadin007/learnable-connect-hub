@@ -93,6 +93,11 @@ const SchoolSettings = () => {
       return;
     }
     
+    if (!schoolName.trim()) {
+      toast.error("School name cannot be empty");
+      return;
+    }
+    
     setIsSaving(true);
     try {
       console.log("Saving school settings for ID:", profile.organization.id);
@@ -101,9 +106,9 @@ const SchoolSettings = () => {
       const { error } = await supabase
         .from("schools")
         .update({
-          name: schoolName,
-          contact_email: contactEmail,
-          description: description,
+          name: schoolName.trim(),
+          contact_email: contactEmail.trim(),
+          description: description.trim(),
           notifications_enabled: notificationsEnabled,
           updated_at: new Date().toISOString()
         })
