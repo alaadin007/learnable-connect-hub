@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Clipboard, RefreshCw, Check, Clock, ChevronDown } from "lucide-react";
@@ -29,10 +29,18 @@ const SchoolCodeGenerator = ({ onCodeGenerated, variant }: SchoolCodeGeneratorPr
   const [copied, setCopied] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const { generateCode, isGenerating, codeHistory, loadCodeHistory } = useSchoolCode();
+  const [initialized, setInitialized] = useState(false);
   
-  // Generate a code immediately on component mount
+  // Use memoized function to get school ID to avoid recreation on render
+  const getSchoolId = useCallback(() => {
+    return getSchoolIdWithFallback();
+  }, []);
+  
+  // Initialize code on component mount only
   useEffect(() => {
-    const schoolId = getSchoolIdWithFallback();
+    if (initialized) return; // Skip if already initialized
+    
+    const schoolId = getSchoolId();
     
     // Use a pre-generated code for instant display
     const instantCode = localStorage.getItem(`school_code_${schoolId}`) || "DEMO-CODE";
@@ -49,11 +57,12 @@ const SchoolCodeGenerator = ({ onCodeGenerated, variant }: SchoolCodeGeneratorPr
     
     // Load code history
     loadCodeHistory(schoolId);
-  }, [onCodeGenerated, loadCodeHistory]);
+    setInitialized(true);
+  }, [onCodeGenerated, loadCodeHistory, getSchoolId, initialized]);
 
   const handleGenerateClick = async () => {
     try {
-      const schoolId = getSchoolIdWithFallback();
+      const schoolId = getSchoolId();
       const generatedCode = await generateCode(schoolId);
       
       if (generatedCode) {

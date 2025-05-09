@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -67,7 +67,7 @@ export const useSchoolCode = () => {
   /**
    * Fetch the current school code
    */
-  const fetchCurrentCode = async (schoolId: string): Promise<string | null> => {
+  const fetchCurrentCode = useCallback(async (schoolId: string): Promise<string | null> => {
     if (!schoolId || schoolId === 'demo-school-id') {
       return 'DEMO-CODE';
     }
@@ -103,12 +103,12 @@ export const useSchoolCode = () => {
       console.error("Exception fetching school code:", error);
       return 'DEMO-CODE';
     }
-  };
+  }, []);
 
   /**
    * Generate a new school code
    */
-  const generateCode = async (schoolId: string): Promise<string | null> => {
+  const generateCode = useCallback(async (schoolId: string): Promise<string | null> => {
     if (!schoolId || schoolId === 'demo-school-id') {
       const demoCode = `DEMO-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
       setLastGeneratedCode(demoCode);
@@ -188,12 +188,12 @@ export const useSchoolCode = () => {
     } finally {
       setIsGenerating(false);
     }
-  };
+  }, []);
 
   /**
    * Generate a student invitation code
    */
-  const generateStudentInviteCode = async (schoolId: string): Promise<string | null> => {
+  const generateStudentInviteCode = useCallback(async (schoolId: string): Promise<string | null> => {
     if (!schoolId || schoolId === 'demo-school-id') {
       const demoStudentCode = `STU-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
       setLastGeneratedCode(demoStudentCode);
@@ -241,14 +241,14 @@ export const useSchoolCode = () => {
     } finally {
       setIsGenerating(false);
     }
-  };
+  }, []);
 
-  // Load code history when school ID changes or on mount
-  const loadCodeHistory = (schoolId: string) => {
+  // Load code history when called, not automatically
+  const loadCodeHistory = useCallback((schoolId: string) => {
     if (!schoolId) return;
     const history = getStoredCodeHistory(schoolId);
     setCodeHistory(history);
-  };
+  }, []);
 
   return {
     generateCode,
