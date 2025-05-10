@@ -134,6 +134,60 @@ export function getFallbackAnalyticsData() {
   };
 }
 
+// Mock data helper functions to avoid triggering database policy issues
+export function getMockAssessments(limit: number = 5): Assessment[] {
+  const subjects = ["Mathematics", "Science", "History", "English", "Computer Science", "Art"];
+  const mockAssessments: Assessment[] = [];
+  
+  for (let i = 0; i < limit; i++) {
+    const dueOffset = Math.floor(Math.random() * 14) + 1; // 1-14 days from now
+    mockAssessments.push({
+      id: `mock-${i}`,
+      title: `${subjects[i % subjects.length]} Assessment ${i + 1}`,
+      description: `This is a mock assessment for ${subjects[i % subjects.length]}`,
+      due_date: new Date(Date.now() + 86400000 * dueOffset).toISOString(),
+      created_at: new Date().toISOString(),
+      teacher_id: `mock-teacher-${i}`,
+      school_id: 'mock-school',
+      subject: subjects[i % subjects.length],
+      max_score: 100,
+      teacher: {
+        full_name: "Demo Teacher"
+      },
+      submission: i % 3 === 0 ? {
+        id: `mock-submission-${i}`,
+        score: Math.floor(Math.random() * 30) + 70, // 70-100
+        completed: true,
+        submitted_at: new Date().toISOString()
+      } : undefined
+    });
+  }
+  
+  return mockAssessments;
+}
+
+export function getMockLectures(limit: number = 5): Lecture[] {
+  const subjects = ["Mathematics", "Science", "History", "English", "Computer Science"];
+  const mockLectures: Lecture[] = [];
+  
+  for (let i = 0; i < limit; i++) {
+    mockLectures.push({
+      id: `mock-${i}`,
+      title: `Introduction to ${subjects[i % subjects.length]} ${i + 1}`,
+      description: `An introductory lecture on ${subjects[i % subjects.length]}`,
+      video_url: "https://example.com/video.mp4",
+      thumbnail_url: null,
+      duration_minutes: 30 + (i * 5),
+      teacher_id: `mock-teacher-${i}`,
+      school_id: 'mock-school',
+      subject: subjects[i % subjects.length],
+      created_at: new Date().toISOString()
+    });
+  }
+  
+  return mockLectures;
+}
+
 export type SchoolId = Database['public']['Tables']['schools']['Row']['id'];
 export type UserId = Database['public']['Tables']['profiles']['Row']['id'];
 export type DocumentId = Database['public']['Tables']['documents']['Row']['id'];
