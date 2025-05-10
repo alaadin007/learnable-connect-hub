@@ -1,9 +1,7 @@
-
 import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Profile } from '@/types/profile';
 import { useNavigate } from 'react-router-dom';
-// Import UserRole from ProtectedRoute
 import { UserRole } from '@/components/auth/ProtectedRoute';
 
 interface AuthContextType {
@@ -11,8 +9,8 @@ interface AuthContextType {
   profile: Profile | null;
   userRole: UserRole | null;
   isSupervisor: boolean;
-  isLoading: boolean;  // Keep this for backward compatibility
-  loading: boolean;    // Add this for components expecting loading
+  isLoading: boolean;  // backward compatibility
+  loading: boolean;    // alternative loading property
   isLoggedIn: boolean;
   signIn: (email: string, password: string) => Promise<any>;
   signUp: (email: string, password: string, metadata?: any) => Promise<any>;
@@ -20,7 +18,7 @@ interface AuthContextType {
   updateProfile: (updates: Partial<Profile>) => Promise<void>;
   setTestUser?: (user: { email: string; password: string; role: string }) => void;
   schoolId: string | undefined;
-  session: any; // Add session property for compatibility
+  session: any; // authentication session data
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -30,18 +28,21 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [user, setUser] = useState(null);
+  // State declarations
+  const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [isSupervisor, setIsSupervisor] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const navigate = useNavigate();
   const [testUser, setTestUserInternal] = useState<{ email: string; password: string; role: string } | null>(null);
   const [sessionData, setSessionData] = useState<any>(null);
 
+  const navigate = useNavigate();
+
   const schoolId = profile?.school_id;
 
+  // Load initial session and subscribe to auth changes
   useEffect(() => {
     const loadSession = async () => {
       setIsLoading(true);
@@ -54,7 +55,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setIsLoggedIn(true);
           await loadProfile(session.user);
         } else if (testUser) {
-          // Handle test user login
           const { data, error } = await supabase.auth.signInWithPassword({
             email: testUser.email,
             password: testUser.password,
@@ -77,7 +77,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     loadSession();
 
-    supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session) {
         setUser(session.user);
         setSessionData(session);
@@ -92,6 +92,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setIsLoggedIn(false);
       }
     });
+
+    // Cleanup listener on unmount
+    return () => {
+      authListener?.subscription.unsubscribe();
+    };
   }, [testUser]);
 
   const loadProfile = async (currentUser: any) => {
@@ -109,45 +114,40 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       if (profileData) {
         const typedRole = profileData.user_type as UserRole;
-        
-        // Process organization to ensure correct type
-        let processedOrg: { id: string; name?: string; code?: string; } | undefined;
-        
+
+        let processedOrg: { id: string; name?: string; code?: string } | undefined;
+
         if (profileData.organization) {
           if (typeof profileData.organization === 'object' && !Array.isArray(profileData.organization)) {
-            // Handle organization object 
             const org = profileData.organization as any;
             processedOrg = {
               id: org.id || profileData.school_id || '',
               name: org.name || profileData.school_name,
-              code: org.code || profileData.school_code
+              code: org.code || profileData.school_code,
             };
           } else if (profileData.school_id) {
-            // Fallback to school data
             processedOrg = {
               id: profileData.school_id,
               name: profileData.school_name,
-              code: profileData.school_code
+              code: profileData.school_code,
             };
           }
         } else if (profileData.school_id) {
-          // Create organization from school data
           processedOrg = {
             id: profileData.school_id,
             name: profileData.school_name,
-            code: profileData.school_code
+            code: profileData.school_code,
           };
         }
-        
-        // Create processed profile with correctly typed organization
+
         const processedProfile: Profile = {
           ...profileData,
-          organization: processedOrg
+          organization: processedOrg,
         };
-        
+
         setProfile(processedProfile);
         setUserRole(typedRole);
-        setIsSupervisor(profileData?.is_supervisor || false);
+        setIsSupervisor(Boolean(profileData.is_supervisor));
       }
     } catch (error) {
       console.error("Error loading profile:", error);
@@ -157,10 +157,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const signIn = async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
       if (error) {
         console.error("Sign-in error:", error);
@@ -183,16 +180,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: {
-          data: metadata
-        }
+        options: { data: metadata },
       });
-  
+
       if (error) {
         console.error("Signup error:", error);
         return { error };
       }
-  
+
       setUser(data.user);
       setSessionData(data.session);
       setIsLoggedIn(true);
@@ -244,38 +239,36 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         throw error;
       }
 
-      // Process organization properly
-      let processedOrg: { id: string; name?: string; code?: string; } | undefined;
-      
+      let processedOrg: { id: string; name?: string; code?: string } | undefined;
+
       if (data.organization) {
         if (typeof data.organization === 'object' && !Array.isArray(data.organization)) {
           const org = data.organization as any;
           processedOrg = {
             id: org.id || data.school_id || '',
             name: org.name || data.school_name,
-            code: org.code || data.school_code
+            code: org.code || data.school_code,
           };
         } else if (data.school_id) {
           processedOrg = {
             id: data.school_id,
             name: data.school_name,
-            code: data.school_code
+            code: data.school_code,
           };
         }
       } else if (data.school_id) {
         processedOrg = {
           id: data.school_id,
           name: data.school_name,
-          code: data.school_code
+          code: data.school_code,
         };
       }
-      
-      // Create processed profile with correctly typed organization
+
       const processedProfile: Profile = {
         ...data,
-        organization: processedOrg
+        organization: processedOrg,
       };
-      
+
       setProfile(processedProfile);
     } finally {
       setIsLoading(false);
@@ -292,7 +285,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     userRole,
     isSupervisor,
     isLoading,
-    loading: isLoading, // Add loading alias
+    loading: isLoading, // alias for backward compatibility
     isLoggedIn,
     signIn,
     signUp,
@@ -300,16 +293,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     updateProfile,
     setTestUser,
     schoolId,
-    session: sessionData
+    session: sessionData,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
+// Custom hook to consume AuthContext
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
