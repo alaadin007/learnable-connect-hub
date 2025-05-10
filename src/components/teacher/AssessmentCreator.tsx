@@ -14,10 +14,12 @@ import { Plus, Trash2, GripVertical, Copy, AlertCircle } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 
+type QuestionType = 'multiple_choice' | 'true_false' | 'short_answer';
+
 interface QuestionData {
   id: string;
   question_text: string;
-  question_type: 'multiple_choice' | 'true_false' | 'short_answer';
+  question_type: QuestionType;
   points: number;
   options: OptionData[];
 }
@@ -61,26 +63,27 @@ const AssessmentCreator = () => {
     setQuestions(updatedQuestions);
   };
   
-  const updateQuestion = (index: number, field: keyof QuestionData, value: any) => {
+  const updateQuestion = (index: number, field: keyof QuestionData, value: string | number | QuestionType) => {
     const updatedQuestions = [...questions];
     
     if (field === 'question_type' && value !== updatedQuestions[index].question_type) {
-      if (value === 'true_false') {
+      const newType = value as QuestionType;
+      if (newType === 'true_false') {
         updatedQuestions[index].options = [
           { id: `opt_${Date.now()}_1`, option_text: 'True', is_correct: false },
           { id: `opt_${Date.now()}_2`, option_text: 'False', is_correct: false },
         ];
-      } else if (value === 'multiple_choice' && updatedQuestions[index].options.length === 0) {
+      } else if (newType === 'multiple_choice' && updatedQuestions[index].options.length === 0) {
         updatedQuestions[index].options = [
           { id: `opt_${Date.now()}_1`, option_text: '', is_correct: false },
           { id: `opt_${Date.now()}_2`, option_text: '', is_correct: false },
         ];
-      } else if (value === 'short_answer') {
+      } else if (newType === 'short_answer') {
         updatedQuestions[index].options = [];
       }
     }
     
-    updatedQuestions[index][field] = value;
+    updatedQuestions[index][field] = value as never;
     setQuestions(updatedQuestions);
   };
   
@@ -101,7 +104,7 @@ const AssessmentCreator = () => {
     setQuestions(updatedQuestions);
   };
   
-  const updateOption = (questionIndex: number, optionIndex: number, field: keyof OptionData, value: any) => {
+  const updateOption = (questionIndex: number, optionIndex: number, field: keyof OptionData, value: string | boolean) => {
     const updatedQuestions = [...questions];
     
     if (field === 'is_correct' && value === true) {
@@ -113,7 +116,7 @@ const AssessmentCreator = () => {
       });
     }
     
-    updatedQuestions[questionIndex].options[optionIndex][field] = value;
+    updatedQuestions[questionIndex].options[optionIndex][field] = value as never;
     setQuestions(updatedQuestions);
   };
   
@@ -415,7 +418,7 @@ const AssessmentCreator = () => {
                                         <Label htmlFor={`question-type-${index}`}>Question Type</Label>
                                         <Select
                                           value={question.question_type}
-                                          onValueChange={(value: any) => updateQuestion(index, 'question_type', value)}
+                                          onValueChange={(value: QuestionType) => updateQuestion(index, 'question_type', value)}
                                         >
                                           <SelectTrigger id={`question-type-${index}`} className="mt-1">
                                             <SelectValue placeholder="Select a type" />

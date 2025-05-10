@@ -236,9 +236,6 @@ const AssessmentResults = () => {
               </div>
               <Progress 
                 value={getScorePercentage()} 
-                className="h-2 mt-2" 
-                // Fixed: indicatorClassName not supported, use className for styling instead
-                // Apply conditional class directly within the Progress component
                 className={`h-2 mt-2 ${getScorePercentage() >= 60 ? "[&>div]:bg-green-500" : "[&>div]:bg-red-500"}`}
               />
               <p className="text-sm mt-2 text-gray-500">

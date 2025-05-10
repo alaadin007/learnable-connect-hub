@@ -21,6 +21,12 @@ interface StudentProfile {
   avatar_url?: string;
 }
 
+interface ProfileData {
+  full_name: string;
+  email: string;
+  avatar_url?: string;
+}
+
 const TeacherAssessmentSubmission: React.FC = () => {
   const { assessmentId, submissionId } = useParams<{ assessmentId: string, submissionId: string }>();
   const navigate = useNavigate();
@@ -77,13 +83,14 @@ const TeacherAssessmentSubmission: React.FC = () => {
         setFeedback(submissionData.feedback || '');
         
         // Extract student info - with proper type checking to avoid errors
-        if (submissionData.student && 
-            submissionData.student.profiles) {
+        if (submissionData.student && submissionData.student.profiles) {
+          const profileData = submissionData.student.profiles as ProfileData;
+          
           setStudent({
             id: submissionData.student_id,
-            name: submissionData.student.profiles.full_name || 'Unknown Student',
-            email: submissionData.student.profiles.email || 'No email',
-            avatar_url: submissionData.student.profiles.avatar_url
+            name: profileData.full_name || 'Unknown Student',
+            email: profileData.email || 'No email',
+            avatar_url: profileData.avatar_url
           });
         } else {
           // Fallback when profile data is missing
