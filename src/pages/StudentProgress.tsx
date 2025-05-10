@@ -28,7 +28,7 @@ import {
 } from "recharts";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, Trophy, Activity, Clock, BookOpen, Video, AlertCircle } from "lucide-react";
+import { Trophy, Activity, Clock, BookOpen, Video, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { executeWithTimeout } from "@/utils/networkHelpers";
 
@@ -251,32 +251,12 @@ const StudentProgress = () => {
 
   const COLORS = ['#10B981', '#F59E0B'];
 
-  const renderContentWithFallback = (
-    isLoading: boolean, 
-    hasError: string | null, 
-    content: JSX.Element,
-    emptyMessage: string
-  ) => {
-    if (hasError) {
-      return (
-        <div className="bg-red-50 p-4 mb-4 rounded-md text-red-600">
-          <AlertCircle className="h-5 w-5 mb-2" />
-          <p>{hasError}</p>
-        </div>
-      );
-    }
-    
-    if (isLoading) {
-      return (
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-600 mr-3"></div>
-          <span>Loading...</span>
-        </div>
-      );
-    }
-    
-    return content;
-  };
+  // Function to render "No data available" message
+  const renderNoDataMessage = (message: string) => (
+    <div className="text-center py-8">
+      <p className="text-gray-500">{message}</p>
+    </div>
+  );
 
   return (
     <>
@@ -365,15 +345,18 @@ const StudentProgress = () => {
             </div>
 
             {/* Study Sessions Chart */}
-            {renderContentWithFallback(
-              loading && sessionData.length === 0, 
-              sessionsError,
-              sessionData.length > 0 ? (
-                <Card className="mb-8">
-                  <CardHeader>
-                    <CardTitle>Study Sessions History</CardTitle>
-                  </CardHeader>
-                  <CardContent className="h-[300px]">
+            <Card className="mb-8">
+              <CardHeader>
+                <CardTitle>Study Sessions History</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {sessionsError ? (
+                  <div className="bg-red-50 p-4 rounded-md text-red-600">
+                    <AlertCircle className="h-5 w-5 mb-2" />
+                    <p>{sessionsError}</p>
+                  </div>
+                ) : sessionData.length > 0 ? (
+                  <div className="h-[300px]">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={sessionData.slice(0, 10)}>
                         <CartesianGrid strokeDasharray="3 3" />
@@ -384,69 +367,68 @@ const StudentProgress = () => {
                         <Bar dataKey="minutes" name="Study Time" fill="#3B82F6" />
                       </BarChart>
                     </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-              ) : (
-                <Card className="mb-8">
-                  <CardHeader>
-                    <CardTitle>Study Sessions History</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-center py-12 text-gray-500">
-                      <p>No study session data available yet.</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              ),
-              "No study sessions found"
-            )}
+                  </div>
+                ) : (
+                  renderNoDataMessage("No study session data available")
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
           
           <TabsContent value="assessments">
             {/* Assessment Completion Chart */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-              {renderContentWithFallback(
-                loading && pieData.length === 0,
-                metricsError,
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Assessment Completion</CardTitle>
-                  </CardHeader>
-                  <CardContent className="h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={pieData}
-                          cx="50%"
-                          cy="50%"
-                          labelLine={false}
-                          outerRadius={80}
-                          fill="#8884d8"
-                          dataKey="value"
-                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                        >
-                          {pieData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip formatter={(value) => [`${value} assessments`, 'Count']} />
-                        <Legend />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>,
-                "No assessment data available"
-              )}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Assessment Completion</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {metricsError ? (
+                    <div className="bg-red-50 p-4 rounded-md text-red-600">
+                      <AlertCircle className="h-5 w-5 mb-2" />
+                      <p>{metricsError}</p>
+                    </div>
+                  ) : pieData.length > 0 && (pieData[0].value > 0 || pieData[1].value > 0) ? (
+                    <div className="h-[300px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={pieData}
+                            cx="50%"
+                            cy="50%"
+                            labelLine={false}
+                            outerRadius={80}
+                            fill="#8884d8"
+                            dataKey="value"
+                            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                          >
+                            {pieData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip formatter={(value) => [`${value} assessments`, 'Count']} />
+                          <Legend />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    renderNoDataMessage("No assessment data available")
+                  )}
+                </CardContent>
+              </Card>
               
               {/* Strengths and Weaknesses */}
-              {renderContentWithFallback(
-                loading && !metrics.top_strengths && !metrics.top_weaknesses,
-                metricsError,
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Performance Analysis</CardTitle>
-                  </CardHeader>
-                  <CardContent>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Performance Analysis</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {metricsError ? (
+                    <div className="bg-red-50 p-4 rounded-md text-red-600">
+                      <AlertCircle className="h-5 w-5 mb-2" />
+                      <p>{metricsError}</p>
+                    </div>
+                  ) : metrics?.top_strengths || metrics?.top_weaknesses ? (
                     <div className="space-y-6">
                       <div>
                         <h3 className="text-lg font-medium text-green-700 mb-2">Your Strengths</h3>
@@ -474,76 +456,75 @@ const StudentProgress = () => {
                         )}
                       </div>
                     </div>
-                  </CardContent>
-                </Card>,
-                "No performance analysis data available"
-              )}
+                  ) : (
+                    renderNoDataMessage("No performance analysis data available")
+                  )}
+                </CardContent>
+              </Card>
             </div>
           </TabsContent>
           
           <TabsContent value="lectures">
             <div className="space-y-6">
-              {renderContentWithFallback(
-                loading && lectureProgress.length === 0,
-                lecturesError,
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center">
-                      <BookOpen className="h-5 w-5 mr-2" />
-                      Course Lectures Progress
-                    </CardTitle>
-                    <CardDescription>
-                      Track your progress through course lectures
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {lectureProgress.length === 0 ? (
-                      <div className="text-center py-8 text-gray-500">
-                        <p>No lecture progress data available yet.</p>
-                        <div className="mt-2">
-                          <button 
-                            onClick={() => navigate('/student/lectures')} 
-                            className="text-blue-600 hover:underline"
-                          >
-                            Browse available lectures
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-6">
-                        {lectureProgress.map((lecture) => (
-                          <div key={lecture.id} className="space-y-2">
-                            <div className="flex justify-between items-center">
-                              <h4 className="font-medium flex items-center">
-                                <Video className="h-4 w-4 mr-2 text-blue-600" />
-                                {lecture.title}
-                              </h4>
-                              <span className="text-sm text-gray-500">
-                                {lecture.completed ? 'Completed' : `${lecture.progress}% complete`}
-                              </span>
-                            </div>
-                            <Progress value={lecture.progress} className="h-2" />
-                            <div className="flex justify-between text-xs text-gray-500">
-                              <span>Last watched: {lecture.last_watched}</span>
-                              <span>{lecture.duration_minutes} min</span>
-                            </div>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <BookOpen className="h-5 w-5 mr-2" />
+                    Course Lectures Progress
+                  </CardTitle>
+                  <CardDescription>
+                    Track your progress through course lectures
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {lecturesError ? (
+                    <div className="bg-red-50 p-4 rounded-md text-red-600">
+                      <AlertCircle className="h-5 w-5 mb-2" />
+                      <p>{lecturesError}</p>
+                    </div>
+                  ) : lectureProgress.length > 0 ? (
+                    <div className="space-y-6">
+                      {lectureProgress.map((lecture) => (
+                        <div key={lecture.id} className="space-y-2">
+                          <div className="flex justify-between items-center">
+                            <h4 className="font-medium flex items-center">
+                              <Video className="h-4 w-4 mr-2 text-blue-600" />
+                              {lecture.title}
+                            </h4>
+                            <span className="text-sm text-gray-500">
+                              {lecture.completed ? 'Completed' : `${lecture.progress}% complete`}
+                            </span>
                           </div>
-                        ))}
-                        
-                        <div className="pt-4 text-center">
-                          <button 
-                            onClick={() => navigate('/student/lectures')} 
-                            className="text-blue-600 hover:underline"
-                          >
-                            View all lectures
-                          </button>
+                          <Progress value={lecture.progress} className="h-2" />
+                          <div className="flex justify-between text-xs text-gray-500">
+                            <span>Last watched: {lecture.last_watched}</span>
+                            <span>{lecture.duration_minutes} min</span>
+                          </div>
                         </div>
+                      ))}
+                      
+                      <div className="pt-4 text-center">
+                        <button 
+                          onClick={() => navigate('/student/lectures')} 
+                          className="text-blue-600 hover:underline"
+                        >
+                          View all lectures
+                        </button>
                       </div>
-                    )}
-                  </CardContent>
-                </Card>,
-                "No lecture progress data available"
-              )}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <p className="text-gray-500 mb-4">No lecture progress data available yet.</p>
+                      <button 
+                        onClick={() => navigate('/student/lectures')} 
+                        className="text-blue-600 hover:underline"
+                      >
+                        Browse available lectures
+                      </button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </div>
           </TabsContent>
         </Tabs>
