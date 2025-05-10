@@ -44,6 +44,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { supabase } from "@/integrations/supabase/client";
 
 const profileFormSchema = z.object({
   fullName: z.string().min(2, "Name must be at least 2 characters"),
@@ -70,7 +71,7 @@ const securityFormSchema = z.object({
 });
 
 const StudentSettings: React.FC = () => {
-  const { user, profile, updateProfile } = useAuth();
+  const { user, profile } = useAuth();
   const { settings, updateSettings, isLoading } = useSettings();
   const [activeTab, setActiveTab] = useState("profile");
   const navigate = useNavigate();
@@ -130,9 +131,14 @@ const StudentSettings: React.FC = () => {
     try {
       if (!user) return;
       
-      await updateProfile({
-        full_name: values.fullName,
-      });
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          full_name: values.fullName,
+        })
+        .eq('id', user.id);
+
+      if (error) throw error;
       
       toast.success("Profile updated successfully");
     } catch (error) {
@@ -171,6 +177,12 @@ const StudentSettings: React.FC = () => {
   const onSecuritySubmit = async (values: z.infer<typeof securityFormSchema>) => {
     try {
       // This is just a placeholder - actual password update would use Supabase
+      const { error } = await supabase.auth.updateUser({
+        password: values.newPassword,
+      });
+      
+      if (error) throw error;
+      
       toast.success("Password updated successfully");
       securityForm.reset();
     } catch (error) {

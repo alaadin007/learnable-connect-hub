@@ -128,7 +128,9 @@ const FileList: React.FC = () => {
       const a = document.createElement('a');
       a.href = url;
       a.download = document.filename;
+      document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
       URL.revokeObjectURL(url);
       
     } catch (error) {
@@ -149,13 +151,13 @@ const FileList: React.FC = () => {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'completed':
-        return <CheckCircle className="h-4 w-4 text-green-500" title="Processing complete" />;
+        return <CheckCircle className="h-4 w-4 text-green-500" aria-label="Processing complete" />;
       case 'failed':
-        return <XCircle className="h-4 w-4 text-red-500" title="Processing failed" />;
+        return <XCircle className="h-4 w-4 text-red-500" aria-label="Processing failed" />;
       case 'processing':
-        return <Loader2 className="h-4 w-4 text-blue-500 animate-spin" title="Processing" />;
+        return <Loader2 className="h-4 w-4 text-blue-500 animate-spin" aria-label="Processing" />;
       default:
-        return <Clock className="h-4 w-4 text-orange-500" title="Pending processing" />;
+        return <Clock className="h-4 w-4 text-orange-500" aria-label="Pending processing" />;
     }
   };
 
@@ -211,7 +213,7 @@ const FileList: React.FC = () => {
             size="icon" 
             onClick={refreshDocuments} 
             disabled={refreshing}
-            title="Refresh"
+            aria-label="Refresh"
           >
             <RefreshCcw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
           </Button>
@@ -284,7 +286,7 @@ const FileList: React.FC = () => {
                           variant="ghost"
                           size="icon"
                           onClick={() => downloadDocument(doc)}
-                          title="Download"
+                          aria-label="Download"
                         >
                           <Download className="h-4 w-4" />
                         </Button>
@@ -293,7 +295,7 @@ const FileList: React.FC = () => {
                           size="icon"
                           onClick={() => confirmDelete(doc)}
                           className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          title="Delete"
+                          aria-label="Delete"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>

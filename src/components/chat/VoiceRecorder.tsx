@@ -7,15 +7,29 @@ import { supabase } from "@/integrations/supabase/client";
 
 interface VoiceRecorderProps {
   onTranscriptionComplete: (text: string) => void;
+  children?: React.ReactNode;
+  className?: string;
+  isRecording?: boolean;
+  setIsRecording?: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptionComplete }) => {
-  const [isRecording, setIsRecording] = useState(false);
+const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ 
+  onTranscriptionComplete, 
+  children, 
+  className,
+  isRecording: externalIsRecording,
+  setIsRecording: externalSetIsRecording
+}) => {
+  const [internalIsRecording, setInternalIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<number | null>(null);
+  
+  // Use either external or internal recording state
+  const isRecording = externalIsRecording !== undefined ? externalIsRecording : internalIsRecording;
+  const setIsRecording = externalSetIsRecording || setInternalIsRecording;
 
   // Add timer for recording duration
   useEffect(() => {
@@ -65,7 +79,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptionComplete }
       console.error('Error accessing microphone:', err);
       toast.error("Could not access microphone. Please check permissions.");
     }
-  }, []);
+  }, [setIsRecording]);
 
   const stopRecording = () => {
     if (mediaRecorderRef.current && isRecording) {
@@ -125,7 +139,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptionComplete }
       size="icon"
       onClick={isRecording ? stopRecording : startRecording}
       disabled={isProcessing}
-      className="flex items-center justify-center"
+      className={`flex items-center justify-center ${className || ''}`}
       type="button"
       title={isRecording ? "Stop recording" : "Record voice message"}
     >
@@ -137,7 +151,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptionComplete }
           <span className="ml-1 text-xs">{formatTime(recordingDuration)}</span>
         </div>
       ) : (
-        <Mic className="h-4 w-4" />
+        children || <Mic className="h-4 w-4" />
       )}
     </Button>
   );

@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -474,7 +473,7 @@ const PersistentChatInterface: React.FC<PersistentChatInterfaceProps> = ({
               <Paperclip className="h-4 w-4" />
             </Button>
             <VoiceRecorder
-              onTranscription={handleVoiceInput}
+              onTranscriptionComplete={handleVoiceInput}
               isRecording={isRecording}
               setIsRecording={setIsRecording}
               className="h-8 w-8"
