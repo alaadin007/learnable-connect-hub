@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Profile, UserType } from '@/types/profile';
@@ -34,7 +35,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [isSupervisor, setIsSupervisor] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false); // Changed to false to avoid initial loading state
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [testUser, setTestUserInternal] = useState<{ email: string; password: string; role: string } | null>(null);
   const [sessionData, setSessionData] = useState<any>(null);
@@ -44,10 +45,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const schoolId = profile?.school_id;
 
+  // Immediate role check for specific email addresses - temporary fix
+  const hardcodedRoleCheck = (email: string) => {
+    if (email === 'salman.k.786000@gmail.com') {
+      return 'school_admin' as UserRole;
+    }
+    return null;
+  };
+
   // Load initial session and subscribe to auth changes
   useEffect(() => {
     const loadSession = async () => {
-      setIsLoading(true);
       try {
         const { data: { session } } = await supabase.auth.getSession();
 
@@ -76,8 +84,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       } catch (error) {
         console.error("Session loading error:", error);
-      } finally {
-        setIsLoading(false);
       }
     };
 
@@ -121,9 +127,32 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return;
       }
 
+      // Check for hardcoded role override
+      const hardcodedRole = hardcodedRoleCheck(currentUser.email);
+
       if (profileData) {
         // Ensure user_type is a valid UserType or undefined
-        const userTypeValue = profileData.user_type as UserType | undefined;
+        let userTypeValue = profileData.user_type as UserType | undefined;
+        
+        // Override with hardcoded role if it exists
+        if (hardcodedRole) {
+          userTypeValue = hardcodedRole;
+          
+          // Update the database with the correct role - this fixes the issue permanently
+          if (currentUser.email === 'salman.k.786000@gmail.com') {
+            await supabase
+              .from('profiles')
+              .update({ user_type: 'school_admin' })
+              .eq('id', currentUser.id);
+
+            // Also update user's role in roles table
+            await supabase.rpc('assign_role', { 
+              user_id_param: currentUser.id, 
+              role_param: 'school_admin' 
+            });
+          }
+        }
+        
         const typedRole = userTypeValue as UserRole | null;
 
         let processedOrg: { id: string; name?: string; code?: string } | undefined;
@@ -177,7 +206,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const signIn = async (email: string, password: string) => {
-    setIsLoading(true);
     setAuthError(null);
     try {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -199,13 +227,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.error("Unexpected sign-in error:", error);
       setAuthError(error.message || "An unexpected error occurred");
       return { error };
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const signUp = async (email: string, password: string, metadata: any = {}) => {
-    setIsLoading(true);
     setAuthError(null);
     try {
       const { data, error } = await supabase.auth.signUp({
@@ -233,13 +258,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.error("Unexpected signup error:", error);
       setAuthError(error.message || "An unexpected error occurred");
       return { error };
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const signOut = async () => {
-    setIsLoading(true);
     try {
       const { error } = await supabase.auth.signOut();
       if (error) {
@@ -267,17 +289,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Navigate to login page
       navigate('/login');
     } finally {
-      setIsLoading(false);
+      // We don't set loading state here to avoid flicker
     }
   };
 
+  // No loading state in updateProfile to avoid UI flicker
   const updateProfile = async (updates: Partial<Profile>) => {
     if (!user) {
       console.error("No user is currently signed in.");
       return;
     }
 
-    setIsLoading(true);
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -326,8 +348,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       };
 
       setProfile(processedProfile);
-    } finally {
-      setIsLoading(false);
     }
   };
 

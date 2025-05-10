@@ -17,7 +17,6 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
-import { Loader2 } from 'lucide-react';
 
 const formSchema = z.object({
   email: z.string().email({
@@ -98,12 +97,7 @@ const LoginForm = () => {
           className="w-full" 
           disabled={isSubmitting}
         >
-          {isSubmitting ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Logging in...
-            </>
-          ) : "Log In"}
+          {isSubmitting ? "Logging in..." : "Log In"}
         </Button>
         <div className="text-sm text-center text-gray-500 pt-2">
           Don't have an account?{' '}

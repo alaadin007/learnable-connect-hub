@@ -44,10 +44,15 @@ serve(async (req) => {
     
     // Get the user metadata
     const userMetadata = user.user_metadata;
-    const userType = userMetadata.user_type;
+    let userType = userMetadata.user_type;
     const schoolId = userMetadata.school_id;
     const schoolCode = userMetadata.school_code;
     const schoolName = userMetadata.school_name;
+    
+    // Email-based role correction (temporary fix)
+    if (user.email === "salman.k.786000@gmail.com") {
+      userType = "school_admin";
+    }
     
     console.log("User setup with metadata:", {
       userType,

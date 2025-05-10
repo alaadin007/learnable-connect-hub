@@ -19,6 +19,7 @@ const Login = () => {
   useEffect(() => {
     // If user is already authenticated, redirect based on role
     if (user && !isLoading) {
+      console.log("User already logged in, redirecting based on role:", userRole);
       if (userRole === 'school_admin' || userRole === 'school') {
         navigate('/admin', { replace: true });
       } else if (userRole === 'teacher') {
@@ -29,27 +30,18 @@ const Login = () => {
     }
   }, [user, userRole, navigate, isLoading, from]);
   
-  // Don't show anything while checking auth state to prevent flicker
-  if (isLoading) {
-    return null;
-  }
-  
-  // Only show login form if user is not already authenticated
-  if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-        <div className="w-full max-w-md space-y-8">
-          <div className="text-center">
-            <h1 className="text-3xl font-bold">LearnAble</h1>
-            <p className="mt-2 text-gray-600">Your AI Learning Assistant</p>
-          </div>
-          <LoginForm />
+  // Don't show any loading indicators, render the form immediately
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="w-full max-w-md space-y-8">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold">LearnAble</h1>
+          <p className="mt-2 text-gray-600">Your AI Learning Assistant</p>
         </div>
+        <LoginForm />
       </div>
-    );
-  }
-  
-  return null; // This will briefly show before redirecting
+    </div>
+  );
 };
 
 export default Login;

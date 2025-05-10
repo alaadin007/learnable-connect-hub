@@ -17,7 +17,7 @@ const ProtectedRoute = ({
   allowedRoles,
   requireSupervisor = false,
 }: ProtectedRouteProps) => {
-  const { user, userRole, profile, isLoading } = useAuth();
+  const { user, userRole, profile } = useAuth();
   const location = useLocation();
   
   // Check if the user is logged in
@@ -25,13 +25,6 @@ const ProtectedRoute = ({
   
   // Check if the user is a supervisor
   const isSupervisor = profile?.is_supervisor || false;
-  
-  // If still loading auth state, return a minimal loading indicator to avoid flicker
-  if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center">
-      <p className="text-gray-500">Loading...</p>
-    </div>;
-  }
 
   // If not logged in, redirect to login with the return URL
   if (!isLoggedIn) {
