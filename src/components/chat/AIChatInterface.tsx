@@ -51,10 +51,10 @@ const AIChatInterface = () => {
   const copyTimeout = useRef<NodeJS.Timeout>();
   const inputRef = useRef<HTMLInputElement>(null);
   
-  // Check if API key is configured
+  // Check if API key is configured - fix property names
   const isApiKeyConfigured = settings?.aiProvider === 'openai' 
-    ? !!settings?.openaiApiKey 
-    : !!settings?.geminiApiKey;
+    ? !!settings?.openAiKey 
+    : !!settings?.geminiKey;
   
   // Initialize completion and handle AI responses
   const {
@@ -95,7 +95,7 @@ const AIChatInterface = () => {
   const apiKeyForm = useForm({
     resolver: zodResolver(ApiKeySchema),
     defaultValues: {
-      provider: settings?.settings.aiProvider || 'openai',
+      provider: settings?.aiProvider || 'openai',
       apiKey: '',
     },
   });

@@ -18,7 +18,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { AlertCircle } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { hasData, insertSchool, insertSchoolCode } from '@/utils/supabaseTypeHelpers';
+import { hasData, insertSchool, insertSchoolCode, asSchoolCode, asSchoolId } from '@/utils/supabaseTypeHelpers';
 import type { Database } from "@/integrations/supabase/types";
 
 const formSchema = z.object({
@@ -84,7 +84,7 @@ const SchoolRegistrationForm = () => {
       // Generate unique school code
       const schoolCode = generateSchoolCode();
       
-      // Create school record using our helper function
+      // Create school record using our helper function with proper type casting
       const { data: schoolData, error: schoolError } = await insertSchool({
         name: data.schoolName,
         code: schoolCode,
@@ -98,9 +98,9 @@ const SchoolRegistrationForm = () => {
       
       const schoolId = schoolData.id;
       
-      // Create school code record with reference to the school
+      // Create school code record with reference to the school using proper type casting
       const { data: schoolCodeData, error: schoolCodeError } = await insertSchoolCode({
-        code: schoolCode,
+        code: asSchoolCode(schoolCode),
         school_name: data.schoolName,
         school_id: schoolId,
         active: true
@@ -114,7 +114,7 @@ const SchoolRegistrationForm = () => {
           await supabase
             .from("schools")
             .delete()
-            .eq("id", schoolId);
+            .eq("id", asSchoolId(schoolId));
         }
           
         throw new Error("Failed to create school code");

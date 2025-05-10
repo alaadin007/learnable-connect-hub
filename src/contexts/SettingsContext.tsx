@@ -1,9 +1,9 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
 import { toast } from 'sonner';
 import { hasData, asId, safeApiKeyAccess } from '@/utils/supabaseTypeHelpers';
+import type { Database } from '@/integrations/supabase/types';
 
 interface SettingsContextType {
   theme: string;
@@ -137,14 +137,14 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
       const formattedKey = key.trim();
       
-      // Use our helper function from utils/supabaseTypeHelpers.ts
+      // Use upsertUserApiKey helper or handle the type casting properly
       const { data, error } = await supabase
         .from('user_api_keys')
         .upsert({
           user_id: user.id,
           provider,
           api_key: formattedKey
-        })
+        } as Database['public']['Tables']['user_api_keys']['Insert'])
         .select();
 
       if (error) {

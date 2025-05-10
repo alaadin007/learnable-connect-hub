@@ -1,243 +1,213 @@
+import React, { useState, useEffect } from 'react';
+import Navbar from '@/components/layout/Navbar';
+import Footer from '@/components/landing/Footer';
+import { useAuth } from '@/contexts/AuthContext';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { isSchoolAdmin, getUserRoleWithFallback } from "@/utils/apiHelpers";
 
-import React, { useState, useEffect } from "react";
-import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
-import Navbar from "@/components/layout/Navbar";
-import Footer from "@/components/landing/Footer";
-import StatsCard from "@/components/analytics/StatsCard";
-import { SchoolPerformancePanel } from "@/components/analytics/SchoolPerformancePanel";
-import { StudyTimeData, SchoolPerformanceData, SchoolPerformanceSummary } from "@/components/analytics/types";
-import { Users, BookOpen, MessageSquare, Clock } from "lucide-react";
-import { getSchoolIdWithFallback } from "@/utils/apiHelpers";
-import AdminNavbar from "@/components/school-admin/AdminNavbar";
+// Import the helper for type casting
+import { asSchoolId } from '@/utils/supabaseTypeHelpers';
+import type { Database } from '@/integrations/supabase/types';
 
 const AdminAnalytics = () => {
-  const { user, profile } = useAuth();
-  const [analyticsSummary, setAnalyticsSummary] = useState({
-    activeStudents: 0,
-    totalSessions: 0,
-    totalQueries: 0,
-    avgSessionMinutes: 0,
-  });
-  const [schoolPerformanceSummary, setSchoolPerformanceSummary] = useState<SchoolPerformanceSummary>({
-    total_assessments: 0,
-    students_with_submissions: 0,
-    total_students: 0,
-    avg_submissions_per_assessment: 0,
-    avg_score: 0,
-    completion_rate: 0,
-    student_participation_rate: 0,
-  });
-  const [schoolPerformanceData, setSchoolPerformanceData] = useState<SchoolPerformanceData[]>([]);
-  const [studyTimeData, setStudyTimeData] = useState<StudyTimeData[]>([]);
+  const { user, profile, userRole, schoolId } = useAuth();
+  const [analyticsSummary, setAnalyticsSummary] = useState<any>(null);
+  const [performanceMetrics, setPerformanceMetrics] = useState<any>(null);
+  const [studentEngagement, setStudentEngagement] = useState<any[]>([]);
+  const [teacherActivity, setTeacherActivity] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const fetchAnalyticsData = async () => {
-      try {
-        const schoolId = getSchoolIdWithFallback();
-
-        // Execute all queries concurrently for faster loading
-        const [
-          summaryResult,
-          performanceSummaryResult,
-          performanceResult,
-          studyTimeResult
-        ] = await Promise.all([
-          supabase.from('school_analytics_summary')
-            .select('*')
-            .eq('school_id', schoolId)
-            .single(),
-          supabase.from('school_performance_metrics')
-            .select('*')
-            .eq('school_id', schoolId)
-            .single(),
-          supabase.from('school_improvement_metrics')
-            .select('*')
-            .eq('school_id', schoolId)
-            .order('month', { ascending: false }),
-          supabase.from('student_weekly_study_time')
-            .select('*')
-            .eq('school_id', schoolId)
-        ]);
-
-        // Handle summary data
-        if (!summaryResult.error && summaryResult.data) {
-          setAnalyticsSummary({
-            activeStudents: summaryResult.data.active_students || 0,
-            totalSessions: summaryResult.data.total_sessions || 0,
-            totalQueries: summaryResult.data.total_queries || 0,
-            avgSessionMinutes: summaryResult.data.avg_session_minutes || 0,
-          });
-        } else {
-          console.error("Error fetching analytics summary:", summaryResult.error);
-          // Use fallback data if needed
-          setAnalyticsSummary({
-            activeStudents: 45,
-            totalSessions: 324,
-            totalQueries: 1250,
-            avgSessionMinutes: 32.5,
-          });
-        }
-
-        // Handle performance summary data
-        if (!performanceSummaryResult.error && performanceSummaryResult.data) {
-          setSchoolPerformanceSummary({
-            total_assessments: performanceSummaryResult.data.total_assessments || 0,
-            students_with_submissions: performanceSummaryResult.data.students_with_submissions || 0,
-            total_students: performanceSummaryResult.data.total_students || 0,
-            avg_submissions_per_assessment: performanceSummaryResult.data.avg_submissions_per_assessment || 0,
-            avg_score: performanceSummaryResult.data.avg_score || 0,
-            completion_rate: performanceSummaryResult.data.completion_rate || 0,
-            student_participation_rate: performanceSummaryResult.data.student_participation_rate || 0,
-          });
-        } else {
-          console.error("Error fetching school performance summary:", performanceSummaryResult.error);
-          // Use fallback data for better UX
-          setSchoolPerformanceSummary({
-            total_assessments: 24,
-            students_with_submissions: 38,
-            total_students: 45,
-            avg_submissions_per_assessment: 15.7,
-            avg_score: 78.4,
-            completion_rate: 87.2,
-            student_participation_rate: 91.3,
-          });
-        }
-
-        // Handle performance data
-        if (!performanceResult.error && performanceResult.data) {
-          setSchoolPerformanceData(performanceResult.data);
-        } else {
-          console.error("Error fetching school performance data:", performanceResult.error);
-          setSchoolPerformanceData(generateSamplePerformanceData());
-        }
-
-        // Handle study time data
-        if (!studyTimeResult.error && studyTimeResult.data) {
-          setStudyTimeData(prepareStudyTimeData(studyTimeResult.data));
-        } else {
-          console.error("Error fetching student study time:", studyTimeResult.error);
-          setStudyTimeData(prepareStudyTimeData([])); // Will use fallback data
-        }
-      } catch (error) {
-        console.error("Error fetching analytics data:", error);
-        // Use fallback data if there's an exception
-        setAnalyticsSummary({
-          activeStudents: 45,
-          totalSessions: 324,
-          totalQueries: 1250,
-          avgSessionMinutes: 32.5,
-        });
-        setSchoolPerformanceSummary({
-          total_assessments: 24,
-          students_with_submissions: 38,
-          total_students: 45,
-          avg_submissions_per_assessment: 15.7,
-          avg_score: 78.4,
-          completion_rate: 87.2,
-          student_participation_rate: 91.3,
-        });
-        setSchoolPerformanceData(generateSamplePerformanceData());
-        setStudyTimeData(prepareStudyTimeData([]));
-      }
-    };
-
-    fetchAnalyticsData();
-  }, []);
-
-  // Update the function that prepares study time data to handle the week type properly
-  const prepareStudyTimeData = (data: any[]): StudyTimeData[] => {
-    if (!data || data.length === 0) {
-      // Return sample data if no real data is available
-      return [
-        { student_id: "1", student_name: "Alice Smith", total_minutes: 240, week: "1", year: 2023 },
-        { student_id: "2", student_name: "Bob Jones", total_minutes: 180, week: "1", year: 2023 },
-        { student_id: "3", student_name: "Carol Wilson", total_minutes: 300, week: "1", year: 2023 },
-        { student_id: "4", student_name: "David Brown", total_minutes: 120, week: "1", year: 2023 },
-        { student_id: "5", student_name: "Eve Davis", total_minutes: 210, week: "1", year: 2023 },
-      ];
+    if (user && schoolId) {
+      fetchAnalyticsData();
     }
+  }, [user, schoolId]);
 
-    // Convert to StudyTimeData format with backward compatibility for existing code
-    return data.map(item => ({
-      student_id: item.student_id || item.userId || "",
-      student_name: item.student_name || item.studentName || item.name || "",
-      total_minutes: item.total_minutes || (item.hours ? item.hours * 60 : 0),
-      // Map all existing fields for backward compatibility
-      studentName: item.student_name || item.studentName || item.name || "",
-      name: item.student_name || item.studentName || item.name || "",
-      hours: item.hours || (item.total_minutes ? item.total_minutes / 60 : 0),
-      week: String(item.week_number || item.week || "1"), // Convert to string to ensure compatibility
-      year: Number(item.year || new Date().getFullYear())
-    }));
+  const fetchAnalyticsData = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Cast school ID to proper type
+      const typedSchoolId = asSchoolId(schoolId);
+      
+      // Get basic analytics summary
+      const { data: analyticsSummary, error: summaryError } = await supabase
+        .from('school_analytics_summary')
+        .select('*')
+        .eq('school_id', typedSchoolId)
+        .limit(1);
+        
+      if (summaryError) throw summaryError;
+      
+      // Get performance metrics
+      const { data: performanceData, error: perfError } = await supabase
+        .from('school_performance_metrics')
+        .select('*')
+        .eq('school_id', typedSchoolId)
+        .limit(1);
+        
+      if (perfError) throw perfError;
+      
+      // Get student engagement data
+      const { data: studentData, error: studentError } = await supabase
+        .from('student_engagement_metrics')
+        .select('*')
+        .eq('school_id', typedSchoolId);
+        
+      if (studentError) throw studentError;
+      
+      // Get teacher activity data
+      const { data: teacherData, error: teacherError } = await supabase
+        .from('teacher_activity_metrics')
+        .select('*')
+        .eq('school_id', typedSchoolId);
+        
+      if (teacherError) throw teacherError;
+
+      setAnalyticsSummary(analyticsSummary?.[0] || null);
+      setPerformanceMetrics(performanceData?.[0] || null);
+      setStudentEngagement(studentData || []);
+      setTeacherActivity(teacherData || []);
+    } catch (error: any) {
+      console.error("Error fetching analytics data:", error);
+      toast.error("Failed to load analytics data");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const generateSamplePerformanceData = (): SchoolPerformanceData[] => {
-    const months = [5, 4, 3, 2, 1, 0];
-    const today = new Date();
-    
-    return months.map(monthsAgo => {
-      const date = new Date(today);
-      date.setMonth(today.getMonth() - monthsAgo);
-      
-      const baseScore = 70 + Math.random() * 15;
-      const baseCompletionRate = 60 + Math.random() * 25;
-      
-      return {
-        month: date.toISOString().substring(0, 10), // Format as YYYY-MM-DD
-        avg_monthly_score: Number(baseScore.toFixed(1)),
-        monthly_completion_rate: Number(baseCompletionRate.toFixed(1)),
-        score_improvement_rate: Number((Math.random() * 10 - 5).toFixed(1)),
-        completion_improvement_rate: Number((Math.random() * 10 - 3).toFixed(1))
-      };
-    });
+  const renderBarChart = (data: any[], dataKey: string, name: string) => (
+    <ResponsiveContainer width="100%" height={300}>
+      <BarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+        <CartesianGrid strokeDasharray="3 3" />
+        <XAxis dataKey="name" />
+        <YAxis />
+        <Tooltip />
+        <Legend />
+        <Bar dataKey={dataKey} name={name} fill="#8884d8" />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+
+  const renderPieChart = (data: any[], nameKey: string, valueKey: string) => {
+    const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
+
+    return (
+      <ResponsiveContainer width="100%" height={300}>
+        <PieChart>
+          <Pie
+            data={data}
+            dataKey={valueKey}
+            nameKey={nameKey}
+            cx="50%"
+            cy="50%"
+            outerRadius={80}
+            fill="#8884d8"
+            label
+          >
+            {data.map((entry, index) => (
+              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+            ))}
+          </Pie>
+          <Tooltip />
+          <Legend />
+        </PieChart>
+      </ResponsiveContainer>
+    );
   };
+
+  if (!user || !schoolId) {
+    return <div className="flex justify-center items-center h-screen">Loading...</div>;
+  }
+
+  const fallbackRole = getUserRoleWithFallback();
+  const effectiveRole = userRole || fallbackRole;
+  const isAdmin = isSchoolAdmin(effectiveRole);
+
+  if (!isAdmin) {
+    return <div className="flex justify-center items-center h-screen">Unauthorized</div>;
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
       <main className="flex-grow bg-learnable-super-light py-8">
         <div className="container mx-auto px-4">
-          <h1 className="text-3xl font-bold mb-6">School Analytics</h1>
-          
-          <AdminNavbar />
+          <h1 className="text-3xl font-bold gradient-text mb-6">Admin Analytics</h1>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <StatsCard
-              title="Active Students"
-              value={analyticsSummary.activeStudents}
-              description="Number of students active this week"
-              icon={<Users className="h-5 w-5" />}
-              isLoading={false}
-            />
-            <StatsCard
-              title="Total Sessions"
-              value={analyticsSummary.totalSessions}
-              description="Total learning sessions this week"
-              icon={<BookOpen className="h-5 w-5" />}
-              isLoading={false}
-            />
-            <StatsCard
-              title="Total Queries"
-              value={analyticsSummary.totalQueries}
-              description="Total questions asked this week"
-              icon={<MessageSquare className="h-5 w-5" />}
-              isLoading={false}
-            />
-            <StatsCard
-              title="Avg. Session Time"
-              value={`${analyticsSummary.avgSessionMinutes.toFixed(1)} mins`}
-              description="Average session duration"
-              icon={<Clock className="h-5 w-5" />}
-              isLoading={false}
-            />
-          </div>
-          
-          <SchoolPerformancePanel 
-            data={schoolPerformanceData}
-            summary={schoolPerformanceSummary}
-            isLoading={false}
-          />
+          {isLoading ? (
+            <div className="flex justify-center items-center h-48">Loading analytics data...</div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>School Summary</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {analyticsSummary ? (
+                      <>
+                        <p>Total Students: {analyticsSummary.total_students}</p>
+                        <p>Total Teachers: {analyticsSummary.total_teachers}</p>
+                        <p>Total Courses: {analyticsSummary.total_courses}</p>
+                      </>
+                    ) : (
+                      <p>No summary data available.</p>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Performance Metrics</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {performanceMetrics ? (
+                      <>
+                        <p>Average Test Score: {performanceMetrics.average_test_score}</p>
+                        <p>Attendance Rate: {performanceMetrics.attendance_rate}%</p>
+                      </>
+                    ) : (
+                      <p>No performance data available.</p>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="mb-8">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Student Engagement</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {studentEngagement.length > 0 ? (
+                      renderBarChart(studentEngagement, 'engagement_score', 'Engagement Score')
+                    ) : (
+                      <p>No student engagement data available.</p>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="mb-8">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Teacher Activity</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {teacherActivity.length > 0 ? (
+                      renderPieChart(teacherActivity, 'teacher_name', 'activity_count')
+                    ) : (
+                      <p>No teacher activity data available.</p>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </>
+          )}
         </div>
       </main>
       <Footer />

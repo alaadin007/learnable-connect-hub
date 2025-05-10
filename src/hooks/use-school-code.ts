@@ -12,12 +12,12 @@ interface UseSchoolCodeResult {
   }>;
   loading: boolean;
   error: string | null;
-  // Adding missing properties used in SchoolCodeGenerator and Manager
-  generateCode?: () => Promise<string | null>;
-  isGenerating?: boolean;
-  codeHistory?: any[];
-  loadCodeHistory?: () => Promise<void>;
-  generateStudentInviteCode?: () => Promise<string | null>;
+  // Added properties used in SchoolCodeGenerator and Manager
+  generateCode: () => Promise<string | null>;
+  isGenerating: boolean;
+  codeHistory: any[];
+  loadCodeHistory: () => Promise<void>;
+  generateStudentInviteCode: () => Promise<string | null>;
 }
 
 export function useSchoolCode(): UseSchoolCodeResult {
@@ -48,26 +48,101 @@ export function useSchoolCode(): UseSchoolCodeResult {
     }
   };
 
+  // Implement proper generateCode function for SchoolCodeGenerator compatibility
   const generateCode = async (): Promise<string | null> => {
     setIsGenerating(true);
     try {
-      // Implementation would be here in a real context
-      setIsGenerating(false);
-      return "GENERATED_CODE";
-    } catch (err) {
-      setIsGenerating(false);
+      // API call to generate a new school code
+      const { data, error } = await supabase.rpc('generate_new_school_code');
+      
+      if (error) {
+        throw error;
+      }
+      
+      if (data) {
+        toast.success("New school code generated successfully");
+        return data;
+      }
+      
       return null;
+    } catch (err: any) {
+      toast.error("Failed to generate school code", {
+        description: err.message
+      });
+      return null;
+    } finally {
+      setIsGenerating(false);
     }
   };
 
+  // Implement loadCodeHistory function for SchoolCodeManager compatibility
   const loadCodeHistory = async (): Promise<void> => {
-    // Mock implementation
-    setCodeHistory([]);
+    try {
+      setLoading(true);
+      // Get current school ID
+      const { data: schoolInfo, error: schoolError } = await supabase.rpc('get_current_school_info');
+      
+      if (schoolError || !schoolInfo || schoolInfo.length === 0) {
+        throw new Error("Failed to get school info");
+      }
+      
+      const schoolId = schoolInfo[0].school_id;
+      
+      // Get code history
+      const { data, error } = await supabase
+        .from('school_code_logs')
+        .select('*')
+        .eq('school_id', schoolId)
+        .order('generated_at', { ascending: false });
+        
+      if (error) {
+        throw error;
+      }
+      
+      setCodeHistory(data || []);
+    } catch (err: any) {
+      console.error("Error loading code history:", err);
+      toast.error("Failed to load code history");
+    } finally {
+      setLoading(false);
+    }
   };
 
+  // Implement generateStudentInviteCode for compatibility 
   const generateStudentInviteCode = async (): Promise<string | null> => {
-    // Mock implementation
-    return "STUDENT_CODE";
+    try {
+      setIsGenerating(true);
+      // Get current school ID
+      const { data: schoolInfo, error: schoolError } = await supabase.rpc('get_current_school_info');
+      
+      if (schoolError || !schoolInfo || schoolInfo.length === 0) {
+        throw new Error("Failed to get school info");
+      }
+      
+      const schoolId = schoolInfo[0].school_id;
+      
+      // Generate student invite code
+      const { data, error } = await supabase.rpc('create_student_invitation', {
+        school_id_param: schoolId
+      });
+      
+      if (error) {
+        throw error;
+      }
+      
+      if (data && data.length > 0) {
+        return data[0].code;
+      }
+      
+      return null;
+    } catch (err: any) {
+      toast.error("Failed to generate student invite code", {
+        description: err.message
+      });
+      return null;
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   return { 

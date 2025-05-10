@@ -20,9 +20,9 @@ const clientOptions = {
       'apikey': supabaseAnonKey
     }
   },
-  // Add better error handling
+  // Fix the schema type by using string literal
   db: {
-    schema: 'public'
+    schema: "public" as const
   },
   realtime: {
     params: {

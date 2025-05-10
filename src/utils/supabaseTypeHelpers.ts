@@ -72,6 +72,28 @@ export function asId<T = string>(id: string): T {
 }
 
 /**
+ * Type-safe helper for casting string values to database column types
+ * Use this when you need to convert a string to a specific DB column type
+ */
+export function asDbColumn<T>(value: string): T {
+  return value as unknown as T;
+}
+
+/**
+ * Helper function for safely casting to Database schema types
+ */
+export function asSchoolId(id: string): Database['public']['Tables']['schools']['Row']['id'] {
+  return id as unknown as Database['public']['Tables']['schools']['Row']['id'];
+}
+
+/**
+ * Helper function for safely casting to school code type
+ */
+export function asSchoolCode(code: string): Database['public']['Tables']['school_codes']['Row']['code'] {
+  return code as unknown as Database['public']['Tables']['school_codes']['Row']['code'];
+}
+
+/**
  * Helper function to properly type Supabase profile inserts
  */
 export const insertProfile = async (profileData: {
@@ -535,3 +557,4 @@ export function isValidStudentInvite(invite: any): invite is {
     'id' in invite &&
     'status' in invite;
 }
+

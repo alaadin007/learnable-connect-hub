@@ -61,10 +61,10 @@ const PersistentChatInterface: React.FC<PersistentChatInterfaceProps> = ({
   const navigate = useNavigate();
   const { settings, isLoading: isSettingsLoading } = useSettings();
   
-  // Check if API key is configured
+  // Check if API key is configured - fix property names
   const isApiKeyConfigured = settings?.aiProvider === 'openai' 
-    ? !!settings?.openaiApiKey 
-    : !!settings?.geminiApiKey;
+    ? !!settings?.openAiKey 
+    : !!settings?.geminiKey;
 
   // Fetch conversation history when conversationId changes
   useEffect(() => {

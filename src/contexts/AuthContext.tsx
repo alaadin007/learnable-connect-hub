@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Session, User, AuthError } from '@supabase/supabase-js';
@@ -106,7 +105,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const profileResponse = await getUserProfile(user.id);
       
       if (hasData(profileResponse) && profileResponse.data) {
-        const profileData = profileResponse.data as ProfileData;
+        // Safe to access profileData properties now
+        const profileData = profileResponse.data;
         setProfile(profileData);
         
         // Set user role flags

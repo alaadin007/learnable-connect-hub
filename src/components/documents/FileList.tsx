@@ -1,20 +1,14 @@
+import React, { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Trash2, Download, FileText } from 'lucide-react';
+import { toast } from 'sonner';
+import { hasData, deleteDocument, deleteDocumentContent } from '@/utils/supabaseTypeHelpers';
 
-import React, { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
-import { Button } from "@/components/ui/button";
-import { 
-  FileText, 
-  Trash2, 
-  AlertCircle, 
-  Check, 
-  Clock,
-  RefreshCw
-} from "lucide-react";
-import { toast } from "sonner";
-import { asId, hasData } from '@/utils/supabaseTypeHelpers';
-
-interface DocumentItem {
+// Define document type for clarity
+interface Document {
   id: string;
   filename: string;
   file_type: string;
@@ -26,240 +20,208 @@ interface DocumentItem {
 
 const FileList = () => {
   const { user } = useAuth();
-  const [documents, setDocuments] = useState<DocumentItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [deleting, setDeleting] = useState<{[key: string]: boolean}>({});
+
+  useEffect(() => {
+    if (user) {
+      fetchDocuments();
+    }
+  }, [user]);
 
   const fetchDocuments = async () => {
     try {
-      if (!user) return;
+      setLoading(true);
       
       const { data, error } = await supabase
         .from('documents')
         .select('*')
-        .eq('user_id', asId(user.id))
+        .eq('user_id', user?.id)
         .order('created_at', { ascending: false });
-
+      
       if (error) {
-        toast.error("Failed to load documents");
-        console.error("Error fetching documents:", error);
-        return;
+        throw error;
       }
       
       if (data) {
-        // Safely convert the data to our expected DocumentItem type
-        const documentItems: DocumentItem[] = data.map(item => ({
-          id: item.id as string,
-          filename: item.filename as string,
-          file_type: item.file_type as string,
-          processing_status: item.processing_status as string,
-          created_at: item.created_at as string,
-          file_size: item.file_size as number,
-          storage_path: item.storage_path as string
-        }));
-        setDocuments(documentItems);
-      } else {
-        setDocuments([]);
+        setDocuments(data as Document[]);
       }
-    } catch (err) {
-      console.error("Error in fetchDocuments:", err);
-      toast.error("An error occurred while loading documents");
+    } catch (error: any) {
+      console.error('Error fetching documents:', error);
+      toast.error('Failed to load documents');
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   };
 
-  useEffect(() => {
-    fetchDocuments();
-  }, [user]);
-
-  const handleRefresh = () => {
-    setRefreshing(true);
-    fetchDocuments();
+  const handleDelete = async (documentId: string) => {
+    try {
+      // Show deleting state for this document
+      setDeleting(prev => ({ ...prev, [documentId]: true }));
+      
+      // Delete document content first
+      const contentResult = await deleteDocumentContent(documentId);
+      if (contentResult.error) {
+        console.warn('Warning deleting document content:', contentResult.error);
+        // Continue anyway as the document content might not exist
+      }
+      
+      // Delete document record
+      const docResult = await deleteDocument(documentId);
+      if (docResult.error) {
+        throw docResult.error;
+      }
+      
+      // Delete from storage
+      const document = documents.find(doc => doc.id === documentId);
+      if (document?.storage_path) {
+        const { error: storageError } = await supabase.storage
+          .from('documents')
+          .remove([document.storage_path]);
+          
+        if (storageError) {
+          console.warn('Warning deleting storage file:', storageError);
+          // Continue anyway as the document record is already deleted
+        }
+      }
+      
+      // Update local state
+      setDocuments(documents.filter(doc => doc.id !== documentId));
+      toast.success('Document deleted successfully');
+    } catch (error: any) {
+      console.error('Error deleting document:', error);
+      toast.error('Failed to delete document');
+    } finally {
+      setDeleting(prev => ({ ...prev, [documentId]: false }));
+    }
   };
 
-  const handleViewDocument = async (documentId: string) => {
+  const handleDownload = async (document: Document) => {
     try {
-      // First get document content
+      // Get document content if it exists
       const { data: contentData, error: contentError } = await supabase
         .from('document_content')
         .select('content')
-        .eq('document_id', asId(documentId))
-        .maybeSingle();
-        
-      if (contentError) {
-        toast.warning("Error retrieving document content");
-        console.error("Error retrieving document content:", contentError);
-        return;
+        .eq('document_id', document.id)
+        .single();
+      
+      if (contentError && contentError.code !== 'PGRST116') { // Not found is ok
+        throw contentError;
       }
       
-      if (!contentData) {
-        toast.warning("Document content not found");
-        return;
+      // Get download URL
+      const { data, error } = await supabase.storage
+        .from('documents')
+        .createSignedUrl(document.storage_path, 60); // 60 seconds expiry
+      
+      if (error) {
+        throw error;
       }
       
-      // Find the document to get its name
-      const document = documents.find(doc => doc.id === documentId);
-      if (!document) return;
-      
-      // Check if content is available
-      const content = contentData.content;
-      if (!content) {
-        toast.warning("Document content is empty or still processing");
-        return;
+      if (data?.signedUrl) {
+        // Download the file
+        window.open(data.signedUrl, '_blank');
       }
-      
-      // Display content in a new tab 
-      const newWindow = window.open('', '_blank');
-      if (newWindow) {
-        newWindow.document.write(`
-          <!DOCTYPE html>
-          <html>
-            <head>
-              <title>${document.filename}</title>
-              <meta charset="UTF-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <style>
-                body { font-family: Arial, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px; }
-                pre { white-space: pre-wrap; background: #f5f5f5; padding: 15px; border-radius: 5px; }
-              </style>
-            </head>
-            <body>
-              <h1>${document.filename}</h1>
-              <pre>${content}</pre>
-            </body>
-          </html>
-        `);
-      }
-      
-    } catch (err) {
-      console.error("Error viewing document:", err);
-      toast.error("An error occurred while retrieving document content");
+    } catch (error: any) {
+      console.error('Error downloading document:', error);
+      toast.error('Failed to download document');
+    }
+  };
+  
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  };
+
+  const formatDate = (dateString: string): string => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+  };
+
+  const getStatusColor = (status: string): string => {
+    switch (status) {
+      case 'completed':
+        return 'text-green-600';
+      case 'processing':
+        return 'text-blue-600';
+      case 'pending':
+        return 'text-yellow-600';
+      case 'failed':
+        return 'text-red-600';
+      default:
+        return 'text-gray-600';
     }
   };
 
-  const handleDeleteDocument = async (documentId: string) => {
-    if (!confirm("Are you sure you want to delete this document?")) return;
-    
-    try {
-      // Delete content first due to foreign key constraints
-      const { error: contentDeleteError } = await supabase
-        .from('document_content')
-        .delete()
-        .eq('document_id', asId(documentId));
-        
-      if (contentDeleteError) {
-        console.error("Error deleting document content:", contentDeleteError);
-      }
-      
-      // Then delete the document record
-      const { error: docDeleteError } = await supabase
-        .from('documents')
-        .delete()
-        .eq('id', asId(documentId));
-        
-      if (docDeleteError) {
-        throw docDeleteError;
-      }
-      
-      // Update the UI
-      setDocuments(documents.filter(doc => doc.id !== documentId));
-      toast.success("Document deleted successfully");
-      
-    } catch (err) {
-      console.error("Error deleting document:", err);
-      toast.error("Failed to delete document");
-    }
+  const getFileIcon = (fileType: string) => {
+    // You could add more specific icons based on file type
+    return <FileText className="h-5 w-5 text-gray-500" />;
   };
 
   if (loading) {
-    return <p className="text-center py-8">Loading your documents...</p>;
+    return (
+      <div className="flex justify-center items-center py-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  if (documents.length === 0) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-gray-500">No documents found. Upload some files to get started.</p>
+      </div>
+    );
   }
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-semibold">Your Documents</h2>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleRefresh}
-          disabled={refreshing}
-        >
-          {refreshing ? (
-            <>
-              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-              Refreshing...
-            </>
-          ) : (
-            <>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Refresh
-            </>
-          )}
-        </Button>
-      </div>
-      {documents.length === 0 ? (
-        <div className="text-center py-8">
-          <p className="text-muted-foreground">No documents uploaded yet.</p>
-        </div>
-      ) : (
-        <div className="grid gap-4">
-          {documents.map((doc) => (
-            <div
-              key={doc.id}
-              className="border rounded-md p-4 flex items-center justify-between"
-            >
-              <div className="flex items-center">
-                <FileText className="h-5 w-5 mr-2 text-blue-500" />
+    <div className="space-y-4">
+      {documents.map((doc) => (
+        <Card key={doc.id} className="overflow-hidden">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                {getFileIcon(doc.file_type)}
                 <div>
                   <h3 className="font-medium">{doc.filename}</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Uploaded: {new Date(doc.created_at).toLocaleDateString()}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Status:{" "}
-                    {doc.processing_status === "pending" ? (
-                      <span className="inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-800">
-                        <Clock className="mr-1.5 h-3 w-3" />
-                        Processing
-                      </span>
-                    ) : doc.processing_status === "completed" ? (
-                      <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
-                        <Check className="mr-1.5 h-3 w-3" />
-                        Completed
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">
-                        <AlertCircle className="mr-1.5 h-3 w-3" />
-                        Failed
-                      </span>
-                    )}
-                  </p>
+                  <div className="flex space-x-4 text-xs text-gray-500">
+                    <span>{formatFileSize(doc.file_size)}</span>
+                    <span>{formatDate(doc.created_at)}</span>
+                    <span className={getStatusColor(doc.processing_status)}>
+                      {doc.processing_status.charAt(0).toUpperCase() + doc.processing_status.slice(1)}
+                    </span>
+                  </div>
                 </div>
               </div>
-              <div className="flex items-center space-x-2">
+              <div className="flex space-x-2">
                 <Button
-                  variant="secondary"
+                  variant="outline"
                   size="sm"
-                  onClick={() => handleViewDocument(doc.id)}
+                  onClick={() => handleDownload(doc)}
                 >
-                  View
+                  <Download className="h-4 w-4 mr-1" />
+                  Download
                 </Button>
                 <Button
                   variant="destructive"
                   size="sm"
-                  onClick={() => handleDeleteDocument(doc.id)}
+                  onClick={() => handleDelete(doc.id)}
+                  disabled={deleting[doc.id]}
                 >
-                  <Trash2 className="h-4 w-4 mr-2" />
+                  {deleting[doc.id] ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  ) : (
+                    <Trash2 className="h-4 w-4 mr-1" />
+                  )}
                   Delete
                 </Button>
               </div>
             </div>
-          ))}
-        </div>
-      )}
+          </CardContent>
+        </Card>
+      ))}
     </div>
   );
 };
