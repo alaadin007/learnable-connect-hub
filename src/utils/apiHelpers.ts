@@ -12,8 +12,8 @@ import {
 } from '@/components/analytics/types';
 import { processProfileData } from '@/utils/analyticsUtils';
 
-// Define UserType enum and export it
-export type UserRole = 'student' | 'teacher' | 'school_admin' | 'teacher_supervisor';
+// Define UserRole type and export it
+export type UserRole = 'student' | 'teacher' | 'school_admin' | 'teacher_supervisor' | 'school';
 
 // Helper functions
 
@@ -547,129 +547,24 @@ export async function getSessionLogs(schoolId: string, filters?: AnalyticsFilter
 /**
  * Get popular topics data
  */
-export async function getTopics(schoolId: string, filters?: AnalyticsFilters): Promise<TopicData[]> {
-  try {
-    const { data, error } = await supabase
-      .from('most_studied_topics')
-      .select('*')
-      .eq('school_id', schoolId);
-      
-    if (error) throw error;
-    
-    // Calculate percentages
-    const totalCount = data?.reduce((sum, item) => sum + (item.count_of_sessions || 0), 0) || 0;
-    
-    return data?.map(item => ({
-      id: item.topic_or_content_used || `topic-${Math.random().toString(36).substring(7)}`,
-      topic: item.topic_or_content_used || 'Unknown Topic',
-      count: item.count_of_sessions || 0,
-      percentage: totalCount ? Math.round((item.count_of_sessions || 0) / totalCount * 100) : 0,
-      // Add compatibility fields
-      name: item.topic_or_content_used || 'Unknown Topic',
-      value: item.count_of_sessions || 0
-    })) || [];
-  } catch (err) {
-    console.error('Error getting popular topics:', err);
-    return [];
-  }
+export async function getPopularTopics(schoolId: string, filters?: AnalyticsFilters): Promise<TopicData[]> {
+  return getTopics(schoolId, filters);
 }
 
 /**
  * Get student study time data
  */
-export async function getStudyTime(schoolId: string, filters?: AnalyticsFilters): Promise<StudyTimeData[]> {
-  try {
-    const { data, error } = await supabase
-      .from('student_weekly_study_time')
-      .select('*')
-      .eq('school_id', schoolId);
-      
-    if (error) throw error;
-    
-    return data?.map(item => ({
-      student_id: item.user_id || '',
-      student_name: item.student_name || 'Unknown Student',
-      total_minutes: Math.round((item.study_hours || 0) * 60),
-      sessions_count: 0, // This might need to be calculated separately
-      // Add compatibility fields
-      name: item.student_name || 'Unknown Student',
-      studentName: item.student_name || 'Unknown Student',
-      hours: item.study_hours || 0
-    })) || [];
-  } catch (err) {
-    console.error('Error getting student study time:', err);
-    return [];
-  }
+export async function getStudentStudyTime(schoolId: string, filters?: AnalyticsFilters): Promise<StudyTimeData[]> {
+  return getStudyTime(schoolId, filters);
 }
 
 /**
- * Format a date range as a readable string
+ * Get school ID with fallback for legacy components
  */
-export function getDateRangeText(dateRange?: DateRange): string {
-  if (!dateRange) return 'All Time';
-  
-  const fromDate = dateRange.from ? format(dateRange.from, 'MMM d, yyyy') : '';
-  const toDate = dateRange.to ? format(dateRange.to, 'MMM d, yyyy') : 'Present';
-  
-  return `${fromDate} to ${toDate}`;
+export function getSchoolIdSync(defaultId: string = 'test-school-0'): string {
+  // Use a default value until the async function resolves
+  return defaultId;
 }
-
-/**
- * Export analytics data to CSV
- */
-export function exportAnalyticsToCSV(
-  summary: AnalyticsSummary,
-  sessions: SessionData[],
-  topics: TopicData[],
-  studyTime: StudyTimeData[],
-  dateRangeText: string
-): void {
-  // Create CSV for sessions
-  const sessionsCSV = [
-    'Student Name,Start Time,End Time,Duration (min),Queries,Topic',
-    ...sessions.map(s => 
-      `"${s.student_name}","${s.start_time}","${s.end_time || ''}",${s.duration_minutes},${s.queries_count},"${s.topic || ''}"`)
-  ].join('\n');
-  
-  downloadCSV(sessionsCSV, `sessions-${dateRangeText.replace(/\s+/g, '-')}.csv`);
-  
-  // Create CSV for topics
-  const topicsCSV = [
-    'Topic,Count,Percentage',
-    ...topics.map(t => `"${t.topic}",${t.count},${t.percentage}%`)
-  ].join('\n');
-  
-  downloadCSV(topicsCSV, `topics-${dateRangeText.replace(/\s+/g, '-')}.csv`);
-  
-  // Create CSV for study time
-  const studyTimeCSV = [
-    'Student,Total Minutes,Sessions',
-    ...studyTime.map(s => `"${s.student_name}",${s.total_minutes},${s.sessions_count}`)
-  ].join('\n');
-  
-  downloadCSV(studyTimeCSV, `study-time-${dateRangeText.replace(/\s+/g, '-')}.csv`);
-}
-
-/**
- * Download data as a CSV file
- */
-function downloadCSV(csvContent: string, filename: string): void {
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.setAttribute('href', url);
-  link.setAttribute('download', filename);
-  link.style.visibility = 'hidden';
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-}
-
-// Export aliases for backward compatibility
-export {
-  getTopics as getPopularTopics,
-  getStudyTime as getStudentStudyTime
-};
 
 // Placeholder functions for missing exports referenced in AnalyticsDashboard
 export function getStudentPerformance(schoolId: string): Promise<any[]> {

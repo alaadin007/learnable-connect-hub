@@ -70,6 +70,14 @@ export function isSchoolAdmin(userRole: string | null | undefined): boolean {
 }
 
 /**
+ * Get school ID synchronously with fallback
+ */
+export function getSchoolIdSync(defaultId: string = 'test-school-0'): string {
+  // Use a default value until the async function resolves
+  return defaultId;
+}
+
+/**
  * Get analytics summary data from database
  */
 export async function getAnalyticsSummary(schoolId: string): Promise<AnalyticsSummary> {
@@ -274,3 +282,9 @@ function downloadCSV(csvContent: string, filename: string): void {
   link.click();
   document.body.removeChild(link);
 }
+
+// Export aliases for backward compatibility
+export {
+  getTopics as getPopularTopics,
+  getStudyTime as getStudentStudyTime
+};

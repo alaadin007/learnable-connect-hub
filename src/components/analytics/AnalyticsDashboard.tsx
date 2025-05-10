@@ -1,22 +1,20 @@
 
 import React, { useState } from 'react';
-import { AnalyticsSummaryCards } from './AnalyticsSummaryCards';
-import { SessionsTable } from './SessionsTable';
-import { TopicsChart } from './TopicsChart';
-import { StudyTimeChart } from './StudyTimeChart';
+import SessionsTable from './SessionsTable';
+import TopicsChart from './TopicsChart';
+import StudyTimeChart from './StudyTimeChart';
 import { AnalyticsFilters } from './AnalyticsFilters';
 import { AnalyticsExport } from './AnalyticsExport';
+import { AnalyticsSummaryCards } from './AnalyticsSummaryCards';
 import { DateRange, AnalyticsFilters as FiltersType } from '@/components/analytics/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { getAnalyticsSummary, 
+import { 
+  getAnalyticsSummary, 
   getSessionLogs, 
-  getTopics as getPopularTopics,
-  getStudyTime as getStudentStudyTime,
+  getTopics,
+  getStudyTime
 } from '@/utils/analyticsUtils';
-
-// Replacement for missing imports
-import { getStudentPerformance, getSchoolPerformance, getSchoolPerformanceSummary } from '@/utils/apiHelpers';
 
 // Define props interface for the dashboard
 export interface AnalyticsDashboardProps {
@@ -45,16 +43,17 @@ export const AnalyticsDashboard = ({
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <AnalyticsFilters 
-          filters={filters} 
-          onChange={onFilterChange} 
+          currentFilters={filters} 
+          onFiltersChange={onFilterChange} 
           isLoading={isLoading}
         />
-        <AnalyticsExport onExport={onExport} isLoading={isLoading} />
+        <AnalyticsExport onExportClick={onExport} isLoading={isLoading} />
       </div>
       
       <AnalyticsSummaryCards 
         summary={data.summary}
         isLoading={isLoading}
+        dateRange={filters.dateRange}
       />
       
       <Tabs value={activeTab} onValueChange={setActiveTab}>
