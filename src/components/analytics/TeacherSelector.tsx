@@ -30,6 +30,7 @@ export function TeacherSelector({
 }: TeacherSelectorProps) {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   const { session } = useAuth();
 
   useEffect(() => {
@@ -41,9 +42,10 @@ export function TeacherSelector({
 
       setIsLoading(true);
       try {
-        // Use our new database function that avoids the relationship error
+        // Use our database function with improved error handling
         const { data, error } = await supabase
-          .rpc('get_teachers_for_school', { school_id_param: schoolId });
+          .rpc('get_teachers_for_school', { school_id_param: schoolId })
+          .timeout(10000); // 10 second timeout
 
         if (error) {
           console.error("Error fetching teachers:", error);
@@ -64,7 +66,21 @@ export function TeacherSelector({
       } catch (error: any) {
         console.error("Error in TeacherSelector:", error);
         
-        if (error.message?.includes("Authentication") || error.message?.includes("Authorization")) {
+        // If it's a network error, we handle it differently
+        if (error.message?.includes("Failed to fetch") || error.name === "TypeError") {
+          toast.error("Network connection issue", { 
+            description: "Please check your internet connection" 
+          });
+          
+          // Retry logic for network errors (max 3 times)
+          if (retryCount < 3) {
+            const timer = setTimeout(() => {
+              setRetryCount(prev => prev + 1);
+            }, 2000); // Retry after 2 seconds
+            
+            return () => clearTimeout(timer);
+          }
+        } else if (error.message?.includes("Authentication") || error.message?.includes("Authorization")) {
           toast.error("Please log in to view teachers");
         } else {
           toast.error("Failed to load teachers");
@@ -77,7 +93,7 @@ export function TeacherSelector({
     };
 
     fetchTeachers();
-  }, [schoolId, session]);
+  }, [schoolId, session, retryCount]);
 
   const labelId = "teacher-selector-label";
 
@@ -105,6 +121,13 @@ export function TeacherSelector({
               <div className="flex items-center justify-center space-x-2 py-1">
                 <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                 <span className="text-sm text-muted-foreground">Loading...</span>
+              </div>
+            </SelectItem>
+          ) : retryCount > 0 && teachers.length === 0 ? (
+            <SelectItem disabled value="retrying" className="cursor-default">
+              <div className="flex items-center justify-center space-x-2 py-1">
+                <Loader2 className="h-4 w-4 animate-spin text-amber-500" />
+                <span className="text-sm text-muted-foreground">Retrying... ({retryCount}/3)</span>
               </div>
             </SelectItem>
           ) : teachers.length === 0 ? (
