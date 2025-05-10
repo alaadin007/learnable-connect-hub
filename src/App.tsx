@@ -1,5 +1,4 @@
-
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import Home from "@/pages/Home";
 import About from "@/pages/About";
 import Features from "@/pages/Features";
@@ -22,7 +21,6 @@ import { SettingsProvider } from "@/contexts/SettingsContext";
 import NotFound from "@/pages/NotFound";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import Pricing from "@/pages/Pricing";
-import Index from "@/pages/Index";
 import TestAccounts from "@/pages/TestAccounts";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import StudentAssessments from "@/pages/StudentAssessments";
@@ -39,7 +37,7 @@ function App() {
       <SettingsProvider>
         <Routes>
           {/* Public routes */}
-          <Route path="/" element={<Index />} />
+          <Route path="/" element={<Navigate to="/home" replace />} />
           <Route path="/home" element={<Home />} />
           <Route path="/about" element={<About />} />
           <Route path="/features" element={<Features />} />
