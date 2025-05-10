@@ -486,6 +486,41 @@ export type Database = {
           },
         ]
       }
+      lecture_transcripts: {
+        Row: {
+          created_at: string
+          end_time: number
+          id: string
+          lecture_id: string
+          start_time: number
+          text: string
+        }
+        Insert: {
+          created_at?: string
+          end_time: number
+          id?: string
+          lecture_id: string
+          start_time: number
+          text: string
+        }
+        Update: {
+          created_at?: string
+          end_time?: number
+          id?: string
+          lecture_id?: string
+          start_time?: number
+          text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lecture_transcripts_lecture_id_fkey"
+            columns: ["lecture_id"]
+            isOneToOne: false
+            referencedRelation: "lectures"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lectures: {
         Row: {
           created_at: string

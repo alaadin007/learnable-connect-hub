@@ -11,7 +11,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Lecture, LectureResource, Transcript } from '@/utils/supabaseHelpers';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { getUserSchoolId } from '@/utils/apiHelpers';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const StudentLectureView = () => {
@@ -114,18 +113,27 @@ const StudentLectureView = () => {
           setResources(resourceData);
         }
 
-        // Use custom query to fetch transcripts instead of RPC
-        const { data: transcriptData, error: transcriptError } = await supabase
+        // Fetch transcripts - using raw query with explicit typing
+        const { data: rawTranscriptData, error: transcriptError } = await supabase
           .from('lecture_transcripts')
-          .select('*')
+          .select('id, lecture_id, text, start_time, end_time, created_at')
           .eq('lecture_id', id)
           .order('start_time');
 
         if (transcriptError) {
           console.error('Error fetching transcripts:', transcriptError);
-        } else if (transcriptData && Array.isArray(transcriptData)) {
-          // Set transcript data
-          setTranscript(transcriptData as Transcript[]);
+        } else if (rawTranscriptData) {
+          // Cast the data to the correct type to satisfy TypeScript
+          const typedTranscriptData = rawTranscriptData.map(item => ({
+            id: item.id,
+            lecture_id: item.lecture_id,
+            text: item.text,
+            start_time: item.start_time as number,
+            end_time: item.end_time as number,
+            created_at: item.created_at
+          }));
+          
+          setTranscript(typedTranscriptData);
         }
       } catch (err) {
         console.error('Error in fetchLectureData:', err);
