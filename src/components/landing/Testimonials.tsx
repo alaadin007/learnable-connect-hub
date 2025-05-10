@@ -26,24 +26,24 @@ const testimonials = [
 
 const Testimonials = () => {
   return (
-    <div className="bg-learnable-super-light py-16 sm:py-24">
+    <div className="bg-slate-50 py-16 sm:py-24">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-16">
-          <h2 className="text-3xl font-bold mb-4 gradient-text">
+          <h2 className="text-3xl font-bold mb-4 text-primary">
             What Our Users Say
           </h2>
-          <p className="text-lg text-learnable-gray max-w-2xl mx-auto">
+          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
             Join the schools and educators already benefiting from LearnAble
           </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {testimonials.map((testimonial, index) => (
-            <Card key={index} className="card-hover">
+            <Card key={index} className="hover:shadow-lg transition-shadow">
               <CardContent className="p-6 flex flex-col items-center text-center">
                 <div className="mb-6">
                   <svg
-                    className="h-10 w-10 text-learnable-light-blue opacity-50"
+                    className="h-10 w-10 text-primary/50"
                     fill="currentColor"
                     viewBox="0 0 32 32"
                     xmlns="http://www.w3.org/2000/svg"
@@ -57,13 +57,13 @@ const Testimonials = () => {
                 <div className="mt-auto flex items-center flex-col">
                   <Avatar className="h-12 w-12 mb-3">
                     <AvatarImage src="" alt={testimonial.author} />
-                    <AvatarFallback className="bg-gradient-to-br from-learnable-blue to-learnable-green text-white">
+                    <AvatarFallback className="bg-gradient-to-br from-blue-500 to-green-500 text-white">
                       {testimonial.avatar}
                     </AvatarFallback>
                   </Avatar>
                   <div className="text-center">
                     <p className="font-medium">{testimonial.author}</p>
-                    <p className="text-sm text-learnable-gray">{testimonial.role}</p>
+                    <p className="text-sm text-gray-500">{testimonial.role}</p>
                   </div>
                 </div>
               </CardContent>

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -54,7 +55,6 @@ const StudentAssessments: React.FC = () => {
           assessments={assessments} 
           isLoading={isLoading} 
           studentView={true}
-          // onRefresh is optional, assuming AssessmentList handles null/undefined properly
         />
       </div>
     </DashboardLayout>

@@ -29,6 +29,7 @@ interface AssessmentListProps {
   assessments: Assessment[];
   isLoading?: boolean;
   isStudent?: boolean;
+  studentView?: boolean;
   onTakeAssessment?: (assessmentId: string) => void;
   onViewResult?: (assessmentId: string, submissionId: string) => void;
 }
@@ -37,6 +38,7 @@ const AssessmentList: React.FC<AssessmentListProps> = ({
   assessments,
   isLoading = false,
   isStudent = true,
+  studentView = true,
   onTakeAssessment,
   onViewResult,
 }) => {
@@ -52,7 +54,7 @@ const AssessmentList: React.FC<AssessmentListProps> = ({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{isStudent ? 'My Assessments' : 'Assigned Assessments'}</CardTitle>
+        <CardTitle>{studentView ? 'My Assessments' : 'Assigned Assessments'}</CardTitle>
       </CardHeader>
       <CardContent>
         {isLoading ? (

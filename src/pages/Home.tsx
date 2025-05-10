@@ -1,13 +1,14 @@
-
 import React, { lazy, Suspense } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import Hero from "@/components/landing/Hero";
 import { Skeleton } from "@/components/ui/skeleton";
 
-// Lazy load non-critical components
+// Import the Testimonials component directly to avoid dynamic import issues
+import Testimonials from "@/components/landing/Testimonials";
+
+// Keep Features as lazy loaded
 const Features = lazy(() => import("@/components/landing/Features"));
-const Testimonials = lazy(() => import("@/components/landing/Testimonials"));
 
 const LoadingFallback = () => (
   <div className="w-full py-12">
@@ -64,11 +65,9 @@ const Home = () => {
           </section>
         </Suspense>
         
-        <Suspense fallback={<LoadingFallback />}>
-          <section id="testimonials">
-            <Testimonials />
-          </section>
-        </Suspense>
+        <section id="testimonials">
+          <Testimonials />
+        </section>
       </main>
       <Footer />
     </div>
