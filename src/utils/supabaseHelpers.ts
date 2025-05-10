@@ -1,3 +1,4 @@
+
 export interface UserProfile {
   id: string;
   created_at: string;
@@ -72,7 +73,17 @@ export interface Transcript {
   created_at: string;
 }
 
-// Add missing interfaces that were referenced in other files
+// Interface to represent transcript data returned from the database
+export interface TranscriptData {
+  id: string;
+  lecture_id: string;
+  text: string;
+  start_time: number;
+  end_time: number;
+  created_at: string;
+}
+
+// Updated interfaces for referenced entities
 export interface TeacherInvitation {
   id: string;
   school_id: string;
@@ -91,8 +102,8 @@ export interface Student {
   created_at: string;
   updated_at: string;
   status: 'pending' | 'active' | 'revoked';
-  email?: string;  // Adding email property that's being referenced
-  full_name?: string; // Adding full_name property that's being referenced
+  email: string;  // Making email required since it's used throughout the code
+  full_name: string; // Making full_name required since it's used throughout the code
 }
 
 export interface Assessment {

@@ -1,3 +1,4 @@
+
 import React, { useEffect } from "react";
 import LoginForm from "@/components/auth/LoginForm";
 import Footer from "@/components/landing/Footer";
@@ -6,6 +7,7 @@ import { AlertCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import Navbar from "@/components/layout/Navbar";
 
 const Login = () => {
   const { user, userRole, session, isLoading } = useAuth();
@@ -21,13 +23,14 @@ const Login = () => {
           console.error("Supabase connection error:", error);
           
           if (error.message.includes('No API key found')) {
-            // Refresh the session directly from supabase
+            // Attempt to refresh the session
             const { data: refreshSessionData, error: refreshError } = await supabase.auth.refreshSession();
-            const freshSession = refreshSessionData?.session;
-            
-            if (!freshSession || refreshError) {
+            if (refreshError) {
+              console.error("Session refresh failed:", refreshError);
               toast.error("Could not establish connection to database. Please refresh the page.");
             }
+          } else {
+            toast.error("Database connection issue. Please try again later.");
           }
         }
       } catch (err) {
@@ -39,45 +42,35 @@ const Login = () => {
     checkSupabaseConnection();
   }, []);
   
-  // Immediately redirect authenticated users without delay
+  // Immediate redirection for authenticated users
   useEffect(() => {
     // Only proceed with redirection if auth state is loaded
     if (!isLoading) {
       console.log("Login.tsx: Auth state loaded. User:", !!user, "Session:", !!session, "Role:", userRole);
       
-      // If we have all the required information for an authenticated user
-      if (user && session && userRole) {
+      // If user is authenticated and we have all required information
+      if (user && session) {
         console.log("Login.tsx: Redirecting authenticated user with role:", userRole);
         
-        let redirectPath;
-        
+        // Determine where to redirect based on user role
         if (userRole === "school" || userRole === "school_admin") {
-          redirectPath = "/admin";
+          navigate("/admin", { replace: true });
         } else if (userRole === "teacher") {
-          redirectPath = "/teacher/analytics"; 
+          navigate("/teacher/analytics", { replace: true }); 
         } else {
-          redirectPath = "/dashboard";
+          navigate("/dashboard", { replace: true });
         }
-        
-        // Immediate redirect with no timeout
-        navigate(redirectPath, { 
-          replace: true, 
-          state: { 
-            preserveContext: true,
-            timestamp: Date.now()
-          }
-        });
       }
     }
   }, [user, userRole, navigate, session, isLoading]);
 
-  // Render a loading state while checking auth - keep it minimal
+  // Render a loading state while checking auth
   if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-learnable-super-light">
         <div className="text-center">
           <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-learnable-blue border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]"></div>
-          <p className="mt-4 text-gray-600">Checking auth status...</p>
+          <p className="mt-4 text-gray-600">Checking authentication status...</p>
         </div>
       </div>
     );
@@ -85,23 +78,7 @@ const Login = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="container mx-auto px-4 sm:px-6">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex-shrink-0">
-              <Link to="/" className="flex items-center">
-                <span className="ml-2 text-xl font-bold gradient-text">LearnAble</span>
-              </Link>
-            </div>
-            
-            <div className="flex space-x-4">
-              <Link to="/test-accounts" className="text-sm font-medium text-gray-600 hover:text-gray-900">
-                Test Accounts
-              </Link>
-            </div>
-          </div>
-        </div>
-      </header>
+      <Navbar />
       
       <main className="flex-grow bg-learnable-super-light flex flex-col items-center justify-center py-10">
         <div className="max-w-md w-full mx-auto mb-6">

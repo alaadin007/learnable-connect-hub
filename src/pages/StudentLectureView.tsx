@@ -2,25 +2,25 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Download, FileText, TextQuote, Video, PlayCircle } from 'lucide-react';
+import Navbar from '@/components/layout/Navbar';
+import Footer from '@/components/landing/Footer';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
-import { Textarea } from '@/components/ui/textarea';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { toast } from 'sonner';
-import Navbar from '@/components/layout/Navbar';
-import Footer from '@/components/layout/Footer';
-import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
-import { Lecture, LectureResource, LectureProgress, LectureNote, Transcript } from '@/utils/supabaseHelpers';
 import { Progress } from '@/components/ui/progress';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Lecture, LectureResource, Transcript } from '@/utils/supabaseHelpers';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { getUserSchoolId } from '@/utils/apiHelpers';
+import { Skeleton } from '@/components/ui/skeleton';
+import { getAiProvider, isApiKeyConfigured } from '@/integrations/supabase/client';
 
-// Simple interface for the transcript data that we might get from the API
+// Interface for transcript data from our custom RPC function
 interface TranscriptData {
   id: string;
   lecture_id: string;
   text: string;
-  start_time: number; 
+  start_time: number;
   end_time: number;
   created_at: string;
 }
@@ -28,446 +28,379 @@ interface TranscriptData {
 const StudentLectureView = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const videoRef = useRef<HTMLVideoElement>(null);
+  
   const [lecture, setLecture] = useState<Lecture | null>(null);
   const [resources, setResources] = useState<LectureResource[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [progress, setProgress] = useState<number>(0);
-  const [notes, setNotes] = useState<string>('');
-  const [isNoteSaving, setIsNoteSaving] = useState(false);
-  const [noteId, setNoteId] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<Transcript[]>([]);
-  const [currentTranscriptIndex, setCurrentTranscriptIndex] = useState<number>(-1);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const progressUpdateInterval = useRef<number | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [currentTranscriptIndex, setCurrentTranscriptIndex] = useState(-1);
+  const [isSavingProgress, setIsSavingProgress] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>('video');
 
-  useEffect(() => {
-    const fetchLectureData = async () => {
-      if (!id || !user) {
-        setError("Missing lecture ID or user is not authenticated");
-        setIsLoading(false);
-        return;
-      }
-
-      try {
-        setIsLoading(true);
-        setError(null);
-
-        // Fetch lecture details
-        const { data: lectureData, error: lectureError } = await supabase
-          .from('lectures')
-          .select('*')
-          .eq('id', id)
-          .single();
-
-        if (lectureError) {
-          console.error('Error fetching lecture:', lectureError);
-          setError("Couldn't find the requested lecture. It may have been deleted or you don't have access.");
-          setIsLoading(false);
-          return;
-        }
-        
-        if (!lectureData) {
-          setError("Lecture not found");
-          setIsLoading(false);
-          return;
-        }
-        
-        setLecture(lectureData as Lecture);
-
-        // Fetch lecture resources
-        const { data: resourcesData, error: resourcesError } = await supabase
-          .from('lecture_resources')
-          .select('*')
-          .eq('lecture_id', id);
-
-        if (!resourcesError) {
-          setResources(resourcesData as LectureResource[]);
-        }
-
-        // Fetch student's progress
-        const { data: progressData, error: progressError } = await supabase
-          .from('lecture_progress')
-          .select('*')
-          .eq('lecture_id', id)
-          .eq('student_id', user.id)
-          .maybeSingle();
-
-        if (!progressError && progressData) {
-          setProgress(progressData.progress || 0);
-        }
-
-        // Fetch student's notes
-        const { data: notesData, error: notesError } = await supabase
-          .from('lecture_notes')
-          .select('*')
-          .eq('lecture_id', id)
-          .eq('student_id', user.id)
-          .maybeSingle();
-
-        if (!notesError && notesData) {
-          setNotes(notesData.notes || '');
-          setNoteId(notesData.id || null);
-        }
-
-        // Fetch transcript data - using a custom RPC function instead of directly accessing the table
-        try {
-          const { data: transcriptData, error: transcriptError } = await supabase
-            .rpc('get_lecture_transcripts', { lecture_id_param: id });
-
-          if (transcriptError) {
-            console.error('Error fetching transcripts:', transcriptError);
-            // Don't show error to user, just log it and continue without transcripts
-          } else if (transcriptData) {
-            // Type assertion to safely convert the data
-            const typedData = transcriptData as unknown as TranscriptData[];
-            
-            // Ensure the data matches our Transcript interface
-            const formattedTranscripts: Transcript[] = typedData.map(item => ({
-              id: item.id,
-              lecture_id: item.lecture_id,
-              text: item.text,
-              start_time: item.start_time,
-              end_time: item.end_time,
-              created_at: item.created_at
-            }));
-            
-            setTranscript(formattedTranscripts);
-          }
-        } catch (transcriptErr) {
-          console.error('Error processing transcripts:', transcriptErr);
-          // Continue without transcripts rather than failing the whole page load
-        }
-      } catch (err: any) {
-        console.error('Error fetching lecture data:', err);
-        setError('Failed to load lecture data. Please try again later.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchLectureData();
-
-    // Cleanup interval on unmount
-    return () => {
-      if (progressUpdateInterval.current) {
-        window.clearInterval(progressUpdateInterval.current);
-      }
-    };
-  }, [id, user]);
-
-  const handleTimeUpdate = () => {
-    if (!videoRef.current || transcript.length === 0) return;
-    
-    const currentTime = videoRef.current.currentTime;
-    const video = videoRef.current;
-    
-    // Find the current transcript segment
-    const newIndex = transcript.findIndex(segment => 
-      currentTime >= segment.start_time && currentTime <= segment.end_time
-    );
-    
-    if (newIndex !== currentTranscriptIndex) {
-      setCurrentTranscriptIndex(newIndex);
-    }
-    
-    // Update progress
-    const currentProgress = Math.floor((video.currentTime / video.duration) * 100);
-    
-    // Only update if progress has increased
-    if (currentProgress > progress) {
-      setProgress(currentProgress);
-      
-      // Save progress to database periodically
-      if (!progressUpdateInterval.current) {
-        progressUpdateInterval.current = window.setInterval(() => {
-          saveProgress(currentProgress);
-        }, 10000); // Save every 10 seconds
-      }
-    }
-  };
-
-  const saveProgress = async (currentProgress: number) => {
-    if (!id || !user) return;
+  // Function to save the current progress
+  const saveProgress = async (currentTime: number, duration: number) => {
+    if (!id || isSavingProgress) return;
     
     try {
-      const isCompleted = currentProgress >= 95; // Consider completed when 95% watched
+      setIsSavingProgress(true);
+      const progressPercent = Math.floor((currentTime / duration) * 100);
+      const completed = progressPercent >= 90; // Consider completed if watched 90% or more
       
       const { error } = await supabase
         .from('lecture_progress')
         .upsert({
           lecture_id: id,
-          student_id: user.id,
-          progress: currentProgress,
+          student_id: (await supabase.auth.getUser()).data.user?.id || '',
+          progress: progressPercent,
           last_watched: new Date().toISOString(),
-          completed: isCompleted
-        }, { onConflict: 'lecture_id,student_id' });
-      
-      if (error) throw error;
-    } catch (error) {
-      console.error('Error saving progress:', error);
-      // Don't show toast for background saves to avoid spam
+          completed
+        });
+        
+      if (error) {
+        console.error("Error saving progress:", error);
+      }
+    } catch (err) {
+      console.error("Failed to save progress:", err);
+    } finally {
+      setIsSavingProgress(false);
     }
   };
 
-  const handleSaveNotes = async () => {
-    if (!id || !user) return;
-    
-    try {
-      setIsNoteSaving(true);
+  // Handle time update event on the video player
+  const handleTimeUpdate = () => {
+    if (videoRef.current) {
+      const currentTime = videoRef.current.currentTime;
+      const duration = videoRef.current.duration || 1;
       
-      const { error } = await supabase
-        .from('lecture_notes')
-        .upsert({
-          id: noteId || undefined,
-          lecture_id: id,
-          student_id: user.id,
-          notes: notes,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'lecture_id,student_id' });
+      // Update the progress state
+      const newProgress = Math.floor((currentTime / duration) * 100);
+      setProgress(newProgress);
       
-      if (error) throw error;
-      
-      toast.success('Notes saved successfully');
-      
-      // If this was a new note, get the ID
-      if (!noteId) {
-        const { data } = await supabase
-          .from('lecture_notes')
-          .select('id')
-          .eq('lecture_id', id)
-          .eq('student_id', user.id)
-          .single();
-          
-        if (data) {
-          setNoteId(data.id);
-        }
+      // Save progress every 10 seconds
+      if (Math.floor(currentTime) % 10 === 0) {
+        saveProgress(currentTime, duration);
       }
-    } catch (error) {
-      console.error('Error saving notes:', error);
-      toast.error('Failed to save notes');
-    } finally {
-      setIsNoteSaving(false);
+      
+      // Find the current transcript segment
+      const index = transcript.findIndex(
+        seg => currentTime >= seg.start_time && currentTime <= seg.end_time
+      );
+      
+      if (index !== currentTranscriptIndex) {
+        setCurrentTranscriptIndex(index);
+      }
     }
   };
-  
-  // Jump to specific part of video from transcript
-  const jumpToTimestamp = (startTime: number) => {
+
+  // Handle video end event
+  const handleVideoEnded = () => {
+    if (videoRef.current) {
+      saveProgress(videoRef.current.duration, videoRef.current.duration);
+    }
+  };
+
+  // Navigate to timestamp when clicking on transcript
+  const goToTimestamp = (startTime: number) => {
     if (videoRef.current) {
       videoRef.current.currentTime = startTime;
-      videoRef.current.play().catch(err => console.error("Playback error:", err));
+      videoRef.current.play().catch(err => console.error("Error playing video:", err));
+      setActiveTab('video');
     }
   };
 
-  if (isLoading) {
+  // Load lecture data and transcript
+  useEffect(() => {
+    const fetchLectureData = async () => {
+      if (!id) {
+        setError("No lecture ID provided");
+        setLoading(false);
+        return;
+      }
+
+      try {
+        // Get the lecture data
+        const { data: lectureData, error: lectureError } = await supabase
+          .from('lectures')
+          .select('*')
+          .eq('id', id)
+          .single();
+          
+        if (lectureError) {
+          throw lectureError;
+        }
+        
+        if (!lectureData) {
+          throw new Error("Lecture not found");
+        }
+        
+        setLecture(lectureData);
+        
+        // Get resources for the lecture
+        const { data: resourceData, error: resourceError } = await supabase
+          .from('lecture_resources')
+          .select('*')
+          .eq('lecture_id', id);
+          
+        if (!resourceError && resourceData) {
+          setResources(resourceData);
+        }
+
+        // Try to fetch transcript data using a custom SQL function
+        try {
+          // Use a proper database function to get the transcripts
+          const { data: transcriptData, error: transcriptError } = await supabase
+            .rpc('get_lecture_transcripts', { lecture_id_param: id })
+            .order('start_time');
+
+          if (transcriptError) {
+            console.error('Error fetching transcripts:', transcriptError);
+            // Continue without transcripts rather than failing the whole page
+          } else if (transcriptData) {
+            // Type assertion to handle the response data safely
+            const typedData = transcriptData as unknown as TranscriptData[];
+            
+            if (Array.isArray(typedData)) {
+              setTranscript(typedData.map(item => ({
+                id: item.id,
+                lecture_id: item.lecture_id,
+                text: item.text,
+                start_time: item.start_time,
+                end_time: item.end_time,
+                created_at: item.created_at
+              })));
+            } else {
+              console.warn('Unexpected transcript data format:', transcriptData);
+              // Initialize with an empty array if the format is unexpected
+              setTranscript([]);
+            }
+          }
+        } catch (transcriptErr) {
+          console.error('Error processing transcripts:', transcriptErr);
+          // Continue without transcripts rather than failing the whole page
+          setTranscript([]);
+        }
+      } catch (err: any) {
+        console.error('Error fetching lecture data:', err);
+        setError(err.message || "Failed to load lecture");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchLectureData();
+  }, [id]);
+
+  // Load the existing progress
+  useEffect(() => {
+    const fetchProgress = async () => {
+      if (!id) return;
+      
+      try {
+        const { data: user } = await supabase.auth.getUser();
+        if (!user?.user?.id) return;
+        
+        const { data: progressData, error: progressError } = await supabase
+          .from('lecture_progress')
+          .select('progress, last_watched')
+          .eq('lecture_id', id)
+          .eq('student_id', user.user.id)
+          .single();
+          
+        if (!progressError && progressData) {
+          setProgress(progressData.progress);
+          
+          // If there's a stored progress, set the video time
+          if (videoRef.current && progressData.progress > 0) {
+            const duration = videoRef.current.duration;
+            if (duration) {
+              videoRef.current.currentTime = (progressData.progress / 100) * duration;
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching progress:", err);
+        // Non-critical, continue without progress data
+      }
+    };
+    
+    if (!loading) {
+      fetchProgress();
+    }
+  }, [id, loading]);
+
+  // Format seconds into MM:SS format
+  const formatTime = (seconds: number): string => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+
+  if (loading) {
     return (
-      <>
+      <div className="min-h-screen flex flex-col">
         <Navbar />
-        <div className="container mx-auto px-4 py-8 min-h-screen flex items-center justify-center">
-          <div className="animate-pulse text-center">
-            <div className="h-8 w-64 bg-gray-300 rounded mb-4 mx-auto"></div>
-            <div className="h-4 w-32 bg-gray-300 rounded mx-auto"></div>
+        <main className="flex-grow container mx-auto px-4 py-8">
+          <Button 
+            variant="ghost" 
+            className="mb-6"
+            onClick={() => navigate(-1)}
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Lectures
+          </Button>
+          
+          <div className="w-full aspect-video bg-gray-200 rounded-lg mb-6">
+            <Skeleton className="w-full h-full" />
           </div>
-        </div>
+          
+          <Skeleton className="h-8 w-1/3 mb-2" />
+          <Skeleton className="h-4 w-2/3 mb-4" />
+          <Skeleton className="h-4 w-full mb-2" />
+          <Skeleton className="h-4 w-full mb-2" />
+        </main>
         <Footer />
-      </>
+      </div>
     );
   }
 
   if (error || !lecture) {
     return (
-      <>
+      <div className="min-h-screen flex flex-col">
         <Navbar />
-        <div className="container mx-auto px-4 py-8 min-h-screen">
-          <div className="text-center">
-            <h2 className="text-2xl font-bold mb-4">{error || "Lecture Not Found"}</h2>
-            <Button onClick={() => navigate('/student/lectures')}>
-              Back to Lectures
+        <main className="flex-grow container mx-auto px-4 py-8 flex flex-col items-center justify-center">
+          <div className="text-center max-w-md">
+            <h2 className="text-2xl font-bold text-red-600 mb-2">Error Loading Lecture</h2>
+            <p className="text-gray-600 mb-6">{error || "Lecture not found"}</p>
+            <Button 
+              onClick={() => navigate('/student/lectures')}
+            >
+              Return to Lectures
             </Button>
           </div>
-        </div>
+        </main>
         <Footer />
-      </>
+      </div>
     );
   }
 
   return (
-    <>
+    <div className="min-h-screen flex flex-col">
       <Navbar />
-      <main className="container mx-auto px-4 py-8 min-h-screen">
-        <div className="mb-6">
-          <Button 
-            variant="outline"
-            size="sm"
-            className="mb-4 flex items-center"
-            onClick={() => navigate('/student/lectures')}
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Lectures
-          </Button>
-          
-          <h1 className="text-3xl font-bold mb-2">{lecture.title}</h1>
-          <p className="text-gray-600 mb-2">
-            Subject: {lecture.subject}
-          </p>
-          
-          <div className="flex items-center mb-6">
-            <div className="w-full bg-gray-200 rounded-full h-2.5">
-              <div 
-                className="bg-blue-600 h-2.5 rounded-full" 
-                style={{ width: `${progress}%` }}
-              >
-              </div>
-            </div>
-            <span className="ml-2 text-sm text-gray-600">
-              {progress}% completed
-            </span>
-          </div>
+      
+      <main className="flex-grow container mx-auto px-4 py-8">
+        <Button 
+          variant="ghost" 
+          className="mb-6"
+          onClick={() => navigate('/student/lectures')}
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Lectures
+        </Button>
+        
+        <h1 className="text-3xl font-bold mb-2">{lecture.title}</h1>
+        <p className="text-gray-600 mb-4">{lecture.description}</p>
+        
+        <div className="mb-4">
+          <Progress value={progress} className="h-2" />
+          <p className="text-sm text-gray-500 mt-1">{progress}% complete</p>
         </div>
         
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2">
-            <div className="bg-black rounded-lg overflow-hidden mb-6">
-              {lecture.video_url ? (
-                <video
-                  ref={videoRef}
-                  className="w-full aspect-video"
-                  controls
-                  src={lecture.video_url}
-                  poster={lecture.thumbnail_url || undefined}
-                  onTimeUpdate={handleTimeUpdate}
-                />
-              ) : (
-                <div className="w-full aspect-video flex items-center justify-center bg-gray-900">
-                  <div className="text-center text-white">
-                    <Video className="h-12 w-12 mx-auto mb-2" />
-                    <p>Video not available</p>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-8">
+          <TabsList className="mb-6">
+            <TabsTrigger value="video" className="flex items-center">
+              <Video className="mr-2 h-4 w-4" />
+              Video
+            </TabsTrigger>
+            <TabsTrigger value="transcript" className="flex items-center">
+              <TextQuote className="mr-2 h-4 w-4" />
+              Transcript
+            </TabsTrigger>
+            {resources.length > 0 && (
+              <TabsTrigger value="resources" className="flex items-center">
+                <FileText className="mr-2 h-4 w-4" />
+                Resources
+              </TabsTrigger>
+            )}
+          </TabsList>
+          
+          <TabsContent value="video" className="focus:outline-none">
+            <div className="aspect-video bg-black rounded-lg overflow-hidden mb-6">
+              <video
+                ref={videoRef}
+                controls
+                className="w-full h-full"
+                onTimeUpdate={handleTimeUpdate}
+                onEnded={handleVideoEnded}
+                poster={lecture.thumbnail_url || undefined}
+              >
+                <source src={lecture.video_url} type="video/mp4" />
+                Your browser does not support the video tag.
+              </video>
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="transcript" className="focus:outline-none">
+            <div className="bg-white rounded-lg shadow-md p-4 max-h-[600px] overflow-y-auto">
+              {transcript.length > 0 ? (
+                transcript.map((segment, index) => (
+                  <div 
+                    key={segment.id}
+                    className={`p-3 mb-2 rounded cursor-pointer transition-colors ${
+                      index === currentTranscriptIndex ? 'bg-blue-100' : 'bg-gray-50 hover:bg-gray-100'
+                    }`}
+                    onClick={() => goToTimestamp(segment.start_time)}
+                  >
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-sm font-medium text-blue-600">
+                        {formatTime(segment.start_time)} - {formatTime(segment.end_time)}
+                      </span>
+                      <PlayCircle className="h-4 w-4 text-blue-600" />
+                    </div>
+                    <p className="text-gray-800">{segment.text}</p>
                   </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <TextQuote className="mx-auto h-12 w-12 mb-3 text-gray-300" />
+                  <p>No transcript available for this lecture.</p>
                 </div>
               )}
             </div>
-            
-            <Tabs defaultValue="transcript" className="mb-8">
-              <TabsList className="mb-4">
-                <TabsTrigger value="description">Description</TabsTrigger>
-                <TabsTrigger value="transcript">Transcript</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="description" className="prose max-w-none">
-                <h2 className="text-2xl font-semibold mb-4">Description</h2>
-                <p>{lecture.description || 'No description available.'}</p>
-              </TabsContent>
-              
-              <TabsContent value="transcript">
-                <div className="bg-gray-50 border rounded-md p-4 mb-4">
-                  <h2 className="text-2xl font-semibold mb-4 flex items-center">
-                    <TextQuote className="mr-2 h-5 w-5" /> Transcript
-                  </h2>
-                  
-                  {transcript.length > 0 ? (
-                    <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
-                      {transcript.map((segment, index) => (
-                        <div 
-                          key={segment.id || index}
-                          className={`p-3 rounded-md cursor-pointer transition-colors ${currentTranscriptIndex === index ? 'bg-blue-100 border border-blue-300' : 'hover:bg-gray-100'}`}
-                          onClick={() => jumpToTimestamp(segment.start_time)}
-                        >
-                          <div className="flex justify-between mb-1">
-                            <span className="text-xs font-medium text-blue-600">
-                              {formatTimestamp(segment.start_time)} - {formatTimestamp(segment.end_time)}
-                            </span>
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              className="h-6 w-6 p-0"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                jumpToTimestamp(segment.start_time);
-                              }}
-                            >
-                              <PlayCircle className="h-4 w-4" />
-                            </Button>
-                          </div>
-                          <p className="text-sm">{segment.text}</p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-gray-500">No transcript available for this lecture.</p>
-                  )}
-                </div>
-              </TabsContent>
-            </Tabs>
-          </div>
+          </TabsContent>
           
-          <div>
-            <Card className="mb-6">
-              <CardContent className="pt-6">
-                <h3 className="text-xl font-semibold mb-4">Resources</h3>
-                {resources.length > 0 ? (
-                  <div className="space-y-3">
-                    {resources.map((resource) => (
-                      <div 
-                        key={resource.id} 
-                        className="flex items-center justify-between p-3 bg-gray-50 rounded border"
-                      >
-                        <div className="flex items-center">
-                          <FileText className="h-5 w-5 mr-2 text-blue-600" />
-                          <div>
-                            <p className="font-medium">{resource.title}</p>
-                            <p className="text-xs text-gray-500">{resource.file_type}</p>
-                          </div>
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => window.open(resource.file_url, '_blank')}
-                        >
-                          <Download className="h-4 w-4" />
-                        </Button>
+          {resources.length > 0 && (
+            <TabsContent value="resources" className="focus:outline-none">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {resources.map((resource) => (
+                  <Card key={resource.id}>
+                    <CardContent className="p-4 flex justify-between items-center">
+                      <div>
+                        <h3 className="font-medium">{resource.title}</h3>
+                        <p className="text-sm text-gray-500">{resource.file_type}</p>
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-gray-500">No resources available for this lecture.</p>
-                )}
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-xl font-semibold">My Notes</h3>
-                  <Button 
-                    size="sm" 
-                    onClick={handleSaveNotes}
-                    disabled={isNoteSaving}
-                  >
-                    {isNoteSaving ? 'Saving...' : 'Save Notes'}
-                  </Button>
-                </div>
-                <Textarea 
-                  value={notes} 
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Take notes about this lecture here..."
-                  className="min-h-[200px]"
-                />
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => window.open(resource.file_url, '_blank')}
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Download
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </TabsContent>
+          )}
+        </Tabs>
       </main>
+      
       <Footer />
-    </>
+    </div>
   );
-};
-
-// Helper function to format seconds as MM:SS
-const formatTimestamp = (seconds: number): string => {
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = Math.floor(seconds % 60);
-  return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
 };
 
 export default StudentLectureView;

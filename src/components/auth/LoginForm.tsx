@@ -49,6 +49,7 @@ const LoginForm = () => {
     setLoginError(null);
     
     try {
+      // Authenticate with Supabase
       const { data: authData, error } = await supabase.auth.signInWithPassword({
         email: data.email,
         password: data.password,
@@ -65,7 +66,7 @@ const LoginForm = () => {
 
       console.log("Login successful:", authData);
       
-      // Check if we have an invitation to handle
+      // Check if we need to handle a teacher invitation first
       if (invitation) {
         navigate(`/teacher-invitation/${invitation}`);
         return;
@@ -74,15 +75,27 @@ const LoginForm = () => {
       // Show success toast
       toast.success("Login successful");
       
-      // Redirect based on user type
+      // Call the verify-and-setup-user function to ensure proper setup
+      try {
+        const { error: verifyError } = await supabase.functions.invoke('verify-and-setup-user');
+        if (verifyError) {
+          console.warn("User verification warning:", verifyError);
+          // Continue anyway - verification not critical for login
+        }
+      } catch (verifyErr) {
+        console.warn("User verification failed:", verifyErr);
+        // Continue anyway - verification not critical for login
+      }
+      
+      // Get user role directly from metadata for immediate routing
       const userType = authData.user.user_metadata?.user_type;
       
       if (userType === 'school_admin' || userType === 'school') {
-        navigate("/admin");
+        navigate("/admin", { replace: true });
       } else if (userType === 'teacher') {
-        navigate("/teacher/analytics");
+        navigate("/teacher/analytics", { replace: true });
       } else {
-        navigate("/dashboard");
+        navigate("/dashboard", { replace: true });
       }
       
     } catch (error: any) {
@@ -120,7 +133,9 @@ const LoginForm = () => {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 bg-white p-6 rounded-lg shadow-md w-full max-w-md">
+        <h1 className="text-2xl font-bold text-center mb-4">Login</h1>
+        
         {loginError && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
