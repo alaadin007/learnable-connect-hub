@@ -156,47 +156,37 @@ export async function fetchStudentAssessments(schoolId: string, studentId: strin
   try {
     const cacheKey = `assessments_${schoolId}_${studentId}`;
     
-    // Get the access token from the current session
-    const { data } = await supabase.auth.getSession();
-    const accessToken = data.session?.access_token;
+    // Get client from supabase directly - this ensures proper authentication
+    // This is the key fix - using the Supabase client directly instead of fetch
+    const { data, error } = await supabase
+      .from('assessments')
+      .select(`
+        id, 
+        title, 
+        description, 
+        due_date, 
+        created_at,
+        teacher_id,
+        teacher:teachers(
+          id, 
+          profiles(full_name)
+        ),
+        submission:assessment_submissions(
+          id, 
+          score, 
+          completed,
+          submitted_at
+        )
+      `)
+      .eq('school_id', schoolId)
+      .order('due_date', { ascending: true });
     
-    return await fetchWithReliability(
-      `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/assessments`,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${accessToken}`
-        },
-        // Use URLSearchParams for query params instead of 'params' property
-        query: {
-          select: `
-            id, 
-            title, 
-            description, 
-            due_date, 
-            created_at,
-            teacher_id,
-            teacher:teachers(
-              id, 
-              profiles(full_name)
-            ),
-            submission:assessment_submissions(
-              id, 
-              score, 
-              completed,
-              submitted_at
-            )
-          `,
-          school_id: `eq.${schoolId}`,
-          order: 'due_date.asc'
-        }
-      },
-      3,
-      8000,
-      cacheKey
-    );
+    if (error) {
+      console.error("Error fetching student assessments:", error);
+      throw error;
+    }
+    
+    return data;
   } catch (error) {
     console.error("Error fetching student assessments:", error);
     throw error;
