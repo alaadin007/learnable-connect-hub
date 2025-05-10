@@ -123,7 +123,7 @@ const Dashboard = () => {
       if (isAdmin) {
         navigate("/admin", { state: { preserveContext: true, adminRedirect: true }, replace: true });
       } else if (effectiveRole === 'teacher') {
-        navigate("/teacher/students", { state: { preserveContext: true }, replace: true });
+        navigate("/teacher/dashboard", { state: { preserveContext: true }, replace: true });
       }
     }
   }, [user, effectiveRole, isAdmin, navigate]);
@@ -208,7 +208,7 @@ const Dashboard = () => {
     return null;
   }
 
-  // Standard student dashboard below
+  // Standard student dashboard below - with enhanced styling
   return (
     <>
       <Navbar />

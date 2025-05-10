@@ -45,9 +45,9 @@ const TeacherDashboard = () => {
           
         if (assessmentsError) throw assessmentsError;
         
-        // Calculate stats
+        // Calculate stats - fixing the due_date check to not rely on status
         const active = assessments?.filter(a => new Date(a.due_date) > new Date()).length || 0;
-        const completed = assessments?.filter(a => a.status === 'completed').length || 0;
+        const completed = assessments?.filter(a => a.due_date && new Date(a.due_date) < new Date()).length || 0;
         
         setStats({
           totalStudents: students?.length || 0,
