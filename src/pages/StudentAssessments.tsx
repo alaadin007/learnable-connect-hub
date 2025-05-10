@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -6,11 +5,8 @@ import { toast } from 'sonner';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import AssessmentList from '@/components/teacher/AssessmentList';
 
-// Assuming we don't have access to the AssessmentList component to modify it,
-// let's just make sure the props we pass match what it expects.
-
-const StudentAssessments = () => {
-  const { user, profile } = useAuth();
+const StudentAssessments: React.FC = () => {
+  const { profile } = useAuth();
   const [assessments, setAssessments] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -58,7 +54,7 @@ const StudentAssessments = () => {
           assessments={assessments} 
           isLoading={isLoading} 
           studentView={true}
-          // We'll assume the component handles a null or undefined onRefresh
+          // onRefresh is optional, assuming AssessmentList handles null/undefined properly
         />
       </div>
     </DashboardLayout>
