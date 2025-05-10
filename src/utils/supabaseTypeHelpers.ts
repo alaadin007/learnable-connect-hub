@@ -68,7 +68,7 @@ export function hasProperty<K extends string, T extends object>(obj: T, prop: K)
 /**
  * Converts string to a table ID type-safely
  */
-export function asId<T>(id: string): T {
+export function asId<T = string>(id: string): T {
   return id as unknown as T;
 }
 

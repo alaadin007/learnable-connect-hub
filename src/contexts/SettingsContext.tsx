@@ -3,7 +3,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
 import { toast } from 'sonner';
-import { hasData } from '@/utils/supabaseTypeHelpers';
+import { hasData, asId, safeApiKeyAccess } from '@/utils/supabaseTypeHelpers';
 
 interface SettingsContextType {
   theme: string;
@@ -15,7 +15,23 @@ interface SettingsContextType {
   geminiApiKey: string;
   setGeminiApiKey: (key: string) => void;
   saveApiKey: (provider: string, key: string) => Promise<void>;
+  settings: {
+    maxTokens: number;
+    temperature: number;
+    model: string;
+    showSources: boolean;
+  };
+  updateSettings?: (newSettings: Partial<typeof defaultSettings>) => void;
+  isLoading: boolean;
 }
+
+// Default settings
+const defaultSettings = {
+  maxTokens: 500,
+  temperature: 0.7,
+  model: 'gpt-3.5-turbo',
+  showSources: true
+};
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
@@ -25,6 +41,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [fontSize, setFontSize] = useState('medium');
   const [openaiApiKey, setOpenaiApiKey] = useState('');
   const [geminiApiKey, setGeminiApiKey] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [settings, setSettings] = useState(defaultSettings);
 
   useEffect(() => {
     // Load theme from localStorage
@@ -35,6 +53,16 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     // Load font size from localStorage
     const savedFontSize = localStorage.getItem('fontSize') || 'medium';
     setFontSize(savedFontSize);
+    
+    // Load settings from localStorage
+    try {
+      const savedSettings = localStorage.getItem('aiSettings');
+      if (savedSettings) {
+        setSettings({...defaultSettings, ...JSON.parse(savedSettings)});
+      }
+    } catch (e) {
+      console.error("Failed to load saved settings:", e);
+    }
   }, []);
 
   useEffect(() => {
@@ -48,14 +76,21 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     document.documentElement.classList.toggle('dark', newTheme === 'dark');
   };
 
+  const updateSettings = (newSettings: Partial<typeof defaultSettings>) => {
+    const updatedSettings = { ...settings, ...newSettings };
+    setSettings(updatedSettings);
+    localStorage.setItem('aiSettings', JSON.stringify(updatedSettings));
+  };
+
   const loadApiKeys = async () => {
     if (!user) return;
+    setIsLoading(true);
 
     try {
       const { data, error } = await supabase
         .from('user_api_keys')
         .select('provider, api_key')
-        .eq('user_id', user.id);
+        .eq('user_id', asId(user.id));
       
       if (error) {
         console.error("Error fetching API keys:", error);
@@ -63,16 +98,21 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (data && Array.isArray(data)) {
-        data.forEach(apiKey => {
-          if (apiKey.provider === 'openai' && apiKey.api_key) {
-            setOpenaiApiKey(apiKey.api_key);
-          } else if (apiKey.provider === 'gemini' && apiKey.api_key) {
-            setGeminiApiKey(apiKey.api_key);
+        data.forEach(apiKeyItem => {
+          const keyData = safeApiKeyAccess(apiKeyItem);
+          if (keyData) {
+            if (keyData.provider === 'openai' && keyData.api_key) {
+              setOpenaiApiKey(keyData.api_key);
+            } else if (keyData.provider === 'gemini' && keyData.api_key) {
+              setGeminiApiKey(keyData.api_key);
+            }
           }
         });
       }
     } catch (error) {
       console.error("Failed to load API keys:", error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -91,7 +131,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
       const formattedKey = key.trim();
       
-      const { error } = await supabase
+      // Use our helper function from utils/supabaseTypeHelpers.ts
+      const { data, error } = await supabase
         .from('user_api_keys')
         .upsert({
           user_id: user.id,
@@ -128,7 +169,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       setOpenaiApiKey,
       geminiApiKey,
       setGeminiApiKey,
-      saveApiKey
+      saveApiKey,
+      settings,
+      updateSettings,
+      isLoading
     }}>
       {children}
     </SettingsContext.Provider>

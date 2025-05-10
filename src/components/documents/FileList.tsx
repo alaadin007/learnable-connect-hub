@@ -12,6 +12,7 @@ import {
   RefreshCw
 } from "lucide-react";
 import { toast } from "sonner";
+import { asId, hasData } from '@/utils/supabaseTypeHelpers';
 
 interface DocumentItem {
   id: string;
@@ -36,7 +37,7 @@ const FileList = () => {
       const { data, error } = await supabase
         .from('documents')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', asId(user.id))
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -46,7 +47,17 @@ const FileList = () => {
       }
       
       if (data) {
-        setDocuments(data as DocumentItem[]);
+        // Safely convert the data to our expected DocumentItem type
+        const documentItems: DocumentItem[] = data.map(item => ({
+          id: item.id as string,
+          filename: item.filename as string,
+          file_type: item.file_type as string,
+          processing_status: item.processing_status as string,
+          created_at: item.created_at as string,
+          file_size: item.file_size as number,
+          storage_path: item.storage_path as string
+        }));
+        setDocuments(documentItems);
       } else {
         setDocuments([]);
       }
@@ -74,8 +85,8 @@ const FileList = () => {
       const { data: contentData, error: contentError } = await supabase
         .from('document_content')
         .select('content')
-        .eq('document_id', documentId)
-        .single();
+        .eq('document_id', asId(documentId))
+        .maybeSingle();
         
       if (contentError || !contentData) {
         toast.warning("Document content not found");
@@ -85,6 +96,13 @@ const FileList = () => {
       // Find the document to get its name
       const document = documents.find(doc => doc.id === documentId);
       if (!document) return;
+      
+      // Check if content is available
+      const content = contentData.content;
+      if (!content) {
+        toast.warning("Document content is empty or still processing");
+        return;
+      }
       
       // Display content in a new tab 
       const newWindow = window.open('', '_blank');
@@ -103,7 +121,7 @@ const FileList = () => {
             </head>
             <body>
               <h1>${document.filename}</h1>
-              <pre>${contentData.content}</pre>
+              <pre>${content}</pre>
             </body>
           </html>
         `);
@@ -123,7 +141,7 @@ const FileList = () => {
       const { error: contentDeleteError } = await supabase
         .from('document_content')
         .delete()
-        .eq('document_id', documentId);
+        .eq('document_id', asId(documentId));
         
       if (contentDeleteError) {
         console.error("Error deleting document content:", contentDeleteError);
@@ -133,7 +151,7 @@ const FileList = () => {
       const { error: docDeleteError } = await supabase
         .from('documents')
         .delete()
-        .eq('id', documentId);
+        .eq('id', asId(documentId));
         
       if (docDeleteError) {
         throw docDeleteError;

@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -18,7 +19,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { AlertCircle } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { hasData } from '@/utils/supabaseTypeHelpers';
+import { hasData, insertSchool, insertSchoolCode } from '@/utils/supabaseTypeHelpers';
 import type { Database } from "@/integrations/supabase/types";
 
 const formSchema = z.object({
@@ -84,16 +85,12 @@ const SchoolRegistrationForm = () => {
       // Generate unique school code
       const schoolCode = generateSchoolCode();
       
-      // Create school record
-      const { data: schoolData, error: schoolError } = await supabase
-        .from("schools")
-        .insert({
-          name: data.schoolName,
-          code: schoolCode,
-          contact_email: data.contactEmail || data.adminEmail,
-        })
-        .select('id')
-        .single();
+      // Create school record using our helper function
+      const { data: schoolData, error: schoolError } = await insertSchool({
+        name: data.schoolName,
+        code: schoolCode,
+        contact_email: data.contactEmail || data.adminEmail,
+      });
 
       if (schoolError || !schoolData) {
         console.error("Error creating school:", schoolError);
@@ -103,16 +100,12 @@ const SchoolRegistrationForm = () => {
       const schoolId = schoolData.id;
       
       // Create school code record with reference to the school
-      const { data: schoolCodeData, error: schoolCodeError } = await supabase
-        .from("school_codes")
-        .insert({
-          code: schoolCode,
-          school_name: data.schoolName,
-          school_id: schoolId,
-          active: true
-        })
-        .select()
-        .single();
+      const { data: schoolCodeData, error: schoolCodeError } = await insertSchoolCode({
+        code: schoolCode,
+        school_name: data.schoolName,
+        school_id: schoolId,
+        active: true
+      });
       
       if (schoolCodeError || !schoolCodeData) {
         console.error("Error creating school code:", schoolCodeError);

@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -44,6 +45,9 @@ const AcceptInvitation = () => {
           throw new Error(verifyError?.message || 'Invalid or expired invitation');
         }
 
+        // Extract school name safely
+        const schoolName = inviteInfo?.school_name || 'the school';
+
         // Accept the invitation
         const { error: acceptError } = await supabase.rpc(
           'accept_teacher_invitation',
@@ -60,7 +64,7 @@ const AcceptInvitation = () => {
         }
 
         toast.success('Invitation accepted!', {
-          description: `You have successfully joined ${inviteInfo.school_name} as a teacher.`
+          description: `You have successfully joined ${schoolName} as a teacher.`
         });
         
         // Navigate to the teacher dashboard
