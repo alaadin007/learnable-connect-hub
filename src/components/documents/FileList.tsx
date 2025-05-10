@@ -1,502 +1,330 @@
 
-import React, { useEffect, useState } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { FileIcon, Trash2, ExternalLink, Download, AlertCircle, CheckCircle2, RefreshCw } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
+import { 
+  File, Trash2, AlertCircle, Search, RefreshCcw, CheckCircle, 
+  XCircle, Clock, Loader2, Download, FileType 
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
-import { formatDistanceToNow } from 'date-fns';
+import { Input } from '@/components/ui/input';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
-type FileItem = {
+interface DocumentItem {
   id: string;
   filename: string;
   file_type: string;
-  file_size: number;
+  processing_status: string;
   created_at: string;
   storage_path: string;
-  processing_status: string;
-};
-
-type DocumentContent = {
-  id: string;
-  document_id: string;
-  content: string;
-  section_number: number;
+  file_size: number;
 }
 
 const FileList: React.FC = () => {
-  const [files, setFiles] = useState<FileItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [fileToDelete, setFileToDelete] = useState<FileItem | null>(null);
-  const [selectedFile, setSelectedFile] = useState<FileItem | null>(null);
-  const [fileContent, setFileContent] = useState<DocumentContent[]>([]);
-  const [activeSection, setActiveSection] = useState(1);
-  const [showContent, setShowContent] = useState(false);
   const { user } = useAuth();
-  const { toast } = useToast();
-
-  const fetchFiles = async () => {
-    if (!user) return;
-    
-    try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('documents')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
-      if (error) {
-        throw new Error(error.message);
-      }
-      
-      setFiles(data || []);
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch your files',
-        variant: 'destructive',
-      });
-      console.error('Error fetching files:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [documents, setDocuments] = useState<DocumentItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filter, setFilter] = useState<string>('all');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [documentToDelete, setDocumentToDelete] = useState<DocumentItem | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    fetchFiles();
-
-    // Set up a real-time subscription to detect changes to documents
     if (user) {
-      const channel = supabase
-        .channel('public:documents')
-        .on('postgres_changes', 
-          { 
-            event: 'UPDATE', 
-            schema: 'public', 
-            table: 'documents'
-          }, 
-          (payload) => {
-            // Update the file in our state if it exists
-            setFiles(currentFiles => 
-              currentFiles.map(file => 
-                file.id === payload.new.id ? {...file, ...payload.new} : file
-              )
-            );
-          }
-        )
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(channel);
-      };
+      fetchDocuments();
     }
   }, [user]);
 
-  const getFileIcon = (fileType: string) => {
-    if (fileType.includes('pdf')) return 'pdf';
-    if (fileType.includes('image')) return 'image';
-    return 'document';
-  };
-
-  const formatFileSize = (sizeInBytes: number) => {
-    if (sizeInBytes < 1024) return `${sizeInBytes} B`;
-    if (sizeInBytes < 1024 * 1024) return `${(sizeInBytes / 1024).toFixed(1)} KB`;
-    return `${(sizeInBytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
-
-  const downloadFile = async (file: FileItem) => {
+  const fetchDocuments = async () => {
     try {
-      const { data, error } = await supabase.storage
-        .from('user-content')
-        .download(file.storage_path);
+      setIsLoading(true);
       
-      if (error) {
-        throw new Error(error.message);
-      }
+      const { data, error } = await supabase
+        .from('documents')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: false });
+        
+      if (error) throw error;
       
-      const url = URL.createObjectURL(data);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = file.filename;
-      document.body.appendChild(a);
-      a.click();
-      URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      setDocuments(data || []);
     } catch (error) {
-      toast({
-        title: 'Download Failed',
-        description: error instanceof Error ? error.message : 'Failed to download file',
-        variant: 'destructive',
-      });
+      console.error('Error fetching documents:', error);
+      toast.error('Failed to load documents');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const openFile = async (file: FileItem) => {
-    try {
-      const { data: signedURL, error } = await supabase.storage
-        .from('user-content')
-        .createSignedUrl(file.storage_path, 60); // URL expires in 60 seconds
-      
-      if (error) {
-        throw new Error(error.message);
-      }
-      
-      window.open(signedURL.signedUrl, '_blank');
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to open file',
-        variant: 'destructive',
-      });
-    }
+  const refreshDocuments = async () => {
+    setRefreshing(true);
+    await fetchDocuments();
+    setRefreshing(false);
   };
 
-  const confirmDelete = (file: FileItem) => {
-    setFileToDelete(file);
+  const confirmDelete = (document: DocumentItem) => {
+    setDocumentToDelete(document);
+    setDeleteDialogOpen(true);
   };
 
-  const deleteFile = async () => {
-    if (!fileToDelete) return;
+  const handleDelete = async () => {
+    if (!documentToDelete) return;
     
     try {
       // Delete from storage first
       const { error: storageError } = await supabase.storage
-        .from('user-content')
-        .remove([fileToDelete.storage_path]);
+        .from('documents')
+        .remove([documentToDelete.storage_path]);
       
-      if (storageError) {
-        throw new Error(storageError.message);
-      }
+      if (storageError) throw storageError;
       
-      // Delete content from document_content table
-      const { error: contentError } = await supabase
+      // Delete document content if exists
+      await supabase
         .from('document_content')
         .delete()
-        .eq('document_id', fileToDelete.id);
-        
-      if (contentError) {
-        console.error('Error deleting document content:', contentError);
-        // Continue with deletion even if content deletion fails
-      }
+        .eq('document_id', documentToDelete.id);
       
-      // Delete metadata from database
+      // Delete document record
       const { error: dbError } = await supabase
         .from('documents')
         .delete()
-        .eq('id', fileToDelete.id);
+        .eq('id', documentToDelete.id);
       
-      if (dbError) {
-        throw new Error(dbError.message);
-      }
+      if (dbError) throw dbError;
       
-      toast({
-        title: 'File Deleted',
-        description: `${fileToDelete.filename} has been deleted successfully.`
-      });
-      
-      // Refresh file list
-      setFiles(files.filter(f => f.id !== fileToDelete.id));
+      // Update local state
+      setDocuments(documents.filter(doc => doc.id !== documentToDelete.id));
+      toast.success('Document deleted successfully');
       
     } catch (error) {
-      toast({
-        title: 'Delete Failed',
-        description: error instanceof Error ? error.message : 'Failed to delete file',
-        variant: 'destructive',
-      });
+      console.error('Error deleting document:', error);
+      toast.error('Failed to delete document');
     } finally {
-      setFileToDelete(null);
+      setDeleteDialogOpen(false);
+      setDocumentToDelete(null);
     }
   };
 
-  const viewExtractedContent = async (file: FileItem) => {
+  const downloadDocument = async (document: DocumentItem) => {
     try {
-      setSelectedFile(file);
-      
-      // Only fetch content if processing is complete
-      if (file.processing_status === 'completed') {
-        const { data, error } = await supabase
-          .from('document_content')
-          .select('*')
-          .eq('document_id', file.id)
-          .order('section_number', { ascending: true });
-          
-        if (error) {
-          throw new Error(error.message);
-        }
-        
-        if (data && data.length > 0) {
-          setFileContent(data);
-          setActiveSection(1);
-          setShowContent(true);
-        } else {
-          toast({
-            title: 'No Content Available',
-            description: 'No extracted content found for this document.',
-            variant: 'default',
-          });
-        }
-      } else {
-        toast({
-          title: 'Content Not Available',
-          description: 'The document content is still being processed.',
-          variant: 'default',
-        });
-      }
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to fetch document content',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const getProcessingStatusBadge = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return <Badge variant="outline" className="text-yellow-600 bg-yellow-50">Pending</Badge>;
-      case 'processing':
-        return <Badge variant="outline" className="text-blue-600 bg-blue-50">Processing</Badge>;
-      case 'completed':
-        return <Badge variant="outline" className="text-green-600 bg-green-50">Processed</Badge>;
-      case 'error':
-        return <Badge variant="outline" className="text-red-600 bg-red-50">Error</Badge>;
-      case 'unsupported':
-        return <Badge variant="outline" className="text-gray-600 bg-gray-50">Unsupported</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
-
-  // Function to retrigger processing for failed documents
-  const retryProcessing = async (file: FileItem) => {
-    try {
-      // Update processing status back to pending
-      const { error: updateError } = await supabase
+      const { data, error } = await supabase.storage
         .from('documents')
-        .update({ processing_status: 'pending' })
-        .eq('id', file.id);
-        
-      if (updateError) {
-        throw new Error(updateError.message);
-      }
+        .download(document.storage_path);
       
-      // Trigger processing function
-      const { error } = await supabase.functions.invoke('process-document', {
-        body: { document_id: file.id }
-      });
+      if (error) throw error;
       
-      if (error) {
-        throw new Error(error.message);
-      }
-      
-      toast({
-        title: 'Processing Restarted',
-        description: 'Document processing has been restarted.'
-      });
-      
-      // Update the file in state
-      setFiles(currentFiles => 
-        currentFiles.map(f => 
-          f.id === file.id ? {...f, processing_status: 'pending'} : f
-        )
-      );
+      // Create download link
+      const url = URL.createObjectURL(data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = document.filename;
+      a.click();
+      URL.revokeObjectURL(url);
       
     } catch (error) {
-      toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to restart processing',
-        variant: 'destructive',
-      });
+      console.error('Error downloading document:', error);
+      toast.error('Failed to download document');
     }
   };
+
+  const getFileIcon = (fileType: string) => {
+    if (fileType.includes('pdf')) return <FileType className="text-red-500" />;
+    if (fileType.includes('word') || fileType.includes('msword')) return <FileType className="text-blue-500" />;
+    if (fileType.includes('excel') || fileType.includes('sheet')) return <FileType className="text-green-500" />;
+    if (fileType.includes('csv')) return <FileType className="text-yellow-500" />;
+    if (fileType.includes('image')) return <FileType className="text-purple-500" />;
+    return <File className="text-gray-500" />;
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return <CheckCircle className="h-4 w-4 text-green-500" title="Processing complete" />;
+      case 'failed':
+        return <XCircle className="h-4 w-4 text-red-500" title="Processing failed" />;
+      case 'processing':
+        return <Loader2 className="h-4 w-4 text-blue-500 animate-spin" title="Processing" />;
+      default:
+        return <Clock className="h-4 w-4 text-orange-500" title="Pending processing" />;
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return bytes + ' B';
+    else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    else return (bytes / 1048576).toFixed(1) + ' MB';
+  };
+
+  // Filter documents based on search query and filter
+  const filteredDocuments = documents.filter(doc => {
+    const matchesSearch = doc.filename.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesFilter = filter === 'all' || doc.processing_status === filter;
+    return matchesSearch && matchesFilter;
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+      </div>
+    );
+  }
 
   return (
     <div>
-      <h3 className="text-lg font-medium mb-4">Your Files</h3>
-      
-      {loading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Card key={i} className="animate-pulse">
-              <CardContent className="p-4">
-                <div className="h-16 bg-gray-200 rounded"></div>
-              </CardContent>
-            </Card>
-          ))}
+      <div className="mb-4 flex flex-col sm:flex-row gap-2 justify-between">
+        <div className="relative flex-grow">
+          <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Input
+            placeholder="Search documents..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-8"
+          />
         </div>
-      ) : files.length === 0 ? (
-        <p className="text-center py-8 text-gray-500">
-          You haven't uploaded any files yet.
-        </p>
+        <div className="flex space-x-2">
+          <Tabs value={filter} onValueChange={setFilter} className="w-auto">
+            <TabsList>
+              <TabsTrigger value="all">All</TabsTrigger>
+              <TabsTrigger value="completed">Processed</TabsTrigger>
+              <TabsTrigger value="pending">Pending</TabsTrigger>
+              <TabsTrigger value="failed">Failed</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <Button 
+            variant="outline" 
+            size="icon" 
+            onClick={refreshDocuments} 
+            disabled={refreshing}
+            title="Refresh"
+          >
+            <RefreshCcw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+          </Button>
+        </div>
+      </div>
+
+      {documents.length === 0 ? (
+        <div className="text-center py-12 border rounded-md bg-gray-50">
+          <File className="h-10 w-10 text-gray-400 mb-2 mx-auto" />
+          <p className="text-gray-500">No documents uploaded yet</p>
+          <Button 
+            variant="outline"
+            className="mt-4"
+            onClick={() => {}}
+          >
+            Upload Your First Document
+          </Button>
+        </div>
+      ) : filteredDocuments.length === 0 ? (
+        <div className="text-center py-12 border rounded-md bg-gray-50">
+          <AlertCircle className="h-10 w-10 text-gray-400 mb-2 mx-auto" />
+          <p className="text-gray-500">No documents match your search</p>
+        </div>
       ) : (
-        <div className="space-y-3">
-          {files.map((file) => (
-            <Card key={file.id} className="overflow-hidden hover:shadow-md transition-shadow">
-              <CardContent className="p-3">
-                <div className="flex items-center">
-                  <div className="mr-3 flex-shrink-0">
-                    <FileIcon className="h-10 w-10 text-blue-500" />
-                  </div>
-                  <div className="flex-grow min-w-0">
-                    <div className="flex items-center">
-                      <p className="font-medium text-sm truncate flex-grow" title={file.filename}>
-                        {file.filename}
-                      </p>
-                      <div className="ml-2">
-                        {getProcessingStatusBadge(file.processing_status)}
+        <div className="border rounded-md overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Size</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredDocuments.map((doc) => (
+                  <tr key={doc.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="flex-shrink-0 h-10 w-10 flex items-center justify-center">
+                          {getFileIcon(doc.file_type)}
+                        </div>
+                        <div className="ml-4">
+                          <div className="text-sm font-medium text-gray-900 truncate max-w-[200px]" title={doc.filename}>
+                            {doc.filename}
+                          </div>
+                          <div className="text-xs text-gray-500">{doc.file_type.split('/')[1]}</div>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex items-center text-xs text-gray-500">
-                      <span>{formatFileSize(file.file_size)}</span>
-                      <span className="mx-1.5">•</span>
-                      <span title={new Date(file.created_at).toLocaleString()}>
-                        {formatDistanceToNow(new Date(file.created_at), { addSuffix: true })}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-1 ml-2">
-                    {file.processing_status === 'completed' && (
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        onClick={() => viewExtractedContent(file)}
-                        title="View Extracted Content"
-                      >
-                        <CheckCircle2 className="h-4 w-4" />
-                      </Button>
-                    )}
-                    {(file.processing_status === 'error' || file.processing_status === 'unsupported') && (
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        onClick={() => retryProcessing(file)}
-                        title="Retry Processing"
-                      >
-                        <RefreshCw className="h-4 w-4 text-amber-500" />
-                      </Button>
-                    )}
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      onClick={() => downloadFile(file)}
-                      title="Download"
-                    >
-                      <Download className="h-4 w-4" />
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      onClick={() => openFile(file)}
-                      title="Open"
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      onClick={() => confirmDelete(file)}
-                      className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                      title="Delete"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        {getStatusIcon(doc.processing_status)}
+                        <span className="ml-1.5 text-xs">
+                          {doc.processing_status.charAt(0).toUpperCase() + doc.processing_status.slice(1)}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {formatFileSize(doc.file_size)}
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {formatDate(doc.created_at)}
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <div className="flex justify-end space-x-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => downloadDocument(doc)}
+                          title="Download"
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => confirmDelete(doc)}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          title="Delete"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
-      {/* Delete confirmation dialog */}
-      <AlertDialog open={!!fileToDelete} onOpenChange={(open) => !open && setFileToDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete{" "}
-              <span className="font-semibold">{fileToDelete?.filename}</span>.
-              This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              className="bg-red-600 hover:bg-red-700"
-              onClick={deleteFile}
-            >
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Document</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete "{documentToDelete?.filename}"? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDelete}>
               Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Document Content Dialog with pagination for multiple sections */}
-      <AlertDialog open={showContent} onOpenChange={setShowContent}>
-        <AlertDialogContent className="max-w-4xl">
-          <AlertDialogHeader className="space-y-1">
-            <AlertDialogTitle>Extracted Content</AlertDialogTitle>
-            <AlertDialogDescription>
-              Extracted text from {selectedFile?.filename}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          
-          {fileContent.length > 1 && (
-            <div className="mt-2 mb-4">
-              <Tabs
-                value={activeSection.toString()} 
-                onValueChange={(value) => setActiveSection(parseInt(value))}
-              >
-                <TabsList className="w-full flex-wrap">
-                  {fileContent.map((section) => (
-                    <TabsTrigger 
-                      key={section.section_number} 
-                      value={section.section_number.toString()}
-                      className="flex-grow"
-                    >
-                      Section {section.section_number}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-                
-                {fileContent.map((section) => (
-                  <TabsContent 
-                    key={section.section_number} 
-                    value={section.section_number.toString()}
-                    className="max-h-[60vh] overflow-y-auto p-4 bg-gray-50 rounded border"
-                  >
-                    <pre className="whitespace-pre-wrap text-sm">{section.content}</pre>
-                  </TabsContent>
-                ))}
-              </Tabs>
-            </div>
-          )}
-          
-          {fileContent.length === 1 && (
-            <div className="max-h-[60vh] overflow-y-auto p-4 bg-gray-50 rounded border">
-              <pre className="whitespace-pre-wrap text-sm">{fileContent[0]?.content}</pre>
-            </div>
-          )}
-          
-          <AlertDialogFooter className="mt-4">
-            <AlertDialogAction>Close</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

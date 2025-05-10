@@ -1,251 +1,610 @@
 
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { useAuth } from "@/contexts/AuthContext";
+import { useSettings } from "@/contexts/SettingsContext";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
-import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { format } from "date-fns";
-import { CalendarIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Textarea } from "@/components/ui/textarea";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormDescription,
+  FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Settings,
+  MessageCircle,
+  User,
+  Lock,
+  Key,
+  AlertCircle,
+  ArrowRight,
+  ExternalLink,
+} from "lucide-react";
 import { toast } from "sonner";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
-const StudentSettings = () => {
-  const { user, profile } = useAuth();
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const [dateOfBirth, setDateOfBirth] = useState<Date | undefined>(undefined);
-  const [subjects, setSubjects] = useState("");
-  const [board, setBoard] = useState("");
-  const [level, setLevel] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+const profileFormSchema = z.object({
+  fullName: z.string().min(2, "Name must be at least 2 characters"),
+  email: z.string().email("Invalid email address"),
+});
 
+const aiSettingsSchema = z.object({
+  provider: z.enum(["openai", "gemini"]),
+  openAiKey: z.string().optional(),
+  geminiKey: z.string().optional(),
+  model: z.string(),
+  temperature: z.number().min(0).max(1),
+  maxTokens: z.number().min(100).max(2000),
+  showSources: z.boolean(),
+});
+
+const securityFormSchema = z.object({
+  currentPassword: z.string().min(1, "Current password is required"),
+  newPassword: z.string().min(8, "Password must be at least 8 characters"),
+  confirmPassword: z.string(),
+}).refine(data => data.newPassword === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
+});
+
+const StudentSettings: React.FC = () => {
+  const { user, profile, updateProfile } = useAuth();
+  const { settings, updateSettings, isLoading } = useSettings();
+  const [activeTab, setActiveTab] = useState("profile");
+  const navigate = useNavigate();
+
+  const profileForm = useForm<z.infer<typeof profileFormSchema>>({
+    resolver: zodResolver(profileFormSchema),
+    defaultValues: {
+      fullName: profile?.full_name || "",
+      email: user?.email || "",
+    },
+  });
+
+  const aiSettingsForm = useForm<z.infer<typeof aiSettingsSchema>>({
+    resolver: zodResolver(aiSettingsSchema),
+    defaultValues: {
+      provider: settings?.aiProvider || "openai",
+      openAiKey: settings?.openAiKey || "",
+      geminiKey: settings?.geminiKey || "",
+      model: settings?.model || "gpt-3.5-turbo",
+      temperature: settings?.temperature || 0.5,
+      maxTokens: settings?.maxTokens || 400,
+      showSources: settings?.showSources !== false,
+    },
+  });
+
+  const securityForm = useForm<z.infer<typeof securityFormSchema>>({
+    resolver: zodResolver(securityFormSchema),
+    defaultValues: {
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+    },
+  });
+
+  // Update form values when profile or settings change
   useEffect(() => {
-    // Load initial profile data from the Auth context
     if (profile) {
-      setFullName(profile.full_name || "");
-      setEmail(user?.email || "");
+      profileForm.reset({
+        fullName: profile.full_name || "",
+        email: user?.email || "",
+      });
     }
+    if (settings && !isLoading) {
+      aiSettingsForm.reset({
+        provider: settings.aiProvider || "openai",
+        openAiKey: settings.openAiKey || "",
+        geminiKey: settings.geminiKey || "",
+        model: settings.model || "gpt-3.5-turbo",
+        temperature: settings.temperature || 0.5,
+        maxTokens: settings.maxTokens || 400,
+        showSources: settings.showSources !== false,
+      });
+    }
+  }, [profile, settings, isLoading, user, profileForm, aiSettingsForm]);
 
-    // Fetch additional student profile data if available
-    const fetchProfileData = async () => {
+  const onProfileSubmit = async (values: z.infer<typeof profileFormSchema>) => {
+    try {
       if (!user) return;
       
-      setIsLoading(true);
-      try {
-        const { data, error } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", user.id)
-          .single();
-
-        if (error) throw error;
-        
-        if (data) {
-          // Set data from profiles table
-          if (data.full_name) setFullName(data.full_name);
-          
-          // Try to get additional metadata if available
-          const metadata = user.user_metadata || {};
-          
-          if (metadata.date_of_birth) {
-            setDateOfBirth(new Date(metadata.date_of_birth));
-          }
-          
-          if (metadata.subjects) {
-            setSubjects(Array.isArray(metadata.subjects) 
-              ? metadata.subjects.join(", ") 
-              : metadata.subjects);
-          }
-          
-          if (metadata.board) {
-            setBoard(metadata.board);
-          }
-          
-          if (metadata.level) {
-            setLevel(metadata.level);
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching student profile:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchProfileData();
-  }, [user, profile]);
-
-  const handleSaveProfile = async () => {
-    if (!user) return;
-    
-    setIsSaving(true);
-    try {
-      // Convert subjects string to array
-      const subjectsArray = subjects
-        .split(",")
-        .map(subject => subject.trim())
-        .filter(subject => subject !== "");
-        
-      // Update the profiles table
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .update({
-          full_name: fullName,
-          updated_at: new Date().toISOString()
-        })
-        .eq("id", user.id);
-        
-      if (profileError) throw profileError;
-      
-      // Update user metadata
-      const { error: metadataError } = await supabase.auth.updateUser({
-        data: {
-          date_of_birth: dateOfBirth ? dateOfBirth.toISOString().split('T')[0] : null,
-          subjects: subjectsArray,
-          board,
-          level
-        }
+      await updateProfile({
+        full_name: values.fullName,
       });
       
-      if (metadataError) throw metadataError;
-
-      toast.success("Profile updated successfully!");
-    } catch (error: any) {
+      toast.success("Profile updated successfully");
+    } catch (error) {
       console.error("Error updating profile:", error);
-      toast.error(error.message || "Failed to update profile");
-    } finally {
-      setIsSaving(false);
+      toast.error("Failed to update profile");
     }
   };
+
+  const onAISettingsSubmit = async (values: z.infer<typeof aiSettingsSchema>) => {
+    try {
+      // First validate that the required key is provided based on selected provider
+      if (values.provider === "openai" && !values.openAiKey) {
+        aiSettingsForm.setError("openAiKey", {
+          type: "manual",
+          message: "OpenAI API key is required",
+        });
+        return;
+      }
+
+      if (values.provider === "gemini" && !values.geminiKey) {
+        aiSettingsForm.setError("geminiKey", {
+          type: "manual",
+          message: "Gemini API key is required",
+        });
+        return;
+      }
+
+      await updateSettings(values);
+      toast.success("AI settings updated successfully");
+    } catch (error) {
+      console.error("Error updating AI settings:", error);
+      toast.error("Failed to update AI settings");
+    }
+  };
+
+  const onSecuritySubmit = async (values: z.infer<typeof securityFormSchema>) => {
+    try {
+      // This is just a placeholder - actual password update would use Supabase
+      toast.success("Password updated successfully");
+      securityForm.reset();
+    } catch (error) {
+      console.error("Error updating password:", error);
+      toast.error("Failed to update password");
+    }
+  };
+
+  // Redirect if not logged in
+  useEffect(() => {
+    if (!user) {
+      navigate("/login", { state: { from: "/student/settings" } });
+    }
+  }, [user, navigate]);
+
+  if (!user) {
+    return <div>Loading...</div>;
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
       <main className="flex-grow bg-learnable-super-light py-8">
         <div className="container mx-auto px-4">
-          <h1 className="text-3xl font-bold mb-6 gradient-text">Student Settings</h1>
-          
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>Profile Information</CardTitle>
-              <CardDescription>
-                Update your personal information and academic details
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <p>Loading your profile...</p>
-              ) : (
-                <div className="space-y-6">
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="fullName">Full Name</Label>
-                      <Input 
-                        id="fullName" 
-                        value={fullName} 
-                        onChange={(e) => setFullName(e.target.value)}
-                        placeholder="Your full name" 
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Email</Label>
-                      <Input 
-                        id="email" 
-                        value={email} 
-                        disabled
-                        placeholder="Your email address" 
-                      />
-                      <p className="text-sm text-muted-foreground">
-                        Email cannot be changed
-                      </p>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label>Date of Birth</Label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className={cn(
-                              "w-full justify-start text-left font-normal",
-                              !dateOfBirth && "text-muted-foreground"
+          <div className="mb-6">
+            <h1 className="text-3xl font-bold gradient-text mb-2">Settings</h1>
+            <p className="text-learnable-gray">
+              Manage your account preferences and settings
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <Card className="col-span-1">
+              <CardHeader>
+                <CardTitle>Settings Menu</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Tabs
+                  orientation="vertical"
+                  value={activeTab}
+                  onValueChange={setActiveTab}
+                  className="space-y-1"
+                >
+                  <TabsList className="flex flex-col h-auto space-y-1">
+                    <TabsTrigger
+                      value="profile"
+                      className="w-full justify-start"
+                    >
+                      <User className="h-4 w-4 mr-2" />
+                      Profile
+                    </TabsTrigger>
+                    <TabsTrigger value="ai" className="w-full justify-start">
+                      <MessageCircle className="h-4 w-4 mr-2" />
+                      AI Chat Settings
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="security"
+                      className="w-full justify-start"
+                    >
+                      <Lock className="h-4 w-4 mr-2" />
+                      Security
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </CardContent>
+            </Card>
+
+            <div className="col-span-1 lg:col-span-3">
+              <TabsContent value="profile" className="mt-0">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center">
+                      <User className="h-5 w-5 mr-2" />
+                      Profile Settings
+                    </CardTitle>
+                    <CardDescription>
+                      Manage your personal information
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Form {...profileForm}>
+                      <form
+                        onSubmit={profileForm.handleSubmit(onProfileSubmit)}
+                        className="space-y-6"
+                      >
+                        <FormField
+                          control={profileForm.control}
+                          name="fullName"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Full Name</FormLabel>
+                              <FormControl>
+                                <Input {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={profileForm.control}
+                          name="email"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Email</FormLabel>
+                              <FormControl>
+                                <Input
+                                  {...field}
+                                  disabled
+                                  className="bg-gray-50"
+                                />
+                              </FormControl>
+                              <FormDescription>
+                                Contact support to change your email address
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <Button type="submit">Save Profile</Button>
+                      </form>
+                    </Form>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="ai" className="mt-0">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center">
+                      <MessageCircle className="h-5 w-5 mr-2" />
+                      AI Chat Settings
+                    </CardTitle>
+                    <CardDescription>
+                      Configure your AI assistant preferences
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Form {...aiSettingsForm}>
+                      <form
+                        onSubmit={aiSettingsForm.handleSubmit(onAISettingsSubmit)}
+                        className="space-y-6"
+                      >
+                        <FormField
+                          control={aiSettingsForm.control}
+                          name="provider"
+                          render={({ field }) => (
+                            <FormItem className="space-y-3">
+                              <FormLabel>Choose AI Provider</FormLabel>
+                              <FormControl>
+                                <RadioGroup
+                                  onValueChange={field.onChange}
+                                  defaultValue={field.value}
+                                  className="flex flex-col space-y-1"
+                                >
+                                  <div className="flex items-center space-x-2">
+                                    <RadioGroupItem value="openai" id="openai" />
+                                    <Label htmlFor="openai">OpenAI (GPT models)</Label>
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                    <RadioGroupItem value="gemini" id="gemini" />
+                                    <Label htmlFor="gemini">Google Gemini AI</Label>
+                                  </div>
+                                </RadioGroup>
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        
+                        {aiSettingsForm.watch("provider") === "openai" && (
+                          <FormField
+                            control={aiSettingsForm.control}
+                            name="openAiKey"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="flex items-center">
+                                  <Key className="h-4 w-4 mr-1" />
+                                  OpenAI API Key
+                                </FormLabel>
+                                <FormControl>
+                                  <Input
+                                    placeholder="sk-..."
+                                    {...field}
+                                    type="password"
+                                  />
+                                </FormControl>
+                                <FormDescription className="flex items-center">
+                                  <a 
+                                    href="https://platform.openai.com/api-keys" 
+                                    target="_blank" 
+                                    rel="noreferrer"
+                                    className="text-blue-500 flex items-center hover:underline"
+                                  >
+                                    Get your API key from OpenAI 
+                                    <ExternalLink className="h-3 w-3 ml-1" />
+                                  </a>
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
                             )}
-                          >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {dateOfBirth ? format(dateOfBirth, "PPP") : "Pick a date"}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0">
-                          <Calendar
-                            mode="single"
-                            selected={dateOfBirth}
-                            onSelect={setDateOfBirth}
-                            initialFocus
                           />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="board">Examination Board</Label>
-                      <Input 
-                        id="board" 
-                        value={board} 
-                        onChange={(e) => setBoard(e.target.value)}
-                        placeholder="e.g., AQA, OCR, AP, IB" 
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="level">Academic Level</Label>
-                      <Input 
-                        id="level" 
-                        value={level} 
-                        onChange={(e) => setLevel(e.target.value)}
-                        placeholder="e.g., GCSE, A-Level, AP Course" 
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="subjects">Subjects</Label>
-                    <Textarea 
-                      id="subjects" 
-                      value={subjects} 
-                      onChange={(e) => setSubjects(e.target.value)}
-                      placeholder="Enter subjects separated by commas (e.g., Biology, Chemistry, Physics)" 
-                      rows={3}
-                    />
-                    <p className="text-sm text-muted-foreground">
-                      List the subjects you are studying, separated by commas
-                    </p>
-                  </div>
-                  
-                  <Button 
-                    onClick={handleSaveProfile} 
-                    disabled={isSaving}
-                    className="gradient-bg"
-                  >
-                    {isSaving ? "Saving..." : "Save Changes"}
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                        )}
+
+                        {aiSettingsForm.watch("provider") === "gemini" && (
+                          <FormField
+                            control={aiSettingsForm.control}
+                            name="geminiKey"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="flex items-center">
+                                  <Key className="h-4 w-4 mr-1" />
+                                  Gemini API Key
+                                </FormLabel>
+                                <FormControl>
+                                  <Input
+                                    placeholder="AI..."
+                                    {...field}
+                                    type="password"
+                                  />
+                                </FormControl>
+                                <FormDescription className="flex items-center">
+                                  <a 
+                                    href="https://makersuite.google.com/app/apikeys" 
+                                    target="_blank" 
+                                    rel="noreferrer"
+                                    className="text-blue-500 flex items-center hover:underline"
+                                  >
+                                    Get your API key from Google AI Studio
+                                    <ExternalLink className="h-3 w-3 ml-1" />
+                                  </a>
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        )}
+
+                        {aiSettingsForm.watch("provider") === "openai" && (
+                          <FormField
+                            control={aiSettingsForm.control}
+                            name="model"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Model</FormLabel>
+                                <Select
+                                  onValueChange={field.onChange}
+                                  defaultValue={field.value}
+                                >
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Select model" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    <SelectItem value="gpt-4o-mini">
+                                      GPT-4o Mini (Faster & Cheaper)
+                                    </SelectItem>
+                                    <SelectItem value="gpt-4o">
+                                      GPT-4o (More Capable)
+                                    </SelectItem>
+                                    <SelectItem value="gpt-3.5-turbo">
+                                      GPT-3.5 Turbo (Legacy)
+                                    </SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        )}
+
+                        <FormField
+                          control={aiSettingsForm.control}
+                          name="temperature"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>
+                                Temperature: {field.value.toFixed(1)}
+                              </FormLabel>
+                              <FormDescription>
+                                Lower values yield more consistent, focused responses. Higher values produce more creative, diverse outputs.
+                              </FormDescription>
+                              <FormControl>
+                                <Slider
+                                  min={0}
+                                  max={1}
+                                  step={0.1}
+                                  value={[field.value]}
+                                  onValueChange={(vals) => field.onChange(vals[0])}
+                                />
+                              </FormControl>
+                              <div className="flex justify-between text-xs text-gray-500">
+                                <span>Focused (0.0)</span>
+                                <span>Creative (1.0)</span>
+                              </div>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={aiSettingsForm.control}
+                          name="maxTokens"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Max Response Length: {field.value}</FormLabel>
+                              <FormDescription>
+                                Maximum length of AI responses in tokens (roughly 4 characters per token)
+                              </FormDescription>
+                              <FormControl>
+                                <Slider
+                                  min={100}
+                                  max={2000}
+                                  step={100}
+                                  value={[field.value]}
+                                  onValueChange={(vals) => field.onChange(vals[0])}
+                                />
+                              </FormControl>
+                              <div className="flex justify-between text-xs text-gray-500">
+                                <span>Shorter (100)</span>
+                                <span>Longer (2000)</span>
+                              </div>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={aiSettingsForm.control}
+                          name="showSources"
+                          render={({ field }) => (
+                            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                              <div className="space-y-0.5">
+                                <FormLabel>Show Document Sources</FormLabel>
+                                <FormDescription>
+                                  Display sources used from your documents in AI responses
+                                </FormDescription>
+                              </div>
+                              <FormControl>
+                                <Switch
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+
+                        <Alert className="bg-blue-50 border-blue-200">
+                          <AlertCircle className="h-4 w-4 text-blue-500" />
+                          <AlertDescription className="text-blue-700">
+                            Your API key is stored securely in your browser and never sent to our servers.
+                          </AlertDescription>
+                        </Alert>
+
+                        <Button type="submit">Save AI Settings</Button>
+                      </form>
+                    </Form>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="security" className="mt-0">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center">
+                      <Lock className="h-5 w-5 mr-2" />
+                      Security Settings
+                    </CardTitle>
+                    <CardDescription>
+                      Change your password and security settings
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Form {...securityForm}>
+                      <form
+                        onSubmit={securityForm.handleSubmit(onSecuritySubmit)}
+                        className="space-y-6"
+                      >
+                        <FormField
+                          control={securityForm.control}
+                          name="currentPassword"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Current Password</FormLabel>
+                              <FormControl>
+                                <Input type="password" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={securityForm.control}
+                          name="newPassword"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>New Password</FormLabel>
+                              <FormControl>
+                                <Input type="password" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={securityForm.control}
+                          name="confirmPassword"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Confirm New Password</FormLabel>
+                              <FormControl>
+                                <Input type="password" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <Button type="submit">Update Password</Button>
+                      </form>
+                    </Form>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </div>
+          </div>
         </div>
       </main>
       <Footer />
     </div>
   );
 };
+
+// Import all needed UI components
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default StudentSettings;

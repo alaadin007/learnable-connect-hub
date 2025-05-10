@@ -26,7 +26,7 @@ serve(async (req) => {
     
     console.log("Request data:", JSON.stringify({
       messageId: message?.id,
-      messageRole: message?.role,
+      messageRole: message?.role || message?.sender,
       conversationId,
       sessionId
     }));
@@ -60,17 +60,21 @@ serve(async (req) => {
     console.log(`Processing message for user ID: ${user.id}`);
 
     // Get user's school ID
-    const { data: schoolData, error: schoolError } = await supabase.rpc('get_user_school_id');
+    const { data: userData, error: profileError } = await supabase
+      .from('profiles')
+      .select('school_id')
+      .eq('id', user.id)
+      .single();
     
-    if (schoolError) {
-      console.error("Error getting user school ID:", schoolError);
-      throw schoolError;
+    if (profileError) {
+      console.error("Error getting user profile:", profileError);
     }
     
-    console.log(`User school ID: ${schoolData}`);
+    const schoolId = userData?.school_id || null;
+    console.log(`User school ID: ${schoolId}`);
 
     // Ensure we have the required data
-    if (!message || !message.role || !message.content) {
+    if (!message || !message.content) {
       return new Response(JSON.stringify({ error: "Message data is incomplete" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -78,6 +82,7 @@ serve(async (req) => {
     }
 
     let convoId = conversationId;
+    let newConversation = false;
 
     // If no conversation ID is provided, create a new conversation
     if (!convoId) {
@@ -86,7 +91,7 @@ serve(async (req) => {
         .from('conversations')
         .insert([{ 
           user_id: user.id, 
-          school_id: schoolData,
+          school_id: schoolId,
           title: `New conversation on ${new Date().toLocaleDateString()}`,
           last_message_at: new Date().toISOString()
         }])
@@ -98,6 +103,7 @@ serve(async (req) => {
         throw convoError;
       }
       convoId = convoData.id;
+      newConversation = true;
       console.log(`Created new conversation with ID: ${convoId}`);
     } else {
       // Update the last_message_at for the existing conversation
@@ -108,6 +114,9 @@ serve(async (req) => {
         .eq('id', convoId);
     }
 
+    // Use 'sender' directly if available, otherwise use 'role' as fallback
+    const sender = message.sender || message.role || 'user';
+
     // Save the message to the database
     console.log(`Saving message to conversation ID: ${convoId}`);
     const { data: msgData, error: msgError } = await supabase
@@ -115,7 +124,7 @@ serve(async (req) => {
       .insert([{
         conversation_id: convoId,
         content: message.content,
-        sender: message.role,
+        sender: sender,
       }])
       .select('*')
       .single();
@@ -136,7 +145,8 @@ serve(async (req) => {
     return new Response(JSON.stringify({ 
       success: true, 
       message: msgData,
-      conversationId: convoId
+      conversationId: convoId,
+      newConversation
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

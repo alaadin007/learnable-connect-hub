@@ -1,28 +1,43 @@
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, Loader2, MessageCircle, Paperclip, RefreshCcw } from 'lucide-react';
-import { toast } from 'sonner';
-import { v4 as uuidv4 } from 'uuid';
-import { Badge } from '@/components/ui/badge';
-import sessionLogger from '@/utils/sessionLogger';
-import VoiceRecorder from './VoiceRecorder';
-import TextToSpeech from './TextToSpeech';
+import React, { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import {
+  Send,
+  Loader2,
+  AlertCircle,
+  Paperclip,
+  Mic,
+  FilePlus,
+  ToggleLeft,
+  ToggleRight,
+  Clock,
+} from "lucide-react";
+import TextToSpeech from "./TextToSpeech";
+import VoiceRecorder from "./VoiceRecorder";
+import TypingIndicator from "./TypingIndicator";
+import { useSettings } from "@/contexts/SettingsContext";
 
-interface ChatMessage {
+interface Message {
   id: string;
-  role: 'user' | 'assistant' | 'system';
   content: string;
+  sender: string;
   timestamp: string;
 }
 
 interface PersistentChatInterfaceProps {
-  conversationId?: string | null;
+  conversationId: string | null;
   onConversationCreated?: (id: string) => void;
   topic?: string;
 }
@@ -30,425 +45,468 @@ interface PersistentChatInterfaceProps {
 const PersistentChatInterface: React.FC<PersistentChatInterfaceProps> = ({
   conversationId,
   onConversationCreated,
-  topic,
+  topic = "",
 }) => {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [sessionId, setSessionId] = useState<string | null>(null);
   const { user } = useAuth();
+  const [input, setInput] = useState<string>("");
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isUsingDocuments, setIsUsingDocuments] = useState<boolean>(true);
+  const [activeDocumentId, setActiveDocumentId] = useState<string | null>(null);
+  const [sourceCitations, setSourceCitations] = useState<any[]>([]);
+  const [isSessionActive, setIsSessionActive] = useState<boolean>(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [isInitialLoad, setIsInitialLoad] = useState<boolean>(true);
+  const [isRecording, setIsRecording] = useState<boolean>(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [loadingHistory, setLoadingHistory] = useState(!!conversationId);
-  const [loadingError, setLoadingError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
+  const { settings, isLoading: isSettingsLoading } = useSettings();
+  
+  // Check if API key is configured
+  const isApiKeyConfigured = settings?.aiProvider === 'openai' 
+    ? !!settings?.openAiKey 
+    : !!settings?.geminiKey;
 
-  // Start session on component mount
-  useEffect(() => {
-    const startNewSession = async () => {
-      try {
-        const newSessionId = await sessionLogger.startSession(topic);
-        if (newSessionId) {
-          setSessionId(newSessionId);
-        }
-      } catch (error) {
-        console.error("Error starting session:", error);
-      }
-    };
-
-    startNewSession();
-
-    return () => {
-      if (sessionId) {
-        sessionLogger.endSession(sessionId);
-      }
-    };
-  }, [topic]);
-
-  // Load conversation history when conversationId changes
+  // Fetch conversation history when conversationId changes
   useEffect(() => {
     if (conversationId) {
-      loadChatHistory(conversationId);
+      fetchConversationHistory();
     } else {
+      // Clear messages when starting a new conversation
       setMessages([]);
-      setLoadingError(null);
+      setSourceCitations([]);
+      setActiveDocumentId(null);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId]);
 
-  // Scroll to bottom when messages change
+  // Scroll to bottom whenever messages change
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  // Start or end chat session based on component mount/unmount
+  useEffect(() => {
+    if (!user) return;
 
-  const loadChatHistory = async (convoId: string) => {
-    setLoadingHistory(true);
-    setLoadingError(null);
-    
-    try {
-      const { data, error } = await supabase.functions.invoke('get-chat-history', {
-        body: { conversationId: convoId }
-      });
-      
-      if (error) throw error;
-      
-      if (data?.messages) {
-        // Convert database messages to the format used by this component
-        const chatMessages = data.messages.map((msg: any) => ({
-          id: msg.id,
-          role: msg.sender === 'user' ? 'user' : 'assistant',
-          content: msg.content,
-          timestamp: msg.timestamp
-        }));
-        
-        setMessages(chatMessages);
-      } else {
-        // Set empty array if no messages found
-        setMessages([]);
+    const startChatSession = async () => {
+      try {
+        setIsInitialLoad(true);
+        const { data, error } = await supabase.functions.invoke(
+          "create-session-log",
+          {
+            body: { topic },
+          }
+        );
+
+        if (error) {
+          console.error("Error starting session:", error);
+          return;
+        }
+
+        if (data?.id) {
+          console.log("Chat session started with ID:", data.id);
+          setSessionId(data.id);
+          setIsSessionActive(true);
+        }
+      } catch (error) {
+        console.error("Failed to start chat session:", error);
+      } finally {
+        setIsInitialLoad(false);
       }
-    } catch (error: any) {
-      console.error("Error loading chat history:", error);
-      setLoadingError("Failed to load chat history. Please try again.");
-      toast.error("Failed to load chat history");
-    } finally {
-      setLoadingHistory(false);
-    }
-  };
-
-  const handleRetryLoadHistory = () => {
-    if (conversationId) {
-      loadChatHistory(conversationId);
-    }
-  };
-
-  const handleSubmit = async () => {
-    if (!input.trim() || isLoading) return;
-    
-    setIsLoading(true);
-    
-    // Create a temporary message ID
-    const messageId = uuidv4();
-    
-    // Add user message to UI
-    const userMessage = {
-      id: messageId,
-      role: 'user' as const,
-      content: input.trim(),
-      timestamp: new Date().toISOString()
     };
-    
-    setMessages(prev => [...prev, userMessage]);
-    setInput('');
-    
-    try {
-      // Save user message to database
-      const { data: saveData, error: saveError } = await supabase.functions.invoke('save-chat-message', {
-        body: {
-          message: userMessage,
-          conversationId,
-          sessionId
-        }
-      });
-      
-      if (saveError) throw saveError;
-      
-      // If this is a new conversation, notify the parent component
-      if (saveData.conversationId && !conversationId && onConversationCreated) {
-        onConversationCreated(saveData.conversationId);
+
+    startChatSession();
+
+    // Clean up function to end session
+    return () => {
+      if (sessionId) {
+        endChatSession();
       }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, topic]);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const fetchConversationHistory = async () => {
+    if (!conversationId || !user) return;
+
+    try {
+      setIsLoading(true);
       
-      // Get AI response
-      const { data: aiData, error: aiError } = await supabase.functions.invoke('ask-ai', {
-        body: {
-          question: input.trim(),
-          conversationId: saveData.conversationId || conversationId,
-          sessionId,
-          topic
-        }
-      });
-      
-      if (aiError) throw aiError;
-      
-      // Create AI response message
-      const aiMessage = {
-        id: uuidv4(),
-        role: 'assistant' as const,
-        content: aiData.response,
-        timestamp: new Date().toISOString()
-      };
-      
-      // Add AI message to UI
-      setMessages(prev => [...prev, aiMessage]);
-      
-      // Save AI message to database
-      await supabase.functions.invoke('save-chat-message', {
-        body: {
-          message: aiMessage,
-          conversationId: saveData.conversationId || conversationId,
-          sessionId
-        }
-      });
-      
-    } catch (error: any) {
-      console.error("Error in chat:", error);
-      toast.error("There was an error processing your message");
-      
-      // Add system error message
-      setMessages(prev => [
-        ...prev,
+      const { data, error } = await supabase.functions.invoke(
+        "get-chat-history",
         {
-          id: uuidv4(),
-          role: 'system',
-          content: "Sorry, there was an error processing your request. Please try again.",
-          timestamp: new Date().toISOString()
+          body: { conversationId },
         }
-      ]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      );
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit();
-    }
-  };
-
-  const handleFileUpload = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (!files || files.length === 0 || isLoading) return;
-    
-    const file = files[0];
-    
-    // Check file size (max 10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("File too large. Please upload a file smaller than 10MB");
-      return;
-    }
-    
-    // Check file type
-    const fileExt = file.name.split('.').pop()?.toLowerCase();
-    if (!['pdf', 'jpg', 'jpeg', 'png'].includes(fileExt || '')) {
-      toast.error("Unsupported file type. Please upload a PDF, JPG or PNG file");
-      return;
-    }
-    
-    setIsLoading(true);
-    
-    try {
-      // Create a unique file path using user ID
-      const filePath = `${user?.id}/${Date.now()}_${file.name}`;
-      
-      // Upload file to Supabase Storage
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('user-content')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: false,
-        });
-      
-      if (uploadError) throw uploadError;
-      
-      // Get public URL for the file
-      const { data: urlData } = await supabase.storage
-        .from('user-content')
-        .getPublicUrl(filePath);
-      
-      const publicUrl = urlData.publicUrl;
-      
-      // Add file message to UI
-      const fileMessage = {
-        id: uuidv4(),
-        role: 'user' as const,
-        content: `📎 [${file.name}](${publicUrl})`,
-        timestamp: new Date().toISOString()
-      };
-      
-      setMessages(prev => [...prev, fileMessage]);
-      
-      // Save file message to database
-      const { data: saveData, error: saveError } = await supabase.functions.invoke('save-chat-message', {
-        body: {
-          message: fileMessage,
-          conversationId,
-          sessionId
-        }
-      });
-      
-      if (saveError) throw saveError;
-      
-      // If this is a new conversation, notify the parent component
-      if (saveData.conversationId && !conversationId && onConversationCreated) {
-        onConversationCreated(saveData.conversationId);
+      if (error) {
+        console.error("Error fetching chat history:", error);
+        toast.error("Failed to load conversation history");
+        return;
       }
-      
-      toast.success(`File ${file.name} uploaded successfully`);
-      
+
+      if (data?.messages) {
+        console.log("Loaded conversation history:", data.messages);
+        setMessages(data.messages);
+      }
     } catch (error) {
-      console.error("Error uploading file:", error);
-      toast.error("Failed to upload file");
+      console.error("Error fetching conversation history:", error);
+      toast.error("Failed to load conversation history");
     } finally {
       setIsLoading(false);
-      // Reset file input
-      if (event.target) event.target.value = '';
     }
   };
 
-  // Format timestamp for display
-  const formatTime = (timestamp: string) => {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const endChatSession = async () => {
+    if (!sessionId) return;
+
+    try {
+      await supabase.functions.invoke("end-session", {
+        body: { sessionId },
+      });
+      setSessionId(null);
+      setIsSessionActive(false);
+    } catch (error) {
+      console.error("Failed to end chat session:", error);
+    }
   };
 
-  const handleTranscriptionComplete = (text: string) => {
-    setInput(text);
+  const handleSendMessage = async () => {
+    if (!user) {
+      toast.error("Please log in to use the chat");
+      navigate("/login", { state: { from: "/chat" } });
+      return;
+    }
+
+    if (!isApiKeyConfigured) {
+      toast.error("Please configure your AI provider API key in settings");
+      return;
+    }
+
+    if (!input.trim()) return;
+
+    const userMessage = {
+      id: `temp-${Date.now()}`,
+      content: input,
+      sender: "user",
+      timestamp: new Date().toISOString(),
+    };
+
+    setMessages((prevMessages) => [...prevMessages, userMessage]);
+    setInput("");
+    setIsLoading(true);
+
+    try {
+      // First save user message to the database
+      const { data: savedMsg, error: saveError } = await supabase.functions.invoke(
+        "save-chat-message",
+        {
+          body: {
+            message: userMessage,
+            conversationId,
+            sessionId,
+          },
+        }
+      );
+
+      if (saveError) {
+        console.error("Error saving user message:", saveError);
+        toast.error("Failed to save message");
+      }
+
+      // If this is a new conversation, update with the created conversation ID
+      if (!conversationId && savedMsg?.conversationId) {
+        if (onConversationCreated) {
+          onConversationCreated(savedMsg.conversationId);
+        }
+      }
+
+      // Then send the message to the AI for processing
+      const { data: aiResponse, error } = await supabase.functions.invoke("ask-ai", {
+        body: {
+          question: input,
+          topic,
+          documentId: activeDocumentId,
+          useDocuments: isUsingDocuments,
+          sessionId,
+          conversationId: savedMsg?.conversationId || conversationId,
+        },
+      });
+
+      if (error) {
+        console.error("Error getting AI response:", error);
+        toast.error("Failed to get response from AI");
+        return;
+      }
+
+      // Save the AI's response to the database
+      const aiMessage = {
+        id: `ai-${Date.now()}`,
+        content: aiResponse.response,
+        sender: "assistant",
+        timestamp: new Date().toISOString(),
+      };
+
+      const { error: saveAiError } = await supabase.functions.invoke(
+        "save-chat-message",
+        {
+          body: {
+            message: aiMessage,
+            conversationId: savedMsg?.conversationId || conversationId,
+            sessionId,
+          },
+        }
+      );
+
+      if (saveAiError) {
+        console.error("Error saving AI message:", saveAiError);
+      }
+
+      // Update the messages state with the AI's response
+      setMessages((prevMessages) => [...prevMessages, aiMessage]);
+      
+      // If there are source citations, update the state
+      if (aiResponse.sourceCitations) {
+        setSourceCitations(aiResponse.sourceCitations);
+      }
+
+    } catch (error) {
+      console.error("Error sending message:", error);
+      toast.error("Failed to send message");
+    } finally {
+      setIsLoading(false);
+    }
   };
-  
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInput(e.target.value);
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
+
+  const handleDocumentSelect = (documentId: string) => {
+    setActiveDocumentId((prevId) => (prevId === documentId ? null : documentId));
+  };
+
+  const handleVoiceInput = (transcript: string) => {
+    setInput(transcript);
+    // Auto-send after voice input if option is enabled
+    if (transcript) {
+      setTimeout(() => handleSendMessage(), 500);
+    }
+  };
+
+  const toggleUsingDocuments = () => {
+    setIsUsingDocuments((prev) => !prev);
+    toast.info(
+      isUsingDocuments
+        ? "AI will not use your documents"
+        : "AI will use your documents",
+      { duration: 2000 }
+    );
+  };
+
+  const formatMessage = (message: Message) => {
+    // Basic markdown-like formatting
+    return message.content
+      .split("\n")
+      .map((line, i) => <p key={i} className="mb-2">{line}</p>);
+  };
+
+  const renderMessages = () => {
+    if (messages.length === 0) {
+      if (isInitialLoad) {
+        return (
+          <div className="flex justify-center items-center h-64">
+            <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+          </div>
+        );
+      }
+      return (
+        <div className="text-center py-8 text-gray-500">
+          <FilePlus className="h-12 w-12 mx-auto mb-2 text-blue-500 opacity-50" />
+          <p className="text-lg font-medium">Start a new conversation</p>
+          <p className="text-sm">
+            Ask anything about your studies or upload documents for more
+            personalized help.
+          </p>
+        </div>
+      );
+    }
+
+    return messages.map((message, index) => (
+      <div
+        key={message.id}
+        className={`mb-4 ${
+          message.sender === "user" ? "text-right" : "text-left"
+        }`}
+      >
+        <div
+          className={`inline-block max-w-[85%] px-4 py-2 rounded-lg ${
+            message.sender === "user"
+              ? "bg-blue-100 text-blue-900"
+              : "bg-gray-100 text-gray-900"
+          }`}
+        >
+          <div className="text-sm">{formatMessage(message)}</div>
+          <div
+            className={`text-xs mt-1 ${
+              message.sender === "user" ? "text-blue-600" : "text-gray-500"
+            }`}
+          >
+            {new Date(message.timestamp).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </div>
+        </div>
+        {message.sender === "assistant" && settings?.showSources && sourceCitations && sourceCitations.length > 0 && (
+          <div className="mt-1 ml-2 text-xs text-gray-500">
+            <details>
+              <summary className="cursor-pointer">Sources</summary>
+              <ul className="mt-1 space-y-1 pl-3">
+                {sourceCitations.map((citation, idx) => (
+                  <li key={idx}>
+                    <span className="font-medium">{citation.filename}</span>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          </div>
+        )}
+      </div>
+    ));
+  };
+
+  // Check if we should display API key warning
+  const showApiKeyWarning = !isSettingsLoading && !isApiKeyConfigured;
+
   return (
-    <Card className="h-full flex flex-col">
-      <CardHeader className="pb-0">
-        <CardTitle className="text-xl flex items-center gap-2">
-          <MessageCircle className="h-5 w-5" />
-          AI Learning Assistant
-          {topic && (
-            <Badge variant="outline" className="ml-2">
-              Topic: {topic}
-            </Badge>
-          )}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="flex-grow overflow-hidden pt-4">
-        <ScrollArea className="h-[calc(100vh-320px)] pr-4">
-          {loadingHistory ? (
-            <div className="flex items-center justify-center h-40">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <span className="ml-2">Loading chat history...</span>
-            </div>
-          ) : loadingError ? (
-            <div className="flex flex-col items-center justify-center h-40 text-center">
-              <p className="text-muted-foreground mb-4">{loadingError}</p>
-              <Button onClick={handleRetryLoadHistory} variant="outline" size="sm">
-                <RefreshCcw className="h-4 w-4 mr-2" /> Try Again
-              </Button>
-            </div>
-          ) : messages.length === 0 ? (
-            <div className="text-center text-muted-foreground p-8">
-              <MessageCircle className="h-12 w-12 mx-auto mb-2 opacity-20" />
-              <p>Start a conversation with the AI assistant</p>
-              <p className="text-sm mt-2">Ask any question related to your studies</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`flex flex-col ${
-                    message.role === "user"
-                      ? "items-end"
-                      : message.role === "system"
-                      ? "items-center"
-                      : "items-start"
-                  }`}
-                >
-                  <div className="flex items-start gap-2">
-                    <div
-                      className={`max-w-[85%] rounded-lg p-3 ${
-                        message.role === "user"
-                          ? "bg-primary text-primary-foreground"
-                          : message.role === "system"
-                          ? "bg-muted text-muted-foreground text-center"
-                          : "bg-secondary text-secondary-foreground"
-                      }`}
-                    >
-                      <div className="whitespace-pre-wrap">{message.content}</div>
-                      <div 
-                        className={`text-xs mt-1 ${
-                          message.role === "user" 
-                            ? "text-primary-foreground/70" 
-                            : message.role === "system"
-                            ? "text-muted-foreground"
-                            : "text-secondary-foreground/70"
-                        } flex justify-end`}
-                      >
-                        {formatTime(message.timestamp)}
-                      </div>
-                    </div>
-                    
-                    {message.role === "assistant" && (
-                      <TextToSpeech text={message.content} />
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          {isLoading && (
-            <div className="flex items-start mt-4">
-              <div className="max-w-[85%] rounded-lg p-4 bg-secondary">
-                <div className="flex items-center">
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  <span>AI is thinking...</span>
-                </div>
-              </div>
-            </div>
-          )}
-          <div ref={messagesEndRef} />
-        </ScrollArea>
-      </CardContent>
-      <CardFooter className="border-t pt-4">
-        <div className="w-full flex items-center space-x-2">
-          <div className="relative flex-grow">
-            <Input
-              type="text"
-              placeholder="Type your message..."
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              disabled={isLoading || loadingHistory}
-              className="pr-10"
-            />
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="absolute right-0 top-0"
-              onClick={handleFileUpload}
-              disabled={isLoading || loadingHistory}
+    <Card className="w-full shadow-md border-gray-200 h-[70vh] flex flex-col">
+      <CardHeader>
+        <div className="flex justify-between items-center">
+          <div>
+            <CardTitle className="gradient-text">AI Chat Assistant</CardTitle>
+            <CardDescription>
+              Ask questions about your studies or documents
+            </CardDescription>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className={`flex items-center ${
+                isUsingDocuments ? "text-blue-600" : "text-gray-500"
+              }`}
+              onClick={toggleUsingDocuments}
+              title={isUsingDocuments ? "Documents are being used" : "Documents are not being used"}
             >
-              <Paperclip className="h-4 w-4 text-gray-500" />
+              {isUsingDocuments ? (
+                <ToggleRight className="h-4 w-4 mr-1" />
+              ) : (
+                <ToggleLeft className="h-4 w-4 mr-1" />
+              )}
+              Using Documents
             </Button>
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileChange}
-              className="hidden"
-              accept=".pdf,.jpg,.jpeg,.png"
+            {isSessionActive && (
+              <div className="flex items-center text-xs text-gray-500">
+                <Clock className="h-3 w-3 mr-1" />
+                <span>Session active</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="flex-grow overflow-hidden flex flex-col">
+        <div className="flex-grow overflow-y-auto mb-4 px-2">
+          {renderMessages()}
+          <div ref={messagesEndRef} />
+          {isLoading && (
+            <div className="mt-2 text-left">
+              <TypingIndicator />
+            </div>
+          )}
+        </div>
+
+        {showApiKeyWarning && (
+          <div className="rounded-md border bg-yellow-100 p-3 py-2 mb-4 text-sm text-yellow-800 flex items-center">
+            <AlertCircle className="mr-2 h-4 w-4" />
+            <span className="flex-grow">
+              You need to configure an AI provider API key in Settings to use the chat.
+            </span>
+          </div>
+        )}
+
+        <div className="relative">
+          <Input
+            placeholder={
+              isLoading
+                ? "AI is thinking..."
+                : showApiKeyWarning
+                ? "Configure API key in settings"
+                : "Type your message..."
+            }
+            value={input}
+            onChange={handleInputChange}
+            onKeyDown={handleKeyPress}
+            disabled={isLoading || showApiKeyWarning}
+            className="pr-24"
+          />
+          <div className="absolute right-1 top-1 flex items-center space-x-1">
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              onClick={() => navigate('/documents')}
+              className="h-8 w-8 rounded-full"
+              title="Upload documents"
+            >
+              <Paperclip className="h-4 w-4" />
+            </Button>
+            <VoiceRecorder
+              onTranscription={handleVoiceInput}
+              isRecording={isRecording}
+              setIsRecording={setIsRecording}
+              className="h-8 w-8"
+            >
+              <Mic className="h-4 w-4" />
+            </VoiceRecorder>
+            <Button
+              type="button"
+              size="icon"
+              className="h-8 w-8 rounded-full gradient-bg"
+              onClick={handleSendMessage}
+              disabled={!input.trim() || isLoading || showApiKeyWarning}
+            >
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+        </div>
+
+        {messages.length > 0 && messages[messages.length - 1].sender === "assistant" && (
+          <div className="mt-2 flex justify-end">
+            <TextToSpeech 
+              text={messages[messages.length - 1].content} 
             />
           </div>
-          <VoiceRecorder onTranscriptionComplete={handleTranscriptionComplete} />
-          <Button onClick={handleSubmit} disabled={isLoading || !input.trim() || loadingHistory}>
-            {isLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="h-4 w-4" />
-            )}
-          </Button>
-        </div>
-      </CardFooter>
+        )}
+      </CardContent>
     </Card>
   );
-};
-
-// Format timestamp for display
-const formatTime = (timestamp: string) => {
-  const date = new Date(timestamp);
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
 export default PersistentChatInterface;

@@ -26,7 +26,7 @@ export const DEMO_CODES = ["DEMO-CODE", "DEMO-AMP99S"]
 
 // Helper function to check if an account is a test account
 export function isTestAccount(email: string): boolean {
-  return email.includes(".test@learnable.edu") || email.startsWith("test-");
+  return email?.includes(".test@learnable.edu") || email?.startsWith("test-");
 }
 
 // Helper function to verify a school code
