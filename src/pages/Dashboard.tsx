@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -301,7 +302,7 @@ const Dashboard = () => {
                     {assessmentsError}
                   </div>
                 ) : loadingAssessments ? (
-                  <EmptyState message="Loading assessments..." />
+                  null // Remove loading skeleton to prevent flickering
                 ) : upcomingAssessments.length > 0 ? (
                   <div className="space-y-3">
                     {upcomingAssessments.map(assessment => (
@@ -341,7 +342,7 @@ const Dashboard = () => {
                     {lecturesError}
                   </div>
                 ) : loadingLectures ? (
-                  <EmptyState message="Loading lectures..." />
+                  null // Remove loading skeleton to prevent flickering
                 ) : recentLectures.length > 0 ? (
                   <div className="space-y-3">
                     {recentLectures.map(lecture => (
