@@ -95,6 +95,11 @@ export async function executeWithTimeout<T>(
   ]);
 }
 
+// Interface for enhanced RequestInit to include query parameters
+interface EnhancedRequestInit extends RequestInit {
+  query?: Record<string, string>;
+}
+
 /**
  * Optimized fetch function with reliability features
  * - Adds timeout handling
@@ -104,7 +109,7 @@ export async function executeWithTimeout<T>(
  */
 export async function fetchWithReliability<T>(
   url: string, 
-  options: RequestInit = {}, 
+  options: EnhancedRequestInit = {}, 
   retries: number = 3,
   timeout: number = 8000,
   cacheKey?: string
@@ -133,6 +138,18 @@ export async function fetchWithReliability<T>(
   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
   try {
+    // Handle query parameters and append them to the URL
+    let finalUrl = url;
+    if (options.query) {
+      const queryParams = new URLSearchParams();
+      Object.entries(options.query).forEach(([key, value]) => {
+        queryParams.append(key, value);
+      });
+      finalUrl = `${url}?${queryParams.toString()}`;
+      // Remove query from options to avoid TypeScript error
+      delete options.query;
+    }
+
     // Add the signal to the options
     const fetchOptions = {
       ...options,
@@ -147,7 +164,7 @@ export async function fetchWithReliability<T>(
     // Use retry with backoff
     const result = await retryWithBackoff(
       async () => {
-        const response = await fetch(url, fetchOptions);
+        const response = await fetch(finalUrl, fetchOptions);
         
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status} - ${response.statusText}`);

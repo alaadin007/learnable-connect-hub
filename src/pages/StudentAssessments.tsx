@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -61,6 +60,10 @@ const StudentAssessments = () => {
           return;
         }
 
+        // Get auth session to get the access token
+        const { data: { session } } = await supabase.auth.getSession();
+        const accessToken = session?.access_token;
+
         // Use optimized fetchWithReliability
         const data = await fetchWithReliability<any[]>(
           `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/assessments`,
@@ -69,8 +72,30 @@ const StudentAssessments = () => {
             headers: {
               'Content-Type': 'application/json',
               'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-              'Authorization': `Bearer ${supabase.auth.session()?.access_token}`
+              'Authorization': `Bearer ${accessToken}`
             },
+            query: {
+              select: `
+                id, 
+                title, 
+                description, 
+                due_date, 
+                created_at,
+                teacher_id,
+                teacher:teachers(
+                  id, 
+                  profiles(full_name)
+                ),
+                submission:assessment_submissions(
+                  id, 
+                  score, 
+                  completed,
+                  submitted_at
+                )
+              `,
+              school_id: `eq.${effectiveSchoolId}`,
+              order: 'due_date.asc'
+            }
           },
           3, // retries
           8000, // timeout
