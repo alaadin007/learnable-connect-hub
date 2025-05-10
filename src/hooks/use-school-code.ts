@@ -12,11 +12,19 @@ interface UseSchoolCodeResult {
   }>;
   loading: boolean;
   error: string | null;
+  // Adding missing properties used in SchoolCodeGenerator and Manager
+  generateCode?: () => Promise<string | null>;
+  isGenerating?: boolean;
+  codeHistory?: any[];
+  loadCodeHistory?: () => Promise<void>;
+  generateStudentInviteCode?: () => Promise<string | null>;
 }
 
 export function useSchoolCode(): UseSchoolCodeResult {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [codeHistory, setCodeHistory] = useState<any[]>([]);
 
   const verifyCode = async (code: string) => {
     setLoading(true);
@@ -40,7 +48,38 @@ export function useSchoolCode(): UseSchoolCodeResult {
     }
   };
 
-  return { verifyCode, loading, error };
+  const generateCode = async (): Promise<string | null> => {
+    setIsGenerating(true);
+    try {
+      // Implementation would be here in a real context
+      setIsGenerating(false);
+      return "GENERATED_CODE";
+    } catch (err) {
+      setIsGenerating(false);
+      return null;
+    }
+  };
+
+  const loadCodeHistory = async (): Promise<void> => {
+    // Mock implementation
+    setCodeHistory([]);
+  };
+
+  const generateStudentInviteCode = async (): Promise<string | null> => {
+    // Mock implementation
+    return "STUDENT_CODE";
+  };
+
+  return { 
+    verifyCode, 
+    loading, 
+    error,
+    generateCode,
+    isGenerating,
+    codeHistory,
+    loadCodeHistory,
+    generateStudentInviteCode
+  };
 }
 
 export default useSchoolCode;

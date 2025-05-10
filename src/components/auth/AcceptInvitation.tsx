@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { hasData } from '@/utils/supabaseTypeHelpers';
+import type { Database } from '@/integrations/supabase/types';
 
 // Define a type for the verification result
 interface TeacherInvitationInfo {
@@ -36,7 +37,7 @@ const AcceptInvitation = () => {
 
       try {
         // Get token info first
-        const { data: inviteInfo, error: verifyError } = await supabase.rpc<TeacherInvitationInfo>(
+        const { data: inviteInfo, error: verifyError } = await supabase.rpc(
           'verify_teacher_invitation',
           { token }
         );
@@ -45,8 +46,9 @@ const AcceptInvitation = () => {
           throw new Error(verifyError?.message || 'Invalid or expired invitation');
         }
 
-        // Extract school name safely
-        const schoolName = inviteInfo?.school_name || 'the school';
+        // Safely access inviteInfo for school name
+        const typedInviteInfo = inviteInfo as TeacherInvitationInfo;
+        const schoolName = typedInviteInfo?.school_name || 'the school';
 
         // Accept the invitation
         const { error: acceptError } = await supabase.rpc(

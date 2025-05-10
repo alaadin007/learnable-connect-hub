@@ -53,8 +53,8 @@ const AIChatInterface = () => {
   
   // Check if API key is configured
   const isApiKeyConfigured = settings?.aiProvider === 'openai' 
-    ? !!settings?.openAiKey 
-    : !!settings?.geminiKey;
+    ? !!settings?.openaiApiKey 
+    : !!settings?.geminiApiKey;
   
   // Initialize completion and handle AI responses
   const {
@@ -95,7 +95,7 @@ const AIChatInterface = () => {
   const apiKeyForm = useForm({
     resolver: zodResolver(ApiKeySchema),
     defaultValues: {
-      provider: settings?.aiProvider || 'openai',
+      provider: settings?.settings.aiProvider || 'openai',
       apiKey: '',
     },
   });
@@ -199,16 +199,16 @@ const AIChatInterface = () => {
   
   const onApiKeySubmit = async (values: z.infer<typeof ApiKeySchema>) => {
     try {
-      // Update settings based on provider and save to localStorage
+      // Update settings based on provider
       if (values.provider === 'openai') {
-        updateSettings({
+        updateSettings?.({
           aiProvider: 'openai',
-          openAiKey: values.apiKey
+          openAiKey: values.apiKey,
         });
       } else {
-        updateSettings({
+        updateSettings?.({
           aiProvider: 'gemini',
-          geminiKey: values.apiKey
+          geminiKey: values.apiKey,
         });
       }
       

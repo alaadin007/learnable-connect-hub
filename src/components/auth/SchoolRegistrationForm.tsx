@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -111,10 +110,12 @@ const SchoolRegistrationForm = () => {
         console.error("Error creating school code:", schoolCodeError);
         
         // Clean up the school record if code creation fails
-        await supabase
-          .from("schools")
-          .delete()
-          .eq("id", schoolId);
+        if (schoolId) {
+          await supabase
+            .from("schools")
+            .delete()
+            .eq("id", schoolId);
+        }
           
         throw new Error("Failed to create school code");
       }

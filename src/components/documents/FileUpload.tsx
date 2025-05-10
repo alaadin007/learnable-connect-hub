@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,7 +5,8 @@ import { UploadCloud, File, X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { hasData, asId } from '@/utils/supabaseTypeHelpers';
+import { hasData, asId, insertDocument } from '@/utils/supabaseTypeHelpers';
+import type { Database } from "@/integrations/supabase/types";
 
 const FileUpload = ({ onUploadComplete }: { onUploadComplete?: () => void }) => {
   const { user } = useAuth();
@@ -85,19 +85,15 @@ const FileUpload = ({ onUploadComplete }: { onUploadComplete?: () => void }) => 
       }
       
       // Create document record in the database
-      const { data: documentData, error: documentError } = await supabase
-        .from('documents')
-        .insert({
-          filename: file.name,
-          file_type: file.type,
-          file_size: file.size,
-          storage_path: storagePath,
-          processing_status: "pending",
-          user_id: user.id,
-          school_id: null // Assuming this is optional
-        })
-        .select()
-        .single();
+      const { data: documentData, error: documentError } = await insertDocument({
+        filename: file.name,
+        file_type: file.type,
+        file_size: file.size,
+        storage_path: storagePath,
+        processing_status: "pending",
+        user_id: user.id,
+        school_id: null
+      });
         
       if (documentError || !documentData) {
         throw new Error(`Document record creation failed: ${documentError?.message || "Unknown error"}`);

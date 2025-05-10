@@ -88,7 +88,13 @@ const FileList = () => {
         .eq('document_id', asId(documentId))
         .maybeSingle();
         
-      if (contentError || !contentData) {
+      if (contentError) {
+        toast.warning("Error retrieving document content");
+        console.error("Error retrieving document content:", contentError);
+        return;
+      }
+      
+      if (!contentData) {
         toast.warning("Document content not found");
         return;
       }

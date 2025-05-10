@@ -20,6 +20,9 @@ interface SettingsContextType {
     temperature: number;
     model: string;
     showSources: boolean;
+    aiProvider: string;
+    openAiKey?: string;
+    geminiKey?: string;
   };
   updateSettings?: (newSettings: Partial<typeof defaultSettings>) => void;
   isLoading: boolean;
@@ -30,7 +33,10 @@ const defaultSettings = {
   maxTokens: 500,
   temperature: 0.7,
   model: 'gpt-3.5-turbo',
-  showSources: true
+  showSources: true,
+  aiProvider: 'openai',
+  openAiKey: '',
+  geminiKey: ''
 };
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);

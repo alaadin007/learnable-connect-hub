@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { PostgrestError, PostgrestSingleResponse } from "@supabase/supabase-js";
@@ -230,7 +229,7 @@ export const insertDocument = async (docData: {
   try {
     const { data, error } = await supabase
       .from('documents')
-      .insert(safeCast<Database["public"]["Tables"]["documents"]["Insert"]>(docData))
+      .insert(docData)
       .select()
       .single();
     
