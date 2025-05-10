@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Download, FileText, TextQuote, Video, PlayCircle } from 'lucide-react';
@@ -14,6 +13,16 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Lecture, LectureResource, LectureProgress, LectureNote, Transcript } from '@/utils/supabaseHelpers';
 import { Progress } from '@/components/ui/progress';
+
+// Simple interface for the transcript data that we might get from the API
+interface TranscriptData {
+  id: string;
+  lecture_id: string;
+  text: string;
+  start_time: number; 
+  end_time: number;
+  created_at: string;
+}
 
 const StudentLectureView = () => {
   const { id } = useParams<{ id: string }>();
@@ -101,15 +110,27 @@ const StudentLectureView = () => {
           setNoteId(notesData.id || null);
         }
 
-        // Fetch transcript data
+        // Fetch transcript data - using a custom RPC function instead of directly accessing the table
+        // since the lecture_transcripts table might not be directly accessible via the API
         const { data: transcriptData, error: transcriptError } = await supabase
-          .from('lecture_transcripts')
-          .select('*')
-          .eq('lecture_id', id)
-          .order('start_time', { ascending: true });
+          .rpc('get_lecture_transcripts', { lecture_id_param: id })
+          .order('start_time');
 
-        if (!transcriptError && transcriptData) {
-          setTranscript(transcriptData);
+        if (transcriptError) {
+          console.error('Error fetching transcripts:', transcriptError);
+          // Don't show error to user, just log it and continue without transcripts
+        } else if (transcriptData) {
+          // Ensure the data matches our Transcript interface
+          const formattedTranscripts: Transcript[] = (transcriptData as TranscriptData[]).map(item => ({
+            id: item.id,
+            lecture_id: item.lecture_id,
+            text: item.text,
+            start_time: item.start_time,
+            end_time: item.end_time,
+            created_at: item.created_at
+          }));
+          
+          setTranscript(formattedTranscripts);
         }
       } catch (err: any) {
         console.error('Error fetching lecture data:', err);
@@ -129,7 +150,6 @@ const StudentLectureView = () => {
     };
   }, [id, user]);
 
-  // Update active transcript segment based on current video time
   const handleTimeUpdate = () => {
     if (!videoRef.current || transcript.length === 0) return;
     

@@ -1,3 +1,4 @@
+
 export interface UserProfile {
   id: string;
   created_at: string;
@@ -70,4 +71,46 @@ export interface Transcript {
   start_time: number;  // timestamp in seconds
   end_time: number;    // timestamp in seconds
   created_at: string;
+}
+
+// Add missing interfaces that were referenced in other files
+export interface TeacherInvitation {
+  id: string;
+  school_id: string;
+  email: string;
+  status: 'pending' | 'accepted' | 'expired';
+  invitation_token: string;
+  created_by: string;
+  created_at: string;
+  expires_at: string;
+  role?: string;
+}
+
+export interface Student {
+  id: string;
+  school_id: string;
+  created_at: string;
+  updated_at: string;
+  status: 'pending' | 'active' | 'revoked';
+}
+
+export interface Assessment {
+  id: string;
+  school_id: string;
+  teacher_id: string;
+  title: string;
+  description?: string;
+  created_at: string;
+  due_date?: string;
+  max_score: number;
+  subject?: string;
+  teacher: {
+    full_name: string;
+  };
+  submission?: {
+    id: string;
+    score: number | null;
+    completed: boolean;
+    submitted_at: string;
+  };
 }
