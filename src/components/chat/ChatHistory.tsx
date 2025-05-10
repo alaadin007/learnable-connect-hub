@@ -95,6 +95,59 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
     loadConversations();
   };
 
+  const renderContent = () => {
+    if (isLoading) {
+      return (
+        <div className="text-center py-4 text-muted-foreground">
+          Loading...
+        </div>
+      );
+    }
+    
+    if (hasError) {
+      return (
+        <div className="text-center py-4">
+          <p className="text-muted-foreground mb-2">Failed to load conversations</p>
+          <Button variant="outline" size="sm" onClick={handleRefresh}>
+            <RefreshCcw className="h-4 w-4 mr-2" /> Try Again
+          </Button>
+        </div>
+      );
+    }
+    
+    if (filteredConversations.length === 0) {
+      return (
+        <div className="text-center py-4 text-muted-foreground">
+          {searchTerm ? "No matching conversations found" : "No conversations yet"}
+        </div>
+      );
+    }
+    
+    return filteredConversations.map((conversation) => (
+      <div key={conversation.id}>
+        <Button
+          variant={activeConversationId === conversation.id ? "default" : "ghost"}
+          className={`w-full justify-start mb-1 ${
+            activeConversationId === conversation.id ? "" : "hover:bg-accent hover:text-accent-foreground"
+          }`}
+          onClick={() => onSelectConversation(conversation.id)}
+        >
+          <div className="flex items-start w-full overflow-hidden">
+            <MessageSquare className="h-4 w-4 mr-2 mt-1 shrink-0" />
+            <div className="truncate">
+              <div className="font-medium truncate">{conversation.title || "Untitled Conversation"}</div>
+              <div className="flex items-center text-xs text-muted-foreground">
+                <Timer className="h-3 w-3 mr-1" />
+                {formatDate(conversation.last_message_at)}
+              </div>
+            </div>
+          </div>
+        </Button>
+        <Separator className="my-1" />
+      </div>
+    ));
+  };
+
   return (
     <Card className="h-full flex flex-col">
       <CardHeader className="pb-2">
@@ -122,46 +175,7 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
       <CardContent className="flex-grow overflow-hidden p-0">
         <ScrollArea className="h-[calc(100vh-320px)]">
           <div className="px-4 py-2">
-            {isLoading ? (
-              <div className="text-center py-4 text-muted-foreground">
-                Loading...
-              </div>
-            ) : hasError ? (
-              <div className="text-center py-4">
-                <p className="text-muted-foreground mb-2">Failed to load conversations</p>
-                <Button variant="outline" size="sm" onClick={handleRefresh}>
-                  <RefreshCcw className="h-4 w-4 mr-2" /> Try Again
-                </Button>
-              </div>
-            ) : filteredConversations.length > 0 ? (
-              filteredConversations.map((conversation) => (
-                <div key={conversation.id}>
-                  <Button
-                    variant={activeConversationId === conversation.id ? "default" : "ghost"}
-                    className={`w-full justify-start mb-1 ${
-                      activeConversationId === conversation.id ? "" : "hover:bg-accent hover:text-accent-foreground"
-                    }`}
-                    onClick={() => onSelectConversation(conversation.id)}
-                  >
-                    <div className="flex items-start w-full overflow-hidden">
-                      <MessageSquare className="h-4 w-4 mr-2 mt-1 shrink-0" />
-                      <div className="truncate">
-                        <div className="font-medium truncate">{conversation.title || "Untitled Conversation"}</div>
-                        <div className="flex items-center text-xs text-muted-foreground">
-                          <Timer className="h-3 w-3 mr-1" />
-                          {formatDate(conversation.last_message_at)}
-                        </div>
-                      </div>
-                    </div>
-                  </Button>
-                  <Separator className="my-1" />
-                </div>
-              ))
-            ) : (
-              <div className="text-center py-4 text-muted-foreground">
-                {searchTerm ? "No matching conversations found" : "No conversations yet"}
-              </div>
-            )}
+            {renderContent()}
           </div>
         </ScrollArea>
       </CardContent>
