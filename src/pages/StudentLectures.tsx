@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { 
-  Loader2, Search, BookOpen, Video, Clock, Play, User, Calendar, CheckCircle
+  Loader2, Search, BookOpen, Video, Clock, Play, User, Calendar, CheckCircle, RefreshCcw
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -44,6 +44,7 @@ const StudentLectures = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [dataFetched, setDataFetched] = useState(false);
 
   useEffect(() => {
     // Redirect if not logged in or not a student
@@ -57,82 +58,91 @@ const StudentLectures = () => {
       return;
     }
 
-    const fetchLectures = async () => {
-      setLoading(true);
-      try {
-        // Fetch lectures for this student's school
-        if (!schoolId) {
-          setError("School information not available. Please contact support.");
-          setLoading(false);
-          return;
-        }
-
-        // Get lectures with progress data
-        const { data, error } = await supabase
-          .from("lectures")
-          .select(`
-            id, 
-            title,
-            description,
-            video_url,
-            duration_minutes,
-            teacher:teacher_id(
-              profiles(full_name)
-            ),
-            subject,
-            created_at,
-            thumbnail_url,
-            lecture_progress:lecture_progress(
-              progress,
-              last_watched,
-              completed
-            )
-          `)
-          .eq("school_id", schoolId)
-          .order("created_at", { ascending: false });
-
-        if (error) throw error;
-
-        // Process data to format teacher name and progress
-        const formattedData = data.map((lecture: any) => {
-          // Extract teacher name from nested object
-          const teacherFullName = lecture.teacher?.profiles?.length > 0 
-            ? lecture.teacher.profiles[0].full_name 
-            : "Unknown Teacher";
-
-          // Extract progress data (if any)
-          const progress = lecture.lecture_progress?.length > 0 
-            ? lecture.lecture_progress[0] 
-            : undefined;
-
-          return {
-            id: lecture.id,
-            title: lecture.title,
-            description: lecture.description,
-            video_url: lecture.video_url,
-            duration_minutes: lecture.duration_minutes,
-            teacher: {
-              full_name: teacherFullName
-            },
-            subject: lecture.subject,
-            upload_date: lecture.created_at,
-            thumbnail_url: lecture.thumbnail_url,
-            progress: progress
-          };
-        });
-
-        setLectures(formattedData);
-      } catch (err: any) {
-        console.error("Error fetching lectures:", err);
-        setError(err.message || "Failed to load lectures");
-        toast.error("Failed to load lectures");
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchLectures();
   }, [user, profile, schoolId, navigate]);
+
+  const fetchLectures = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Fetch lectures for this student's school
+      if (!schoolId) {
+        setError("School information not available. Please contact support.");
+        setLoading(false);
+        setDataFetched(true);
+        return;
+      }
+
+      // Get lectures with progress data
+      const { data, error } = await supabase
+        .from("lectures")
+        .select(`
+          id, 
+          title,
+          description,
+          video_url,
+          duration_minutes,
+          teacher:teacher_id(
+            profiles(full_name)
+          ),
+          subject,
+          created_at,
+          thumbnail_url,
+          lecture_progress:lecture_progress(
+            progress,
+            last_watched,
+            completed
+          )
+        `)
+        .eq("school_id", schoolId)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      // Process data to format teacher name and progress
+      const formattedData = data ? data.map((lecture: any) => {
+        // Extract teacher name from nested object
+        const teacherFullName = lecture.teacher?.profiles?.length > 0 
+          ? lecture.teacher.profiles[0].full_name 
+          : "Unknown Teacher";
+
+        // Extract progress data (if any)
+        const progress = lecture.lecture_progress?.length > 0 
+          ? lecture.lecture_progress[0] 
+          : undefined;
+
+        return {
+          id: lecture.id,
+          title: lecture.title,
+          description: lecture.description,
+          video_url: lecture.video_url,
+          duration_minutes: lecture.duration_minutes,
+          teacher: {
+            full_name: teacherFullName
+          },
+          subject: lecture.subject,
+          upload_date: lecture.created_at,
+          thumbnail_url: lecture.thumbnail_url,
+          progress: progress
+        };
+      }) : [];
+
+      setLectures(formattedData);
+      setDataFetched(true);
+    } catch (err: any) {
+      console.error("Error fetching lectures:", err);
+      setError(err.message || "Failed to load lectures");
+      toast.error("Failed to load lectures");
+      setDataFetched(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRetry = () => {
+    fetchLectures();
+  };
 
   const handleWatchLecture = (lectureId: string) => {
     navigate(`/student/lecture/${lectureId}`);
@@ -258,8 +268,18 @@ const StudentLectures = () => {
             <span className="ml-2">Loading lectures...</span>
           </div>
         ) : error ? (
-          <div className="bg-red-50 p-4 rounded-md text-red-500">{error}</div>
-        ) : lectures.length === 0 ? (
+          <div className="bg-red-50 p-6 rounded-md text-center">
+            <p className="text-red-500 mb-4">{error}</p>
+            <Button 
+              onClick={handleRetry} 
+              variant="outline" 
+              className="flex items-center mx-auto"
+            >
+              <RefreshCcw className="h-4 w-4 mr-2" />
+              Retry
+            </Button>
+          </div>
+        ) : dataFetched && lectures.length === 0 ? (
           <div className="text-center py-12 bg-gray-50 rounded-md">
             <BookOpen className="h-12 w-12 mx-auto text-gray-400 mb-4" />
             <p className="text-xl text-gray-600">No lectures available yet.</p>

@@ -30,6 +30,8 @@ import StudentProgress from "@/pages/StudentProgress";
 import StudentSettings from "@/pages/StudentSettings";
 import AdminStudents from "@/pages/AdminStudents";
 import SchoolSettings from "@/pages/SchoolSettings";
+import StudentLectures from "@/pages/StudentLectures";
+import StudentLectureView from "@/pages/StudentLectureView";
 
 function App() {
   return (
@@ -135,6 +137,18 @@ function App() {
           <Route path="/student/settings" element={
             <ProtectedRoute requiredUserType="student">
               <StudentSettings />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/student/lectures" element={
+            <ProtectedRoute requiredUserType="student">
+              <StudentLectures />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/student/lecture/:id" element={
+            <ProtectedRoute requiredUserType="student">
+              <StudentLectureView />
             </ProtectedRoute>
           } />
 
