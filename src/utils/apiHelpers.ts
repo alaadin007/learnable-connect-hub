@@ -1,273 +1,395 @@
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { UserRole } from '@/components/auth/ProtectedRoute';
 
-// Import the necessary utilities
-import { supabase } from "@/integrations/supabase/client";
-import { UserRole } from "@/contexts/AuthContext"; // Updated import path
-import { fetchWithReliability, retryWithBackoff, executeWithTimeout } from "./networkHelpers";
+// Define UserType enum and export it
+export type UserType = 'student' | 'teacher' | 'school_admin' | 'teacher_supervisor';
 
-// Function to get user school ID in a safe way with fallback
-export async function getUserSchoolId(): Promise<string | null> {
-  try {
-    // First try to get from localStorage for instant loading
-    const storedSchoolId = localStorage.getItem('schoolId');
-    if (storedSchoolId) {
-      return storedSchoolId;
-    }
-    
-    // As a last resort, try to get from the session but with error handling
-    try {
-      const { data } = await supabase.auth.getSession();
-      if (!data.session?.user) {
-        return null;
-      }
-      
-      // Try to get from user metadata
-      if (data.session.user.user_metadata?.school_id) {
-        // Store in localStorage for future use
-        const schoolId = data.session.user.user_metadata.school_id;
-        localStorage.setItem('schoolId', schoolId);
-        return schoolId;
-      }
-
-      // Try to get from a dedicated function with timeout
-      const { data: schoolIdResult } = await executeWithTimeout(async () => {
-        const response = await supabase.rpc('get_user_school_id_safe', {
-          user_id_param: data.session.user.id
-        });
-        return response;
-      }, 5000);
-      
-      if (schoolIdResult) {
-        localStorage.setItem('schoolId', schoolIdResult);
-        return schoolIdResult;
-      }
-      
-      // Return null if we couldn't get the school ID
-      return null;
-    } catch (error) {
-      console.error("Error getting user session:", error);
-      return null;
-    }
-  } catch (error) {
-    console.error("Error getting user school ID:", error);
-    return null;
-  }
+// Interface for profile data
+export interface ProfileData {
+  id: string;
+  user_type: UserType;
+  full_name: string;
+  email?: string;
+  school_id?: string;
+  school_code?: string;
+  school_name?: string;
+  is_active?: boolean;
+  is_supervisor?: boolean;
 }
 
-// Function to get current user role with fallback
-export async function getUserRole(): Promise<UserRole | null> {
-  try {
-    // First try to get from localStorage for instant loading
-    const storedRole = localStorage.getItem('userRole') as UserRole;
-    if (storedRole) {
-      return storedRole;
-    }
-    
-    // Try to get from the session
-    const { data } = await supabase.auth.getSession();
-    if (!data.session?.user) {
-      return null;
-    }
-    
-    if (data.session.user.user_metadata?.user_type) {
-      const role = data.session.user.user_metadata.user_type as UserRole;
-      // Store in localStorage for future use
-      localStorage.setItem('userRole', role);
-      return role;
-    }
-    
-    // Try to get from a dedicated function with timeout
-    const { data: userRoleResult } = await executeWithTimeout(async () => {
-      const response = await supabase.rpc('get_user_role_safe', {
-        user_id_param: data.session.user.id
-      });
-      return response;
-    }, 5000);
-    
-    if (userRoleResult) {
-      localStorage.setItem('userRole', userRoleResult);
-      return userRoleResult as UserRole;
-    }
-    
-    // Return null if we couldn't determine the role
-    return null;
-  } catch (error) {
-    console.error("Error getting user role:", error);
-    return null;
-  }
+// Helper functions
+
+/**
+ * Check if a value is not null or undefined
+ */
+export function hasData<T>(value: T | null | undefined): value is T {
+  return value !== null && value !== undefined;
 }
 
-// Check if a user is a school admin
-export function isSchoolAdmin(role: UserRole | null): boolean {
-  return role === 'school' || role === 'school_admin';
+/**
+ * Safe cast from string to UUID (for Supabase)
+ * @param id String ID to cast to UUID
+ */
+export function safeUUID(id: string | null | undefined): string | null {
+  return id || null;
 }
 
-// These functions always return values to prevent errors
-export function getUserRoleWithFallback(): UserRole {
-  // First check localStorage which is most reliable
-  const role = localStorage.getItem('userRole') as UserRole;
-  if (role) return role;
-  
-  // Check for test account flags in sessionStorage
-  const testAccount = sessionStorage.getItem('testAccountType');
-  if (testAccount) {
-    if (testAccount === 'student') return 'student';
-    if (testAccount === 'teacher') return 'teacher';
-    if (testAccount === 'school') return 'school';
-  }
-  
-  // Try to get it from the session data if available
+/**
+ * Safe access to API key
+ * @param provider The API provider name
+ */
+export async function safeApiKeyAccess(provider: string): Promise<string | null> {
   try {
-    const userMeta = JSON.parse(localStorage.getItem('supabase.auth.token') || '{}');
-    if (userMeta?.currentSession?.user?.user_metadata?.user_type) {
-      const extractedRole = userMeta.currentSession.user.user_metadata.user_type;
-      // Store for future use
-      localStorage.setItem('userRole', extractedRole);
-      return extractedRole;
-    }
-  } catch (e) {
-    console.error("Error parsing local session:", e);
-  }
-  
-  return 'student'; // Default to student if no role found
-}
-
-export function getSchoolIdWithFallback(): string {
-  const schoolId = localStorage.getItem('schoolId');
-  if (schoolId) return schoolId;
-  
-  // Try to get it from the session data if available
-  try {
-    const userMeta = JSON.parse(localStorage.getItem('supabase.auth.token') || '{}');
-    if (userMeta?.currentSession?.user?.user_metadata?.school_id) {
-      const extractedSchoolId = userMeta.currentSession.user.user_metadata.school_id;
-      // Store for future use
-      localStorage.setItem('schoolId', extractedSchoolId);
-      return extractedSchoolId;
-    }
-  } catch (e) {
-    console.error("Error parsing local session:", e);
-  }
-  
-  return '';
-}
-
-// Optimized function to fetch assessments for students
-export async function fetchStudentAssessments(schoolId: string, studentId: string) {
-  try {
-    const cacheKey = `assessments_${schoolId}_${studentId}`;
-    
-    // Get client from supabase directly - this ensures proper authentication
-    // This is the key fix - using the Supabase client directly instead of fetch
     const { data, error } = await supabase
-      .from('assessments')
-      .select(`
-        id, 
-        title, 
-        description, 
-        due_date, 
-        created_at,
-        teacher_id,
-        teacher:teachers(
-          id, 
-          profiles(full_name)
-        ),
-        submission:assessment_submissions(
-          id, 
-          score, 
-          completed,
-          submitted_at
-        )
-      `)
-      .eq('school_id', schoolId)
-      .order('due_date', { ascending: true });
+      .from('user_api_keys')
+      .select('api_key')
+      .eq('provider', provider)
+      .eq('user_id', await supabase.auth.getUser().then(res => res.data.user?.id))
+      .single();
+
+    if (error || !data) {
+      console.error('Error fetching API key:', error);
+      return null;
+    }
+
+    return data.api_key;
+  } catch (err) {
+    console.error('Failed to fetch API key:', err);
+    return null;
+  }
+}
+
+/**
+ * Safe cast for school ID
+ */
+export function asSchoolId(id: string): string {
+  return id;
+}
+
+/**
+ * Safe cast for school code
+ */
+export function asSchoolCode(code: string): string {
+  return code;
+}
+
+/**
+ * Type-safe ID cast
+ */
+export function asId(id: string): string {
+  return id;
+}
+
+/**
+ * Type-safe array cast
+ */
+export function safeArrayCast<T>(data: any): T[] {
+  if (Array.isArray(data)) {
+    return data as T[];
+  }
+  return [];
+}
+
+/**
+ * Check if an object has a property
+ */
+export function hasProperty<T, K extends PropertyKey>(obj: T, prop: K): obj is T & Record<K, unknown> {
+  return Object.prototype.hasOwnProperty.call(obj, prop);
+}
+
+/**
+ * Check if value is not null or undefined
+ */
+export function isNotNullOrUndefined<T>(value: T | null | undefined): value is T {
+  return value !== null && value !== undefined;
+}
+
+/**
+ * Insert a new school
+ */
+export async function insertSchool(school: {
+  name: string;
+  code: string;
+  contact_email?: string;
+}) {
+  return await supabase
+    .from('schools')
+    .insert(school)
+    .select()
+    .single();
+}
+
+/**
+ * Insert a new school code
+ */
+export async function insertSchoolCode(schoolCode: {
+  code: string;
+  school_id?: string;
+  school_name: string;
+  active: boolean;
+}) {
+  return await supabase
+    .from('school_codes')
+    .insert(schoolCode)
+    .select()
+    .single();
+}
+
+/**
+ * Insert a student invite
+ */
+export async function insertStudentInvite(invite: {
+  code?: string;
+  email?: string;
+  school_id: string;
+  status: string;
+  expires_at?: string;
+}) {
+  return await supabase
+    .from('student_invites')
+    .insert(invite)
+    .select()
+    .single();
+}
+
+/**
+ * Update student status
+ */
+export async function updateStudentStatus(studentId: string, status: string) {
+  return await supabase
+    .from('students')
+    .update({ status })
+    .eq('id', studentId);
+}
+
+/**
+ * Get students for school
+ */
+export async function getStudentsForSchool(schoolId: string) {
+  return await supabase
+    .rpc('get_students_for_school', { school_id_param: schoolId });
+}
+
+/**
+ * Get student invites for school
+ */
+export async function getStudentInvitesForSchool(schoolId: string) {
+  return await supabase
+    .from('student_invites')
+    .select('*')
+    .eq('school_id', schoolId)
+    .order('created_at', { ascending: false });
+}
+
+/**
+ * Process student data safely
+ */
+export function safeStudentData(data: any): { id: string; full_name: string | null; email: string; created_at: string } | null {
+  if (data && typeof data === 'object' && 'id' in data) {
+    return {
+      id: data.id,
+      full_name: data.full_name || null,
+      email: data.email || `${data.id}@unknown.com`,
+      created_at: data.created_at || new Date().toISOString()
+    };
+  }
+  return null;
+}
+
+/**
+ * Insert a document
+ */
+export async function insertDocument(document: {
+  filename: string;
+  file_type: string;
+  file_size: number;
+  storage_path: string;
+  processing_status: string;
+  user_id: string;
+  school_id: string | null;
+}) {
+  return await supabase
+    .from('documents')
+    .insert(document)
+    .select()
+    .single();
+}
+
+/**
+ * Delete a document
+ */
+export async function deleteDocument(documentId: string) {
+  return await supabase
+    .from('documents')
+    .delete()
+    .eq('id', documentId);
+}
+
+/**
+ * Delete document content
+ */
+export async function deleteDocumentContent(documentId: string) {
+  return await supabase
+    .from('document_content')
+    .delete()
+    .eq('document_id', documentId);
+}
+
+/**
+ * Create a profile with type safety
+ */
+export async function createProfile(profile: Omit<ProfileData, 'id'> & { id?: string }): Promise<ProfileData | null> {
+  try {
+    // Ensure we have a valid id, otherwise get it from auth
+    const id = profile.id || (await supabase.auth.getUser()).data.user?.id;
     
+    if (!id) {
+      throw new Error("User ID is required to create a profile");
+    }
+
+    // Create the profile with the id
+    const { data, error } = await supabase
+      .from('profiles')
+      .upsert({
+        ...profile,
+        id: id
+      })
+      .select()
+      .single();
+
     if (error) {
-      console.error("Error fetching student assessments:", error);
       throw error;
     }
-    
-    return data;
-  } catch (error) {
-    console.error("Error fetching student assessments:", error);
-    throw error;
+
+    return data as ProfileData;
+  } catch (err) {
+    console.error('Error creating profile:', err);
+    return null;
   }
 }
 
-// Function to persist user role and school ID to database
-export async function persistUserRoleToDatabase(userId: string, role: UserRole, schoolId?: string): Promise<boolean> {
+/**
+ * Insert profile data into profiles table
+ */
+export async function insertProfile(profile: {
+  id: string;
+  user_type: UserType;
+  full_name: string;
+  email?: string;
+  school_id?: string;
+  school_code?: string;
+  school_name?: string;
+  is_active?: boolean;
+}) {
+  return await supabase
+    .from('profiles')
+    .insert({
+      ...profile,
+    })
+    .select()
+    .single();
+}
+
+/**
+ * Insert a student record
+ */
+export async function insertStudent(student: {
+  id: string;
+  school_id: string;
+  status: string;
+}) {
+  return await supabase
+    .from('students')
+    .insert(student)
+    .select()
+    .single();
+}
+
+/**
+ * Insert a teacher record
+ */
+export async function insertTeacher(teacher: {
+  id: string;
+  school_id: string;
+  is_supervisor: boolean;
+}) {
+  return await supabase
+    .from('teachers')
+    .insert(teacher)
+    .select()
+    .single();
+}
+
+/**
+ * Get user profile data
+ */
+export async function getUserProfile(userId?: string): Promise<ProfileData | null> {
   try {
-    console.log(`Persisting user role to database: ${role} for user ${userId}`);
+    let uid = userId;
     
-    // First update the profiles table
-    const { error: profileError } = await retryWithBackoff(async () => {
-      return await supabase
-        .from('profiles')
-        .upsert({
-          id: userId,
-          user_type: role,
-          school_id: schoolId || null
-        }, { onConflict: 'id' });
-    });
-    
-    if (profileError) {
-      console.error("Error updating profile:", profileError);
-      return false;
+    if (!uid) {
+      const { data: authData } = await supabase.auth.getUser();
+      uid = authData.user?.id;
     }
     
-    // Then update the specific role table (students, teachers, or school_admins)
-    if (role === 'student') {
-      const { error: studentError } = await retryWithBackoff(async () => {
-        return await supabase
-          .from('students')
-          .upsert({
-            id: userId,
-            school_id: schoolId || null,
-            status: 'pending' // New students start as pending
-          }, { onConflict: 'id' });
-      });
-      
-      if (studentError) {
-        console.error("Error creating student record:", studentError);
-        return false;
-      }
-    } else if (role === 'teacher') {
-      const { error: teacherError } = await retryWithBackoff(async () => {
-        return await supabase
-          .from('teachers')
-          .upsert({
-            id: userId,
-            school_id: schoolId || null,
-            is_supervisor: false // Default to non-supervisor
-          }, { onConflict: 'id' });
-      });
-      
-      if (teacherError) {
-        console.error("Error creating teacher record:", teacherError);
-        return false;
-      }
-    } else if (isSchoolAdmin(role)) {
-      const { error: adminError } = await retryWithBackoff(async () => {
-        return await supabase
-          .from('school_admins')
-          .upsert({
-            id: userId,
-            school_id: schoolId || null
-          }, { onConflict: 'id' });
-      });
-      
-      if (adminError) {
-        console.error("Error creating school admin record:", adminError);
-        return false;
-      }
-    }
+    if (!uid) return null;
     
-    // Store in localStorage for immediate use
-    localStorage.setItem('userRole', role);
-    if (schoolId) localStorage.setItem('schoolId', schoolId);
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', uid)
+      .single();
+      
+    if (error) throw error;
     
-    return true;
-  } catch (error) {
-    console.error("Error persisting user role:", error);
-    return false;
+    return data as ProfileData;
+  } catch (err) {
+    console.error('Error getting user profile:', err);
+    return null;
   }
+}
+
+/**
+ * Update a profile with type safety
+ */
+export async function updateProfile(profile: Partial<ProfileData> & { id: string }): Promise<ProfileData | null> {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .update(profile)
+      .eq('id', profile.id)
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    return data as ProfileData;
+  } catch (err) {
+    console.error('Error updating profile:', err);
+    return null;
+  }
+}
+
+/**
+ * Get user role with fallback value
+ */
+export function getUserRoleWithFallback(fallback: string = 'student'): string {
+  // Try to get from localStorage first
+  const storedRole = localStorage.getItem('userRole');
+  if (storedRole) {
+    return storedRole;
+  }
+  
+  return fallback;
+}
+
+/**
+ * Check if user is a school admin
+ */
+export function isSchoolAdmin(userRole: UserRole): boolean {
+  if (!userRole) return false;
+  return userRole === 'school_admin' || userRole === 'teacher_supervisor';
 }

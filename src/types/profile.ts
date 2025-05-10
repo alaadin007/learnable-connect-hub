@@ -8,7 +8,7 @@ export interface Profile {
   organization?: {
     id: string;
     name?: string;
-    code?: string;  // Adding code property that's being referenced
+    code?: string;
   };
   organization_id?: string;
   user_type?: string;

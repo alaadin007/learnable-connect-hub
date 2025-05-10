@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import {
@@ -28,6 +27,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
+import { UserRole } from "@/components/auth/ProtectedRoute";
 
 const Navbar: React.FC = () => {
   const { user, userRole, profile, signOut } = useAuth();
@@ -38,7 +38,7 @@ const Navbar: React.FC = () => {
   // Get effective user role, fallback to stored role if context hasn't loaded yet
   const fallbackRole = getUserRoleWithFallback();
   const effectiveRole = userRole || fallbackRole;
-  const isAdmin = isSchoolAdmin(effectiveRole);
+  const isAdmin = isSchoolAdmin(effectiveRole as UserRole);
   
   const handleSignOut = async () => {
     try {

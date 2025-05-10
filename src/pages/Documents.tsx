@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/landing/Footer';
@@ -11,6 +10,7 @@ import FileList from '@/components/documents/FileList';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { isSchoolAdmin, getUserRoleWithFallback } from "@/utils/apiHelpers";
+import { UserRole } from '@/components/auth/ProtectedRoute';
 
 const Documents: React.FC = () => {
   const { user, userRole } = useAuth();
@@ -22,7 +22,7 @@ const Documents: React.FC = () => {
   // Get effective user role
   const fallbackRole = getUserRoleWithFallback();
   const effectiveRole = userRole || fallbackRole;
-  const isAdmin = isSchoolAdmin(effectiveRole);
+  const isAdmin = isSchoolAdmin(effectiveRole as UserRole);
 
   // Enhanced navigation handling for school admins
   useEffect(() => {

@@ -1,121 +1,83 @@
 
 import React from 'react';
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { SchoolPerformanceData, SchoolPerformanceSummary } from './types';
-import { Skeleton } from "@/components/ui/skeleton";
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  Legend, 
-  ResponsiveContainer 
-} from 'recharts';
-import { format, parseISO } from 'date-fns';
 
 interface SchoolPerformancePanelProps {
   data: SchoolPerformanceData[];
   summary: SchoolPerformanceSummary;
-  isLoading?: boolean;
+  isLoading: boolean;
 }
 
-export function SchoolPerformancePanel({ data, summary, isLoading = false }: SchoolPerformancePanelProps) {
-  // Format data for chart display
-  const chartData = React.useMemo(() => {
-    return data.map(item => ({
-      ...item,
-      month: item.month ? format(parseISO(item.month), 'MMM yyyy') : '',
-      avg_monthly_score: Number(item.avg_monthly_score || 0).toFixed(1),
-      monthly_completion_rate: Number(item.monthly_completion_rate || 0).toFixed(1),
-      score_improvement_rate: Number(item.score_improvement_rate || 0).toFixed(1),
-      completion_improvement_rate: Number(item.completion_improvement_rate || 0).toFixed(1),
-    }));
-  }, [data]);
-
+export const SchoolPerformancePanel: React.FC<SchoolPerformancePanelProps> = ({ data, summary, isLoading }) => {
   return (
     <div className="space-y-6">
-      {isLoading ? (
-        <div className="space-y-4">
-          <Skeleton className="h-[300px] w-full" />
+      <Card>
+        <CardHeader>
+          <CardTitle>School Performance Summary</CardTitle>
+        </CardHeader>
+        <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Skeleton className="h-24 w-full" />
-            <Skeleton className="h-24 w-full" />
-            <Skeleton className="h-24 w-full" />
-            <Skeleton className="h-24 w-full" />
+            <div className="bg-white rounded-lg p-4 border shadow-sm">
+              <p className="text-sm font-medium text-gray-500">Total Students</p>
+              <p className="text-2xl font-bold mt-1">{summary.total_students}</p>
+            </div>
+            <div className="bg-white rounded-lg p-4 border shadow-sm">
+              <p className="text-sm font-medium text-gray-500">Participation Rate</p>
+              <p className="text-2xl font-bold mt-1">{(summary.student_participation_rate * 100).toFixed(1)}%</p>
+            </div>
+            <div className="bg-white rounded-lg p-4 border shadow-sm">
+              <p className="text-sm font-medium text-gray-500">Average Score</p>
+              <p className="text-2xl font-bold mt-1">{summary.avg_score.toFixed(1)}%</p>
+            </div>
+            <div className="bg-white rounded-lg p-4 border shadow-sm">
+              <p className="text-sm font-medium text-gray-500">Completion Rate</p>
+              <p className="text-2xl font-bold mt-1">{(summary.completion_rate * 100).toFixed(1)}%</p>
+            </div>
           </div>
-        </div>
-      ) : (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="p-4">
-              <div className="text-sm font-medium text-muted-foreground">Total Assessments</div>
-              <div className="text-2xl font-bold mt-1">{summary.total_assessments}</div>
-              <div className="text-xs text-muted-foreground mt-1">
-                {summary.avg_submissions_per_assessment.toFixed(1)} submissions per assessment
-              </div>
-            </Card>
-            
-            <Card className="p-4">
-              <div className="text-sm font-medium text-muted-foreground">Student Participation</div>
-              <div className="text-2xl font-bold mt-1">{summary.student_participation_rate}%</div>
-              <div className="text-xs text-muted-foreground mt-1">
-                {summary.students_with_submissions} of {summary.total_students} students
-              </div>
-            </Card>
-            
-            <Card className="p-4">
-              <div className="text-sm font-medium text-muted-foreground">Average Score</div>
-              <div className="text-2xl font-bold mt-1">{summary.avg_score.toFixed(1)}%</div>
-              <div className="text-xs text-muted-foreground mt-1">
-                {summary.improvement_rate ? `${summary.improvement_rate.toFixed(1)}% improvement` : 'No change'}
-              </div>
-            </Card>
-            
-            <Card className="p-4">
-              <div className="text-sm font-medium text-muted-foreground">Completion Rate</div>
-              <div className="text-2xl font-bold mt-1">{summary.completion_rate.toFixed(1)}%</div>
-              <div className="text-xs text-muted-foreground mt-1">
-                Assessments completed by students
-              </div>
-            </Card>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Performance Over Time</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead className="text-right">Avg Score</TableHead>
+                  <TableHead className="text-right">Completion Rate</TableHead>
+                  <TableHead className="text-right">Student Count</TableHead>
+                  <TableHead className="text-right">Assessment Count</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.length > 0 ? (
+                  data.map((item, index) => (
+                    <TableRow key={index}>
+                      <TableCell>{new Date(item.date).toLocaleDateString()}</TableCell>
+                      <TableCell className="text-right">{item.avg_score.toFixed(1)}%</TableCell>
+                      <TableCell className="text-right">{(item.completion_rate * 100).toFixed(1)}%</TableCell>
+                      <TableCell className="text-right">{item.student_count}</TableCell>
+                      <TableCell className="text-right">{item.assessment_count}</TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={5} className="h-24 text-center">
+                      No performance data available
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
           </div>
-          
-          <div className="h-[400px] mt-6">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={chartData}
-                margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis 
-                  dataKey="month" 
-                  angle={-45} 
-                  textAnchor="end"
-                  height={60}
-                />
-                <YAxis yAxisId="left" orientation="left" stroke="#8884d8" />
-                <YAxis yAxisId="right" orientation="right" stroke="#82ca9d" />
-                <Tooltip />
-                <Legend />
-                <Bar 
-                  yAxisId="left" 
-                  dataKey="avg_monthly_score" 
-                  name="Average Score (%)" 
-                  fill="#8884d8" 
-                />
-                <Bar 
-                  yAxisId="right" 
-                  dataKey="monthly_completion_rate" 
-                  name="Completion Rate (%)" 
-                  fill="#82ca9d" 
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </>
-      )}
+        </CardContent>
+      </Card>
     </div>
   );
-}
+};

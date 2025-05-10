@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import Navbar from '@/components/layout/Navbar';
 import Sidebar from '@/components/layout/Sidebar';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import SchoolCodeGenerator from '@/components/school-admin/SchoolCodeGenerator';

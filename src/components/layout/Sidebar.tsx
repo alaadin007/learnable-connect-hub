@@ -5,11 +5,12 @@ import { cn } from '@/lib/utils';
 
 interface SidebarProps {
   children?: ReactNode;
+  className?: string;
 }
 
-const Sidebar = ({ children }: SidebarProps) => {
+const Sidebar = ({ children, className }: SidebarProps) => {
   return (
-    <div className="w-64 bg-white border-r border-gray-200 h-screen fixed top-0 left-0 overflow-y-auto">
+    <div className={cn("w-64 bg-white border-r border-gray-200 h-screen fixed top-0 left-0 overflow-y-auto", className)}>
       <div className="p-4">
         <h2 className="text-xl font-bold text-center mb-6">School Admin</h2>
         <nav className="space-y-1">

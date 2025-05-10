@@ -91,12 +91,12 @@ export function AnalyticsDashboard({
       if (teacherId) filters.teacher_id = teacherId;
       if (studentId) filters.student_id = studentId;
 
-      // Load summary data
+      // Load summary data - use normal SQL query instead of RPC
       const { data: summaryData, error: summaryError } = await supabase
-        .rpc('get_analytics_summary', { 
-          school_id_param: schoolId,
-          ...filters
-        });
+        .from('analytics_summary')
+        .select('*')
+        .eq('school_id', schoolId)
+        .single();
 
       if (summaryError) throw summaryError;
       
@@ -111,64 +111,60 @@ export function AnalyticsDashboard({
 
       // Load sessions data
       const { data: sessionsData, error: sessionsError } = await supabase
-        .rpc('get_session_logs', { 
-          school_id_param: schoolId,
-          ...filters
-        });
+        .from('session_logs')
+        .select('*')
+        .eq('school_id', schoolId)
+        .order('created_at', { ascending: false });
 
       if (sessionsError) throw sessionsError;
       setSessions(sessionsData || []);
 
       // Load topics data
       const { data: topicsData, error: topicsError } = await supabase
-        .rpc('get_popular_topics', { 
-          school_id_param: schoolId,
-          ...filters
-        });
+        .from('popular_topics')
+        .select('*')
+        .eq('school_id', schoolId);
 
       if (topicsError) throw topicsError;
       setTopics(topicsData || []);
 
       // Load study time data
       const { data: studyTimeData, error: studyTimeError } = await supabase
-        .rpc('get_student_study_time', { 
-          school_id_param: schoolId,
-          ...filters
-        });
+        .from('student_study_time')
+        .select('*')
+        .eq('school_id', schoolId);
 
       if (studyTimeError) throw studyTimeError;
       setStudyTimes(studyTimeData || []);
 
       // Load student performance data
       const { data: studentPerfData, error: studentPerfError } = await supabase
-        .rpc('get_student_performance', { 
-          school_id_param: schoolId,
-          ...filters
-        });
+        .from('student_performance')
+        .select('*')
+        .eq('school_id', schoolId);
 
       if (studentPerfError) throw studentPerfError;
       setStudentPerformance(studentPerfData || []);
 
       // Load school performance data
       const { data: schoolPerfData, error: schoolPerfError } = await supabase
-        .rpc('get_school_performance', { 
-          school_id_param: schoolId,
-          ...filters
-        });
+        .from('school_performance')
+        .select('*')
+        .eq('school_id', schoolId);
 
       if (schoolPerfError) throw schoolPerfError;
       setSchoolPerformance(schoolPerfData || []);
 
       // Load school summary data
       const { data: schoolSummaryData, error: schoolSummaryError } = await supabase
-        .rpc('get_school_performance_summary', { 
-          school_id_param: schoolId,
-          ...filters
-        });
+        .from('school_performance_summary')
+        .select('*')
+        .eq('school_id', schoolId)
+        .single();
 
       if (schoolSummaryError) throw schoolSummaryError;
-      if (schoolSummaryData && schoolSummaryData.length > 0) {
-        setSchoolSummary(schoolSummaryData[0]);
+      if (schoolSummaryData) {
+        setSchoolSummary(schoolSummaryData);
       }
 
     } catch (error) {

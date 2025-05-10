@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -106,12 +105,12 @@ const AdminAnalytics: React.FC<AdminAnalyticsProps> = () => {
           </TabsContent>
           
           <TabsContent value="students">
-            {/* Pass studentMetrics as a prop */}
+            {/* Pass the data properly */}
             <StudentMetricsPanel data={studentMetrics} schoolId={schoolId} />
           </TabsContent>
           
           <TabsContent value="teachers">
-            {/* Pass teacherMetrics as a prop */}
+            {/* Pass the data properly */}
             <TeacherMetricsPanel data={teacherMetrics} schoolId={schoolId} />
           </TabsContent>
           

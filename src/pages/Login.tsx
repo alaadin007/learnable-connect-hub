@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 
 const Login = () => {
   const navigate = useNavigate();
-  const { user, isLoading } = useAuth();
+  const { user, loading: isLoading } = useAuth();
   
   useEffect(() => {
     if (user) {

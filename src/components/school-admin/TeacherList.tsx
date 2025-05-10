@@ -6,8 +6,17 @@ import { Badge } from "@/components/ui/badge";
 import { format } from 'date-fns';
 import { Loader2 } from 'lucide-react';
 
+export interface Teacher {
+  id: string;
+  email: string;
+  full_name?: string;
+  created_at: string;
+  status?: string;
+  is_supervisor?: boolean;
+}
+
 interface TeacherListProps {
-  teachers: any[];
+  teachers: Teacher[];
   onRefresh: () => void;
   isLoading: boolean;
   isPending?: boolean;
@@ -40,44 +49,34 @@ const TeacherList = ({ teachers, onRefresh, isLoading, isPending = false }: Teac
           <TableHead>Email</TableHead>
           <TableHead>Status</TableHead>
           <TableHead>Joined</TableHead>
-          <TableHead>Actions</TableHead>
+          <TableHead>Role</TableHead>
+          <TableHead className="text-right">Actions</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {teachers.map((teacher) => (
           <TableRow key={teacher.id}>
-            <TableCell className="font-medium">
-              {teacher.full_name || teacher.email || 'Unknown'}
-            </TableCell>
+            <TableCell className="font-medium">{teacher.full_name || 'Not set'}</TableCell>
             <TableCell>{teacher.email}</TableCell>
             <TableCell>
-              {isPending ? (
-                <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300">
-                  Pending
-                </Badge>
-              ) : teacher.is_supervisor ? (
-                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300">
-                  Supervisor
-                </Badge>
+              {teacher.status === 'active' ? (
+                <Badge variant="success">Active</Badge>
+              ) : teacher.status === 'pending' ? (
+                <Badge variant="warning">Pending</Badge>
               ) : (
-                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
-                  Active
-                </Badge>
+                <Badge variant="outline">Unknown</Badge>
               )}
             </TableCell>
+            <TableCell>{format(new Date(teacher.created_at), 'MMM d, yyyy')}</TableCell>
             <TableCell>
-              {teacher.created_at ? format(new Date(teacher.created_at), 'MMM d, yyyy') : 'N/A'}
-            </TableCell>
-            <TableCell>
-              {isPending ? (
-                <Button size="sm" variant="outline">
-                  Resend Invite
-                </Button>
+              {teacher.is_supervisor ? (
+                <Badge className="bg-purple-100 text-purple-800 border-purple-300">Supervisor</Badge>
               ) : (
-                <Button size="sm" variant="outline">
-                  View Details
-                </Button>
+                <Badge variant="outline">Teacher</Badge>
               )}
+            </TableCell>
+            <TableCell className="text-right">
+              <Button variant="ghost" size="sm">View</Button>
             </TableCell>
           </TableRow>
         ))}

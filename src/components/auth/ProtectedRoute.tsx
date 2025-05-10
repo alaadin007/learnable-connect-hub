@@ -2,7 +2,9 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { UserRole } from '@/contexts/AuthContext';
+
+// Export UserRole as a type that can be imported elsewhere
+export type UserRole = 'student' | 'teacher' | 'school_admin' | 'school';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -15,7 +17,9 @@ const ProtectedRoute = ({
   allowedRoles,
   requireSupervisor = false,
 }: ProtectedRouteProps) => {
-  const { isLoggedIn, isLoading, userRole, isSupervisor } = useAuth();
+  const { user, userRole, profile, loading: isLoading } = useAuth();
+  const isLoggedIn = !!user;
+  const isSupervisor = profile?.is_supervisor || false;
 
   if (isLoading) {
     return (

@@ -1,66 +1,64 @@
 
-import React, { useState } from "react";
+import React from 'react';
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar } from "lucide-react";
-import { DateRange } from "react-day-picker";
+import { DateRange } from 'react-day-picker';
+import { addDays } from "date-fns";
+import { CalendarIcon } from "lucide-react";
 
 interface AnalyticsFiltersProps {
-  dateRange?: DateRange;
-  onDateRangeChange?: (range: DateRange) => void;
+  dateRange: DateRange | undefined;
+  onDateRangeChange: (range: DateRange | undefined) => void;
 }
 
 export function AnalyticsFilters({ dateRange, onDateRangeChange }: AnalyticsFiltersProps) {
-  const [timeRange, setTimeRange] = useState<string>('30days');
-
-  const handleTimeRangeChange = (value: string) => {
-    setTimeRange(value);
-    
-    if (!onDateRangeChange) return;
-    
+  const handleQuickDateRange = (days: number) => {
     const today = new Date();
-    let fromDate: Date | undefined;
-    const toDate = today;
-    
-    switch (value) {
-      case '7days':
-        fromDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 7);
-        break;
-      case '30days':
-        fromDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 30);
-        break;
-      case '90days':
-        fromDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 90);
-        break;
-      case 'thisWeek':
-        const day = today.getDay();
-        fromDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() - day);
-        break;
-      case 'thisMonth':
-        fromDate = new Date(today.getFullYear(), today.getMonth(), 1);
-        break;
-      default:
-        fromDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 30);
-    }
-    
-    onDateRangeChange({ from: fromDate, to: toDate });
+    onDateRangeChange({
+      from: addDays(today, -days),
+      to: today,
+    });
+  };
+
+  const clearDateRange = () => {
+    onDateRangeChange(undefined);
   };
 
   return (
-    <div className="flex items-center space-x-4">
-      <Select value={timeRange} onValueChange={handleTimeRangeChange}>
-        <SelectTrigger className="w-[180px]">
-          <Calendar className="mr-2 h-4 w-4" />
-          <SelectValue placeholder="Select time range" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="7days">Last 7 days</SelectItem>
-          <SelectItem value="30days">Last 30 days</SelectItem>
-          <SelectItem value="90days">Last 90 days</SelectItem>
-          <SelectItem value="thisWeek">This week</SelectItem>
-          <SelectItem value="thisMonth">This month</SelectItem>
-        </SelectContent>
-      </Select>
+    <div className="flex flex-wrap items-center gap-2">
+      <Button 
+        variant="outline" 
+        size="sm"
+        onClick={() => handleQuickDateRange(7)}
+      >
+        <CalendarIcon className="mr-2 h-4 w-4" />
+        Last 7 days
+      </Button>
+      
+      <Button 
+        variant="outline" 
+        size="sm"
+        onClick={() => handleQuickDateRange(30)}
+      >
+        <CalendarIcon className="mr-2 h-4 w-4" />
+        Last 30 days
+      </Button>
+      
+      <Button 
+        variant="outline" 
+        size="sm"
+        onClick={() => handleQuickDateRange(90)}
+      >
+        <CalendarIcon className="mr-2 h-4 w-4" />
+        Last 90 days
+      </Button>
+      
+      <Button 
+        variant="outline" 
+        size="sm"
+        onClick={clearDateRange}
+      >
+        Clear
+      </Button>
     </div>
   );
 }

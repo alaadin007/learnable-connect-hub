@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -12,6 +11,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Lecture, Assessment } from "@/utils/supabaseHelpers";
 import { executeWithTimeout } from "@/utils/networkHelpers";
+import { UserRole } from "@/components/auth/ProtectedRoute";
 
 // Dashboard Cards Component
 interface DashboardCardProps {
@@ -98,7 +98,7 @@ const Dashboard = () => {
     const effectiveRole = userRole || fallbackRole;
     
     // More comprehensive check for school admin roles
-    if (isSchoolAdmin(effectiveRole)) {
+    if (isSchoolAdmin(effectiveRole as UserRole)) {
       setIsRedirecting(true);
       toast.info("Redirecting to School Admin Dashboard...");
       navigate("/admin", { state: { preserveContext: true, adminRedirect: true }, replace: true });
@@ -222,7 +222,7 @@ const Dashboard = () => {
   }, [user, userRole, isRedirecting, checkAndRedirect]);
 
   // If we're redirecting or user is a school admin/teacher, show loading state
-  if (isRedirecting || isSchoolAdmin(userRole) || isSchoolAdmin(getUserRoleWithFallback()) || userRole === 'teacher') {
+  if (isRedirecting || isSchoolAdmin(userRole as UserRole) || isSchoolAdmin(getUserRoleWithFallback() as UserRole) || userRole === 'teacher') {
     return (
       <div className="h-screen flex flex-col items-center justify-center">
         <p className="text-xl mb-4">Redirecting to appropriate dashboard...</p>

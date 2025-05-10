@@ -1,15 +1,12 @@
-import React from "react";
-import { format } from "date-fns";
-import { Calendar as CalendarIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
+
+import React from 'react';
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { DateRange } from "./types";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import { addDays, format } from "date-fns";
+import { Calendar as CalendarIcon } from "lucide-react";
+import { DateRange } from "react-day-picker";
 
 interface DateRangePickerProps {
   dateRange: DateRange | undefined;
@@ -25,10 +22,9 @@ export function DateRangePicker({ dateRange, onDateRangeChange }: DateRangePicke
             id="date"
             variant="outline"
             className={cn(
-              "w-full justify-start text-left font-normal",
-              !dateRange?.from && "text-muted-foreground"
+              "w-[300px] justify-start text-left font-normal",
+              !dateRange && "text-muted-foreground"
             )}
-            aria-label="Select date range"
           >
             <CalendarIcon className="mr-2 h-4 w-4" />
             {dateRange?.from ? (
@@ -50,15 +46,38 @@ export function DateRangePicker({ dateRange, onDateRangeChange }: DateRangePicke
             initialFocus
             mode="range"
             defaultMonth={dateRange?.from}
-            selected={
-              dateRange
-                ? { from: dateRange.from || undefined, to: dateRange.to }
-                : undefined
-            }
+            selected={dateRange}
             onSelect={onDateRangeChange}
             numberOfMonths={2}
-            className={cn("p-3 pointer-events-auto")}
           />
+          <div className="p-3 border-t border-border flex justify-between">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const today = new Date();
+                onDateRangeChange({
+                  from: addDays(today, -7),
+                  to: today,
+                });
+              }}
+            >
+              Last 7 days
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const today = new Date();
+                onDateRangeChange({
+                  from: addDays(today, -30),
+                  to: today,
+                });
+              }}
+            >
+              Last 30 days
+            </Button>
+          </div>
         </PopoverContent>
       </Popover>
     </div>

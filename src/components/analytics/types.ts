@@ -1,16 +1,58 @@
 
-import { DateRange as CalendarDateRange } from "react-day-picker";
-
-export interface DateRange extends CalendarDateRange {
-  from: Date | undefined;
-  to?: Date;
+export interface SessionData {
+  id: string;
+  student_id: string;
+  student_name?: string;
+  start_time: string;
+  end_time: string;
+  duration_minutes: number;
+  queries_count: number;
+  topic?: string;
 }
 
-export interface AnalyticsFilters {
-  dateRange?: DateRange;
-  schoolId?: string;
-  teacherId?: string;
-  studentId?: string;
+export interface TopicData {
+  id: string;
+  topic: string;
+  count: number;
+  percentage: number;
+}
+
+export interface StudyTimeData {
+  student_id: string;
+  student_name: string;
+  total_minutes: number;
+  sessions_count: number;
+}
+
+export interface StudentPerformanceData {
+  id: string;
+  student_id: string;
+  student_name: string;
+  email: string;
+  total_assessments: number;
+  completed_assessments: number;
+  avg_score: number;
+  improvement_rate: number;
+  last_assessment_date: string;
+}
+
+export interface SchoolPerformanceData {
+  date: string;
+  avg_score: number;
+  completion_rate: number;
+  student_count: number;
+  assessment_count: number;
+}
+
+export interface SchoolPerformanceSummary {
+  total_assessments: number;
+  total_students: number;
+  students_with_submissions: number;
+  student_participation_rate: number;
+  avg_score: number;
+  completion_rate: number;
+  improvement_rate: number;
+  avg_submissions_per_assessment: number;
 }
 
 export interface AnalyticsSummary {
@@ -18,129 +60,4 @@ export interface AnalyticsSummary {
   totalSessions: number;
   totalQueries: number;
   avgSessionMinutes: number;
-}
-
-export interface SessionData {
-  id: string;
-  student_name: string;
-  student_id: string;
-  session_date: string;
-  duration_minutes: number;
-  topics: string[];
-  questions_asked: number;
-  questions_answered: number;
-  
-  // Compatibility fields for existing code
-  userId?: string;
-  userName?: string;
-  student?: string;
-  topicOrContent?: string;
-  topic?: string;
-  startTime?: string;
-  endTime?: string | null;
-  duration?: string | number;
-  numQueries?: number;
-  queries?: number;
-}
-
-export interface TopicData {
-  topic: string;
-  count: number;
-  
-  // Compatibility fields for existing code
-  name?: string;
-  value?: number;
-}
-
-export interface StudyTimeData {
-  student_name: string;
-  student_id: string;
-  total_minutes: number;
-  
-  // Compatibility fields for existing code
-  studentName?: string;
-  name?: string;
-  hours?: number;
-  week?: string | number; // Accept both string and number type
-  year?: number;
-}
-
-export interface Student {
-  id: string;
-  name: string;
-  // Additional fields that may be used by AdminStudents.tsx
-  status?: string;
-  role?: string;
-}
-
-export interface Teacher {
-  id: string;
-  name: string;
-}
-
-// Performance data types aligned with component expectations
-export interface SchoolPerformanceSummary {
-  total_assessments: number;
-  students_with_submissions: number;
-  total_students: number;
-  avg_submissions_per_assessment: number;
-  avg_score: number;
-  completion_rate: number;
-  student_participation_rate: number;
-  
-  // Additional properties from utils
-  average_score?: number;
-  total_questions?: number;
-  improvement_rate?: number;
-}
-
-export interface SchoolPerformanceData {
-  month: string;
-  avg_monthly_score: number;
-  monthly_completion_rate: number;
-  score_improvement_rate: number;
-  completion_improvement_rate: number;
-
-  // Additional properties from utils
-  average_score?: number;
-  total_questions?: number;
-}
-
-export interface TeacherPerformanceData {
-  teacher_id: string;
-  teacher_name: string;
-  assessments_created: number;
-  students_assessed: number;
-  completion_rate: number;
-  avg_student_score: number;
-  avg_submissions_per_assessment: number;
-  
-  // Additional properties from utils
-  id?: string;
-  name?: string;
-  students_count?: number;
-  average_score?: number;
-  total_questions?: number;
-  improvement_rate?: number;
-}
-
-export interface StudentPerformanceData {
-  student_id: string;
-  student_name: string;
-  assessments_taken: number;
-  avg_score: number;
-  avg_time_spent_seconds: number;
-  assessments_completed: number;
-  completion_rate: number;
-  top_strengths: string;
-  top_weaknesses: string;
-  
-  // Additional properties from utils
-  id?: string;
-  name?: string;
-  teacher_name?: string;
-  average_score?: number;
-  total_questions?: number;
-  improvement_rate?: number;
-  last_active?: string;
 }

@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import Navbar from '@/components/layout/Navbar';
-import { Sidebar } from '@/components/layout/Sidebar';
+import Sidebar from '@/components/layout/Sidebar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import Footer from '@/components/landing/Footer';

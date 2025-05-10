@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -12,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Search } from "lucide-react";
 import { toast } from "sonner";
 import { isSchoolAdmin, getUserRoleWithFallback } from "@/utils/apiHelpers";
+import { UserRole } from "@/components/auth/ProtectedRoute";
 
 const ChatWithAI = () => {
   const { user, profile, userRole } = useAuth();
@@ -32,7 +32,7 @@ const ChatWithAI = () => {
     // Check if user is a school admin and came from another page
     const fallbackRole = getUserRoleWithFallback();
     const effectiveRole = userRole || fallbackRole;
-    const isAdmin = isSchoolAdmin(effectiveRole);
+    const isAdmin = isSchoolAdmin(effectiveRole as UserRole);
     
     // Set return state for when they navigate away from chat
     if (isAdmin) {
@@ -105,7 +105,7 @@ const ChatWithAI = () => {
   // Determine if user is a school admin
   const fallbackRole = getUserRoleWithFallback();
   const effectiveRole = userRole || fallbackRole;
-  const isAdmin = isSchoolAdmin(effectiveRole);
+  const isAdmin = isSchoolAdmin(effectiveRole as UserRole);
 
   return (
     <div className="min-h-screen flex flex-col">
