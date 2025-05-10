@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -115,22 +114,22 @@ const FileList: React.FC = () => {
     }
   };
 
-  const downloadDocument = async (document: DocumentItem) => {
+  const downloadDocument = async (doc: DocumentItem) => {
     try {
       const { data, error } = await supabase.storage
         .from('documents')
-        .download(document.storage_path);
+        .download(doc.storage_path);
       
       if (error) throw error;
       
-      // Create download link
+      // Create download link - Fixed: Using window.document instead of document
       const url = URL.createObjectURL(data);
-      const a = document.createElement('a');
+      const a = window.document.createElement('a');
       a.href = url;
-      a.download = document.filename;
-      document.body.appendChild(a);
+      a.download = doc.filename;
+      window.document.body.appendChild(a);
       a.click();
-      document.body.removeChild(a);
+      window.document.body.removeChild(a);
       URL.revokeObjectURL(url);
       
     } catch (error) {
@@ -151,13 +150,13 @@ const FileList: React.FC = () => {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'completed':
-        return <CheckCircle className="h-4 w-4 text-green-500" aria-label="Processing complete" />;
+        return <CheckCircle className="h-4 w-4 text-green-500" aria-hidden="false" aria-label="Processing complete" />;
       case 'failed':
-        return <XCircle className="h-4 w-4 text-red-500" aria-label="Processing failed" />;
+        return <XCircle className="h-4 w-4 text-red-500" aria-hidden="false" aria-label="Processing failed" />;
       case 'processing':
-        return <Loader2 className="h-4 w-4 text-blue-500 animate-spin" aria-label="Processing" />;
+        return <Loader2 className="h-4 w-4 text-blue-500 animate-spin" aria-hidden="false" aria-label="Processing" />;
       default:
-        return <Clock className="h-4 w-4 text-orange-500" aria-label="Pending processing" />;
+        return <Clock className="h-4 w-4 text-orange-500" aria-hidden="false" aria-label="Pending processing" />;
     }
   };
 
