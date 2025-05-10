@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import {
@@ -43,8 +44,7 @@ const Navbar: React.FC = () => {
   const handleSignOut = async () => {
     try {
       await signOut();
-      // No need to navigate, AuthContext will handle this
-      toast.success("Logged out successfully");
+      // AuthContext will handle navigation and toast
     } catch (error) {
       console.error("Error signing out:", error);
       toast.error("Error signing out. Please try again.");

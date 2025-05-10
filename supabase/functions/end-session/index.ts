@@ -37,6 +37,19 @@ serve(async (req: Request) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
+    // Verify the user is authenticated
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+    
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: "Authentication failed", details: authError?.message }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
     // Get request body
     let requestData;
     try {
@@ -74,7 +87,7 @@ serve(async (req: Request) => {
       });
     }
 
-    return new Response(JSON.stringify({ success: true }), {
+    return new Response(JSON.stringify({ success: true, userId: user.id }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

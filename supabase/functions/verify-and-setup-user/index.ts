@@ -45,7 +45,7 @@ serve(async (req) => {
     // Get the user metadata
     const userMetadata = user.user_metadata;
     
-    // Normalize user_type: 'school' should be treated as 'school_admin'
+    // Normalize user_type: always treat 'school' as 'school_admin'
     let userType = userMetadata?.user_type || 'student'; // Default to student if not specified
     if (userType === 'school') {
       userType = 'school_admin';
@@ -67,7 +67,7 @@ serve(async (req) => {
       .from("profiles")
       .upsert({
         id: user.id,
-        user_type: userType,
+        user_type: userType, // Save the normalized user_type
         school_id: schoolId,
         school_code: schoolCode,
         school_name: schoolName,
@@ -224,8 +224,9 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true, 
-        userType,
-        normalized: true
+        userType: userType,  // Return the normalized type
+        originalType: userMetadata?.user_type || 'student', // For debugging purposes
+        normalized: userMetadata?.user_type === 'school' && userType === 'school_admin'
       }),
       {
         status: 200,

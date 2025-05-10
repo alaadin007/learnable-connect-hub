@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Profile, UserType } from '@/types/profile';
@@ -243,6 +244,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const signOut = async () => {
     try {
+      // Clear local storage items first to ensure they're cleared even if supabase logout fails
+      try {
+        localStorage.removeItem('userRole');
+        localStorage.removeItem('schoolId');
+      } catch (e) {
+        console.warn("Could not clear localStorage items:", e);
+      }
+      
       const { error } = await supabase.auth.signOut();
       if (error) {
         console.error("Sign-out error:", error);
@@ -258,19 +267,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setSessionData(null);
       setIsLoggedIn(false);
       
-      // Clear local storage - but keep theme and other preferences
-      try {
-        localStorage.removeItem('userRole');
-        localStorage.removeItem('schoolId');
-      } catch (e) {
-        console.warn("Could not clear localStorage items:", e);
-      }
-      
       // Navigate to login page
       navigate('/login');
+      
+      toast.success("Logged out successfully");
     } catch (error) {
       // We don't set loading state here to avoid flicker
       console.error("Error during sign out:", error);
+      toast.error("Failed to sign out properly. Please refresh the page.");
     }
   };
 
