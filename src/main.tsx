@@ -7,6 +7,11 @@ import './index.css';
 import { Toaster } from 'sonner';
 import NetworkStatusMonitor from './components/common/NetworkStatusMonitor';
 import { AuthProvider } from './contexts/AuthContext';
+import { SettingsProvider } from './contexts/SettingsContext';
+import { initPerformanceMonitoring } from './utils/performanceMonitor';
+
+// Initialize performance monitoring
+initPerformanceMonitoring();
 
 const rootElement = document.getElementById("root");
 if (!rootElement) throw new Error('Root element not found');
@@ -15,9 +20,11 @@ createRoot(rootElement).render(
   <React.StrictMode>
     <BrowserRouter>
       <AuthProvider>
-        <App />
-        <Toaster position="top-right" richColors />
-        <NetworkStatusMonitor />
+        <SettingsProvider>
+          <App />
+          <Toaster position="top-right" richColors />
+          <NetworkStatusMonitor />
+        </SettingsProvider>
       </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>

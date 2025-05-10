@@ -1,13 +1,17 @@
 
 import React, { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import LoginForm from '@/components/auth/LoginForm';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePagePerformance } from '@/hooks/usePagePerformance';
 
 const Login = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, userRole, isLoading } = useAuth();
+  
+  // Get the intended destination from location state or default to dashboard
+  const from = location.state?.from || '/dashboard';
   
   // Track performance
   usePagePerformance("LoginPage");
@@ -20,13 +24,14 @@ const Login = () => {
       } else if (userRole === 'teacher') {
         navigate('/teacher/dashboard', { replace: true });
       } else {
-        navigate('/dashboard', { replace: true });
+        navigate(from, { replace: true });
       }
     }
-  }, [user, userRole, navigate, isLoading]);
+  }, [user, userRole, navigate, isLoading, from]);
   
+  // Don't show anything while checking auth state to prevent flicker
   if (isLoading) {
-    return null; // Don't show anything while checking auth state
+    return null;
   }
   
   // Only show login form if user is not already authenticated

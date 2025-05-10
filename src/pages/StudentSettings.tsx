@@ -96,7 +96,7 @@ const StudentSettings = () => {
                     <div className="grid gap-2">
                       <Label htmlFor="provider">Provider</Label>
                       <Select value={provider} onValueChange={(value) => setProvider(value as "openai" | "gemini")}>
-                        <SelectTrigger className="w-[180px]">
+                        <SelectTrigger className="w-full">
                           <SelectValue placeholder="Select Provider" />
                         </SelectTrigger>
                         <SelectContent>

@@ -26,9 +26,11 @@ const ProtectedRoute = ({
   // Check if the user is a supervisor
   const isSupervisor = profile?.is_supervisor || false;
   
-  // If still loading auth state, return a null to avoid flicker
+  // If still loading auth state, return a minimal loading indicator to avoid flicker
   if (isLoading) {
-    return null;
+    return <div className="min-h-screen flex items-center justify-center">
+      <p className="text-gray-500">Loading...</p>
+    </div>;
   }
 
   // If not logged in, redirect to login with the return URL
