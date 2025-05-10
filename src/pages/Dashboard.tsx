@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -9,7 +10,7 @@ import Footer from "@/components/layout/Footer";
 import { isSchoolAdmin, getUserRoleWithFallback } from "@/utils/apiHelpers";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { Lecture, Assessment, getFallbackAnalyticsData } from "@/utils/supabaseHelpers";
+import { Lecture, Assessment } from "@/utils/supabaseHelpers";
 
 // Dashboard Cards Component
 interface DashboardCardProps {
@@ -72,18 +73,11 @@ const UpcomingAssessmentCard: React.FC<UpcomingAssessmentProps> = ({ id, title, 
   );
 };
 
-// Mock data for fallback when database access fails
-const mockAssessments = [
-  { id: "mock-1", title: "Mathematics Assessment", dueDate: new Date(Date.now() + 86400000 * 3).toISOString(), subject: "Mathematics" },
-  { id: "mock-2", title: "Science Quiz", dueDate: new Date(Date.now() + 86400000 * 5).toISOString(), subject: "Science" },
-  { id: "mock-3", title: "History Test", dueDate: new Date(Date.now() + 86400000 * 7).toISOString(), subject: "History" }
-];
-
-const mockLectures = [
-  { id: "mock-1", title: "Introduction to Algebra", thumbnail_url: null, created_at: new Date().toISOString() },
-  { id: "mock-2", title: "Chemical Reactions", thumbnail_url: null, created_at: new Date().toISOString() },
-  { id: "mock-3", title: "World History Overview", thumbnail_url: null, created_at: new Date().toISOString() }
-];
+const EmptyState = ({ message }: { message: string }) => (
+  <div className="text-center py-6 text-gray-500">
+    <p>{message}</p>
+  </div>
+);
 
 const Dashboard = () => {
   const { user, profile, userRole } = useAuth();
@@ -91,7 +85,7 @@ const Dashboard = () => {
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [upcomingAssessments, setUpcomingAssessments] = useState<UpcomingAssessmentProps[]>([]);
   const [recentLectures, setRecentLectures] = useState<Partial<Lecture>[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   
   // Redirect check for admin/teacher users with proper dependency array
   const checkAndRedirect = useCallback(() => {
@@ -137,71 +131,56 @@ const Dashboard = () => {
         const fetchDashboardData = async () => {
           try {
             setLoading(true);
-            // Default to mock data
-            let assessmentsData = [...mockAssessments];
-            let lecturesData = [...mockLectures];
+            
+            // Fetch upcoming assessments
+            const { data: assessments, error: assessmentsError } = await supabase
+              .from("assessments")
+              .select(`
+                id, 
+                title, 
+                due_date,
+                subject
+              `)
+              .gt('due_date', new Date().toISOString())
+              .order('due_date', { ascending: true })
+              .limit(3);
 
-            try {
-              // Try fetching upcoming assessments
-              const { data: assessments, error: assessmentsError } = await supabase
-                .from("assessments")
-                .select(`
-                  id, 
-                  title, 
-                  due_date,
-                  subject
-                `)
-                .gt('due_date', new Date().toISOString())
-                .order('due_date', { ascending: true })
-                .limit(3);
-
-              if (assessmentsError) {
-                console.error("Error fetching assessments:", assessmentsError);
-                // Keep using mock data
-              } else if (assessments && assessments.length > 0) {
-                assessmentsData = assessments.map(assessment => ({
-                  id: assessment.id,
-                  title: assessment.title,
-                  dueDate: assessment.due_date,
-                  subject: assessment.subject || undefined
-                }));
-              }
-            } catch (err) {
-              console.error("Error fetching assessments:", err);
-              // Keep using mock data
+            if (assessmentsError) {
+              console.error("Error fetching assessments:", assessmentsError);
+              toast.error("Failed to load assessments");
+            } else if (assessments && assessments.length > 0) {
+              setUpcomingAssessments(assessments.map(assessment => ({
+                id: assessment.id,
+                title: assessment.title,
+                dueDate: assessment.due_date,
+                subject: assessment.subject || undefined
+              })));
+            } else {
+              // Empty array for no assessments
+              setUpcomingAssessments([]);
             }
 
-            try {
-              // Try fetching recent lectures
-              const { data: lectures, error: lecturesError } = await supabase
-                .from("lectures")
-                .select(`
-                  id,
-                  title,
-                  thumbnail_url,
-                  created_at
-                `)
-                .order('created_at', { ascending: false })
-                .limit(3);
+            // Fetch recent lectures
+            const { data: lectures, error: lecturesError } = await supabase
+              .from("lectures")
+              .select(`
+                id,
+                title,
+                thumbnail_url,
+                created_at
+              `)
+              .order('created_at', { ascending: false })
+              .limit(3);
 
-              if (lecturesError) {
-                console.error("Error fetching lectures:", lecturesError);
-                // Keep using mock data
-              } else if (lectures && lectures.length > 0) {
-                lecturesData = lectures;
-              }
-            } catch (err) {
-              console.error("Error fetching lectures:", err);
-              // Keep using mock data
+            if (lecturesError) {
+              console.error("Error fetching lectures:", lecturesError);
+              toast.error("Failed to load lectures");
+            } else {
+              setRecentLectures(lectures || []);
             }
-
-            setUpcomingAssessments(assessmentsData);
-            setRecentLectures(lecturesData);
           } catch (err) {
             console.error("Error fetching dashboard data:", err);
-            // Use mock data as fallback
-            setUpcomingAssessments(mockAssessments);
-            setRecentLectures(mockLectures);
+            toast.error("Failed to load dashboard data");
           } finally {
             setLoading(false);
           }
@@ -289,7 +268,10 @@ const Dashboard = () => {
                 </div>
                 
                 {loading ? (
-                  <div className="text-center py-4 text-gray-600">Loading...</div>
+                  <div className="text-center py-1 text-gray-600">
+                    <div className="inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-600 mr-2"></div>
+                    Loading...
+                  </div>
                 ) : upcomingAssessments.length > 0 ? (
                   <div className="space-y-3">
                     {upcomingAssessments.map(assessment => (
@@ -303,7 +285,7 @@ const Dashboard = () => {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-center py-6 text-gray-500">No upcoming assessments</p>
+                  <EmptyState message="No upcoming assessments" />
                 )}
               </CardContent>
             </Card>
@@ -325,7 +307,10 @@ const Dashboard = () => {
                 </div>
                 
                 {loading ? (
-                  <div className="text-center py-4 text-gray-600">Loading...</div>
+                  <div className="text-center py-1 text-gray-600">
+                    <div className="inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-600 mr-2"></div>
+                    Loading...
+                  </div>
                 ) : recentLectures.length > 0 ? (
                   <div className="space-y-3">
                     {recentLectures.map(lecture => (
@@ -357,7 +342,7 @@ const Dashboard = () => {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-center py-6 text-gray-500">No recent lectures</p>
+                  <EmptyState message="No recent lectures" />
                 )}
               </CardContent>
             </Card>

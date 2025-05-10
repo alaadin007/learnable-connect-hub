@@ -30,8 +30,7 @@ export function TeacherSelector({
 }: TeacherSelectorProps) {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [loadAttempts, setLoadAttempts] = useState(0);
-  const { user, session } = useAuth();
+  const { session } = useAuth();
 
   useEffect(() => {
     const fetchTeachers = async () => {
@@ -50,8 +49,7 @@ export function TeacherSelector({
           throw new Error("Authentication required");
         }
         
-        // Use the get_teachers_for_school database function instead of querying teachers directly
-        // This avoids the infinite recursion in RLS policies
+        // Use the get_teachers_for_school database function to avoid RLS policy issues
         const { data, error } = await supabase
           .rpc('get_teachers_for_school', { school_id_param: schoolId });
 
@@ -63,17 +61,15 @@ export function TeacherSelector({
         if (!data || data.length === 0) {
           console.log("TeacherSelector: No teachers found");
           setTeachers([]);
-          setIsLoading(false);
-          return;
+        } else {
+          const formattedTeachers: Teacher[] = data.map((teacher: any) => ({
+            id: teacher.id,
+            name: teacher.full_name || "Unknown Teacher",
+          }));
+
+          console.log(`TeacherSelector: Found ${formattedTeachers.length} teachers`);
+          setTeachers(formattedTeachers);
         }
-
-        const formattedTeachers: Teacher[] = data.map((teacher: any) => ({
-          id: teacher.id,
-          name: teacher.full_name || "Unknown Teacher",
-        }));
-
-        console.log(`TeacherSelector: Found ${formattedTeachers.length} teachers`);
-        setTeachers(formattedTeachers);
       } catch (error: any) {
         console.error("Error in TeacherSelector:", error);
         
@@ -82,38 +78,18 @@ export function TeacherSelector({
           toast.error("Please log in to view teachers", {
             description: "Your session may have expired"
           });
-        } 
-        // Fall back to using a dedicated edge function for test accounts
-        else if (schoolId === 'test' || schoolId.includes('test')) {
-          try {
-            console.log("TeacherSelector: Falling back to mock data for test school");
-            // Create mock teacher data for test schools
-            const mockTeachers = [
-              { id: "test-teacher-1", name: "Test Teacher 1" },
-              { id: "test-teacher-2", name: "Test Teacher 2" }
-            ];
-            setTeachers(mockTeachers);
-          } catch (fallbackError) {
-            console.error("Error with fallback:", fallbackError);
-            setTeachers([]);
-          }
-        }
-        // Implement retry logic for transient errors
-        else if (loadAttempts < 2) {
-          console.log(`TeacherSelector: Retrying... Attempt ${loadAttempts + 1}`);
-          setLoadAttempts(prev => prev + 1);
-          setTimeout(() => fetchTeachers(), 1000); // Retry after 1 second
         } else {
-          toast.error("Failed to load teachers. Please refresh the page.");
-          setTeachers([]);
+          toast.error("Failed to load teachers");
         }
+        
+        setTeachers([]);
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchTeachers();
-  }, [schoolId, loadAttempts, session, user]);
+  }, [schoolId, session]);
 
   const labelId = "teacher-selector-label";
 

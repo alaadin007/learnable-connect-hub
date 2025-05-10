@@ -1916,6 +1916,10 @@ export type Database = {
         Args: { teacher_email: string; school_id: string }
         Returns: string
       }
+      is_authorized_for_teacher_access: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
       is_same_user_or_supervisor: {
         Args: { user_id: string }
         Returns: boolean
