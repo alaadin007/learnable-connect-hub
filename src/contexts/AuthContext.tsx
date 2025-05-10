@@ -4,7 +4,16 @@ import { supabase } from '@/integrations/supabase/client';
 import { Session, User, AuthError } from '@supabase/supabase-js';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
-import { hasData, safeCast, getUserProfile } from '@/utils/supabaseTypeHelpers';
+import { 
+  hasData, 
+  safeCast, 
+  getUserProfile, 
+  hasProperty, 
+  isNotNullOrUndefined,
+  UserType
+} from '@/utils/supabaseTypeHelpers';
+
+export type UserRole = 'student' | 'teacher' | 'school_admin' | 'school' | null;
 
 type AuthContextType = {
   user: User | null;
@@ -17,9 +26,12 @@ type AuthContextType = {
   session: Session | null;
   isLoggedIn: boolean;
   isLoading: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
+  userRole: UserRole;
+  connectionError: boolean;
+  signIn: (email: string, password: string) => Promise<{data?: any, error?: AuthError}>;
   signUp: (email: string, password: string, options?: any) => Promise<void>;
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -34,6 +46,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isSupervisor, setIsSupervisor] = useState(false);
   const [isStudent, setIsStudent] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [userRole, setUserRole] = useState<UserRole>(null);
+  const [connectionError, setConnectionError] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -52,6 +66,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       } catch (error) {
         console.error('Error getting session:', error);
+        setConnectionError(true);
         setIsLoading(false);
       }
     };
@@ -72,6 +87,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setIsSchoolAdmin(false);
         setIsSupervisor(false);
         setIsStudent(false);
+        setUserRole(null);
       }
     });
 
@@ -85,45 +101,58 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Try to get profile data using helper function
       const profileResponse = await getUserProfile(user.id);
       
-      if (profileResponse.data) {
-        setProfile(profileResponse.data);
+      if (hasData(profileResponse)) {
+        const profileData = profileResponse.data;
+        setProfile(profileData);
         
         // Set user role flags
-        const userType = profileResponse.data.user_type;
+        const userType = profileData.user_type as UserType;
         setIsTeacher(userType === 'teacher');
         setIsSchoolAdmin(userType === 'school_admin' || userType === 'school');
         setIsStudent(userType === 'student');
+        setUserRole(userType);
         
         // Set school ID
-        if (profileResponse.data.school_id) {
-          setSchoolId(profileResponse.data.school_id);
+        if (profileData.school_id) {
+          setSchoolId(profileData.school_id);
         }
       }
       
       // Check if user is a supervisor
       try {
-        const { data: supervisorData } = await supabase.rpc('is_user_supervisor_safe');
-        setIsSupervisor(Boolean(supervisorData));
+        const { data: supervisorData, error } = await supabase.rpc('is_user_supervisor_safe');
+        if (!error) {
+          setIsSupervisor(Boolean(supervisorData));
+        }
       } catch (error) {
         console.error('Error checking supervisor status:', error);
       }
       
     } catch (error) {
       console.error('Error loading user data:', error);
+      setConnectionError(true);
     } finally {
       setIsLoading(false);
     }
   };
 
+  const refreshProfile = async () => {
+    if (!user) return;
+    await loadUserData(user);
+  };
+
   const signIn = async (email: string, password: string) => {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
+      const result = await supabase.auth.signInWithPassword({ email, password });
+      
+      if (result.error) throw result.error;
 
-      if (data?.user) {
+      if (result.data?.user) {
         toast.success('Welcome back! You are now logged in.');
         navigate('/');
       }
+      
+      return result;
     } catch (error: any) {
       console.error('Sign in error:', error);
       
@@ -139,12 +168,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (error) throw error;
 
       if (data) {
-        toast(
-          {
-            title: 'Sign up successful!', 
-            description: 'Please check your email to verify your account.'
-          }
-        );
+        toast({
+          title: 'Sign up successful!', 
+          description: 'Please check your email to verify your account.'
+        });
       }
     } catch (error: any) {
       console.error('Sign up error:', error);
@@ -164,6 +191,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setIsSchoolAdmin(false);
       setIsSupervisor(false);
       setIsStudent(false);
+      setUserRole(null);
       
       toast.success('You have been signed out');
       navigate('/login');
@@ -187,9 +215,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         session,
         isLoggedIn: !!user,
         isLoading,
+        userRole,
+        connectionError,
         signIn,
         signUp,
         signOut,
+        refreshProfile,
       }}
     >
       {children}

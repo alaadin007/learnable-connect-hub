@@ -3,7 +3,14 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
 import { toast } from 'sonner';
-import { getUserApiKeys, upsertUserApiKey, safeCast } from '@/utils/supabaseTypeHelpers';
+import { 
+  getUserApiKeys, 
+  upsertUserApiKey, 
+  safeCast, 
+  hasData, 
+  asId,
+  safeApiKeyAccess
+} from '@/utils/supabaseTypeHelpers';
 
 interface SettingsContextType {
   theme: string;
@@ -59,15 +66,14 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      if (response.data && Array.isArray(response.data)) {
+      if (hasData(response) && Array.isArray(response.data)) {
         response.data.forEach(item => {
-          if (item && typeof item === 'object') {
-            if ('provider' in item && 'api_key' in item) {
-              if (item.provider === 'openai') {
-                setOpenaiApiKey(String(item.api_key));
-              } else if (item.provider === 'gemini') {
-                setGeminiApiKey(String(item.api_key));
-              }
+          const apiKey = safeApiKeyAccess(item);
+          if (apiKey) {
+            if (apiKey.provider === 'openai') {
+              setOpenaiApiKey(String(apiKey.api_key));
+            } else if (apiKey.provider === 'gemini') {
+              setGeminiApiKey(String(apiKey.api_key));
             }
           }
         });

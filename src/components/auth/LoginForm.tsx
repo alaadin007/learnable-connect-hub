@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -31,7 +32,8 @@ const LoginForm = () => {
   const location = useLocation();
   const [isLoading, setIsLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
-  const { signIn, user, userRole, session, connectionError } = useAuth();
+  const { signIn, user, session } = useAuth();
+  const [hasConnectionError, setHasConnectionError] = useState(false);
   
   // Check if we have a invitation token in the URL query params
   const searchParams = new URLSearchParams(location.search);
@@ -41,10 +43,10 @@ const LoginForm = () => {
   useEffect(() => {
     if (user && session) {
       const redirectPath = getRedirectPath();
-      console.log(`Already authenticated as ${userRole}, redirecting to ${redirectPath}`);
+      console.log(`Already authenticated, redirecting to ${redirectPath}`);
       navigate(redirectPath, { replace: true });
     }
-  }, [user, session, userRole, navigate]);
+  }, [user, session, navigate]);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -60,14 +62,8 @@ const LoginForm = () => {
       return `/teacher-invitation/${invitation}`;
     }
     
-    // Otherwise route based on role
-    if (userRole === "school" || userRole === "school_admin") {
-      return "/admin";
-    } else if (userRole === "teacher") {
-      return "/teacher/analytics";
-    } else {
-      return "/dashboard";
-    }
+    // Default path
+    return "/dashboard";
   };
 
   const onSubmit = async (data: FormData) => {
@@ -80,26 +76,27 @@ const LoginForm = () => {
       if (!isConnected) {
         setLoginError("Cannot connect to the authentication service. Please try again later.");
         setIsLoading(false);
+        setHasConnectionError(true);
         return;
       }
     } catch (error) {
       console.error("Connection check error:", error);
+      setHasConnectionError(true);
     }
     
     try {
       // Use the signIn method from AuthContext
-      const { data: authData, error } = await signIn(data.email, data.password);
+      const result = await signIn(data.email, data.password);
 
-      if (error) {
-        console.error("Login error:", error);
-        throw new Error(error.message);
+      if (result.error) {
+        throw result.error;
       }
 
-      if (!authData?.user) {
+      if (!result.data?.user) {
         throw new Error("Login failed. No user returned.");
       }
 
-      console.log("Login successful:", authData);
+      console.log("Login successful:", result.data);
       toast.success("Login Successful");
       
       // Call the verify-and-setup-user function to ensure proper setup
@@ -182,7 +179,7 @@ const LoginForm = () => {
           </Alert>
         )}
 
-        {connectionError && (
+        {hasConnectionError && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>

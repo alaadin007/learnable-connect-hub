@@ -11,7 +11,7 @@ import Navbar from "@/components/layout/Navbar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const Login = () => {
-  const { user, userRole, session, isLoading } = useAuth();
+  const { user, session, isLoading } = useAuth();
   const navigate = useNavigate();
   const [connectionError, setConnectionError] = useState<boolean>(false);
   const [connectionChecked, setConnectionChecked] = useState<boolean>(false);
@@ -59,23 +59,15 @@ const Login = () => {
   useEffect(() => {
     // Only proceed with redirection if auth state is loaded
     if (!isLoading) {
-      console.log("Login.tsx: Auth state loaded. User:", !!user, "Session:", !!session, "Role:", userRole);
+      console.log("Login.tsx: Auth state loaded. User:", !!user, "Session:", !!session);
       
       // If user is authenticated and we have all required information
       if (user && session) {
-        console.log("Login.tsx: Redirecting authenticated user with role:", userRole);
-        
-        // Determine where to redirect based on user role
-        if (userRole === "school" || userRole === "school_admin") {
-          navigate("/admin", { replace: true });
-        } else if (userRole === "teacher") {
-          navigate("/teacher/analytics", { replace: true }); 
-        } else {
-          navigate("/dashboard", { replace: true });
-        }
+        console.log("Login.tsx: Redirecting authenticated user");
+        navigate("/dashboard", { replace: true });
       }
     }
-  }, [user, userRole, navigate, session, isLoading]);
+  }, [user, navigate, session, isLoading]);
 
   // Render a loading state while checking auth
   if (isLoading) {

@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -21,8 +22,9 @@ import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { 
   insertSchool, 
   insertSchoolCode, 
-  hasData, 
-  safeCast 
+  hasData,
+  asId,
+  safeCast
 } from "@/utils/supabaseTypeHelpers";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -96,7 +98,7 @@ const SchoolRegistrationForm = () => {
         contact_email: data.contactEmail || data.adminEmail,
       });
 
-      if (!hasData(schoolResponse) || !schoolResponse.data) {
+      if (!hasData(schoolResponse)) {
         console.error("Error creating school:", schoolResponse.error);
         throw new Error("Failed to create school record");
       }
@@ -107,8 +109,8 @@ const SchoolRegistrationForm = () => {
       const schoolCodeResponse = await insertSchoolCode({
         code: schoolCode,
         school_name: data.schoolName,
-        active: true,
-        school_id: school.id
+        school_id: school.id,
+        active: true
       });
       
       if (!hasData(schoolCodeResponse)) {
@@ -118,7 +120,7 @@ const SchoolRegistrationForm = () => {
         await supabase
           .from("schools")
           .delete()
-          .eq("id", school.id);
+          .eq("id", asId<string>(school.id));
           
         throw new Error("Failed to create school code");
       }
@@ -146,12 +148,12 @@ const SchoolRegistrationForm = () => {
         await supabase
           .from("school_codes")
           .delete()
-          .eq("code", safeCast<string>(schoolCode));
+          .eq("code", asId<string>(schoolCode));
           
         await supabase
           .from("schools")
           .delete()
-          .eq("id", school.id);
+          .eq("id", asId<string>(school.id));
           
         throw new Error(userError.message || "Failed to create admin user");
       }

@@ -6,7 +6,7 @@ import { UploadCloud, File, X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { insertDocument, hasData, safeCast } from "@/utils/supabaseTypeHelpers";
+import { insertDocument, hasData, asId } from "@/utils/supabaseTypeHelpers";
 
 const FileUpload = ({ onUploadComplete }: { onUploadComplete?: () => void }) => {
   const { user } = useAuth();
@@ -60,38 +60,32 @@ const FileUpload = ({ onUploadComplete }: { onUploadComplete?: () => void }) => 
         setUploadProgress(progress);
       };
       
-      // Create a XMLHttpRequest to track progress
-      let xhr = new XMLHttpRequest();
+      let progressInterval: any;
       
-      // Define upload promise with progress tracking
-      const uploadPromise = new Promise<void>((resolve, reject) => {
-        xhr.upload.addEventListener('progress', (event) => {
-          if (event.lengthComputable) {
-            const percent = Math.round((event.loaded / event.total) * 100);
-            trackProgress(percent);
-          }
-        });
+      try {
+        // Start a progress tracking simulation (since we can't track actual progress)
+        progressInterval = setInterval(() => {
+          setUploadProgress((prev) => {
+            if (prev >= 95) return prev;
+            return prev + Math.floor(Math.random() * 10) + 1;
+          });
+        }, 300);
         
-        xhr.addEventListener('error', () => {
-          reject(new Error('Upload failed'));
-        });
-        
-        xhr.addEventListener('load', () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            resolve();
-          } else {
-            reject(new Error(`HTTP error ${xhr.status}`));
-          }
-        });
-      });
-      
-      // Start the upload using Supabase
-      const { error: uploadError } = await supabase.storage
-        .from("documents")
-        .upload(storagePath, file);
-        
-      if (uploadError) {
-        throw new Error(`Upload failed: ${uploadError.message}`);
+        // Upload file to Supabase storage
+        const { error: uploadError } = await supabase.storage
+          .from("documents")
+          .upload(storagePath, file);
+          
+        // Clear interval after upload completes
+        clearInterval(progressInterval);
+        setUploadProgress(100);
+          
+        if (uploadError) {
+          throw new Error(`Upload failed: ${uploadError.message}`);
+        }
+      } catch (uploadErr) {
+        if (progressInterval) clearInterval(progressInterval);
+        throw uploadErr;
       }
       
       // Create document record in the database using helper
@@ -107,7 +101,7 @@ const FileUpload = ({ onUploadComplete }: { onUploadComplete?: () => void }) => 
       
       const docResponse = await insertDocument(docData);
         
-      if (!hasData(docResponse) || !docResponse.data) {
+      if (!hasData(docResponse)) {
         throw new Error(`Document record creation failed: ${docResponse.error?.message || "Unknown error"}`);
       }
       

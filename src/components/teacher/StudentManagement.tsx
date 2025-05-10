@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,7 +34,10 @@ import {
   updateStudentStatus, 
   getStudentsForSchool, 
   getStudentInvitesForSchool,
-  safeCast
+  safeArrayCast,
+  asId,
+  hasData,
+  safeStudentData
 } from '@/utils/supabaseTypeHelpers';
 
 type Student = {
@@ -99,7 +103,7 @@ const StudentManagement = () => {
       
       const result = await getStudentsForSchool(effectiveSchoolId);
 
-      if (result.error || !result.data) {
+      if (!hasData(result) || !result.data) {
         toast.error("Failed to load students");
         console.error("Error fetching students:", result.error);
         setStudents([]);
@@ -107,15 +111,17 @@ const StudentManagement = () => {
         return;
       }
 
-      // Format student data with profile info
-      const formattedStudents: Student[] = result.data.map(profile => ({
-        id: profile.id,
-        full_name: profile.full_name,
-        email: profile.email || profile.id, // Fallback to ID if email is not available
-        created_at: profile.created_at
-      }));
+      // Process student data with type safety
+      const safeStudents: Student[] = [];
       
-      setStudents(formattedStudents);
+      for (const profileData of result.data) {
+        const student = safeStudentData(profileData);
+        if (student) {
+          safeStudents.push(student);
+        }
+      }
+      
+      setStudents(safeStudents);
       
     } catch (error) {
       console.error('Error fetching students:', error);
@@ -140,9 +146,9 @@ const StudentManagement = () => {
         throw result.error;
       }
       
-      if (result.data) {
-        // Type assertion for safety
-        setInvites(safeCast<StudentInvite[]>(result.data));
+      if (hasData(result)) {
+        const safeInvites = safeArrayCast<StudentInvite>(result.data);
+        setInvites(safeInvites);
       } else {
         setInvites([]);
       }

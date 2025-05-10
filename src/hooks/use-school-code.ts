@@ -2,6 +2,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { asId, safeCast, hasData } from '@/utils/supabaseTypeHelpers';
+import type { Database } from "@/integrations/supabase/types";
 
 /**
  * Key for storing school codes in localStorage
@@ -82,10 +84,10 @@ export const useSchoolCode = () => {
         const { data: schoolData, error } = await supabase
           .from("schools")
           .select("code")
-          .eq("id", schoolId)
+          .eq("id", asId<string>(schoolId))
           .single();
           
-        if (!error && schoolData) {
+        if (!error && schoolData && schoolData.code) {
           localStorage.setItem(`${CURRENT_CODE_PREFIX}${schoolId}`, schoolData.code);
           // Add to history
           addCodeToHistory(schoolId, schoolData.code);
@@ -148,20 +150,24 @@ export const useSchoolCode = () => {
       // Try to update in database
       try {
         if (process.env.NODE_ENV === 'production') {
+          const updateData = { code: generatedCode };
+          
           await supabase
             .from("schools")
-            .update({ code: generatedCode })
-            .eq("id", schoolId);
+            .update(safeCast<Database["public"]["Tables"]["schools"]["Update"]>(updateData))
+            .eq("id", asId<string>(schoolId));
             
           // Also update in school_codes table for proper tracking
+          const schoolCodesData = { 
+            code: generatedCode,
+            school_name: localStorage.getItem('school_name') || 'Unknown School',
+            school_id: schoolId,
+            active: true
+          };
+          
           await supabase
             .from("school_codes")
-            .insert({ 
-              code: generatedCode,
-              school_name: localStorage.getItem('school_name') || 'Unknown School',
-              school_id: schoolId,
-              active: true
-            })
+            .insert(safeCast<Database["public"]["Tables"]["school_codes"]["Insert"]>(schoolCodesData))
             .select();
         }
       } catch (dbError) {

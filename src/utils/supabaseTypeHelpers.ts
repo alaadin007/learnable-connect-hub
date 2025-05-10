@@ -1,7 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
-import { PostgrestError } from "@supabase/supabase-js";
+import { PostgrestError, PostgrestSingleResponse } from "@supabase/supabase-js";
 
 /**
  * Type for Supabase response with data and error handling
@@ -35,7 +35,12 @@ export function isNotNullOrUndefined<T>(value: T | null | undefined): value is T
 /**
  * Type definition for user types
  */
-export type UserType = "student" | "teacher" | "school_admin";
+export type UserType = "student" | "teacher" | "school_admin" | "school";
+
+/**
+ * Type definition for possible error or valid response from Supabase
+ */
+export type MaybeData<T> = T | PostgrestError;
 
 /**
  * Helper function for safe type casting
@@ -46,13 +51,25 @@ export function safeCast<T>(value: any): T {
 
 /**
  * Safe type assertion helper for Supabase data
- * @param data Response data which may contain errors
- * @param fallback Default fallback if data is error or undefined
  */
 export function safeDataAccess<T, F>(data: any, fallback: F): T | F {
   if (data === null || data === undefined) return fallback;
   if (typeof data === 'object' && 'error' in data) return fallback;
   return data as T;
+}
+
+/**
+ * Helper function to check if object has required property 
+ */
+export function hasProperty<K extends string, T extends object>(obj: T, prop: K): obj is T & Record<K, unknown> {
+  return Object.prototype.hasOwnProperty.call(obj, prop);
+}
+
+/**
+ * Converts string to a table ID type-safely
+ */
+export function asId<T>(id: string): T {
+  return id as unknown as T;
 }
 
 /**
@@ -127,15 +144,22 @@ export const insertSchool = async (schoolData: {
   contact_email?: string;
   description?: string;
 }): Promise<SafeResponse<Database["public"]["Tables"]["schools"]["Row"]>> => {
-  const { data, error } = await supabase
-    .from('schools')
-    .insert(schoolData)
-    .select();
-  
-  return { 
-    data: data?.[0] || null, 
-    error 
-  };
+  try {
+    const { data, error } = await supabase
+      .from('schools')
+      .insert(schoolData)
+      .select();
+    
+    return { 
+      data: data?.[0] || null, 
+      error 
+    };
+  } catch (err) {
+    return {
+      data: null,
+      error: err as PostgrestError
+    };
+  }
 };
 
 /**
@@ -147,15 +171,22 @@ export const insertSchoolCode = async (codeData: {
   school_id?: string;
   active?: boolean;
 }): Promise<SafeResponse<Database["public"]["Tables"]["school_codes"]["Row"]>> => {
-  const { data, error } = await supabase
-    .from('school_codes')
-    .insert(codeData)
-    .select();
-  
-  return { 
-    data: data?.[0] || null, 
-    error 
-  };
+  try {
+    const { data, error } = await supabase
+      .from('school_codes')
+      .insert(codeData)
+      .select();
+    
+    return { 
+      data: data?.[0] || null, 
+      error 
+    };
+  } catch (err) {
+    return { 
+      data: null, 
+      error: err as PostgrestError 
+    };
+  }
 };
 
 /**
@@ -169,7 +200,7 @@ export const verifySchoolCode = async (code: string): Promise<{
   // We need to cast the string parameter explicitly
   const { data, error } = await supabase
     .rpc('verify_and_link_school_code', { 
-      code: code as unknown as Database["public"]["Functions"]["verify_and_link_school_code"]["Args"]["code"]
+      code: asId<Database["public"]["Functions"]["verify_and_link_school_code"]["Args"]["code"]>(code)
     });
   
   if (error || !data || !Array.isArray(data) || data.length === 0) {
@@ -239,7 +270,7 @@ export const updateStudentStatus = async (studentId: string, status: string): Pr
     const { error } = await supabase
       .from('students')
       .update(safeCast<Database["public"]["Tables"]["students"]["Update"]>({ status }))
-      .eq('id', studentId as any);
+      .eq('id', asId<string>(studentId));
     
     return { data: null, error };
   } catch (err) {
@@ -255,7 +286,7 @@ export const getDocumentContent = async (documentId: string): Promise<string | n
     const { data, error } = await supabase
       .from('document_content')
       .select('content')
-      .eq('document_id', documentId as any)
+      .eq('document_id', asId<string>(documentId))
       .single();
     
     if (error || !data) {
@@ -277,7 +308,7 @@ export const getUserDocuments = async (userId: string) => {
     const { data, error } = await supabase
       .from('documents')
       .select('*')
-      .eq('user_id', userId as any)
+      .eq('user_id', asId<string>(userId))
       .order('created_at', { ascending: false });
 
     return { data, error };
@@ -294,7 +325,7 @@ export const deleteDocumentContent = async (documentId: string) => {
     return await supabase
       .from('document_content')
       .delete()
-      .eq('document_id', documentId as any);
+      .eq('document_id', asId<string>(documentId));
   } catch (err) {
     return { data: null, error: err as PostgrestError };
   }
@@ -308,7 +339,7 @@ export const deleteDocument = async (documentId: string) => {
     return await supabase
       .from('documents')
       .delete()
-      .eq('id', documentId as any);
+      .eq('id', asId<string>(documentId));
   } catch (err) {
     return { data: null, error: err as PostgrestError };
   }
@@ -322,7 +353,7 @@ export const getStudentsForSchool = async (schoolId: string) => {
     const { data: studentData, error: studentError } = await supabase
       .from('students')
       .select('id')
-      .eq('school_id', schoolId as any);
+      .eq('school_id', asId<string>(schoolId));
 
     if (studentError || !studentData || studentData.length === 0) {
       return { data: [], error: studentError };
@@ -349,7 +380,7 @@ export const getStudentInvitesForSchool = async (schoolId: string) => {
     const { data, error } = await supabase
       .from('student_invites')
       .select('*')
-      .eq('school_id', schoolId as any);
+      .eq('school_id', asId<string>(schoolId));
     
     return { data, error };
   } catch (err) {
@@ -365,7 +396,7 @@ export const getUserApiKeys = async (userId: string) => {
     const { data, error } = await supabase
       .from('user_api_keys')
       .select('*')
-      .eq('user_id', userId as any);
+      .eq('user_id', asId<string>(userId));
     
     return { data, error };
   } catch (err) {
@@ -384,7 +415,7 @@ export const upsertUserApiKey = async (data: {
   try {
     return await supabase
       .from('user_api_keys')
-      .upsert(safeCast(data))
+      .upsert(safeCast<Database["public"]["Tables"]["user_api_keys"]["Insert"]>(data))
       .select();
   } catch (err) {
     return { data: null, error: err as PostgrestError };
@@ -399,7 +430,7 @@ export const getUserProfile = async (userId: string) => {
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
-      .eq('id', userId as any)
+      .eq('id', asId<string>(userId))
       .single();
     
     return { data, error };
@@ -407,3 +438,101 @@ export const getUserProfile = async (userId: string) => {
     return { data: null, error: err as PostgrestError };
   }
 };
+
+/**
+ * Helper function to extract data safely from a Supabase response
+ */
+export function extractData<T>(response: PostgrestSingleResponse<T>): T | null {
+  if (response.error) {
+    console.error("Error extracting data:", response.error);
+    return null;
+  }
+  return response.data;
+}
+
+/**
+ * Helper function to safely process response data with proper type narrowing
+ */
+export function safeProcessData<T>(response: { data: T | null; error: PostgrestError | null }, 
+  processor: (data: T) => any, 
+  onError?: (error: PostgrestError) => any
+): any {
+  if (response.error) {
+    return onError ? onError(response.error) : null;
+  }
+  
+  if (response.data) {
+    return processor(response.data);
+  }
+  
+  return null;
+}
+
+/**
+ * Helper for safely accessing API key data with proper type checking
+ */
+export function safeApiKeyAccess<T>(item: T | null): { provider: string; api_key: string } | null {
+  if (!item) return null;
+  
+  // Check if item has the required properties
+  if (typeof item === 'object' && item !== null && 
+      'provider' in item && 'api_key' in item) {
+    return {
+      provider: (item as any).provider,
+      api_key: (item as any).api_key
+    };
+  }
+  
+  return null;
+}
+
+/**
+ * Convert array data safely if the response is valid
+ */
+export function safeArrayCast<T>(responseData: any): T[] {
+  if (!responseData || !Array.isArray(responseData)) {
+    return [];
+  }
+  return responseData as T[];
+}
+
+/**
+ * Helper for safely using student data
+ */
+export type SafeStudent = {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  created_at: string;
+};
+
+export function safeStudentData(student: any): SafeStudent | null {
+  if (!student) return null;
+  
+  if (typeof student === 'object' && 
+      'id' in student &&
+      'full_name' in student &&
+      'created_at' in student) {
+    return {
+      id: student.id,
+      full_name: student.full_name,
+      email: student.email || student.id,
+      created_at: student.created_at
+    };
+  }
+  
+  return null;
+}
+
+export function isValidStudentInvite(invite: any): invite is {
+  id: string;
+  code: string;
+  email: string | null;
+  status: string;
+  created_at: string;
+  expires_at: string;
+} {
+  return typeof invite === 'object' && invite !== null &&
+    'id' in invite &&
+    'status' in invite;
+}
