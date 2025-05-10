@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, FileText, MessageSquare, Layers, File } from 'lucide-react';
@@ -13,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/contexts/AuthContext';
 import AIChat from '@/components/ai-tutor/AIChat';
 import FlashcardCreator from '@/components/ai-tutor/FlashcardCreator';
+import { DocumentSummaryType } from '@/types/database';
 
 const StudentPDFViewer = () => {
   const { id } = useParams<{ id: string }>();

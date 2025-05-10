@@ -13,6 +13,7 @@ import AIChat from "@/components/ai-tutor/AIChat";
 import FlashcardCreator from "@/components/ai-tutor/FlashcardCreator";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { VideoType } from "@/types/database";
 
 // Define the content types
 type ContentType = "document" | "video" | null;
@@ -28,7 +29,7 @@ const AITutor = () => {
   const [contentName, setContentName] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [documents, setDocuments] = useState<any[]>([]);
-  const [videos, setVideos] = useState<any[]>([]);
+  const [videos, setVideos] = useState<VideoType[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(searchParams.get("conversationId"));
   
   // Load content information from URL params
@@ -79,7 +80,7 @@ const AITutor = () => {
         .order("created_at", { ascending: false });
       
       if (videosError) throw videosError;
-      setVideos(videosData || []);
+      setVideos(videosData as VideoType[] || []);
     } catch (error) {
       console.error("Error loading user contents:", error);
       toast.error("Failed to load your learning materials");

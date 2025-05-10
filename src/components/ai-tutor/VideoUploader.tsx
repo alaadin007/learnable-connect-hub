@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { UploadCloud, Video, X, ExternalLink, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -9,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { VideoType } from '@/types/database';
 
 interface VideoUploaderProps {
   onVideoUploaded?: (videoId: string, type: 'youtube' | 'lecture', title: string) => void;
@@ -135,7 +135,7 @@ const VideoUploader: React.FC<VideoUploaderProps> = ({
           user_id: user.id,
           school_id: schoolId,
           title: videoTitle,
-          video_type: 'youtube',
+          video_type: 'youtube' as const,
           youtube_id: youtubeId,
           video_url: `https://www.youtube.com/watch?v=${youtubeId}`,
           processing_status: 'pending'
@@ -216,7 +216,7 @@ const VideoUploader: React.FC<VideoUploaderProps> = ({
           user_id: user.id,
           school_id: schoolId,
           title: file.name.replace(/\.[^/.]+$/, ''), // Remove file extension for title
-          video_type: 'lecture',
+          video_type: 'lecture' as const,
           video_url: publicUrlData.publicUrl,
           storage_path: filePath,
           file_size: file.size,

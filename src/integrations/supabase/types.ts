@@ -282,6 +282,38 @@ export type Database = {
           },
         ]
       }
+      document_summaries: {
+        Row: {
+          created_at: string
+          document_id: string
+          id: string
+          summary: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          document_id: string
+          id?: string
+          summary: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          document_id?: string
+          id?: string
+          summary?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_summaries_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documents: {
         Row: {
           created_at: string
@@ -346,6 +378,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      flashcards: {
+        Row: {
+          back_text: string
+          content_id: string | null
+          content_type: string
+          created_at: string
+          deck_name: string | null
+          front_text: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          back_text: string
+          content_id?: string | null
+          content_type: string
+          created_at?: string
+          deck_name?: string | null
+          front_text: string
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          back_text?: string
+          content_id?: string | null
+          content_type?: string
+          created_at?: string
+          deck_name?: string | null
+          front_text?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       lecture_notes: {
         Row: {
@@ -605,6 +673,9 @@ export type Database = {
       }
       messages: {
         Row: {
+          attachment_id: string | null
+          attachment_name: string | null
+          attachment_type: string | null
           content: string
           conversation_id: string
           feedback_rating: number | null
@@ -614,6 +685,9 @@ export type Database = {
           timestamp: string
         }
         Insert: {
+          attachment_id?: string | null
+          attachment_name?: string | null
+          attachment_type?: string | null
           content: string
           conversation_id: string
           feedback_rating?: number | null
@@ -623,6 +697,9 @@ export type Database = {
           timestamp?: string
         }
         Update: {
+          attachment_id?: string | null
+          attachment_name?: string | null
+          attachment_type?: string | null
           content?: string
           conversation_id?: string
           feedback_rating?: number | null
@@ -1520,6 +1597,118 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      video_transcripts: {
+        Row: {
+          created_at: string
+          end_time: number | null
+          id: string
+          start_time: number | null
+          text: string
+          video_id: string
+        }
+        Insert: {
+          created_at?: string
+          end_time?: number | null
+          id?: string
+          start_time?: number | null
+          text: string
+          video_id: string
+        }
+        Update: {
+          created_at?: string
+          end_time?: number | null
+          id?: string
+          start_time?: number | null
+          text?: string
+          video_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_transcripts_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      videos: {
+        Row: {
+          created_at: string
+          file_size: number | null
+          id: string
+          processing_status: string
+          school_id: string | null
+          storage_path: string | null
+          title: string
+          transcript_status: string | null
+          updated_at: string
+          user_id: string
+          video_type: string
+          video_url: string
+          youtube_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          file_size?: number | null
+          id?: string
+          processing_status?: string
+          school_id?: string | null
+          storage_path?: string | null
+          title: string
+          transcript_status?: string | null
+          updated_at?: string
+          user_id: string
+          video_type: string
+          video_url: string
+          youtube_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          file_size?: number | null
+          id?: string
+          processing_status?: string
+          school_id?: string | null
+          storage_path?: string | null
+          title?: string
+          transcript_status?: string | null
+          updated_at?: string
+          user_id?: string
+          video_type?: string
+          video_url?: string
+          youtube_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "videos_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_analytics_summary"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "videos_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_improvement_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "videos_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_performance_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "videos_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

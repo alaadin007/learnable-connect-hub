@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { BookOpen, Save, X, Edit, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -19,6 +18,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { FlashcardType } from '@/types/database';
 
 interface Flashcard {
   id?: string;
@@ -128,14 +128,17 @@ const FlashcardCreator: React.FC<FlashcardCreatorProps> = ({
     try {
       // Save all flashcards to the database
       const flashcardPromises = flashcards.map(card => {
+        const contentType = documentId ? 'document' : (videoId ? 'video' : 'other');
+        const contentId = documentId || videoId;
+        
         return supabase
           .from('flashcards')
           .insert({
             user_id: user.id,
-            document_id: documentId,
-            video_id: videoId,
-            front: card.front,
-            back: card.back,
+            content_id: contentId,
+            content_type: contentType,
+            front_text: card.front,
+            back_text: card.back,
             created_at: new Date().toISOString()
           });
       });
