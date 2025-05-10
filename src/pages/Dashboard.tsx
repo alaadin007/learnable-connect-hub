@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -150,18 +149,14 @@ const Dashboard = () => {
               console.error("Error fetching assessments:", assessmentsError);
               setAssessmentsError("Could not load upcoming assessments");
               setUpcomingAssessments([]);
-            } else if (assessments && assessments.length > 0) {
+            } else {
               setAssessmentsError(null);
-              setUpcomingAssessments(assessments.map(assessment => ({
+              setUpcomingAssessments(assessments ? assessments.map(assessment => ({
                 id: assessment.id,
                 title: assessment.title,
                 dueDate: assessment.due_date,
                 subject: assessment.subject || undefined
-              })));
-            } else {
-              // Empty array for no assessments
-              setAssessmentsError(null);
-              setUpcomingAssessments([]);
+              })) : []);
             }
           } catch (err) {
             if (!isMounted) return;
@@ -306,19 +301,7 @@ const Dashboard = () => {
                     {assessmentsError}
                   </div>
                 ) : loadingAssessments ? (
-                  <div className="space-y-3">
-                    {[1,2].map(i => (
-                      <div key={i} className="border p-4 rounded-md">
-                        <div className="flex justify-between">
-                          <div className="space-y-2">
-                            <div className="h-5 bg-gray-200 rounded w-40"></div>
-                            <div className="h-3 bg-gray-100 rounded w-24"></div>
-                          </div>
-                          <div className="h-4 bg-gray-200 rounded w-32"></div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  <EmptyState message="Loading assessments..." />
                 ) : upcomingAssessments.length > 0 ? (
                   <div className="space-y-3">
                     {upcomingAssessments.map(assessment => (
@@ -358,17 +341,7 @@ const Dashboard = () => {
                     {lecturesError}
                   </div>
                 ) : loadingLectures ? (
-                  <div className="space-y-3">
-                    {[1,2].map(i => (
-                      <div key={i} className="flex items-center border p-4 rounded-md space-x-3">
-                        <div className="w-12 h-12 bg-gray-200 rounded-md flex-shrink-0"></div>
-                        <div className="space-y-1 flex-grow">
-                          <div className="h-5 bg-gray-200 rounded w-3/4"></div>
-                          <div className="h-3 bg-gray-100 rounded w-24"></div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  <EmptyState message="Loading lectures..." />
                 ) : recentLectures.length > 0 ? (
                   <div className="space-y-3">
                     {recentLectures.map(lecture => (
