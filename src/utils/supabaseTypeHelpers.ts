@@ -97,7 +97,7 @@ export function asSchoolCode(code: string): Database['public']['Tables']['school
  * Helper function to properly type Supabase profile inserts
  */
 export const insertProfile = async (profileData: {
-  id?: string;
+  id: string;  // Make id required to match the DB schema
   user_type: UserType;
   full_name: string;
   email?: string;
@@ -557,4 +557,3 @@ export function isValidStudentInvite(invite: any): invite is {
     'id' in invite &&
     'status' in invite;
 }
-

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,7 +58,12 @@ const SchoolCodeGenerator = () => {
       }
     } catch (error: any) {
       console.error("Error generating code:", error);
-      toast.error("Failed to generate school code");
+      // Use correct toast interface
+      toast({
+        variant: "destructive",
+        title: "Failed to generate school code",
+        description: error.message || "An error occurred"
+      });
     } finally {
       setIsLoading(false);
     }

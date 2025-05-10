@@ -37,7 +37,8 @@ type TeacherInvite = {
 };
 
 const AdminTeachers = () => {
-  const { user, profile, isSuperviser } = useAuth();
+  // Update to use isSupervisor instead of isSuperviser which doesn't exist
+  const { user, profile } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [invites, setInvites] = useState<TeacherInvite[]>([]);
   const navigate = useNavigate();
@@ -150,7 +151,11 @@ const AdminTeachers = () => {
     }
   };
 
+  // Check if teacher is supervisor using the profile data directly
+  const isSupervisor = profile?.is_supervisor === true;
+  
   return (
+    // ... keep existing JSX using isSupervisor instead of isSuperviser
     <div className="min-h-screen flex flex-col">
       <Navbar />
       <main className="flex-grow bg-learnable-super-light py-8">

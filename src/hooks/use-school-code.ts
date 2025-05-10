@@ -4,18 +4,25 @@ import { supabase, verifySchoolCode } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { asId } from "@/utils/supabaseTypeHelpers";
 
-interface UseSchoolCodeResult {
-  verifyCode: (code: string) => Promise<{ 
-    valid: boolean; 
-    schoolId?: string; 
-    schoolName?: string;
-  }>;
+// Define proper return types for better type safety
+export interface SchoolCodeVerificationResult {
+  valid: boolean; 
+  schoolId?: string; 
+  schoolName?: string;
+}
+
+export interface CodeHistoryItem {
+  code: string;
+  generated_at: string;
+}
+
+export interface UseSchoolCodeResult {
+  verifyCode: (code: string) => Promise<SchoolCodeVerificationResult>;
   loading: boolean;
   error: string | null;
-  // Added properties used in SchoolCodeGenerator and Manager
   generateCode: () => Promise<string | null>;
   isGenerating: boolean;
-  codeHistory: any[];
+  codeHistory: CodeHistoryItem[];
   loadCodeHistory: () => Promise<void>;
   generateStudentInviteCode: () => Promise<string | null>;
 }
@@ -24,9 +31,9 @@ export function useSchoolCode(): UseSchoolCodeResult {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
-  const [codeHistory, setCodeHistory] = useState<any[]>([]);
+  const [codeHistory, setCodeHistory] = useState<CodeHistoryItem[]>([]);
 
-  const verifyCode = async (code: string) => {
+  const verifyCode = async (code: string): Promise<SchoolCodeVerificationResult> => {
     setLoading(true);
     setError(null);
     

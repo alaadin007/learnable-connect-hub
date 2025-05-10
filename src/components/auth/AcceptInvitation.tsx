@@ -37,18 +37,18 @@ const AcceptInvitation = () => {
 
       try {
         // Get token info first
-        const { data: inviteInfo, error: verifyError } = await supabase.rpc(
+        const { data: inviteInfoArray, error: verifyError } = await supabase.rpc(
           'verify_teacher_invitation',
           { token }
         );
 
-        if (verifyError || !inviteInfo) {
+        if (verifyError || !inviteInfoArray || inviteInfoArray.length === 0) {
           throw new Error(verifyError?.message || 'Invalid or expired invitation');
         }
 
-        // Safely access inviteInfo for school name
-        const typedInviteInfo = inviteInfo as TeacherInvitationInfo;
-        const schoolName = typedInviteInfo?.school_name || 'the school';
+        // Extract the first item from the array
+        const inviteInfo: TeacherInvitationInfo = inviteInfoArray[0] as TeacherInvitationInfo;
+        const schoolName = inviteInfo?.school_name || 'the school';
 
         // Accept the invitation
         const { error: acceptError } = await supabase.rpc(

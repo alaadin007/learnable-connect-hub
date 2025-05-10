@@ -1,12 +1,18 @@
+
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Copy, CheckCircle, AlertCircle } from "lucide-react";
+import { Copy, CheckCircle } from "lucide-react";
 import { useSchoolCode } from "@/hooks/use-school-code";
 
-const SchoolCodeManager = () => {
+// Define a proper onCodeGenerated prop type
+interface SchoolCodeManagerProps {
+  onCodeGenerated?: (code: string) => void;
+}
+
+const SchoolCodeManager = ({ onCodeGenerated }: SchoolCodeManagerProps = {}) => {
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -24,6 +30,11 @@ const SchoolCodeManager = () => {
       
       if (code) {
         setInviteCode(code);
+        
+        // Call the onCodeGenerated prop if provided
+        if (onCodeGenerated) {
+          onCodeGenerated(code);
+        }
       }
     } catch (error: any) {
       console.error("Error generating invitation code:", error);
