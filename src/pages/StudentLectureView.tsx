@@ -114,14 +114,17 @@ const StudentLectureView = () => {
           setResources(resourceData);
         }
 
-        // Use the stored procedure to fetch transcripts
+        // Use custom query to fetch transcripts instead of RPC
         const { data: transcriptData, error: transcriptError } = await supabase
-          .rpc('get_lecture_transcripts', { lecture_id_param: id });
+          .from('lecture_transcripts')
+          .select('*')
+          .eq('lecture_id', id)
+          .order('start_time');
 
         if (transcriptError) {
           console.error('Error fetching transcripts:', transcriptError);
         } else if (transcriptData && Array.isArray(transcriptData)) {
-          // Convert the data to the expected Transcript format
+          // Set transcript data
           setTranscript(transcriptData as Transcript[]);
         }
       } catch (err) {
@@ -291,4 +294,3 @@ const StudentLectureView = () => {
 };
 
 export default StudentLectureView;
-
