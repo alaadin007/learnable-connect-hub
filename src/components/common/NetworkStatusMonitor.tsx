@@ -1,6 +1,6 @@
 
 import { useEffect, useState } from 'react';
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "sonner";
 import { checkSupabaseConnection } from "@/integrations/supabase/client";
 
 type NetworkStatusProps = {
@@ -30,37 +30,26 @@ export const NetworkStatusMonitor = ({
             
             if (!quietMode) {
               if (isConnected) {
-                toast({
-                  title: "Connected",
-                  description: "You're back online and database connection restored",
-                  variant: "default"
+                toast("Connected", {
+                  description: "You're back online and database connection restored"
                 });
               } else {
-                toast({
-                  title: "Partially Connected",
-                  description: "You're online but database connection is unavailable",
-                  variant: "warning"
+                toast.error("Database Connection Error", {
+                  description: "You're online but database connection is unavailable"
                 });
               }
             }
           } catch (err) {
             console.error("Error checking database connection:", err);
-            // Still show the online toast even if db check fails
-            if (!quietMode) {
-              toast({
-                title: "Connected",
-                description: "You're back online",
-                variant: "default"
-              });
-            }
+            toast.error("Database Connection Error", {
+              description: "Unable to verify database connection"
+            });
           }
         } else {
           // Just show online notification without database check
           if (!quietMode) {
-            toast({
-              title: "Connected",
-              description: "You're back online",
-              variant: "default"
+            toast("Connected", {
+              description: "You're back online"
             });
           }
         }
@@ -75,10 +64,8 @@ export const NetworkStatusMonitor = ({
       
       // Only show a notification if the state has changed
       if (lastOnlineState && !quietMode) {
-        toast({
-          title: "You're offline",
-          description: "Please check your internet connection",
-          variant: "destructive"
+        toast.error("You're offline", {
+          description: "Please check your internet connection"
         });
       }
       
@@ -94,14 +81,17 @@ export const NetworkStatusMonitor = ({
     if (checkDatabase && navigator.onLine) {
       checkSupabaseConnection().then(isConnected => {
         if (!isConnected && !quietMode) {
-          toast({
-            title: "Database Connection Issue",
-            description: "Some features may not work correctly. Please try again later.",
-            variant: "warning"
+          toast.error("Database Connection Error", {
+            description: "Unable to connect to database. Please check your network connection."
           });
         }
       }).catch(err => {
         console.error("Initial database connection check failed:", err);
+        if (!quietMode) {
+          toast.error("Database Connection Error", {
+            description: "Unable to verify database connection"
+          });
+        }
       });
     }
     

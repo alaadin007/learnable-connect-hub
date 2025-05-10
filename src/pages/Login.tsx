@@ -6,7 +6,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { AlertCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase, checkSupabaseConnection } from "@/integrations/supabase/client";
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "sonner";
 import Navbar from "@/components/layout/Navbar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
@@ -44,10 +44,8 @@ const Login = () => {
       setConnectionChecked(true);
       
       if (isConnected) {
-        toast({
-          title: "Connection Restored",
-          description: "Successfully reconnected to the database.",
-          variant: "default"
+        toast.success("Connection Restored", {
+          description: "Successfully reconnected to the database."
         });
       }
     } catch (err) {
@@ -137,19 +135,14 @@ const Login = () => {
           </div>
         </div>
         
-        {/* Only show the login form if connection is not in error state */}
         {(!connectionError || !connectionChecked) && <LoginForm />}
         
-        {/* Show offline mode option when connection fails */}
         {connectionError && connectionChecked && (
           <div className="mt-4 text-center">
             <p className="text-gray-600 mb-4">Having trouble connecting?</p>
-            <button
-              onClick={() => navigate("/test-accounts")}
-              className="text-learnable-blue hover:underline"
-            >
-              Try using test accounts in offline mode
-            </button>
+            <p className="text-gray-700">
+              The application requires a working database connection. Please check your internet connection and try again.
+            </p>
           </div>
         )}
       </main>

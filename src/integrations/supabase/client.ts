@@ -1,7 +1,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@/integrations/supabase/types';
-import { toast } from '@/components/ui/use-toast';
+import { toast } from 'sonner';
 import { isNetworkError, retryWithBackoff } from '@/utils/networkHelpers';
 
 // Use hardcoded values as fallbacks for development
@@ -50,10 +50,8 @@ export const checkSupabaseConnection = async (): Promise<boolean> => {
       // Don't show toast for unauthorized errors as these are handled by auth flow
       if (!error.message.includes('JWT expired') && !error.message.includes('not authorized')) {
         // Show a user-friendly error
-        toast({
-          title: "Database Connection Issue",
-          description: "We're having trouble connecting to our services. Please try again shortly.",
-          variant: "destructive"
+        toast.error("Database Connection Issue", {
+          description: "We're having trouble connecting to our services. Database connection is required."
         });
       }
       return false;
@@ -64,10 +62,8 @@ export const checkSupabaseConnection = async (): Promise<boolean> => {
     
     // Only show toast for network errors
     if (isNetworkError(err)) {
-      toast({
-        title: "Network Error",
-        description: "Please check your internet connection and try again.",
-        variant: "destructive" 
+      toast.error("Network Error", {
+        description: "Please check your internet connection. Database connectivity is required."
       });
     }
     return false;
@@ -111,33 +107,7 @@ export async function verifySchoolCode(code: string): Promise<{
       return { valid: false };
     }
     
-    if (!data || data.length === 0 || !data[0].valid) {
-      // If server validation fails, check if the code is in local storage history
-      // for any school id (could help if server is down or user is offline)
-      try {
-        // Scan all localStorage keys for school code history
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && key.startsWith('school_code_history_')) {
-            const schoolId = key.replace('school_code_history_', '');
-            const history = JSON.parse(localStorage.getItem(key) || '[]');
-            
-            if (history.includes(code)) {
-              console.log("Found code in local history for school:", schoolId);
-              // We found the code in history, now try to get the school name
-              const schoolName = localStorage.getItem(`school_name_${schoolId}`) || 'Unknown School';
-              return { 
-                valid: true, 
-                schoolId, 
-                schoolName 
-              };
-            }
-          }
-        }
-      } catch (e) {
-        console.error("Error checking local storage for code:", e);
-      }
-      
+    if (!data || data.length === 0 || !data[0]?.valid) {
       return { valid: false };
     }
     

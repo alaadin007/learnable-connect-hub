@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -14,7 +13,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "sonner";
 import { supabase, checkSupabaseConnection } from "@/integrations/supabase/client";
 import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -101,10 +100,7 @@ const LoginForm = () => {
       }
 
       console.log("Login successful:", authData);
-      toast({
-        title: "Login Successful",
-        variant: "default"
-      });
+      toast.success("Login Successful");
       
       // Call the verify-and-setup-user function to ensure proper setup
       try {
@@ -123,10 +119,8 @@ const LoginForm = () => {
     } catch (error: any) {
       console.error("Login error:", error);
       setLoginError(error.message || "Login failed. Please try again.");
-      toast({
-        title: "Login Failed", 
-        description: error.message || "Login failed. Please try again.",
-        variant: "destructive"
+      toast.error("Login Failed", {
+        description: error.message || "Login failed. Please try again."
       });
     } finally {
       setIsLoading(false);
@@ -136,10 +130,8 @@ const LoginForm = () => {
   const handleResetPassword = async () => {
     const email = form.getValues("email");
     if (!email) {
-      toast({
-        title: "Email Required",
-        description: "Please enter your email address first",
-        variant: "destructive"
+      toast.error("Email Required", {
+        description: "Please enter your email address first"
       });
       return;
     }
@@ -148,10 +140,8 @@ const LoginForm = () => {
     try {
       const isConnected = await checkSupabaseConnection();
       if (!isConnected) {
-        toast({
-          title: "Connection Error",
-          description: "Cannot connect to the authentication service. Please try again later.",
-          variant: "destructive"
+        toast.error("Connection Error", {
+          description: "Cannot connect to the authentication service. Please try again later."
         });
         return;
       }
@@ -167,17 +157,13 @@ const LoginForm = () => {
       
       if (error) throw error;
       
-      toast({
-        title: "Reset Instructions Sent",
-        description: "Password reset instructions sent to your email",
-        variant: "default"
+      toast.success("Reset Instructions Sent", {
+        description: "Password reset instructions sent to your email"
       });
     } catch (error: any) {
       console.error("Reset password error:", error);
-      toast({
-        title: "Reset Failed",
-        description: error.message || "Failed to send reset instructions",
-        variant: "destructive"
+      toast.error("Reset Failed", {
+        description: error.message || "Failed to send reset instructions"
       });
     } finally {
       setIsLoading(false);
@@ -197,10 +183,10 @@ const LoginForm = () => {
         )}
 
         {connectionError && (
-          <Alert variant="warning">
+          <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              You appear to be offline or having connection issues. Some features may not work.
+              Database connection issues detected. This application requires database connectivity to function.
             </AlertDescription>
           </Alert>
         )}
