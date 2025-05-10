@@ -1,7 +1,7 @@
 
 // Import the necessary utilities
 import { supabase } from "@/integrations/supabase/client";
-import { UserRole } from "@/contexts/AuthContext";
+import { UserRole } from "@/contexts/AuthContext"; // Updated import path
 import { fetchWithReliability, retryWithBackoff, executeWithTimeout } from "./networkHelpers";
 
 // Function to get user school ID in a safe way with fallback

@@ -21,3 +21,5 @@ export interface Profile {
   school_name?: string;
   is_active?: boolean;
 }
+
+export type ProfileData = Profile;

@@ -2,8 +2,7 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-
-export type UserRole = 'student' | 'teacher' | 'school_admin' | 'school';
+import { UserRole } from '@/contexts/AuthContext';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -38,11 +37,12 @@ const ProtectedRoute = ({
 
   // If roles are specified, check them
   if (allowedRoles && allowedRoles.length > 0 && userRole) {
-    if (!allowedRoles.includes(userRole)) {
+    const userRoleTyped = userRole as UserRole;
+    if (!allowedRoles.includes(userRoleTyped)) {
       // Redirect based on role
-      if (userRole === 'school_admin' || userRole === 'school') {
+      if (userRoleTyped === 'school_admin' || userRoleTyped === 'school') {
         return <Navigate to="/admin" replace />;
-      } else if (userRole === 'teacher') {
+      } else if (userRoleTyped === 'teacher') {
         return <Navigate to="/teacher/dashboard" replace />;
       } else {
         return <Navigate to="/dashboard" replace />;

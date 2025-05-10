@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -92,11 +91,11 @@ const LoginForm = () => {
         throw result.error;
       }
 
-      if (!result.data?.user) {
-        throw new Error("Login failed. No user returned.");
+      if (!result.success) {
+        throw new Error("Login failed. Authentication unsuccessful.");
       }
 
-      console.log("Login successful:", result.data);
+      console.log("Login successful");
       toast.success("Login Successful");
       
       // Call the verify-and-setup-user function to ensure proper setup
@@ -124,48 +123,7 @@ const LoginForm = () => {
     }
   };
 
-  const handleResetPassword = async () => {
-    const email = form.getValues("email");
-    if (!email) {
-      toast.error("Email Required", {
-        description: "Please enter your email address first"
-      });
-      return;
-    }
-    
-    // Check connection first
-    try {
-      const isConnected = await checkSupabaseConnection();
-      if (!isConnected) {
-        toast.error("Connection Error", {
-          description: "Cannot connect to the authentication service. Please try again later."
-        });
-        return;
-      }
-    } catch (error) {
-      console.error("Connection check error:", error);
-    }
-    
-    setIsLoading(true);
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
-      });
-      
-      if (error) throw error;
-      
-      toast.success("Reset Instructions Sent", {
-        description: "Password reset instructions sent to your email"
-      });
-    } catch (error: any) {
-      console.error("Reset password error:", error);
-      toast.error("Reset Failed", {
-        description: error.message || "Failed to send reset instructions"
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // ... keep existing code for the handleResetPassword function and the return JSX
 
   return (
     <Form {...form}>
@@ -221,7 +179,35 @@ const LoginForm = () => {
             type="button" 
             variant="link" 
             className="p-0 h-auto text-primary"
-            onClick={handleResetPassword}
+            onClick={() => {
+              const email = form.getValues("email");
+              if (!email) {
+                toast.error("Email Required", {
+                  description: "Please enter your email address first"
+                });
+                return;
+              }
+              
+              setIsLoading(true);
+              supabase.auth.resetPasswordForEmail(email, {
+                redirectTo: `${window.location.origin}/reset-password`,
+              })
+                .then(({ error }) => {
+                  if (error) throw error;
+                  toast.success("Reset Instructions Sent", {
+                    description: "Password reset instructions sent to your email"
+                  });
+                })
+                .catch((error) => {
+                  console.error("Reset password error:", error);
+                  toast.error("Reset Failed", {
+                    description: error.message || "Failed to send reset instructions"
+                  });
+                })
+                .finally(() => {
+                  setIsLoading(false);
+                });
+            }}
             disabled={isLoading}
           >
             Forgot password?

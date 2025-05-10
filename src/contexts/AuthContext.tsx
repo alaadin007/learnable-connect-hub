@@ -4,13 +4,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { Session, User, AuthError } from '@supabase/supabase-js';
 import { toast } from 'sonner';
 // Import the needed functions from supabaseTypeHelpers
-import { 
-  ProfileData, 
-  hasData, 
-  getUserProfile,
-  UserType,
-  isSchoolAdmin
-} from '@/utils/supabaseTypeHelpers';
+import { ProfileData } from '@/types/profile';
+
+// Define UserRole type
+export type UserRole = 'student' | 'teacher' | 'school_admin' | 'school';
 
 // For the test account feature
 export type TestUserType = {
@@ -26,6 +23,7 @@ export interface AuthContextType {
   session: Session | null;
   profile: ProfileData | null;
   loading: boolean;
+  isLoading: boolean; // Added for compatibility
   signIn: (email: string, password: string) => Promise<{
     success: boolean;
     message?: string;
@@ -40,6 +38,8 @@ export interface AuthContextType {
   schoolId: string | null;
   userRole: string | null;
   isSuperviser: boolean;
+  isLoggedIn: boolean; // Added for compatibility
+  isSupervisor: boolean; // Added for compatibility
   isSchoolAdmin: boolean;
   setTestUser?: (user: TestUserType) => void;
 }
@@ -50,18 +50,52 @@ const AuthContext = createContext<AuthContextType>({
   session: null,
   profile: null,
   loading: true,
+  isLoading: true,
   signIn: async () => ({ success: false, message: "Not implemented" }),
   signOut: async () => {},
   signUp: async () => ({ success: false, message: "Not implemented" }),
   schoolId: null,
   userRole: null,
   isSuperviser: false,
+  isLoggedIn: false,
+  isSupervisor: false,
   isSchoolAdmin: false
 });
 
 interface AuthProviderProps {
   children: React.ReactNode;
   enableTestMode?: boolean;
+}
+
+// Helper function to get user profile
+async function getUserProfile(userId: string): Promise<ProfileData | null> {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
+    
+    if (error) {
+      console.error('Error fetching user profile:', error);
+      return null;
+    }
+    
+    return data as ProfileData;
+  } catch (error) {
+    console.error('Error in getUserProfile:', error);
+    return null;
+  }
+}
+
+// Helper function to check if value has data
+function hasData(value: any): boolean {
+  return value !== null && value !== undefined;
+}
+
+// Helper function to check if user is school admin
+function isSchoolAdmin(role: string | null): boolean {
+  return role === 'school' || role === 'school_admin';
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children, enableTestMode = false }) => {
@@ -74,7 +108,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, enableTest
   const schoolId = profile?.school_id || null;
   const userRole = profile?.user_type || null;
   const isSuperviser = profile?.is_supervisor || false;
+  const isSupervisor = profile?.is_supervisor || false;
   const isSchoolAdminVar = isSchoolAdmin(userRole);
+  const isLoggedIn = !!user;
   
   // Handle session changes
   useEffect(() => {
@@ -207,7 +243,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, enableTest
     // Create a mock profile based on the test user role
     const mockProfile: ProfileData = {
       id: `test-${testUser.role}-id`,
-      user_type: testUser.role as UserType,
+      user_type: testUser.role,
       full_name: testUser.name || `Test ${testUser.role}`,
       email: testUser.email,
       school_id: `test-school-id`,
@@ -250,13 +286,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, enableTest
         user, 
         session, 
         profile, 
-        loading, 
+        loading,
+        isLoading: loading,
         signIn, 
         signOut, 
         signUp,
         schoolId,
         userRole,
         isSuperviser,
+        isSupervisor,
+        isLoggedIn,
         isSchoolAdmin: isSchoolAdminVar,
         setTestUser
       }}

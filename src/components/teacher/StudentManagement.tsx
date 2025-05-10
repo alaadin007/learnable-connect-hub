@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -68,16 +67,16 @@ const StudentManagement = () => {
   const [inviteMethod, setInviteMethod] = useState<'email' | 'code'>('email');
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
 
-  // Get effective school ID
+  // Get effective school ID with proper type checking
   const effectiveSchoolId = schoolId || 
-                          profile?.school_id || 
-                          (profile?.organization?.id as string) || 
-                          localStorage.getItem('schoolId');
+                        profile?.school_id || 
+                        (profile?.organization ? profile.organization.id : undefined) || 
+                        localStorage.getItem('schoolId');
 
   // Store school ID in localStorage if available
   useEffect(() => {
-    if (profile?.organization?.id) {
-      localStorage.setItem('schoolId', profile.organization.id as string);
+    if (profile?.organization && profile.organization.id) {
+      localStorage.setItem('schoolId', profile.organization.id);
     } else if (profile?.school_id) {
       localStorage.setItem('schoolId', profile.school_id);
     }
