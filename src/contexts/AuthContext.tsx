@@ -1,6 +1,7 @@
+
 import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Profile } from '@/types/profile';
+import { Profile, UserType } from '@/types/profile';
 import { useNavigate } from 'react-router-dom';
 import { UserRole } from '@/components/auth/ProtectedRoute';
 
@@ -113,7 +114,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       if (profileData) {
-        const typedRole = profileData.user_type as UserRole;
+        // Ensure user_type is a valid UserType or undefined
+        const userTypeValue = profileData.user_type as UserType | undefined;
+        const typedRole = userTypeValue as UserRole | null;
 
         let processedOrg: { id: string; name?: string; code?: string } | undefined;
 
@@ -143,6 +146,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const processedProfile: Profile = {
           ...profileData,
           organization: processedOrg,
+          user_type: userTypeValue,
         };
 
         setProfile(processedProfile);
@@ -239,6 +243,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         throw error;
       }
 
+      // Ensure user_type is a valid UserType or undefined
+      const userTypeValue = data.user_type as UserType | undefined;
+
       let processedOrg: { id: string; name?: string; code?: string } | undefined;
 
       if (data.organization) {
@@ -267,6 +274,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const processedProfile: Profile = {
         ...data,
         organization: processedOrg,
+        user_type: userTypeValue,
       };
 
       setProfile(processedProfile);
