@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,7 +28,13 @@ import { Badge } from "@/components/ui/badge";
 import { format } from 'date-fns';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSchoolCode } from '@/hooks/use-school-code';
-import { insertStudentInvite, updateStudentStatus } from '@/utils/supabaseTypeHelpers';
+import { 
+  insertStudentInvite, 
+  updateStudentStatus, 
+  getStudentsForSchool, 
+  getStudentInvitesForSchool,
+  safeCast
+} from '@/utils/supabaseTypeHelpers';
 
 type Student = {
   id: string;
@@ -86,41 +91,32 @@ const StudentManagement = () => {
     try {
       console.log("Fetching students for school:", effectiveSchoolId);
       
-      // First get all student IDs for this school
-      const { data: studentData, error: studentError } = await supabase
-        .from('students')
-        .select('id')
-        .eq('school_id', effectiveSchoolId as string);
+      if (!effectiveSchoolId) {
+        setStudents([]);
+        setIsLoading(false);
+        return;
+      }
+      
+      const result = await getStudentsForSchool(effectiveSchoolId);
 
-      if (studentError) throw studentError;
-
-      if (!studentData || studentData.length === 0) {
+      if (result.error || !result.data) {
+        toast.error("Failed to load students");
+        console.error("Error fetching students:", result.error);
         setStudents([]);
         setIsLoading(false);
         return;
       }
 
-      // Then get profile data for these students
-      const studentIds = studentData.map(s => s.id);
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, full_name, email, created_at')
-        .in('id', studentIds);
-
-      if (profileError) throw profileError;
-
       // Format student data with profile info
-      if (profileData) {
-        const formattedStudents: Student[] = profileData.map(profile => ({
-          id: profile.id,
-          full_name: profile.full_name,
-          email: profile.email || profile.id, // Fallback to ID if email is not available
-          created_at: profile.created_at
-        }));
-        setStudents(formattedStudents);
-      } else {
-        setStudents([]);
-      }
+      const formattedStudents: Student[] = result.data.map(profile => ({
+        id: profile.id,
+        full_name: profile.full_name,
+        email: profile.email || profile.id, // Fallback to ID if email is not available
+        created_at: profile.created_at
+      }));
+      
+      setStudents(formattedStudents);
+      
     } catch (error) {
       console.error('Error fetching students:', error);
       toast.error('Failed to load students');
@@ -137,18 +133,16 @@ const StudentManagement = () => {
     
     try {
       console.log("Fetching invites with schoolId:", effectiveSchoolId);
-      const { data: inviteData, error: inviteError } = await supabase
-        .from('student_invites')
-        .select('*')
-        .eq('school_id', effectiveSchoolId as string);
       
-      if (inviteError) {
-        throw inviteError;
+      const result = await getStudentInvitesForSchool(effectiveSchoolId);
+      
+      if (result.error) {
+        throw result.error;
       }
       
-      if (inviteData) {
+      if (result.data) {
         // Type assertion for safety
-        setInvites(inviteData as unknown as StudentInvite[]);
+        setInvites(safeCast<StudentInvite[]>(result.data));
       } else {
         setInvites([]);
       }

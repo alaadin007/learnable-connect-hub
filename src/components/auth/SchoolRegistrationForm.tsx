@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -19,7 +18,13 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { AlertCircle } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { insertSchool, insertSchoolCode, hasData } from "@/utils/supabaseTypeHelpers";
+import { 
+  insertSchool, 
+  insertSchoolCode, 
+  hasData, 
+  safeCast 
+} from "@/utils/supabaseTypeHelpers";
+import type { Database } from "@/integrations/supabase/types";
 
 const formSchema = z.object({
   schoolName: z.string().min(2, { message: "School name must be at least 2 characters" }),
@@ -99,15 +104,15 @@ const SchoolRegistrationForm = () => {
       const school = schoolResponse.data;
       
       // Create school code record with reference to the school
-      const { error: schoolCodeError } = await insertSchoolCode({
+      const schoolCodeResponse = await insertSchoolCode({
         code: schoolCode,
         school_name: data.schoolName,
         active: true,
         school_id: school.id
       });
       
-      if (schoolCodeError) {
-        console.error("Error creating school code:", schoolCodeError);
+      if (!hasData(schoolCodeResponse)) {
+        console.error("Error creating school code:", schoolCodeResponse.error);
         
         // Clean up the school record if code creation fails
         await supabase
@@ -141,7 +146,7 @@ const SchoolRegistrationForm = () => {
         await supabase
           .from("school_codes")
           .delete()
-          .eq("code", schoolCode);
+          .eq("code", safeCast<string>(schoolCode));
           
         await supabase
           .from("schools")
@@ -190,6 +195,7 @@ const SchoolRegistrationForm = () => {
     }
   };
 
+  
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 bg-white p-6 rounded-lg shadow">
