@@ -1,5 +1,7 @@
 
 import { toast as sonnerToast } from "sonner";
+import { type ClassValue, clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
 
 // Define types for our toast system
 export type ToastProps = {
@@ -21,11 +23,19 @@ export type Toast = {
 // Export action element type for compatibility
 export type ToastActionElement = React.ReactElement;
 
-// Create a wrapper around sonner toast
+// Helper function to merge class names
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
+// Create a wrapper around sonner toast with memoized implementation
 export function useToast() {
   const toast = {
     // Basic toast
-    toast(props: ToastProps) {
+    toast(props: ToastProps | string) {
+      if (typeof props === 'string') {
+        return sonnerToast(props);
+      }
       return sonnerToast(props.title, {
         description: props.description,
         action: props.action,

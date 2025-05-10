@@ -7,5 +7,6 @@ export {
   useToast, 
   type ToastProps, 
   type Toast, 
-  type ToastActionElement 
+  type ToastActionElement,
+  cn
 } from "@/hooks/use-toast";
