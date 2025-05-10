@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,6 +15,16 @@ import { AnalyticsExport } from './AnalyticsExport';
 import SessionsTable from './SessionsTable';
 import StudentPerformanceTable from './StudentPerformancePanel';
 import { SchoolPerformancePanel } from './SchoolPerformancePanel';
+import {
+  getAnalyticsSummary,
+  getSessionLogs,
+  getPopularTopics,
+  getStudentStudyTime,
+  getStudentPerformance,
+  getSchoolPerformance,
+  getSchoolPerformanceSummary,
+  getUserSchoolId
+} from '@/utils/apiHelpers';
 import { 
   AnalyticsSummary, 
   SessionData, 
@@ -69,36 +80,58 @@ export function AnalyticsDashboard({
     improvement_rate: 0,
     avg_submissions_per_assessment: 0
   });
+  const [currentSchoolId, setCurrentSchoolId] = useState<string | null>(propSchoolId || null);
 
-  // Fix the profile.organization access with proper type checking
-  const schoolId = propSchoolId || profile?.school_id || (profile?.organization && profile.organization.id) || "test-school-0";
+  // Fix the profile.school_id access with proper type checking
+  useEffect(() => {
+    const fetchSchoolId = async () => {
+      // Use prop schoolId if provided
+      if (propSchoolId) {
+        setCurrentSchoolId(propSchoolId);
+        return;
+      }
+      
+      // Try to get school ID from profile
+      if (profile?.school_id) {
+        setCurrentSchoolId(profile.school_id);
+        return;
+      }
+      
+      // Try to get from organization object if it exists
+      if (profile?.organization?.id) {
+        setCurrentSchoolId(profile.organization.id);
+        return;
+      }
+      
+      // Try to get from database as last resort
+      if (profile?.id) {
+        const schoolId = await getUserSchoolId(profile.id);
+        if (schoolId) {
+          setCurrentSchoolId(schoolId);
+          return;
+        }
+      }
+      
+      // Set to test school ID as fallback
+      setCurrentSchoolId("test-school-0");
+    };
+    
+    fetchSchoolId();
+  }, [propSchoolId, profile]);
 
   useEffect(() => {
-    if (schoolId) {
+    if (currentSchoolId) {
       loadAnalyticsData();
     }
-  }, [schoolId, dateRange, teacherId, studentId]);
+  }, [currentSchoolId, dateRange, teacherId, studentId]);
 
   const loadAnalyticsData = async () => {
+    if (!currentSchoolId) return;
+    
     setIsLoading(true);
     try {
-      // Prepare filters
-      const filters: Record<string, any> = {
-        start_date: dateRange?.from?.toISOString(),
-        end_date: dateRange?.to?.toISOString(),
-      };
-
-      if (teacherId) filters.teacher_id = teacherId;
-      if (studentId) filters.student_id = studentId;
-
-      // Load summary data - use normal SQL query instead of RPC
-      const { data: summaryData, error: summaryError } = await supabase
-        .from('analytics_summary')
-        .select('*')
-        .eq('school_id', schoolId)
-        .single();
-
-      if (summaryError) throw summaryError;
+      // Load summary data
+      const summaryData = await getAnalyticsSummary(currentSchoolId);
       
       if (summaryData) {
         setSummary({
@@ -110,59 +143,42 @@ export function AnalyticsDashboard({
       }
 
       // Load sessions data
-      const { data: sessionsData, error: sessionsError } = await supabase
-        .from('session_logs')
-        .select('*')
-        .eq('school_id', schoolId)
-        .order('created_at', { ascending: false });
-
-      if (sessionsError) throw sessionsError;
-      setSessions(sessionsData || []);
+      const sessionsData = await getSessionLogs(currentSchoolId);
+      
+      // Map session_logs to SessionData format
+      const mappedSessions: SessionData[] = sessionsData.map(session => ({
+        id: session.id,
+        student_id: session.user_id,
+        student_name: "Student", // We'd need to fetch this separately
+        start_time: session.session_start,
+        end_time: session.session_end || new Date().toISOString(),
+        duration_minutes: session.session_end ? 
+          Math.round((new Date(session.session_end).getTime() - new Date(session.session_start).getTime()) / 60000) :
+          0,
+        queries_count: session.num_queries || 0,
+        topic: session.topic_or_content_used
+      }));
+      
+      setSessions(mappedSessions);
 
       // Load topics data
-      const { data: topicsData, error: topicsError } = await supabase
-        .from('popular_topics')
-        .select('*')
-        .eq('school_id', schoolId);
-
-      if (topicsError) throw topicsError;
-      setTopics(topicsData || []);
+      const topicsData = await getPopularTopics(currentSchoolId);
+      setTopics(topicsData);
 
       // Load study time data
-      const { data: studyTimeData, error: studyTimeError } = await supabase
-        .from('student_study_time')
-        .select('*')
-        .eq('school_id', schoolId);
-
-      if (studyTimeError) throw studyTimeError;
-      setStudyTimes(studyTimeData || []);
+      const studyTimeData = await getStudentStudyTime(currentSchoolId);
+      setStudyTimes(studyTimeData);
 
       // Load student performance data
-      const { data: studentPerfData, error: studentPerfError } = await supabase
-        .from('student_performance')
-        .select('*')
-        .eq('school_id', schoolId);
-
-      if (studentPerfError) throw studentPerfError;
-      setStudentPerformance(studentPerfData || []);
+      const studentPerfData = await getStudentPerformance(currentSchoolId);
+      setStudentPerformance(studentPerfData);
 
       // Load school performance data
-      const { data: schoolPerfData, error: schoolPerfError } = await supabase
-        .from('school_performance')
-        .select('*')
-        .eq('school_id', schoolId);
-
-      if (schoolPerfError) throw schoolPerfError;
-      setSchoolPerformance(schoolPerfData || []);
+      const schoolPerfData = await getSchoolPerformance(currentSchoolId);
+      setSchoolPerformance(schoolPerfData);
 
       // Load school summary data
-      const { data: schoolSummaryData, error: schoolSummaryError } = await supabase
-        .from('school_performance_summary')
-        .select('*')
-        .eq('school_id', schoolId)
-        .single();
-
-      if (schoolSummaryError) throw schoolSummaryError;
+      const schoolSummaryData = await getSchoolPerformanceSummary(currentSchoolId);
       if (schoolSummaryData) {
         setSchoolSummary(schoolSummaryData);
       }
