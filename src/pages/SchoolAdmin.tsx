@@ -1,259 +1,230 @@
 
-import React, { useState, useEffect } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
-import { ArrowRight, Users, School, Settings, BookOpen } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import AdminNavbar from "@/components/school-admin/AdminNavbar";
-import SchoolCodeGenerator from "@/components/school-admin/SchoolCodeGenerator";
-import { getSchoolIdWithFallback } from "@/utils/apiHelpers";
-import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from 'react-router-dom';
+import { Package2, Users, BookOpen, PieChart, Settings, School, UserPlus } from 'lucide-react';
+import AdminNavbar from '@/components/school-admin/AdminNavbar';
+import SchoolCodeGenerator from '@/components/school-admin/SchoolCodeGenerator';
+import { toast } from 'sonner';
+
+// Define the proper type for SchoolCodeGenerator props
+interface SchoolCodeGeneratorProps {
+  onCodeGenerated?: (code: string) => void;
+}
 
 const SchoolAdmin = () => {
   const { user, profile } = useAuth();
+  const [schoolStats, setSchoolStats] = useState({
+    totalStudents: 0,
+    totalTeachers: 0,
+    totalSessions: 0,
+    averageScore: 0,
+  });
+  const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
-  
-  const [schoolName, setSchoolName] = useState<string>("Your School");
-  const [schoolCode, setSchoolCode] = useState<string>("");
-  const [studentCount, setStudentCount] = useState<number>(0);
-  const [teacherCount, setTeacherCount] = useState<number>(0);
-  
+
   useEffect(() => {
-    const fetchSchoolData = async () => {
-      const schoolId = getSchoolIdWithFallback();
-      
-      // Load from localStorage for immediate display
-      const cachedName = localStorage.getItem('school_name');
-      const cachedCode = localStorage.getItem(`school_code_${schoolId}`);
-      
-      if (cachedName) setSchoolName(cachedName);
-      if (cachedCode) setSchoolCode(cachedCode);
-      
+    // Redirect if not logged in or not a school admin
+    if (!user || !profile || profile.user_type !== 'school_admin') {
+      toast.error('You must be a school administrator to access this page.');
+      navigate('/login');
+      return;
+    }
+
+    const fetchSchoolStats = async () => {
+      setIsLoading(true);
       try {
-        if (process.env.NODE_ENV === 'production') {
-          // Get school details from supabase in production
-          const { data: schoolData, error: schoolError } = await supabase
-            .from("schools")
-            .select("name, code")
-            .eq("id", schoolId)
-            .single();
-            
-          if (!schoolError && schoolData) {
-            setSchoolName(schoolData.name);
-            setSchoolCode(schoolData.code);
-            // Update localStorage
-            localStorage.setItem('school_name', schoolData.name);
-            localStorage.setItem(`school_code_${schoolId}`, schoolData.code);
-          }
-          
-          // Get student count
-          const { count: studentCount, error: studentError } = await supabase
-            .from('students')
-            .select('*', { count: 'exact', head: true })
-            .eq('school_id', schoolId);
-            
-          if (!studentError) {
-            setStudentCount(studentCount || 0);
-          }
-          
-          // Get teacher count
-          const { count: teacherCount, error: teacherError } = await supabase
-            .from('teachers')
-            .select('*', { count: 'exact', head: true })
-            .eq('school_id', schoolId);
-            
-          if (!teacherError) {
-            setTeacherCount(teacherCount || 0);
-          }
-        } else {
-          // Use demo data in development
-          setStudentCount(32);
-          setTeacherCount(8);
+        const schoolId = profile.school_id;
+
+        if (!schoolId) {
+          throw new Error('School ID not found');
         }
-      } catch (error) {
-        console.error("Error fetching school data:", error);
-        // Default to sample counts if error occurs
-        setStudentCount(32);
-        setTeacherCount(8);
+
+        // Get student count
+        const { count: studentCount, error: studentError } = await supabase
+          .from('students')
+          .select('*', { count: 'exact', head: true })
+          .eq('school_id', schoolId);
+
+        if (studentError) throw studentError;
+
+        // Get teacher count
+        const { count: teacherCount, error: teacherError } = await supabase
+          .from('teachers')
+          .select('*', { count: 'exact', head: true })
+          .eq('school_id', schoolId);
+
+        if (teacherError) throw teacherError;
+
+        // Get session count
+        const { count: sessionCount, error: sessionError } = await supabase
+          .from('session_logs')
+          .select('*', { count: 'exact', head: true })
+          .eq('school_id', schoolId);
+
+        if (sessionError) throw sessionError;
+
+        // Get average scores from student_performance_metrics
+        const { data: performanceData, error: performanceError } = await supabase
+          .from('student_performance_metrics')
+          .select('avg_score')
+          .eq('school_id', schoolId);
+
+        if (performanceError) throw performanceError;
+
+        // Calculate average score
+        const avgScore = performanceData && performanceData.length > 0
+          ? performanceData.reduce((acc, item) => acc + (item.avg_score || 0), 0) / performanceData.length
+          : 0;
+
+        setSchoolStats({
+          totalStudents: studentCount || 0,
+          totalTeachers: teacherCount || 0,
+          totalSessions: sessionCount || 0,
+          averageScore: Math.round(avgScore),
+        });
+
+      } catch (error: any) {
+        console.error('Error fetching school stats:', error);
+        toast.error('Failed to load school statistics');
+      } finally {
+        setIsLoading(false);
       }
     };
 
-    fetchSchoolData();
-  }, []);
+    fetchSchoolStats();
+  }, [user, profile, navigate]);
 
-  // If not logged in, redirect to login
-  if (!user) {
-    return <Navigate to="/login" />;
-  }
-
+  // Create a properly typed handler for the SchoolCodeManager component
   const handleCodeGenerated = (code: string) => {
-    setSchoolCode(code);
-    
-    // Update localStorage to sync across the site
-    const schoolId = getSchoolIdWithFallback();
-    localStorage.setItem(`school_code_${schoolId}`, code);
-    
-    // Update in database if in production
-    if (process.env.NODE_ENV === 'production') {
-      try {
-        supabase
-          .from("schools")
-          .update({ code: code })
-          .eq("id", schoolId)
-          .then(({ error }) => {
-            if (error) console.error("Error updating school code:", error);
-          });
-      } catch (error) {
-        console.error("Error updating school code:", error);
-      }
-    }
+    toast.success('New invite code generated!');
+    // Additional logic can be added here
   };
 
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
-      
-      <main className="flex-grow bg-gray-50 py-8">
+      <main className="flex-grow bg-learnable-super-light py-8">
         <div className="container mx-auto px-4">
-          <h1 className="text-3xl font-bold mb-6">School Administration</h1>
-          
-          <AdminNavbar className="mb-8" />
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex flex-col items-center space-y-2">
-                  <School className="h-8 w-8 text-blue-600" />
-                  <h3 className="text-xl font-semibold">{schoolName}</h3>
-                  <div className="text-sm text-gray-500">School Code: {schoolCode}</div>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex flex-col items-center space-y-2">
-                  <Users className="h-8 w-8 text-blue-600" />
-                  <h3 className="text-xl font-semibold">{studentCount}</h3>
-                  <div className="text-sm text-gray-500">Total Students</div>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex flex-col items-center space-y-2">
-                  <BookOpen className="h-8 w-8 text-blue-600" />
-                  <h3 className="text-xl font-semibold">{teacherCount}</h3>
-                  <div className="text-sm text-gray-500">Total Teachers</div>
-                </div>
-              </CardContent>
-            </Card>
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-3xl font-bold gradient-text">School Administration</h1>
           </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            <Card className="col-span-1">
-              <CardHeader>
-                <CardTitle>School Code</CardTitle>
-                <CardDescription>Generate and share the code for teachers to join</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <SchoolCodeGenerator 
-                  onCodeGenerated={handleCodeGenerated}
+
+          <AdminNavbar />
+
+          {isLoading ? (
+            <div className="flex justify-center items-center h-64">
+              <p className="text-lg text-gray-500">Loading school data...</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              <StatCard
+                title="Total Students"
+                value={schoolStats.totalStudents}
+                icon={<Users className="h-8 w-8 text-blue-500" />}
+              />
+              <StatCard
+                title="Total Teachers"
+                value={schoolStats.totalTeachers}
+                icon={<UserPlus className="h-8 w-8 text-green-500" />}
+              />
+              <StatCard
+                title="Study Sessions"
+                value={schoolStats.totalSessions}
+                icon={<BookOpen className="h-8 w-8 text-purple-500" />}
+              />
+              <StatCard
+                title="Avg. Score"
+                value={`${schoolStats.averageScore}%`}
+                icon={<PieChart className="h-8 w-8 text-orange-500" />}
+              />
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div>
+              <h2 className="text-2xl font-semibold mb-4">Quick Actions</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <ActionCard
+                  title="Manage Teachers"
+                  description="Add or manage school teachers"
+                  icon={<UserPlus className="h-6 w-6" />}
+                  onClick={() => navigate('/admin/teacher-management')}
                 />
-              </CardContent>
-            </Card>
-            
-            <Card className="col-span-1">
-              <CardHeader>
-                <CardTitle>Quick Actions</CardTitle>
-                <CardDescription>Shortcuts to common administrative tasks</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Button 
-                  onClick={() => navigate('/admin/teacher-management')} 
-                  variant="outline" 
-                  className="w-full justify-between"
-                >
-                  Manage Teachers
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-                <Button 
-                  onClick={() => navigate('/admin/students')} 
-                  variant="outline" 
-                  className="w-full justify-between"
-                >
-                  Manage Students
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-                <Button 
-                  onClick={() => navigate('/admin/settings')} 
-                  variant="outline" 
-                  className="w-full justify-between"
-                >
-                  School Settings
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-          
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>School Management</CardTitle>
-                <CardDescription>
-                  Configure school-wide settings and manage access
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                  <Card className="bg-gray-50 border-dashed cursor-pointer hover:bg-gray-100 transition-colors" 
-                    onClick={() => navigate('/admin/teacher-management')}>
-                    <CardContent className="flex flex-col items-center justify-center p-6">
-                      <Users className="h-8 w-8 text-blue-600 mb-2" />
-                      <h3 className="font-semibold">Teacher Management</h3>
-                      <p className="text-sm text-gray-500 text-center">
-                        Invite and manage teachers
-                      </p>
-                    </CardContent>
-                  </Card>
-                  
-                  <Card className="bg-gray-50 border-dashed cursor-pointer hover:bg-gray-100 transition-colors"
-                    onClick={() => navigate('/admin/students')}>
-                    <CardContent className="flex flex-col items-center justify-center p-6">
-                      <BookOpen className="h-8 w-8 text-blue-600 mb-2" />
-                      <h3 className="font-semibold">Student Management</h3>
-                      <p className="text-sm text-gray-500 text-center">
-                        Oversee student accounts
-                      </p>
-                    </CardContent>
-                  </Card>
-                  
-                  <Card className="bg-gray-50 border-dashed cursor-pointer hover:bg-gray-100 transition-colors"
-                    onClick={() => navigate('/admin/settings')}>
-                    <CardContent className="flex flex-col items-center justify-center p-6">
-                      <Settings className="h-8 w-8 text-blue-600 mb-2" />
-                      <h3 className="font-semibold">School Settings</h3>
-                      <p className="text-sm text-gray-500 text-center">
-                        Configure school details
-                      </p>
-                    </CardContent>
-                  </Card>
-                </div>
-              </CardContent>
-            </Card>
+                <ActionCard
+                  title="Student Management"
+                  description="View and manage students"
+                  icon={<Users className="h-6 w-6" />}
+                  onClick={() => navigate('/admin/students')}
+                />
+                <ActionCard
+                  title="View Analytics"
+                  description="School performance reports"
+                  icon={<PieChart className="h-6 w-6" />}
+                  onClick={() => navigate('/admin/analytics')}
+                />
+                <ActionCard
+                  title="School Settings"
+                  description="Configure school preferences"
+                  icon={<Settings className="h-6 w-6" />}
+                  onClick={() => navigate('/admin/settings')}
+                />
+              </div>
+            </div>
+            <div>
+              {/* Use properly typed component */}
+              <SchoolCodeGenerator onCodeGenerated={handleCodeGenerated} />
+            </div>
           </div>
         </div>
       </main>
-      
       <Footer />
     </div>
   );
 };
+
+interface StatCardProps {
+  title: string;
+  value: number | string;
+  icon: React.ReactNode;
+}
+
+const StatCard = ({ title, value, icon }: StatCardProps) => (
+  <Card>
+    <CardContent className="flex items-center justify-between p-6">
+      <div>
+        <p className="text-sm font-medium text-gray-500">{title}</p>
+        <h3 className="text-2xl font-bold">{value}</h3>
+      </div>
+      <div className="bg-gray-100 p-3 rounded-full">{icon}</div>
+    </CardContent>
+  </Card>
+);
+
+interface ActionCardProps {
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+  onClick: () => void;
+}
+
+const ActionCard = ({ title, description, icon, onClick }: ActionCardProps) => (
+  <Card className="cursor-pointer hover:shadow-md transition-shadow duration-200" onClick={onClick}>
+    <CardContent className="flex items-center gap-4 p-4">
+      <div className="bg-gradient-to-r from-learnable-blue to-learnable-purple rounded-full p-2 text-white">
+        {icon}
+      </div>
+      <div>
+        <h3 className="font-medium mb-1">{title}</h3>
+        <p className="text-sm text-gray-500">{description}</p>
+      </div>
+    </CardContent>
+  </Card>
+);
 
 export default SchoolAdmin;

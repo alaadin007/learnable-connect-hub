@@ -1,232 +1,261 @@
-import React, { useState, useEffect } from "react";
-import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import AdminNavbar from '@/components/school-admin/AdminNavbar';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { toast } from "sonner";
-import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Save, Loader2, Check } from "lucide-react";
-import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
-import SchoolCodeGenerator from "@/components/school-admin/SchoolCodeGenerator";
-import { 
-  AlertDialog, 
-  AlertDialogAction, 
-  AlertDialogCancel, 
-  AlertDialogContent, 
-  AlertDialogDescription, 
-  AlertDialogFooter, 
-  AlertDialogHeader, 
-  AlertDialogTitle
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
+import { ArrowLeft, RefreshCw, Save, Trash2 } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import SchoolCodeGenerator from '@/components/school-admin/SchoolCodeGenerator';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import AdminNavbar from "@/components/school-admin/AdminNavbar";
-import { getSchoolIdWithFallback } from "@/utils/apiHelpers";
+
+// Define schema for form validation
+const schoolSettingsSchema = z.object({
+  name: z.string().min(2, { message: 'School name must be at least 2 characters' }),
+  contact_email: z.string().email({ message: 'Please enter a valid email address' }),
+  description: z.string().optional(),
+});
+
+type SchoolSettingsFormValues = z.infer<typeof schoolSettingsSchema>;
+
+// Define school info type
+interface SchoolInfo {
+  id: string;
+  name: string;
+  code: string;
+  contact_email: string;
+  description: string | null;
+  notifications_enabled: boolean;
+}
+
+// Define proper SchoolCodeGenerator props
+interface SchoolCodeGeneratorProps {
+  onCodeGenerated?: (code: string) => void;
+}
 
 const SchoolSettings = () => {
-  const { profile, user, signOut, refreshProfile } = useAuth();
+  const { user, profile } = useAuth();
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isRegeneratingCode, setIsRegeneratingCode] = useState(false);
+  const [schoolInfo, setSchoolInfo] = useState<SchoolInfo | null>(null);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const navigate = useNavigate();
 
-  // Form state
-  const [schoolName, setSchoolName] = useState("");
-  const [schoolCode, setSchoolCode] = useState("");
-  const [contactEmail, setContactEmail] = useState("");
-  const [description, setDescription] = useState("");
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  // React-hook-form setup
+  const form = useForm<SchoolSettingsFormValues>({
+    resolver: zodResolver(schoolSettingsSchema),
+    defaultValues: {
+      name: '',
+      contact_email: '',
+      description: '',
+    }
+  });
 
-  // UI state
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [initialLoaded, setInitialLoaded] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
-
-  // Load initial school data
+  // Load school data on component mount
   useEffect(() => {
-    const fetchSchoolData = async () => {
-      const schoolId = getSchoolIdWithFallback();
-      if (!schoolId) return;
+    // Redirect if not logged in or not a school admin
+    if (!user || !profile || profile.user_type !== 'school_admin') {
+      toast.error('You must be a school administrator to access this page.');
+      navigate('/login');
+      return;
+    }
 
+    const fetchSchoolData = async () => {
       setIsLoading(true);
       try {
-        // Try getting from localStorage first for instant loading
-        const cachedName = localStorage.getItem('school_name');
-        const cachedCode = localStorage.getItem(`school_code_${schoolId}`);
-        const cachedEmail = localStorage.getItem('school_email');
-        const cachedDesc = localStorage.getItem('school_description');
-        
-        // Set cached values if they exist
-        if (cachedName) setSchoolName(cachedName);
-        if (cachedCode) setSchoolCode(cachedCode);
-        if (cachedEmail) setContactEmail(cachedEmail);
-        if (cachedDesc) setDescription(cachedDesc);
-        
-        // Set some default values if nothing is found
-        if (!cachedName) setSchoolName("Your School");
-        if (!cachedCode) setSchoolCode("DEMO-CODE");
-        if (!cachedEmail) setContactEmail(user?.email || "");
-        
-        if (process.env.NODE_ENV === 'production') {
-          // Try to get from database in production
-          const { data: schoolData, error } = await supabase
-            .from("schools")
-            .select("*")
-            .eq("id", schoolId)
-            .single();
+        const schoolId = profile.school_id;
 
-          if (!error && schoolData) {
-            setSchoolName(schoolData.name || "");
-            setSchoolCode(schoolData.code || "");
-            setContactEmail(schoolData.contact_email || user?.email || "");
-            setDescription(schoolData.description || "");
-            setNotificationsEnabled(schoolData.notifications_enabled !== false);
-            
-            // Cache the values
-            localStorage.setItem('school_name', schoolData.name || "");
-            localStorage.setItem(`school_code_${schoolId}`, schoolData.code || "");
-            localStorage.setItem('school_email', schoolData.contact_email || user?.email || "");
-            localStorage.setItem('school_description', schoolData.description || "");
-          }
+        if (!schoolId) {
+          throw new Error('School ID not found');
         }
-        
-        setInitialLoaded(true);
-      } catch (error) {
-        console.error("Error loading school data:", error);
-        // No toast to avoid interrupting UX, we'll just use the cached/default values
+
+        // Get school info
+        const { data, error } = await supabase
+          .from('schools')
+          .select('*')
+          .eq('id', schoolId)
+          .single();
+
+        if (error) throw error;
+
+        setSchoolInfo(data);
+        setNotificationsEnabled(data.notifications_enabled !== false); // Default to true if field is null
+
+        // Set form default values
+        form.reset({
+          name: data.name,
+          contact_email: data.contact_email || '',
+          description: data.description || '',
+        });
+
+      } catch (error: any) {
+        console.error('Error fetching school data:', error);
+        toast.error('Failed to load school settings');
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchSchoolData();
-  }, [profile, user]);
+  }, [user, profile, navigate, form]);
 
-  const handleSaveSettings = async () => {
-    const schoolId = getSchoolIdWithFallback();
-    if (!schoolId) {
-      toast.error("No school ID found. Please refresh the page or contact support.");
-      return;
-    }
-    
-    if (!schoolName.trim()) {
-      toast.error("School name cannot be empty");
-      return;
-    }
+  // Handle form submission
+  const onSubmit = async (values: SchoolSettingsFormValues) => {
+    if (!schoolInfo) return;
 
-    setSaveSuccess(false);
     setIsSaving(true);
-    
     try {
-      // Update localStorage immediately for instant UI update across the site
-      localStorage.setItem('school_name', schoolName.trim());
-      localStorage.setItem(`school_code_${schoolId}`, schoolCode);
-      localStorage.setItem('school_email', contactEmail);
-      localStorage.setItem('school_description', description);
+      const { error } = await supabase
+        .from('schools')
+        .update({
+          name: values.name,
+          contact_email: values.contact_email,
+          description: values.description || null,
+        })
+        .eq('id', schoolInfo.id);
+
+      if (error) throw error;
+
+      toast.success('School settings updated successfully');
       
-      // Now update in database if in production
-      if (process.env.NODE_ENV === 'production') {
-        const { error } = await supabase
-          .from("schools")
-          .update({
-            name: schoolName.trim(),
-            contact_email: contactEmail,
-            description: description,
-            notifications_enabled: notificationsEnabled,
-            updated_at: new Date().toISOString()
-          })
-          .eq("id", schoolId);
+      // Update local state
+      setSchoolInfo(prev => prev ? {
+        ...prev,
+        name: values.name,
+        contact_email: values.contact_email,
+        description: values.description || null,
+      } : null);
 
-        if (error) throw error;
-      }
-
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Refresh profile to update the UI with new school info
-      if (refreshProfile) {
-        await refreshProfile();
-      }
-
-      setSaveSuccess(true);
-      toast.success("School settings updated successfully!");
-      setTimeout(() => setSaveSuccess(false), 2000);
     } catch (error: any) {
-      console.error("Error saving school settings:", error);
-      toast.error(error.message || "Failed to update school settings");
-      // Even if DB update fails, we keep the localStorage values for better UX
+      console.error('Error updating school settings:', error);
+      toast.error('Failed to update school settings');
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleDeleteSchool = async () => {
-    const schoolId = getSchoolIdWithFallback();
-    if (!schoolId) {
-      toast.error("No school ID found. Cannot delete account.");
-      return;
-    }
+  // Handle notifications toggle
+  const handleNotificationsToggle = async (enabled: boolean) => {
+    if (!schoolInfo) return;
+    
+    try {
+      const { error } = await supabase
+        .from('schools')
+        .update({
+          notifications_enabled: enabled,
+        })
+        .eq('id', schoolInfo.id);
 
+      if (error) throw error;
+
+      setNotificationsEnabled(enabled);
+      toast.success(`Notifications ${enabled ? 'enabled' : 'disabled'} successfully`);
+      
+      // Update local state
+      setSchoolInfo(prev => prev ? {
+        ...prev,
+        notifications_enabled: enabled,
+      } : null);
+
+    } catch (error: any) {
+      console.error('Error updating notification settings:', error);
+      toast.error('Failed to update notification settings');
+      // Revert UI state since the API call failed
+      setNotificationsEnabled(!enabled);
+    }
+  };
+
+  // Handle school code regeneration
+  const handleRegenerateCode = async () => {
+    if (!schoolInfo) return;
+    
+    setIsRegeneratingCode(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-school-code', {
+        body: {}
+      });
+
+      if (error) throw error;
+
+      const newCode = data?.code;
+      
+      if (newCode) {
+        toast.success('School code regenerated successfully');
+        
+        // Update local state
+        setSchoolInfo(prev => prev ? {
+          ...prev,
+          code: newCode,
+        } : null);
+      }
+    } catch (error: any) {
+      console.error('Error regenerating school code:', error);
+      toast.error('Failed to regenerate school code');
+    } finally {
+      setIsRegeneratingCode(false);
+    }
+  };
+
+  // Handle school account deletion
+  const handleDeleteSchool = async () => {
+    if (!schoolInfo) return;
+    
     setIsDeleting(true);
     try {
-      if (process.env.NODE_ENV === 'production') {
-        // Use the delete-school-data edge function to handle the complex deletion
-        const { error } = await supabase.functions.invoke("delete-school-data", {
-          body: { school_id: schoolId }
-        });
+      const { error } = await supabase.functions.invoke('delete-school-data', {
+        body: { school_id: schoolInfo.id }
+      });
 
-        if (error) throw new Error(error.message || "Failed to delete school data");
+      if (error) throw error;
 
-        // Delete the school itself
-        const { error: schoolError } = await supabase
-          .from("schools")
-          .delete()
-          .eq("id", schoolId);
-
-        if (schoolError) throw schoolError;
-      }
-
-      // Clean up localStorage
-      localStorage.removeItem('school_name');
-      localStorage.removeItem(`school_code_${schoolId}`);
-      localStorage.removeItem('school_email');
-      localStorage.removeItem('school_description');
-      localStorage.removeItem('schoolId');
+      toast.success('School account and all associated data deleted successfully');
       
-      if (signOut) {
-        await signOut();
-      }
-      
-      toast.success("School account successfully deleted");
-      navigate("/");
+      // Sign out user and redirect to home
+      await supabase.auth.signOut();
+      navigate('/');
+
     } catch (error: any) {
-      console.error("Error deleting school:", error);
-      toast.error(error.message || "Failed to delete school account");
+      console.error('Error deleting school account:', error);
+      toast.error('Failed to delete school account');
     } finally {
-      setShowDeleteDialog(false);
       setIsDeleting(false);
     }
   };
 
+  // Properly typed handler for school code generation
   const handleCodeGenerated = (newCode: string) => {
-    setSchoolCode(newCode);
+    toast.success('School code updated successfully');
     
-    // Save the new code to localStorage for immediate sync across the site
-    const schoolId = getSchoolIdWithFallback();
-    localStorage.setItem(`school_code_${schoolId}`, newCode);
-    
-    // Update in database if in production
-    if (process.env.NODE_ENV === 'production' && schoolId) {
-      supabase
-        .from("schools")
-        .update({ code: newCode })
-        .eq("id", schoolId)
-        .then(({ error }) => {
-          if (error) console.error("Error updating school code:", error);
-        });
-    }
+    // Update local state
+    setSchoolInfo(prev => prev ? {
+      ...prev,
+      code: newCode,
+    } : null);
   };
 
   return (
@@ -235,173 +264,234 @@ const SchoolSettings = () => {
       <main className="flex-grow bg-learnable-super-light py-8">
         <div className="container mx-auto px-4">
           <div className="flex items-center gap-4 mb-6">
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               className="flex items-center gap-1"
-              onClick={() => navigate('/admin')}
+              onClick={() => navigate('/admin', { state: { preserveContext: true } })}
             >
               <ArrowLeft className="h-4 w-4" />
               Back to Admin
             </Button>
             <h1 className="text-3xl font-bold gradient-text">School Settings</h1>
           </div>
-          <AdminNavbar className="mb-8" />
 
-          {/* School Code Card */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>School Code Management</CardTitle>
-              <CardDescription>
-                Generate and manage the code teachers and students need to join your school
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <SchoolCodeGenerator 
-                onCodeGenerated={handleCodeGenerated}
-              />
-            </CardContent>
-          </Card>
+          <AdminNavbar />
 
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>School Information</CardTitle>
-              <CardDescription>
-                Update your school details and settings
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-learnable-blue" />
-                  <span className="ml-3">Loading school information...</span>
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="schoolName">School Name</Label>
-                      <Input 
-                        id="schoolName" 
-                        value={schoolName} 
-                        onChange={(e) => setSchoolName(e.target.value)}
-                        placeholder="Your school's name" 
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="contactEmail">Contact Email</Label>
-                      <Input 
-                        id="contactEmail" 
-                        type="email"
-                        value={contactEmail} 
-                        onChange={(e) => setContactEmail(e.target.value)}
-                        placeholder="admin@yourschool.edu" 
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="description">School Description</Label>
-                    <Textarea 
-                      id="description" 
-                      value={description} 
-                      onChange={(e) => setDescription(e.target.value)}
-                      placeholder="Brief description of your school" 
-                      rows={3}
-                    />
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Switch 
-                      id="notifications"
-                      checked={notificationsEnabled}
-                      onCheckedChange={setNotificationsEnabled}
-                    />
-                    <Label htmlFor="notifications">Enable email notifications</Label>
-                  </div>
-                  <Button 
-                    onClick={handleSaveSettings} 
-                    disabled={isSaving || !initialLoaded}
-                    className="gradient-bg flex items-center gap-2"
-                  >
-                    {isSaving ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Saving...
-                      </>
-                    ) : saveSuccess ? (
-                      <>
-                        <Check className="h-4 w-4" />
-                        Saved!
-                      </>
-                    ) : (
-                      <>
-                        <Save className="h-4 w-4" />
-                        Save Settings
-                      </>
-                    )}
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          {isLoading ? (
+            <div className="flex justify-center items-center h-64">
+              <p className="text-lg text-gray-500">Loading school settings...</p>
+            </div>
+          ) : (
+            <Tabs defaultValue="general">
+              <TabsList className="mb-6">
+                <TabsTrigger value="general">General Settings</TabsTrigger>
+                <TabsTrigger value="access">Access Control</TabsTrigger>
+                <TabsTrigger value="danger">Danger Zone</TabsTrigger>
+              </TabsList>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Advanced Settings</CardTitle>
-              <CardDescription>
-                Danger zone - actions here cannot be easily reversed
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="p-4 border border-destructive rounded-lg">
-                  <h3 className="text-lg font-semibold text-destructive mb-2">Delete School Account</h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Permanently remove your school account and all associated data.
-                    This action cannot be undone.
-                  </p>
-                  <Button 
-                    variant="destructive"
-                    onClick={() => setShowDeleteDialog(true)}
-                  >
-                    Delete School Account
-                  </Button>
+              <TabsContent value="general">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>School Information</CardTitle>
+                    <CardDescription>
+                      Update your school's basic information and settings
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Form {...form}>
+                      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                        <FormField
+                          control={form.control}
+                          name="name"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>School Name</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Enter school name" {...field} />
+                              </FormControl>
+                              <FormDescription>
+                                This is the name that will appear on all reports and communications.
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="contact_email"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Contact Email</FormLabel>
+                              <FormControl>
+                                <Input placeholder="contact@school.edu" {...field} />
+                              </FormControl>
+                              <FormDescription>
+                                This email will be used for official communications.
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="description"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>School Description (Optional)</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Brief description of your school" {...field} />
+                              </FormControl>
+                              <FormDescription>
+                                A short description that might appear in reports or dashboards.
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <div className="flex items-center justify-between space-y-0 pt-4">
+                          <div className="space-y-0.5">
+                            <Label htmlFor="notifications">Email Notifications</Label>
+                            <FormDescription>
+                              Receive email notifications about important events.
+                            </FormDescription>
+                          </div>
+                          <Switch
+                            id="notifications"
+                            checked={notificationsEnabled}
+                            onCheckedChange={handleNotificationsToggle}
+                          />
+                        </div>
+
+                        <Button type="submit" disabled={isSaving} className="w-full gradient-bg">
+                          {isSaving ? (
+                            <>
+                              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                              Saving...
+                            </>
+                          ) : (
+                            <>
+                              <Save className="mr-2 h-4 w-4" />
+                              Save Changes
+                            </>
+                          )}
+                        </Button>
+                      </form>
+                    </Form>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="access">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <SchoolCodeGenerator onCodeGenerated={handleCodeGenerated} />
+                  
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>School Code</CardTitle>
+                      <CardDescription>
+                        Manage your school's access code
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <div>
+                          <Label htmlFor="currentCode">Current School Code</Label>
+                          <div className="flex mt-2">
+                            <Input 
+                              id="currentCode"
+                              value={schoolInfo?.code || ''} 
+                              readOnly
+                              className="font-mono"
+                            />
+                          </div>
+                          <p className="text-sm text-gray-500 mt-2">
+                            This code is used by teachers and students to join your school.
+                          </p>
+                        </div>
+                        
+                        <Button 
+                          onClick={handleRegenerateCode} 
+                          variant="secondary" 
+                          className="w-full"
+                          disabled={isRegeneratingCode}
+                        >
+                          {isRegeneratingCode ? (
+                            <>
+                              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                              Regenerating...
+                            </>
+                          ) : (
+                            <>
+                              <RefreshCw className="mr-2 h-4 w-4" />
+                              Regenerate School Code
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </TabsContent>
+
+              <TabsContent value="danger">
+                <Card>
+                  <CardHeader className="border-b border-red-100">
+                    <CardTitle className="text-red-600">Danger Zone</CardTitle>
+                    <CardDescription>
+                      Actions here can permanently delete data and cannot be undone
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-6">
+                    <Alert variant="destructive" className="mb-6">
+                      <AlertTitle>Warning</AlertTitle>
+                      <AlertDescription>
+                        Deleting your school account will permanently remove all associated data, including teachers, students, courses, and assessments. This action cannot be undone.
+                      </AlertDescription>
+                    </Alert>
+
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="destructive" className="w-full" disabled={isDeleting}>
+                          {isDeleting ? (
+                            <>
+                              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                              Deleting...
+                            </>
+                          ) : (
+                            <>
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete School Account
+                            </>
+                          )}
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This action cannot be undone. This will permanently delete your school account and all associated data from our servers.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={handleDeleteSchool} className="bg-red-600 hover:bg-red-700">
+                            Delete School Account
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+          )}
         </div>
       </main>
       <Footer />
-
-      {/* Delete School Account Confirmation Dialog */}
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action will permanently delete your school account and all associated data, including:
-              <ul className="list-disc pl-5 mt-2 space-y-1">
-                <li>School profile information</li>
-                <li>Teacher accounts connected to your school</li>
-                <li>Student accounts connected to your school</li>
-                <li>All assessments, documents, and learning sessions</li>
-              </ul>
-              <p className="mt-2 font-semibold">This action cannot be undone.</p>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteSchool}
-              disabled={isDeleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {isDeleting ? "Deleting..." : "Yes, Delete School Account"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 };

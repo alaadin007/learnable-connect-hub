@@ -1,212 +1,105 @@
-import React, { useState, useEffect } from 'react';
-import Navbar from '@/components/layout/Navbar';
-import Footer from '@/components/landing/Footer';
-import { useAuth } from '@/contexts/AuthContext';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-import { isSchoolAdmin, getUserRoleWithFallback } from "@/utils/apiHelpers";
 
-// Import the helper for type casting
-import { asSchoolId } from '@/utils/supabaseTypeHelpers';
-import type { Database } from '@/integrations/supabase/types';
+import React, { useState, useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import Navbar from "@/components/layout/Navbar";
+import Footer from "@/components/landing/Footer";
+import AdminNavbar from "@/components/school-admin/AdminNavbar";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import AnalyticsDashboard from "@/components/analytics/AnalyticsDashboard";
+
+// Define types for analytics data
+interface AnalyticsData {
+  studentMetrics: any[];
+  teacherMetrics: any[];
+}
 
 const AdminAnalytics = () => {
-  const { user, profile, userRole, schoolId } = useAuth();
-  const [analyticsSummary, setAnalyticsSummary] = useState<any>(null);
-  const [performanceMetrics, setPerformanceMetrics] = useState<any>(null);
-  const [studentEngagement, setStudentEngagement] = useState<any[]>([]);
-  const [teacherActivity, setTeacherActivity] = useState<any[]>([]);
+  const { user, profile } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsData>({
+    studentMetrics: [],
+    teacherMetrics: [],
+  });
+  const navigate = useNavigate();
 
   useEffect(() => {
-    if (user && schoolId) {
-      fetchAnalyticsData();
+    if (!user || !profile?.school_id) {
+      toast.error("Please log in to access this page");
+      navigate("/login");
+      return;
     }
-  }, [user, schoolId]);
-
-  const fetchAnalyticsData = async () => {
-    try {
+    
+    const fetchAnalyticsData = async () => {
       setIsLoading(true);
-      
-      // Cast school ID to proper type
-      const typedSchoolId = asSchoolId(schoolId);
-      
-      // Get basic analytics summary
-      const { data: analyticsSummary, error: summaryError } = await supabase
-        .from('school_analytics_summary')
-        .select('*')
-        .eq('school_id', typedSchoolId)
-        .limit(1);
-        
-      if (summaryError) throw summaryError;
-      
-      // Get performance metrics
-      const { data: performanceData, error: perfError } = await supabase
-        .from('school_performance_metrics')
-        .select('*')
-        .eq('school_id', typedSchoolId)
-        .limit(1);
-        
-      if (perfError) throw perfError;
-      
-      // Get student engagement data
-      const { data: studentData, error: studentError } = await supabase
-        .from('student_engagement_metrics')
-        .select('*')
-        .eq('school_id', typedSchoolId);
-        
-      if (studentError) throw studentError;
-      
-      // Get teacher activity data
-      const { data: teacherData, error: teacherError } = await supabase
-        .from('teacher_activity_metrics')
-        .select('*')
-        .eq('school_id', typedSchoolId);
-        
-      if (teacherError) throw teacherError;
+      try {
+        // Fetch student metrics for school
+        // Updated to use student_performance_metrics instead of student_engagement_metrics
+        const { data: studentMetrics, error: studentError } = await supabase
+          .from("student_performance_metrics")
+          .select("*")
+          .eq("school_id", profile.school_id);
 
-      setAnalyticsSummary(analyticsSummary?.[0] || null);
-      setPerformanceMetrics(performanceData?.[0] || null);
-      setStudentEngagement(studentData || []);
-      setTeacherActivity(teacherData || []);
-    } catch (error: any) {
-      console.error("Error fetching analytics data:", error);
-      toast.error("Failed to load analytics data");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+        if (studentError) throw studentError;
 
-  const renderBarChart = (data: any[], dataKey: string, name: string) => (
-    <ResponsiveContainer width="100%" height={300}>
-      <BarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-        <CartesianGrid strokeDasharray="3 3" />
-        <XAxis dataKey="name" />
-        <YAxis />
-        <Tooltip />
-        <Legend />
-        <Bar dataKey={dataKey} name={name} fill="#8884d8" />
-      </BarChart>
-    </ResponsiveContainer>
-  );
+        // Fetch teacher metrics for school
+        // Updated to use teacher_performance_metrics instead of teacher_activity_metrics
+        const { data: teacherMetrics, error: teacherError } = await supabase
+          .from("teacher_performance_metrics")
+          .select("*")
+          .eq("school_id", profile.school_id);
 
-  const renderPieChart = (data: any[], nameKey: string, valueKey: string) => {
-    const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
+        if (teacherError) throw teacherError;
 
-    return (
-      <ResponsiveContainer width="100%" height={300}>
-        <PieChart>
-          <Pie
-            data={data}
-            dataKey={valueKey}
-            nameKey={nameKey}
-            cx="50%"
-            cy="50%"
-            outerRadius={80}
-            fill="#8884d8"
-            label
-          >
-            {data.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-            ))}
-          </Pie>
-          <Tooltip />
-          <Legend />
-        </PieChart>
-      </ResponsiveContainer>
-    );
-  };
+        setAnalyticsData({
+          studentMetrics: studentMetrics || [],
+          teacherMetrics: teacherMetrics || []
+        });
 
-  if (!user || !schoolId) {
-    return <div className="flex justify-center items-center h-screen">Loading...</div>;
-  }
+      } catch (error: any) {
+        console.error("Error fetching analytics data:", error);
+        toast.error("Failed to load analytics data");
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-  const fallbackRole = getUserRoleWithFallback();
-  const effectiveRole = userRole || fallbackRole;
-  const isAdmin = isSchoolAdmin(effectiveRole);
-
-  if (!isAdmin) {
-    return <div className="flex justify-center items-center h-screen">Unauthorized</div>;
-  }
+    fetchAnalyticsData();
+  }, [user, profile, navigate]);
 
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
       <main className="flex-grow bg-learnable-super-light py-8">
         <div className="container mx-auto px-4">
-          <h1 className="text-3xl font-bold gradient-text mb-6">Admin Analytics</h1>
+          <div className="flex items-center gap-4 mb-6">
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-1"
+              onClick={() => navigate('/admin', { state: { preserveContext: true } })}
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to Admin
+            </Button>
+            <h1 className="text-3xl font-bold gradient-text">School Analytics</h1>
+          </div>
+
+          <AdminNavbar />
 
           {isLoading ? (
-            <div className="flex justify-center items-center h-48">Loading analytics data...</div>
+            <div className="flex justify-center items-center h-64">
+              <p className="text-lg text-gray-500">Loading analytics data...</p>
+            </div>
           ) : (
-            <>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>School Summary</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {analyticsSummary ? (
-                      <>
-                        <p>Total Students: {analyticsSummary.total_students}</p>
-                        <p>Total Teachers: {analyticsSummary.total_teachers}</p>
-                        <p>Total Courses: {analyticsSummary.total_courses}</p>
-                      </>
-                    ) : (
-                      <p>No summary data available.</p>
-                    )}
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Performance Metrics</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {performanceMetrics ? (
-                      <>
-                        <p>Average Test Score: {performanceMetrics.average_test_score}</p>
-                        <p>Attendance Rate: {performanceMetrics.attendance_rate}%</p>
-                      </>
-                    ) : (
-                      <p>No performance data available.</p>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-
-              <div className="mb-8">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Student Engagement</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {studentEngagement.length > 0 ? (
-                      renderBarChart(studentEngagement, 'engagement_score', 'Engagement Score')
-                    ) : (
-                      <p>No student engagement data available.</p>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-
-              <div className="mb-8">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Teacher Activity</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {teacherActivity.length > 0 ? (
-                      renderPieChart(teacherActivity, 'teacher_name', 'activity_count')
-                    ) : (
-                      <p>No teacher activity data available.</p>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-            </>
+            <AnalyticsDashboard 
+              studentMetrics={analyticsData.studentMetrics}
+              teacherMetrics={analyticsData.teacherMetrics}
+              schoolId={profile?.school_id}
+            />
           )}
         </div>
       </main>

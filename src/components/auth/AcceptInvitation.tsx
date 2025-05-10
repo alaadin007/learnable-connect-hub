@@ -6,7 +6,6 @@ import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { hasData } from '@/utils/supabaseTypeHelpers';
-import type { Database } from '@/integrations/supabase/types';
 
 // Define a type for the verification result
 interface TeacherInvitationInfo {
@@ -46,7 +45,7 @@ const AcceptInvitation = () => {
           throw new Error(verifyError?.message || 'Invalid or expired invitation');
         }
 
-        // Extract the first item from the array
+        // Extract the first item from the array and cast it to TeacherInvitationInfo
         const inviteInfo: TeacherInvitationInfo = inviteInfoArray[0] as TeacherInvitationInfo;
         const schoolName = inviteInfo?.school_name || 'the school';
 

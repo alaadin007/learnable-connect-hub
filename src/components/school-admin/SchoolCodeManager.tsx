@@ -12,7 +12,7 @@ interface SchoolCodeManagerProps {
   onCodeGenerated?: (code: string) => void;
 }
 
-const SchoolCodeManager = ({ onCodeGenerated }: SchoolCodeManagerProps = {}) => {
+const SchoolCodeManager = ({ onCodeGenerated }: SchoolCodeManagerProps) => {
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
   const [isLoading, setIsLoading] = useState(false);

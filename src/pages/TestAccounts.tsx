@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -9,14 +10,20 @@ type TestUserType = {
   name?: string;
 };
 
+interface ExtendedAuthContext {
+  setTestUser?: (user: TestUserType) => void;
+}
+
 const TestAccounts = () => {
-  // Use optional chaining for setTestUser since it's not in the type
-  const { setTestUser } = useAuth() as { setTestUser?: (user: TestUserType) => void };
+  // Cast useAuth() result to include the optional setTestUser function
+  const auth = useAuth() as ExtendedAuthContext;
 
   const handleLoginAs = (account: { email: string; password: string; role: string; name?: string }) => {
     // Only call if available
-    if (setTestUser) {
-      setTestUser(account);
+    if (auth.setTestUser) {
+      auth.setTestUser(account);
+    } else {
+      console.warn('setTestUser function is not available in the auth context');
     }
   };
 

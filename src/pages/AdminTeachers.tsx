@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -37,7 +38,7 @@ type TeacherInvite = {
 };
 
 const AdminTeachers = () => {
-  // Update to use isSupervisor instead of isSuperviser which doesn't exist
+  // Update to use is_supervisor instead of isSuperviser which doesn't exist
   const { user, profile } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [invites, setInvites] = useState<TeacherInvite[]>([]);
@@ -155,7 +156,6 @@ const AdminTeachers = () => {
   const isSupervisor = profile?.is_supervisor === true;
   
   return (
-    // ... keep existing JSX using isSupervisor instead of isSuperviser
     <div className="min-h-screen flex flex-col">
       <Navbar />
       <main className="flex-grow bg-learnable-super-light py-8">
