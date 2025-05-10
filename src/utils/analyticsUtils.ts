@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { UserRole } from '@/components/auth/ProtectedRoute';
@@ -8,21 +7,10 @@ import {
   TopicData,
   StudyTimeData,
   TeacherPerformanceData,
+  DateRange,
+  AnalyticsFilters
 } from "@/components/analytics/types";
 import { format } from 'date-fns';
-
-// Define date range interface
-export interface DateRange {
-  from: Date;
-  to?: Date | undefined;
-}
-
-// Define analytics filters interface
-export interface AnalyticsFilters {
-  dateRange?: DateRange;
-  teacherId?: string;
-  studentId?: string;
-}
 
 // Define UserType enum and export it
 export type UserType = 'student' | 'teacher' | 'school_admin' | 'teacher_supervisor';
@@ -64,7 +52,6 @@ export function safeUUID(id: string | null | undefined): string | null {
 
 /**
  * Safe access to API key
- * @param provider The API provider name
  */
 export async function safeApiKeyAccess(provider: string): Promise<string | null> {
   try {
@@ -263,6 +250,42 @@ export async function deleteDocumentContent(documentId: string) {
     .eq('document_id', documentId);
 }
 
+// Helper function to process profile data from Supabase
+function processProfileData(data: any): ProfileData {
+  let processedOrg: { id: string; name?: string; code?: string; } | undefined;
+  
+  if (data.organization) {
+    if (typeof data.organization === 'object' && !Array.isArray(data.organization)) {
+      // Handle organization object 
+      processedOrg = {
+        id: data.organization.id || data.school_id || '',
+        name: data.organization.name || data.school_name,
+        code: data.organization.code || data.school_code
+      };
+    } else if (data.school_id) {
+      // Fallback to school data
+      processedOrg = {
+        id: data.school_id,
+        name: data.school_name,
+        code: data.school_code
+      };
+    }
+  } else if (data.school_id) {
+    // Create organization from school data
+    processedOrg = {
+      id: data.school_id,
+      name: data.school_name,
+      code: data.school_code
+    };
+  }
+  
+  // Create processed profile with correctly typed organization
+  return {
+    ...data,
+    organization: processedOrg
+  } as ProfileData;
+}
+
 /**
  * Create a profile with type safety
  */
@@ -289,7 +312,7 @@ export async function createProfile(profile: Omit<ProfileData, 'id'> & { id?: st
       throw error;
     }
 
-    return data as ProfileData;
+    return processProfileData(data);
   } catch (err) {
     console.error('Error creating profile:', err);
     return null;
@@ -370,7 +393,7 @@ export async function getUserProfile(userId?: string): Promise<ProfileData | nul
       
     if (error) throw error;
     
-    return data as ProfileData;
+    return processProfileData(data);
   } catch (err) {
     console.error('Error getting user profile:', err);
     return null;
@@ -393,7 +416,7 @@ export async function updateProfile(profile: Partial<ProfileData> & { id: string
       throw error;
     }
 
-    return data as ProfileData;
+    return processProfileData(data);
   } catch (err) {
     console.error('Error updating profile:', err);
     return null;
@@ -418,7 +441,7 @@ export function getUserRoleWithFallback(fallback: string = 'student'): string {
  */
 export function isSchoolAdmin(userRole: UserRole): boolean {
   if (!userRole) return false;
-  return userRole === 'school_admin' || userRole === 'school';
+  return userRole === 'school_admin' || userRole === 'teacher_supervisor';
 }
 
 /**
@@ -474,10 +497,13 @@ export async function getUserSchoolId(userId?: string): Promise<string | null> {
 /**
  * Get school ID with fallback for legacy components
  */
-export function getSchoolIdWithFallback(defaultId: string = 'test-school-0'): Promise<string> {
-  return getUserSchoolId()
-    .then(id => id || defaultId)
-    .catch(() => defaultId);
+export async function getSchoolIdWithFallback(defaultId: string = 'test-school-0'): Promise<string> {
+  try {
+    const schoolId = await getUserSchoolId();
+    return schoolId || defaultId;
+  } catch (error) {
+    return defaultId;
+  }
 }
 
 /**

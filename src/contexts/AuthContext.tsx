@@ -114,7 +114,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         let processedOrg: { id: string; name?: string; code?: string; } | undefined;
         
         if (profileData.organization) {
-          if (typeof profileData.organization === 'object') {
+          if (typeof profileData.organization === 'object' && !Array.isArray(profileData.organization)) {
             // Handle organization object 
             const org = profileData.organization as any;
             processedOrg = {
@@ -248,7 +248,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       let processedOrg: { id: string; name?: string; code?: string; } | undefined;
       
       if (data.organization) {
-        if (typeof data.organization === 'object') {
+        if (typeof data.organization === 'object' && !Array.isArray(data.organization)) {
           const org = data.organization as any;
           processedOrg = {
             id: org.id || data.school_id || '',

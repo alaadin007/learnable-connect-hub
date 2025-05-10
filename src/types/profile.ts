@@ -24,3 +24,4 @@ export interface Profile {
 }
 
 export type ProfileData = Profile;
+

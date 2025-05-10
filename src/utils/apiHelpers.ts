@@ -267,11 +267,49 @@ export async function createProfile(profile: Omit<ProfileData, 'id'> & { id?: st
       throw error;
     }
 
-    return data as ProfileData;
+    // Process organization to ensure correct type
+    const processedProfile = processProfileData(data);
+    return processedProfile;
   } catch (err) {
     console.error('Error creating profile:', err);
     return null;
   }
+}
+
+// Helper function to process profile data from Supabase
+function processProfileData(data: any): ProfileData {
+  let processedOrg: { id: string; name?: string; code?: string; } | undefined;
+  
+  if (data.organization) {
+    if (typeof data.organization === 'object' && !Array.isArray(data.organization)) {
+      // Handle organization object 
+      processedOrg = {
+        id: data.organization.id || data.school_id || '',
+        name: data.organization.name || data.school_name,
+        code: data.organization.code || data.school_code
+      };
+    } else if (data.school_id) {
+      // Fallback to school data
+      processedOrg = {
+        id: data.school_id,
+        name: data.school_name,
+        code: data.school_code
+      };
+    }
+  } else if (data.school_id) {
+    // Create organization from school data
+    processedOrg = {
+      id: data.school_id,
+      name: data.school_name,
+      code: data.school_code
+    };
+  }
+  
+  // Create processed profile with correctly typed organization
+  return {
+    ...data,
+    organization: processedOrg
+  } as ProfileData;
 }
 
 /**
@@ -348,7 +386,7 @@ export async function getUserProfile(userId?: string): Promise<ProfileData | nul
       
     if (error) throw error;
     
-    return data as ProfileData;
+    return processProfileData(data);
   } catch (err) {
     console.error('Error getting user profile:', err);
     return null;
@@ -371,7 +409,7 @@ export async function updateProfile(profile: Partial<ProfileData> & { id: string
       throw error;
     }
 
-    return data as ProfileData;
+    return processProfileData(data);
   } catch (err) {
     console.error('Error updating profile:', err);
     return null;
@@ -452,8 +490,10 @@ export async function getUserSchoolId(userId?: string): Promise<string | null> {
 /**
  * Get school ID with fallback for legacy components
  */
-export function getSchoolIdWithFallback(defaultId: string = 'test-school-0'): string {
-  return getUserSchoolId().then(id => id || defaultId).catch(() => defaultId);
+export function getSchoolIdWithFallback(defaultId: string = 'test-school-0'): Promise<string> {
+  return getUserSchoolId()
+    .then(id => id || defaultId)
+    .catch(() => defaultId);
 }
 
 /**
