@@ -48,6 +48,7 @@ export const insertTeacher = async (teacherData: {
 
 /**
  * Helper function to properly type Supabase school inserts
+ * Returns data safely typed with explicit error checking
  */
 export const insertSchool = async (schoolData: {
   name: string;
@@ -55,10 +56,16 @@ export const insertSchool = async (schoolData: {
   contact_email?: string;
   description?: string;
 }) => {
-  return await supabase
+  const response = await supabase
     .from('schools')
     .insert(schoolData)
     .select();
+  
+  if (response.error) {
+    return { data: null, error: response.error };
+  }
+  
+  return { data: response.data?.[0] || null, error: null };
 };
 
 /**
@@ -100,6 +107,7 @@ export const verifySchoolCodeTyped = async (code: string) => {
 
 /**
  * Helper function for inserting documents
+ * Returns data safely with proper typing
  */
 export const insertDocument = async (docData: {
   user_id: string;
@@ -110,11 +118,17 @@ export const insertDocument = async (docData: {
   processing_status?: string;
   school_id?: string | null;
 }) => {
-  return await supabase
+  const response = await supabase
     .from('documents')
     .insert(docData)
     .select()
     .single();
+    
+  if (response.error) {
+    return { data: null, error: response.error };
+  }
+  
+  return { data: response.data, error: null };
 };
 
 /**
@@ -130,6 +144,16 @@ export const insertStudentInvite = async (inviteData: {
   return await supabase
     .from('student_invites')
     .insert(inviteData);
+};
+
+/**
+ * Helper function to update student status
+ */
+export const updateStudentStatus = async (studentId: string, status: string) => {
+  return await supabase
+    .from('students')
+    .update({ status })
+    .eq('id', studentId);
 };
 
 /**
@@ -150,12 +174,25 @@ export const getDocumentContent = async (documentId: string) => {
   const { data, error } = await supabase
     .from('document_content')
     .select('content')
-    .eq('document_id', documentId as any);
+    .eq('document_id', documentId);
     
   if (error || !data || data.length === 0) {
     return null;
   }
   
-  return data[0].content;
+  return data[0]?.content;
 };
 
+/**
+ * Type guard to check if a Supabase response contains data
+ */
+export function hasData<T>(response: { data: T | null; error: any }): response is { data: T; error: null } {
+  return !!response.data && !response.error;
+}
+
+/**
+ * Type guard to check if a Supabase response contains an error
+ */
+export function hasError(response: { data: any; error: any }): response is { data: null; error: any } {
+  return !!response.error;
+}

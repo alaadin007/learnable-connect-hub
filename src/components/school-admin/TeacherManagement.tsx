@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -91,7 +92,7 @@ const TeacherManagement = () => {
     }
   };
   
-  const onSubmit = async (values: FormValues) => {
+  const onSubmit = async (formValues: FormValues) => {
     if (!profile?.school_id) {
       toast.error("School information is missing");
       return;
@@ -99,20 +100,20 @@ const TeacherManagement = () => {
     
     setIsLoading(true);
     try {
-      if (values.method === "invite") {
+      if (formValues.method === "invite") {
         // Send invitation via edge function
         const { data, error } = await supabase.functions.invoke("invite-teacher", {
-          body: { email: values.email }
+          body: { email: formValues.email }
         });
         
         if (error) throw error;
-        toast.success(`Invitation sent to ${values.email}`);
+        toast.success(`Invitation sent to ${formValues.email}`);
       } else {
         // Create teacher account directly via edge function
         const { data, error } = await supabase.functions.invoke("create-teacher", {
           body: {
-            email: values.email,
-            full_name: values.full_name || undefined
+            email: formValues.email,
+            full_name: formValues.full_name || undefined
           }
         });
         
@@ -120,7 +121,7 @@ const TeacherManagement = () => {
         
         toast.success(
           <div>
-            <p>Teacher account created for {values.email}</p>
+            <p>Teacher account created for {formValues.email}</p>
             {data?.temp_password && (
               <p className="mt-2 font-mono text-xs">
                 Temporary password: {data.temp_password}
@@ -222,7 +223,7 @@ const TeacherManagement = () => {
             <Button type="submit" disabled={isLoading}>
               {isLoading ? (
                 "Submitting..."
-              ) : values.method === "invite" ? (
+              ) : selectedMethod === "invite" ? (
                 <>
                   <Mail className="mr-2 h-4 w-4" />
                   Send Invitation

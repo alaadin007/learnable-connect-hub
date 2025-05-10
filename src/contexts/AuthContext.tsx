@@ -3,7 +3,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode, useCa
 import { Session, User } from "@supabase/supabase-js";
 import { supabase, checkSupabaseConnection } from "@/integrations/supabase/client";
 import { Database } from "@/integrations/supabase/types";
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "sonner";
 import { isNetworkError, retryWithBackoff } from "@/utils/networkHelpers";
 
 // Define types for user roles based on the actual application structure
@@ -135,10 +135,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             localStorage.setItem('userRole', 'student');
           }
           
-          toast({
-            description: "Using profile data from account metadata",
-            variant: "default"
-          });
+          toast.success("Using profile data from account metadata");
           return;
         }
 
@@ -147,11 +144,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUserRole('student');
         setIsSuperviser(false);
         localStorage.setItem('userRole', 'student');
-        toast({
-          title: "Connection Issue", 
-          description: "Failed to load user profile. Some features may be limited.",
-          variant: "destructive"
-        });
+        toast.error("Failed to load user profile. Some features may be limited.");
         return;
       }
       
@@ -176,8 +169,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           .rpc('get_user_school_id_safe', { user_id_param: userId });
           
         if (schoolIdData) {
-          setSchoolId(schoolIdData);
-          localStorage.setItem('schoolId', schoolIdData);
+          const schoolIdValue = schoolIdData as string;
+          setSchoolId(schoolIdValue);
+          localStorage.setItem('schoolId', schoolIdValue);
         }
         
         setUserRole('school');
@@ -193,13 +187,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           .rpc('get_user_school_id_safe', { user_id_param: userId });
           
         if (schoolIdData) {
-          setSchoolId(schoolIdData);
-          localStorage.setItem('schoolId', schoolIdData);
+          const schoolIdValue = schoolIdData as string;
+          setSchoolId(schoolIdValue);
+          localStorage.setItem('schoolId', schoolIdValue);
         }
         
         if (userRoleData) {
-          setUserRole(userRoleData as UserRole);
-          localStorage.setItem('userRole', userRoleData);
+          const roleValue = userRoleData as UserRole;
+          setUserRole(roleValue);
+          localStorage.setItem('userRole', roleValue);
         } else {
           // Default to student role if we can't determine
           setUserRole('student');
@@ -372,11 +368,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       if (response.error) {
         console.error("Sign in error:", response.error);
-        toast({
-          title: "Login Failed", 
-          description: response.error.message,
-          variant: "destructive"
-        });
+        toast.error(response.error.message);
       }
       
       return response;
@@ -386,17 +378,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Check if it's a network error
       if (isNetworkError(error)) {
         setConnectionError(true);
-        toast({
-          title: "Network Error",
-          description: "Please check your internet connection and try again.",
-          variant: "destructive"
-        });
+        toast.error("Please check your internet connection and try again.");
       } else {
-        toast({
-          title: "Login Error",
-          description: error.message || "Unknown error",
-          variant: "destructive"
-        });
+        toast.error(error.message || "Unknown error");
       }
       
       return { error, data: null };
@@ -429,11 +413,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       if (response.error) {
         console.error("Sign up error:", response.error);
-        toast({
-          title: "Registration Failed", 
-          description: response.error.message,
-          variant: "destructive"
-        });
+        toast.error(response.error.message);
       }
       
       return response;
@@ -443,17 +423,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Check if it's a network error
       if (isNetworkError(error)) {
         setConnectionError(true);
-        toast({
-          title: "Network Error",
-          description: "Please check your internet connection and try again.",
-          variant: "destructive"
-        });
+        toast.error("Please check your internet connection and try again.");
       } else {
-        toast({
-          title: "Registration Error",
-          description: error.message || "Unknown error",
-          variant: "destructive"
-        });
+        toast.error(error.message || "Unknown error");
       }
       
       return { error, data: null };
@@ -471,11 +443,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       if (error) {
         console.error("Sign out error:", error);
-        toast({
-          title: "Logout Failed", 
-          description: error.message,
-          variant: "destructive"
-        });
+        toast.error(error.message);
         throw error;
       }
       
@@ -489,18 +457,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       localStorage.removeItem('userRole');
       localStorage.removeItem('schoolId');
       
-      toast({
-        title: "Success",
-        description: "You have been logged out successfully",
-        variant: "default"
-      });
+      toast.success("You have been logged out successfully");
     } catch (error: any) {
       console.error("Error signing out:", error);
-      toast({
-        title: "Logout Error", 
-        description: error.message || "Unknown error",
-        variant: "destructive"
-      });
+      toast.error(error.message || "Unknown error");
     } finally {
       setIsLoading(false);
     }
@@ -558,18 +518,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Reset connection error for test users
       setConnectionError(false);
       
-      toast({
-        title: "Test Account Activated",
-        description: `Now using ${testUser.role} test account: ${testUser.name}`,
-        variant: "default"
-      });
+      toast.success(`Now using ${testUser.role} test account: ${testUser.name}`);
     } catch (error) {
       console.error("Error setting test user:", error);
-      toast({
-        title: "Test Account Error",
-        description: "Failed to set up test account.",
-        variant: "destructive"
-      });
+      toast.error("Failed to set up test account.");
       throw error;
     }
   }, []);

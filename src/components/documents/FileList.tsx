@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -36,7 +37,7 @@ const FileList = () => {
       const { data, error } = await supabase
         .from('documents')
         .select('*')
-        .filter('user_id', 'eq', user.id)
+        .eq('user_id', user.id as string)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -70,7 +71,7 @@ const FileList = () => {
   const handleViewDocument = async (documentId: string) => {
     try {
       // First get document content
-      const content = await getDocumentContent(documentId);
+      const content = await getDocumentContent(documentId as string);
         
       if (!content) {
         toast.warning("Document content not found");
@@ -118,7 +119,7 @@ const FileList = () => {
       const { error: contentError } = await supabase
         .from('document_content')
         .delete()
-        .filter('document_id', 'eq', documentId);
+        .eq('document_id', documentId as string);
         
       if (contentError) {
         console.error("Error deleting document content:", contentError);
@@ -128,7 +129,7 @@ const FileList = () => {
       const { error: docError } = await supabase
         .from('documents')
         .delete()
-        .filter('id', 'eq', documentId);
+        .eq('id', documentId as string);
         
       if (docError) {
         throw docError;

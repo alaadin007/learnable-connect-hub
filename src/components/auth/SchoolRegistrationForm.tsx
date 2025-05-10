@@ -19,7 +19,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { AlertCircle } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { insertSchool, insertSchoolCode } from "@/utils/supabaseTypeHelpers";
+import { insertSchool, insertSchoolCode, hasData } from "@/utils/supabaseTypeHelpers";
 
 const formSchema = z.object({
   schoolName: z.string().min(2, { message: "School name must be at least 2 characters" }),
@@ -84,23 +84,20 @@ const SchoolRegistrationForm = () => {
       // Generate unique school code
       const schoolCode = generateSchoolCode();
       
-      // Create school record using the typed helper
-      const { data: schoolsData, error: schoolError } = await insertSchool({
+      // Create school record using the typed helper and safely handle the response
+      const schoolResponse = await insertSchool({
         name: data.schoolName,
         code: schoolCode,
         contact_email: data.contactEmail || data.adminEmail,
       });
 
-      if (schoolError || !schoolsData || schoolsData.length === 0) {
-        console.error("Error creating school:", schoolError);
+      if (!hasData(schoolResponse) || !schoolResponse.data) {
+        console.error("Error creating school:", schoolResponse.error);
         throw new Error("Failed to create school record");
       }
       
-      const school = schoolsData[0];
-      if (!school || !school.id) {
-        throw new Error("Failed to create school record");
-      }
-
+      const school = schoolResponse.data;
+      
       // Create school code record with reference to the school
       const { error: schoolCodeError } = await insertSchoolCode({
         code: schoolCode,

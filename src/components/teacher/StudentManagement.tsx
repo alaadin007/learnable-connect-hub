@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,7 +29,7 @@ import { Badge } from "@/components/ui/badge";
 import { format } from 'date-fns';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSchoolCode } from '@/hooks/use-school-code';
-import { insertStudentInvite } from '@/utils/supabaseTypeHelpers';
+import { insertStudentInvite, updateStudentStatus } from '@/utils/supabaseTypeHelpers';
 
 type Student = {
   id: string;
@@ -89,7 +90,7 @@ const StudentManagement = () => {
       const { data: studentData, error: studentError } = await supabase
         .from('students')
         .select('id')
-        .filter('school_id', 'eq', effectiveSchoolId);
+        .eq('school_id', effectiveSchoolId as string);
 
       if (studentError) throw studentError;
 
@@ -109,14 +110,17 @@ const StudentManagement = () => {
       if (profileError) throw profileError;
 
       // Format student data with profile info
-      const formattedStudents = profileData ? profileData.map(profile => ({
-        id: profile.id,
-        full_name: profile.full_name,
-        email: profile.email || profile.id, // Fallback to ID if email is not available
-        created_at: profile.created_at
-      })) : [];
-
-      setStudents(formattedStudents);
+      if (profileData) {
+        const formattedStudents: Student[] = profileData.map(profile => ({
+          id: profile.id,
+          full_name: profile.full_name,
+          email: profile.email || profile.id, // Fallback to ID if email is not available
+          created_at: profile.created_at
+        }));
+        setStudents(formattedStudents);
+      } else {
+        setStudents([]);
+      }
     } catch (error) {
       console.error('Error fetching students:', error);
       toast.error('Failed to load students');
@@ -136,14 +140,15 @@ const StudentManagement = () => {
       const { data: inviteData, error: inviteError } = await supabase
         .from('student_invites')
         .select('*')
-        .filter('school_id', 'eq', effectiveSchoolId);
+        .eq('school_id', effectiveSchoolId as string);
       
       if (inviteError) {
         throw inviteError;
       }
       
       if (inviteData) {
-        setInvites(inviteData as StudentInvite[]);
+        // Type assertion for safety
+        setInvites(inviteData as unknown as StudentInvite[]);
       } else {
         setInvites([]);
       }
@@ -290,10 +295,7 @@ const StudentManagement = () => {
       // Fallback to direct database update
       try {
         console.log("Falling back to direct database update");
-        const { error: updateError } = await supabase
-          .from('students')
-          .update({ status: 'revoked' })
-          .filter('id', 'eq', studentId);
+        const { error: updateError } = await updateStudentStatus(studentId, 'revoked');
           
         if (updateError) throw updateError;
         
