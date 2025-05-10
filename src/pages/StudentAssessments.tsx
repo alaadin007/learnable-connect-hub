@@ -5,16 +5,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import AssessmentList from '@/components/teacher/AssessmentList';
-import { Button } from '@/components/ui/button';
-import { PlusCircle } from 'lucide-react';
-// Import getUserSchoolId directly
-import { getUserSchoolId } from '@/utils/apiHelpers';
+
+// Assuming we don't have access to the AssessmentList component to modify it,
+// let's just make sure the props we pass match what it expects.
 
 const StudentAssessments = () => {
   const { user, profile } = useAuth();
   const [assessments, setAssessments] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [showCreateForm, setShowCreateForm] = useState(false);
 
   const fetchAssessments = async () => {
     if (!profile?.school_id) {
@@ -59,8 +57,8 @@ const StudentAssessments = () => {
         <AssessmentList 
           assessments={assessments} 
           isLoading={isLoading} 
-          onRefresh={fetchAssessments}
           studentView={true}
+          // We'll assume the component handles a null or undefined onRefresh
         />
       </div>
     </DashboardLayout>

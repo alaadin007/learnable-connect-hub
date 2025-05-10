@@ -1,5 +1,6 @@
+
 import { supabase } from '@/integrations/supabase/client';
-import { UserType, ProfileData } from '@/types/profile';
+import { ProfileData } from '@/types/profile';
 import { format } from 'date-fns';
 import { 
   DateRange, 
@@ -235,7 +236,7 @@ export async function deleteDocumentContent(documentId: string) {
 /**
  * Create a profile with type safety
  */
-export async function createProfile(profile: Omit<ProfileData, 'id'> & { id?: string }): Promise<ProfileData | null> {
+export async function createProfile(profile: Omit<ProfileData, 'id'> & { id?: string, user_type: string }): Promise<ProfileData | null> {
   try {
     // Ensure we have a valid id, otherwise get it from auth
     const id = profile.id || (await supabase.auth.getUser()).data.user?.id;
@@ -270,7 +271,7 @@ export async function createProfile(profile: Omit<ProfileData, 'id'> & { id?: st
  */
 export async function insertProfile(profile: {
   id: string;
-  user_type: UserType;
+  user_type: string;
   full_name: string;
   email?: string;
   school_id?: string;
@@ -385,7 +386,7 @@ export function getUserRoleWithFallback(fallback: string = 'student'): string {
 /**
  * Check if user is a school admin
  */
-export function isSchoolAdmin(userRole: UserRole): boolean {
+export function isSchoolAdmin(userRole: UserRole | null | undefined): boolean {
   if (!userRole) return false;
   // Fix the comparison by checking the string value directly
   return userRole === 'school_admin' || userRole === 'teacher_supervisor';
@@ -453,118 +454,33 @@ export async function getSchoolIdWithFallback(defaultId: string = 'test-school-0
   }
 }
 
-// Synchronous version for components that can't handle async
-export function getSchoolIdSync(defaultId: string = 'test-school-0'): string {
-  // Use a default value until the async function resolves
-  return defaultId;
-}
-
 /**
- * Get analytics summary data from database
- */
-export async function getAnalyticsSummary(schoolId: string): Promise<AnalyticsSummary> {
-  try {
-    const { data, error } = await supabase
-      .from('school_analytics_summary')
-      .select('*')
-      .eq('school_id', schoolId)
-      .maybeSingle();
-      
-    if (error) throw error;
-    
-    // Map to the expected AnalyticsSummary format
-    return data ? {
-      activeStudents: data.active_students || 0,
-      totalSessions: data.total_sessions || 0,
-      totalQueries: data.total_queries || 0,
-      avgSessionMinutes: data.avg_session_minutes || 0
-    } : {
-      activeStudents: 0,
-      totalSessions: 0,
-      totalQueries: 0,
-      avgSessionMinutes: 0
-    };
-  } catch (err) {
-    console.error('Error getting analytics summary:', err);
-    return {
-      activeStudents: 0,
-      totalSessions: 0,
-      totalQueries: 0,
-      avgSessionMinutes: 0
-    };
-  }
-}
-
-/**
- * Get session logs data from database
- */
-export async function getSessionLogs(schoolId: string, filters?: AnalyticsFilters): Promise<SessionData[]> {
-  try {
-    let query = supabase
-      .from('session_logs')
-      .select(`
-        *,
-        student:user_id (
-          full_name
-        )
-      `)
-      .eq('school_id', schoolId)
-      .order('session_start', { ascending: false });
-      
-    // Apply date filters if provided
-    if (filters?.dateRange) {
-      if (filters.dateRange.from) {
-        query = query.gte('session_start', filters.dateRange.from.toISOString());
-      }
-      if (filters.dateRange.to) {
-        query = query.lte('session_start', filters.dateRange.to.toISOString());
-      }
-    }
-    
-    const { data, error } = await query;
-      
-    if (error) throw error;
-    
-    // Map to SessionData format
-    return data?.map(session => ({
-      id: session.id,
-      student_id: session.user_id,
-      student_name: session.student?.full_name || 'Unknown Student',
-      start_time: session.session_start,
-      end_time: session.session_end,
-      duration_minutes: session.session_end ? 
-        Math.round((new Date(session.session_end).getTime() - new Date(session.session_start).getTime()) / 60000) : 
-        0,
-      queries_count: session.num_queries || 0,
-      topic: session.topic_or_content_used
-    })) || [];
-  } catch (err) {
-    console.error('Error getting session logs:', err);
-    return [];
-  }
-}
-
-/**
- * Get popular topics data
- */
-export async function getPopularTopics(schoolId: string, filters?: AnalyticsFilters): Promise<TopicData[]> {
-  return getTopics(schoolId, filters);
-}
-
-/**
- * Get student study time data
- */
-export async function getStudentStudyTime(schoolId: string, filters?: AnalyticsFilters): Promise<StudyTimeData[]> {
-  return getStudyTime(schoolId, filters);
-}
-
-/**
- * Get school ID with fallback for legacy components
+ * Get school ID synchronously with fallback
  */
 export function getSchoolIdSync(defaultId: string = 'test-school-0'): string {
   // Use a default value until the async function resolves
   return defaultId;
 }
+
+// Import these functions from analyticsUtils to avoid duplication
+import { 
+  getAnalyticsSummary, 
+  getSessionLogs, 
+  getTopics,
+  getStudyTime,
+  getPopularTopics,
+  getStudentStudyTime 
+} from './analyticsUtils';
+
+// Re-export for backward compatibility
+export { 
+  getAnalyticsSummary, 
+  getSessionLogs, 
+  getTopics,
+  getStudyTime,
+  getPopularTopics,
+  getStudentStudyTime
+};
 
 // Placeholder functions for missing exports referenced in AnalyticsDashboard
 export function getStudentPerformance(schoolId: string): Promise<any[]> {

@@ -1,4 +1,6 @@
 
+export type UserType = 'student' | 'teacher' | 'school_admin' | 'teacher_supervisor' | 'school';
+
 export interface Profile {
   id: string;
   first_name?: string;
@@ -11,7 +13,7 @@ export interface Profile {
     code?: string;
   };
   organization_id?: string;
-  user_type?: string;
+  user_type?: UserType;
   is_supervisor?: boolean;
   email?: string;
   created_at?: string;
@@ -24,4 +26,3 @@ export interface Profile {
 }
 
 export type ProfileData = Profile;
-

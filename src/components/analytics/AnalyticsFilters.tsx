@@ -4,23 +4,31 @@ import { Button } from "@/components/ui/button";
 import { DateRange } from 'react-day-picker';
 import { addDays } from "date-fns";
 import { CalendarIcon } from "lucide-react";
+import { AnalyticsFilters as FiltersType } from './types';
 
-interface AnalyticsFiltersProps {
-  dateRange: DateRange | undefined;
-  onDateRangeChange: (range: DateRange | undefined) => void;
+export interface AnalyticsFiltersProps {
+  currentFilters: FiltersType;
+  onFiltersChange: (filters: FiltersType) => void;
+  isLoading: boolean;
 }
 
-export function AnalyticsFilters({ dateRange, onDateRangeChange }: AnalyticsFiltersProps) {
+export function AnalyticsFilters({ currentFilters, onFiltersChange, isLoading }: AnalyticsFiltersProps) {
   const handleQuickDateRange = (days: number) => {
     const today = new Date();
-    onDateRangeChange({
-      from: addDays(today, -days),
-      to: today,
+    onFiltersChange({
+      ...currentFilters,
+      dateRange: {
+        from: addDays(today, -days),
+        to: today,
+      }
     });
   };
 
   const clearDateRange = () => {
-    onDateRangeChange(undefined);
+    onFiltersChange({
+      ...currentFilters,
+      dateRange: undefined
+    });
   };
 
   return (
@@ -29,6 +37,7 @@ export function AnalyticsFilters({ dateRange, onDateRangeChange }: AnalyticsFilt
         variant="outline" 
         size="sm"
         onClick={() => handleQuickDateRange(7)}
+        disabled={isLoading}
       >
         <CalendarIcon className="mr-2 h-4 w-4" />
         Last 7 days
@@ -38,6 +47,7 @@ export function AnalyticsFilters({ dateRange, onDateRangeChange }: AnalyticsFilt
         variant="outline" 
         size="sm"
         onClick={() => handleQuickDateRange(30)}
+        disabled={isLoading}
       >
         <CalendarIcon className="mr-2 h-4 w-4" />
         Last 30 days
@@ -47,6 +57,7 @@ export function AnalyticsFilters({ dateRange, onDateRangeChange }: AnalyticsFilt
         variant="outline" 
         size="sm"
         onClick={() => handleQuickDateRange(90)}
+        disabled={isLoading}
       >
         <CalendarIcon className="mr-2 h-4 w-4" />
         Last 90 days
@@ -56,6 +67,7 @@ export function AnalyticsFilters({ dateRange, onDateRangeChange }: AnalyticsFilt
         variant="outline" 
         size="sm"
         onClick={clearDateRange}
+        disabled={isLoading}
       >
         Clear
       </Button>

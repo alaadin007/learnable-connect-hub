@@ -3,8 +3,8 @@ import React, { useState } from 'react';
 import SessionsTable from './SessionsTable';
 import TopicsChart from './TopicsChart';
 import StudyTimeChart from './StudyTimeChart';
-import { AnalyticsFilters } from './AnalyticsFilters';
-import { AnalyticsExport } from './AnalyticsExport';
+import { AnalyticsFilters, AnalyticsFiltersProps } from './AnalyticsFilters';
+import { AnalyticsExport, AnalyticsExportProps } from './AnalyticsExport';
 import { AnalyticsSummaryCards } from './AnalyticsSummaryCards';
 import { DateRange, AnalyticsFilters as FiltersType } from '@/components/analytics/types';
 import { Card, CardContent } from '@/components/ui/card';
@@ -67,7 +67,11 @@ export const AnalyticsDashboard = ({
         <TabsContent value="overview" className="space-y-6">
           <Card>
             <CardContent className="pt-6">
-              <SessionsTable sessions={data.sessions} isLoading={isLoading} />
+              <SessionsTable 
+                sessions={data.sessions} 
+                isLoading={isLoading} 
+                title="Recent Sessions" 
+              />
             </CardContent>
           </Card>
           
@@ -88,7 +92,11 @@ export const AnalyticsDashboard = ({
         <TabsContent value="sessions">
           <Card>
             <CardContent className="pt-6">
-              <SessionsTable sessions={data.sessions} isLoading={isLoading} />
+              <SessionsTable 
+                sessions={data.sessions} 
+                isLoading={isLoading} 
+                title="All Sessions" 
+              />
             </CardContent>
           </Card>
         </TabsContent>
