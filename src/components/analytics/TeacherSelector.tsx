@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { retryWithBackoff, isNetworkError } from "@/utils/networkHelpers";
 
 interface TeacherSelectorProps {
   schoolId: string;
@@ -42,10 +43,16 @@ export function TeacherSelector({
 
       setIsLoading(true);
       try {
-        // Use our database function with improved error handling
+        // Use our database function with built-in AbortController for timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+        
+        // Use the Supabase function to get teachers
         const { data, error } = await supabase
-          .rpc('get_teachers_for_school', { school_id_param: schoolId })
-          .timeout(10000); // 10 second timeout
+          .rpc('get_teachers_for_school', { school_id_param: schoolId });
+        
+        // Clear the timeout since we got a response
+        clearTimeout(timeoutId);
 
         if (error) {
           console.error("Error fetching teachers:", error);
@@ -67,7 +74,7 @@ export function TeacherSelector({
         console.error("Error in TeacherSelector:", error);
         
         // If it's a network error, we handle it differently
-        if (error.message?.includes("Failed to fetch") || error.name === "TypeError") {
+        if (isNetworkError(error)) {
           toast.error("Network connection issue", { 
             description: "Please check your internet connection" 
           });

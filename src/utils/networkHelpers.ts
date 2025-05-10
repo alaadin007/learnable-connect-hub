@@ -23,7 +23,9 @@ export function isNetworkError(error: Error | unknown): boolean {
     'network error',
     'cannot connect',
     'internet connection',
-    'timeout exceeded'
+    'timeout exceeded',
+    'aborted',
+    'abort'
   ];
   
   return networkErrorPatterns.some(pattern => 
