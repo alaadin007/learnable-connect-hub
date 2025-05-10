@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Profile, UserType } from '@/types/profile';
@@ -35,7 +34,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [isSupervisor, setIsSupervisor] = useState(false);
-  const [isLoading, setIsLoading] = useState(false); // Changed to false to avoid initial loading state
+  const [isLoading, setIsLoading] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [testUser, setTestUserInternal] = useState<{ email: string; password: string; role: string } | null>(null);
   const [sessionData, setSessionData] = useState<any>(null);
@@ -44,14 +43,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const navigate = useNavigate();
 
   const schoolId = profile?.school_id;
-
-  // Immediate role check for specific email addresses - temporary fix
-  const hardcodedRoleCheck = (email: string) => {
-    if (email === 'salman.k.786000@gmail.com') {
-      return 'school_admin' as UserRole;
-    }
-    return null;
-  };
 
   // Load initial session and subscribe to auth changes
   useEffect(() => {
@@ -127,30 +118,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return;
       }
 
-      // Check for hardcoded role override
-      const hardcodedRole = hardcodedRoleCheck(currentUser.email);
-
       if (profileData) {
         // Ensure user_type is a valid UserType or undefined
         let userTypeValue = profileData.user_type as UserType | undefined;
         
-        // Override with hardcoded role if it exists
-        if (hardcodedRole) {
-          userTypeValue = hardcodedRole;
+        // Checking metadata for user_type if it's not in the profile
+        if (!userTypeValue && currentUser.user_metadata?.user_type) {
+          userTypeValue = currentUser.user_metadata.user_type as UserType;
           
-          // Update the database with the correct role - this fixes the issue permanently
-          if (currentUser.email === 'salman.k.786000@gmail.com') {
-            await supabase
-              .from('profiles')
-              .update({ user_type: 'school_admin' })
-              .eq('id', currentUser.id);
-
-            // Also update user's role in roles table
-            await supabase.rpc('assign_role', { 
-              user_id_param: currentUser.id, 
-              role_param: 'school_admin' 
-            });
-          }
+          // Update the profile with the correct role from metadata if needed
+          await supabase
+            .from('profiles')
+            .update({ user_type: userTypeValue })
+            .eq('id', currentUser.id);
         }
         
         const typedRole = userTypeValue as UserRole | null;
@@ -288,8 +268,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       // Navigate to login page
       navigate('/login');
-    } finally {
+    } catch (error) {
       // We don't set loading state here to avoid flicker
+      console.error("Error during sign out:", error);
     }
   };
 
@@ -348,6 +329,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       };
 
       setProfile(processedProfile);
+    } catch (error) {
+      console.error("Error updating profile:", error);
     }
   };
 

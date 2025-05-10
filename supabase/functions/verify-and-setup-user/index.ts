@@ -49,11 +49,6 @@ serve(async (req) => {
     const schoolCode = userMetadata.school_code;
     const schoolName = userMetadata.school_name;
     
-    // Email-based role correction (temporary fix)
-    if (user.email === "salman.k.786000@gmail.com") {
-      userType = "school_admin";
-    }
-    
     console.log("User setup with metadata:", {
       userType,
       schoolId,
@@ -167,6 +162,16 @@ serve(async (req) => {
       }
       
     } else if (userType === "school_admin" || userType === "school") {
+      // Normalize user type for school admins
+      if (userType === "school") {
+        userType = "school_admin";
+        // Update the profile to ensure consistent typing
+        await supabaseClient
+          .from("profiles")
+          .update({ user_type: "school_admin" })
+          .eq("id", user.id);
+      }
+      
       // Add user to school_admins table
       const { data: adminData, error: adminError } = await supabaseClient
         .from("school_admins")

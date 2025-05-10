@@ -39,11 +39,19 @@ const ProtectedRoute = ({
   // If roles are specified, check them
   if (allowedRoles && allowedRoles.length > 0 && userRole) {
     const userRoleTyped = userRole as UserRole;
-    if (!allowedRoles.includes(userRoleTyped)) {
+    // Handle 'school' as equivalent to 'school_admin'
+    const normalizedUserRole = userRoleTyped === 'school' ? 'school_admin' : userRoleTyped;
+    
+    // Check against normalized roles
+    const normalizedAllowedRoles = allowedRoles.map(role => 
+      role === 'school' ? 'school_admin' : role
+    );
+    
+    if (!normalizedAllowedRoles.includes(normalizedUserRole)) {
       // Redirect based on role
-      if (userRoleTyped === 'school_admin' || userRoleTyped === 'school') {
+      if (normalizedUserRole === 'school_admin') {
         return <Navigate to="/admin" replace />;
-      } else if (userRoleTyped === 'teacher') {
+      } else if (normalizedUserRole === 'teacher') {
         return <Navigate to="/teacher/dashboard" replace />;
       } else {
         return <Navigate to="/dashboard" replace />;

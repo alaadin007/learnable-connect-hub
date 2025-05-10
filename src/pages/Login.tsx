@@ -20,6 +20,7 @@ const Login = () => {
     // If user is already authenticated, redirect based on role
     if (user && !isLoading) {
       console.log("User already logged in, redirecting based on role:", userRole);
+      
       if (userRole === 'school_admin' || userRole === 'school') {
         navigate('/admin', { replace: true });
       } else if (userRole === 'teacher') {
@@ -30,7 +31,6 @@ const Login = () => {
     }
   }, [user, userRole, navigate, isLoading, from]);
   
-  // Don't show any loading indicators, render the form immediately
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="w-full max-w-md space-y-8">
