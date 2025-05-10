@@ -17,7 +17,7 @@ const ProtectedRoute = ({
   allowedRoles,
   requireSupervisor = false,
 }: ProtectedRouteProps) => {
-  const { user, userRole, profile, loading: isLoading } = useAuth();
+  const { user, userRole, profile, isLoading } = useAuth(); // Using isLoading instead of loading
   const isLoggedIn = !!user;
   const isSupervisor = profile?.is_supervisor || false;
 

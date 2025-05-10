@@ -20,6 +20,7 @@ export interface Profile {
   school_code?: string;
   school_name?: string;
   is_active?: boolean;
+  loading?: boolean;  // Add loading prop for compatibility
 }
 
 export type ProfileData = Profile;

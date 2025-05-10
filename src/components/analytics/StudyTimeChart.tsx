@@ -32,7 +32,7 @@ const StudyTimeChart = ({
     if (!data || data.length === 0) return [];
     
     return data.map(item => ({
-      name: item.student_name || item.studentName || item.name || `Student ${item.student_id || ""}`,
+      name: item.student_name || item.name || `Student ${item.student_id || ""}`,
       hours: item.total_minutes ? (item.total_minutes / 60) : (item.hours || 0)
     }));
   }, [data]);

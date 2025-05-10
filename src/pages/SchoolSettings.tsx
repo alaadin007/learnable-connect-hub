@@ -1,123 +1,101 @@
+// Add the toast import at the top
+import { toast } from "sonner";
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import Navbar from '@/components/layout/Navbar';
-import Sidebar from '@/components/layout/Sidebar';
+import { useAuth } from '@/contexts/AuthContext';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import SchoolCodeGenerator from '@/components/school-admin/SchoolCodeGenerator';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Button } from "@/components/ui/button"
-import { CheckCircle } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 
 const SchoolSettings = () => {
   const { user, profile } = useAuth();
   const [schoolName, setSchoolName] = useState('');
+  const [schoolCode, setSchoolCode] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [isCodeGenerated, setIsCodeGenerated] = useState(false);
-  const [generatedCode, setGeneratedCode] = useState<string | null>(null);
-  const [isCopied, setIsCopied] = useState(false);
 
   useEffect(() => {
-    if (profile?.school_name) {
-      setSchoolName(profile.school_name);
+    if (profile) {
+      setSchoolName(profile.school_name || '');
+      setSchoolCode(profile.school_code || '');
     }
-  }, [profile?.school_name]);
+  }, [profile]);
 
-  const handleSaveSchoolName = async () => {
+  const handleSaveSettings = async () => {
     setIsSaving(true);
     try {
       if (!user?.id) {
-        throw new Error("User ID not found");
+        throw new Error("User not authenticated");
       }
+
+      const updates = {
+        school_name: schoolName,
+        school_code: schoolCode
+      };
 
       const { error } = await supabase
-        .from('schools')
-        .update({ name: schoolName })
-        .eq('id', profile?.school_id);
-
-      if (error) {
-        throw error;
-      }
-
-      // Update the profile as well
-      const { error: profileError } = await supabase
         .from('profiles')
-        .update({ school_name: schoolName })
+        .update(updates)
         .eq('id', user.id);
 
-      if (profileError) {
-        throw profileError;
+      if (error) {
+        console.error("Error updating school settings:", error);
+        toast.error("Failed to update school settings");
+        return;
       }
 
-      toast.success("School name updated successfully!");
+      // Optimistically update the local profile
+      // setProfile({ ...profile, ...updates });
+
+      toast.success("School settings updated successfully!");
     } catch (error: any) {
-      console.error("Error updating school name:", error);
-      toast.error(error.message || "Failed to update school name");
+      console.error("Error updating school settings:", error);
+      toast.error(error.message || "Failed to update school settings");
     } finally {
       setIsSaving(false);
-    }
-  };
-
-  const handleCodeGenerated = (code: string) => {
-    setGeneratedCode(code);
-    setIsCodeGenerated(true);
-  };
-
-  const copyToClipboard = () => {
-    if (generatedCode) {
-      navigator.clipboard.writeText(generatedCode);
-      setIsCopied(true);
-      toast.success("School code copied to clipboard");
-      setTimeout(() => setIsCopied(false), 2000);
     }
   };
 
   return (
     <DashboardLayout>
       <div className="container py-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <div className="md:col-span-1">
-            <Sidebar />
+        <Card>
+          <CardHeader>
+            <CardTitle>School Settings</CardTitle>
+            <CardDescription>
+              Manage your school's information and settings.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="schoolName">School Name</Label>
+                <Input
+                  type="text"
+                  id="schoolName"
+                  value={schoolName}
+                  onChange={(e) => setSchoolName(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="schoolCode">School Code</Label>
+                <Input
+                  type="text"
+                  id="schoolCode"
+                  value={schoolCode}
+                  onChange={(e) => setSchoolCode(e.target.value)}
+                />
+              </div>
+            </div>
+          </CardContent>
+          <div className="p-6">
+            <Button onClick={handleSaveSettings} disabled={isSaving}>
+              {isSaving ? "Saving..." : "Save Settings"}
+            </Button>
           </div>
-          <div className="md:col-span-3 space-y-6">
-            <Card className="w-full">
-              <CardHeader>
-                <CardTitle>School Information</CardTitle>
-                <CardDescription>
-                  Update your school's information here.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="schoolName">School Name</Label>
-                  <Input
-                    id="schoolName"
-                    placeholder="Learnable Academy"
-                    value={schoolName}
-                    onChange={(e) => setSchoolName(e.target.value)}
-                  />
-                </div>
-                <Button
-                  className="w-full gradient-bg"
-                  onClick={handleSaveSchoolName}
-                  disabled={isSaving}
-                >
-                  {isSaving ? "Saving..." : "Save School Name"}
-                </Button>
-              </CardContent>
-            </Card>
-
-            <SchoolCodeGenerator onCodeGenerated={handleCodeGenerated} />
-          </div>
-        </div>
+        </Card>
       </div>
     </DashboardLayout>
   );

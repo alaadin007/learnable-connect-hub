@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { PlusCircle } from 'lucide-react';
 
 const AdminTeachers = () => {
-  const { user, profile, isSuperviser } = useAuth();
+  const { user, profile, isSupervisor } = useAuth(); // Fix from isSuperviser to isSupervisor
   const [teachers, setTeachers] = useState<any[]>([]);
   const [showInviteForm, setShowInviteForm] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -69,7 +69,10 @@ const AdminTeachers = () => {
         
         {showInviteForm && (
           <div className="mb-6">
-            <TeacherInviteForm onInviteSent={handleTeacherInvited} onCancel={() => setShowInviteForm(false)} />
+            <TeacherInviteForm 
+              onInviteSent={handleTeacherInvited} 
+              onCancel={() => setShowInviteForm(false)} 
+            />
           </div>
         )}
         

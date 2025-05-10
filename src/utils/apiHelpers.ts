@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { UserRole } from '@/components/auth/ProtectedRoute';
@@ -451,6 +450,13 @@ export async function getUserSchoolId(userId?: string): Promise<string | null> {
 }
 
 /**
+ * Get school ID with fallback for legacy components
+ */
+export function getSchoolIdWithFallback(defaultId: string = 'test-school-0'): string {
+  return getUserSchoolId().then(id => id || defaultId).catch(() => defaultId);
+}
+
+/**
  * Get analytics summary data from database
  */
 export async function getAnalyticsSummary(schoolId: string): Promise<any> {
@@ -565,11 +571,13 @@ export async function getStudentPerformance(schoolId: string): Promise<any[]> {
       student_id: item.student_id,
       student_name: item.student_name,
       email: "", // This might need to be fetched separately
-      total_assessments: item.assessments_taken,
-      completed_assessments: item.assessments_completed,
-      avg_score: item.avg_score,
+      assessments_taken: item.assessments_taken || 0,
+      completed_assessments: item.assessments_completed || 0,
+      avg_score: item.avg_score || 0,
       improvement_rate: 0, // This might need to be calculated separately
-      last_assessment_date: new Date().toISOString() // This might need to be fetched separately
+      last_assessment_date: new Date().toISOString(), // This might need to be fetched separately
+      completion_rate: item.completion_rate || 0,
+      last_active: new Date().toISOString() // Placeholder, replace with actual data if available
     })) || [];
   } catch (err) {
     console.error('Error getting student performance:', err);

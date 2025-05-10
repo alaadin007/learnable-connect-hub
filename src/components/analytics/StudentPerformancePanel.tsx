@@ -38,8 +38,8 @@ export const StudentPerformanceTable = ({ data, isLoading }: StudentPerformanceT
               <TableBody>
                 {data.map((student, index) => (
                   <TableRow key={student.id || index}>
-                    <TableCell className="font-medium">{student.name}</TableCell>
-                    <TableCell className="text-right">{student.avg_score || student.average_score || 0}%</TableCell>
+                    <TableCell className="font-medium">{student.student_name}</TableCell>
+                    <TableCell className="text-right">{student.avg_score || 0}%</TableCell>
                     <TableCell className="text-right">{student.assessments_taken || 0}</TableCell>
                     <TableCell className="text-right">{student.completion_rate || 0}%</TableCell>
                     <TableCell>{student.last_active || "Not available"}</TableCell>

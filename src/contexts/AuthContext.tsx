@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Profile } from '@/types/profile';
@@ -10,14 +11,16 @@ interface AuthContextType {
   profile: Profile | null;
   userRole: UserRole | null;
   isSupervisor: boolean;
-  isLoading: boolean;
+  isLoading: boolean;  // Keep this for backward compatibility
+  loading: boolean;    // Add this for components expecting loading
   isLoggedIn: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, metadata?: any) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<any>;
+  signUp: (email: string, password: string, metadata?: any) => Promise<any>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<Profile>) => Promise<void>;
   setTestUser?: (user: { email: string; password: string; role: string }) => void;
   schoolId: string | undefined;
+  session: any; // Add session property for compatibility
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -35,6 +38,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const navigate = useNavigate();
   const [testUser, setTestUserInternal] = useState<{ email: string; password: string; role: string } | null>(null);
+  const [sessionData, setSessionData] = useState<any>(null);
 
   const schoolId = profile?.school_id;
 
@@ -46,6 +50,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         if (session) {
           setUser(session.user);
+          setSessionData(session);
           setIsLoggedIn(true);
           await loadProfile(session.user);
         } else if (testUser) {
@@ -61,6 +66,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           }
 
           setUser(data.user);
+          setSessionData(data.session);
           setIsLoggedIn(true);
           await loadProfile(data.user);
         }
@@ -74,6 +80,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session) {
         setUser(session.user);
+        setSessionData(session);
         setIsLoggedIn(true);
         await loadProfile(session.user);
       } else if (event === 'SIGNED_OUT') {
@@ -81,6 +88,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setProfile(null);
         setUserRole(null);
         setIsSupervisor(false);
+        setSessionData(null);
         setIsLoggedIn(false);
       }
     });
@@ -101,7 +109,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       if (profileData) {
         const typedRole = profileData.user_type as UserRole;
-        setProfile(profileData);
+        
+        // Convert organization JSON to expected format if needed
+        const processedProfile: Profile = {
+          ...profileData,
+          organization: typeof profileData.organization === 'object' 
+            ? profileData.organization 
+            : profileData.organization 
+              ? { id: profileData.school_id || '', name: profileData.school_name, code: profileData.school_code }
+              : undefined
+        };
+        
+        setProfile(processedProfile);
         setUserRole(typedRole);
         setIsSupervisor(profileData?.is_supervisor || false);
       }
@@ -120,12 +139,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       if (error) {
         console.error("Sign-in error:", error);
-        throw error;
+        return { error };
       }
 
       setUser(data.user);
+      setSessionData(data.session);
       setIsLoggedIn(true);
       await loadProfile(data.user);
+      return { success: true };
     } finally {
       setIsLoading(false);
     }
@@ -144,12 +165,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   
       if (error) {
         console.error("Signup error:", error);
-        throw error;
+        return { error };
       }
   
       setUser(data.user);
+      setSessionData(data.session);
       setIsLoggedIn(true);
       await loadProfile(data.user);
+      return { success: true };
     } finally {
       setIsLoading(false);
     }
@@ -168,6 +191,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setProfile(null);
       setUserRole(null);
       setIsSupervisor(false);
+      setSessionData(null);
       setIsLoggedIn(false);
       navigate('/login');
     } finally {
@@ -195,7 +219,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         throw error;
       }
 
-      setProfile(data);
+      // Convert organization JSON to expected format if needed
+      const processedProfile: Profile = {
+        ...data,
+        organization: typeof data.organization === 'object' 
+          ? data.organization 
+          : data.organization 
+            ? { id: data.school_id || '', name: data.school_name, code: data.school_code }
+            : undefined
+      };
+      
+      setProfile(processedProfile);
     } finally {
       setIsLoading(false);
     }
@@ -211,13 +245,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     userRole,
     isSupervisor,
     isLoading,
+    loading: isLoading, // Add loading alias
     isLoggedIn,
     signIn,
     signUp,
     signOut,
     updateProfile,
     setTestUser,
-    schoolId
+    schoolId,
+    session: sessionData
   };
 
   return (

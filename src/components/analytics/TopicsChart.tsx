@@ -33,8 +33,8 @@ const TopicsChart = ({
     if (!data || data.length === 0) return [];
     
     return data.map(item => ({
-      name: item.topic || item.name || "Unknown",
-      value: item.count || item.value || 0
+      name: item.topic || "Unknown",
+      value: item.count || 0
     }));
   }, [data]);
 

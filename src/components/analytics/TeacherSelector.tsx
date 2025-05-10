@@ -32,7 +32,7 @@ export function TeacherSelector({
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
-  const { session } = useAuth();
+  const { user } = useAuth(); // Change from session to user
 
   useEffect(() => {
     const fetchTeachers = async () => {
@@ -94,7 +94,7 @@ export function TeacherSelector({
     };
 
     fetchTeachers();
-  }, [schoolId, session, retryCount]);
+  }, [schoolId, user, retryCount]);
 
   const labelId = "teacher-selector-label";
 
