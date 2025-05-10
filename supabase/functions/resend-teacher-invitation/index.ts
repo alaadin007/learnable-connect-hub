@@ -8,7 +8,7 @@ const corsHeaders = {
 };
 
 // Simple email sending function - in production you'd use a proper email service
-async function sendEmail(email: string, invitationUrl: string, senderName: string = "School Admin") {
+async function sendEmail(email: string, invitationUrl: string, senderName: string = "School Admin", role: string = "teacher") {
   // Log the email that would be sent in development
   console.log(`
     To: ${email}
@@ -16,7 +16,7 @@ async function sendEmail(email: string, invitationUrl: string, senderName: strin
     
     Hi there,
     
-    This is a reminder that you've been invited to join our school on Learnable. Click the link below to accept the invitation:
+    This is a reminder that you've been invited to join our school on Learnable as a ${role}. Click the link below to accept the invitation:
     
     ${invitationUrl}
     
@@ -94,7 +94,7 @@ serve(async (req) => {
     // Get the invitation details
     const { data: invitation, error: inviteError } = await supabaseClient
       .from("teacher_invitations")
-      .select("id, email, invitation_token, school_id")
+      .select("id, email, invitation_token, school_id, role")
       .eq("id", invitationId)
       .single();
 
@@ -145,7 +145,7 @@ serve(async (req) => {
       .single();
       
     // Send the email
-    await sendEmail(invitation.email, invitationUrl, senderData?.full_name);
+    await sendEmail(invitation.email, invitationUrl, senderData?.full_name, invitation.role || 'teacher');
 
     return new Response(
       JSON.stringify({ 

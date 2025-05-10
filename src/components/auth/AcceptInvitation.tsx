@@ -15,6 +15,7 @@ interface InvitationDetails {
   school_id?: string;
   school_name?: string;
   email?: string;
+  role?: string;
 }
 
 export default function AcceptInvitation() {
@@ -80,15 +81,18 @@ export default function AcceptInvitation() {
       
       // Persist role to database
       if (invitationDetails.school_id) {
-        await persistUserRoleToDatabase(user.id, 'teacher', invitationDetails.school_id);
+        const userRole = invitationDetails.role === 'admin' ? 'teacher' : invitationDetails.role || 'teacher';
+        const isAdmin = invitationDetails.role === 'admin';
+        
+        await persistUserRoleToDatabase(user.id, userRole as any, invitationDetails.school_id);
         
         // Update local storage for immediate use
-        localStorage.setItem('userRole', 'teacher');
+        localStorage.setItem('userRole', userRole);
         localStorage.setItem('schoolId', invitationDetails.school_id);
       }
       
       setAccepted(true);
-      toast.success(`You've joined ${invitationDetails.school_name} as a teacher`);
+      toast.success(`You've joined ${invitationDetails.school_name} as a ${invitationDetails.role || 'teacher'}`);
       
       // Refresh user profile to get updated roles
       await refreshProfile();
@@ -143,7 +147,7 @@ export default function AcceptInvitation() {
           <CardHeader className="text-center">
             <CheckCircle className="mx-auto h-12 w-12 text-green-500 mb-4" />
             <CardTitle>Invitation Accepted!</CardTitle>
-            <CardDescription>You are now a teacher at {invitationDetails.school_name}</CardDescription>
+            <CardDescription>You are now a {invitationDetails.role || 'teacher'} at {invitationDetails.school_name}</CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-center">Redirecting to your dashboard...</p>
@@ -158,11 +162,11 @@ export default function AcceptInvitation() {
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Teacher Invitation</CardTitle>
-          <CardDescription>Join {invitationDetails.school_name} as a teacher</CardDescription>
+          <CardDescription>Join {invitationDetails.school_name} as a {invitationDetails.role || 'teacher'}</CardDescription>
         </CardHeader>
         <CardContent>
           <p className="mb-4">
-            You've been invited to join <strong>{invitationDetails.school_name}</strong> as a teacher
+            You've been invited to join <strong>{invitationDetails.school_name}</strong> as a {invitationDetails.role || 'teacher'}
             using the email <strong>{invitationDetails.email}</strong>.
           </p>
           {user && user.email !== invitationDetails.email && (

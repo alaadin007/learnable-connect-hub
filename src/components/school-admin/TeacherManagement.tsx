@@ -179,6 +179,7 @@ const TeacherManagement = () => {
       }
 
       toast.success("Invitation resent successfully!");
+      loadInvitations(); // Reload to update the expiration date
     } catch (error: any) {
       toast.error(error.message || "Failed to resend invitation");
     } finally {
@@ -245,6 +246,28 @@ const TeacherManagement = () => {
     } finally {
       setIsDeleting(false);
       setAlertOpen(false);
+    }
+  };
+
+  const getRoleBadgeClass = (role?: string) => {
+    switch (role) {
+      case 'admin':
+        return "bg-blue-100 text-blue-800 border-blue-200";
+      case 'teacher_supervisor':
+        return "bg-purple-100 text-purple-800 border-purple-200";
+      default:
+        return "bg-gray-100 text-gray-800 border-gray-200";
+    }
+  };
+
+  const getRoleDisplay = (role?: string) => {
+    switch (role) {
+      case 'admin':
+        return "Admin";
+      case 'teacher_supervisor':
+        return "Supervisor";
+      default:
+        return "Teacher";
     }
   };
 
@@ -317,6 +340,7 @@ const TeacherManagement = () => {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="teacher">Teacher</SelectItem>
+                        <SelectItem value="teacher_supervisor">Teacher Supervisor</SelectItem>
                         <SelectItem value="admin">Admin</SelectItem>
                       </SelectContent>
                     </Select>
@@ -384,7 +408,14 @@ const TeacherManagement = () => {
                           />
                         </TableCell>
                         <TableCell>{invitation.email}</TableCell>
-                        <TableCell>{invitation.role || "teacher"}</TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant="outline"
+                            className={getRoleBadgeClass(invitation.role)}
+                          >
+                            {getRoleDisplay(invitation.role)}
+                          </Badge>
+                        </TableCell>
                         <TableCell>
                           <Badge 
                             variant={invitation.status === "accepted" ? "success" : 
@@ -468,7 +499,7 @@ const TeacherManagement = () => {
                       <TableCell>
                         {teacher.is_supervisor ? (
                           <Badge variant="outline" className="bg-blue-50 text-blue-800 border-blue-200">
-                            Admin
+                            Supervisor
                           </Badge>
                         ) : (
                           <Badge variant="outline" className="bg-gray-50 text-gray-800 border-gray-200">

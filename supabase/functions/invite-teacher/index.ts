@@ -8,7 +8,7 @@ const corsHeaders = {
 };
 
 // Simple email sending function - in production you'd use a proper email service
-async function sendEmail(email: string, invitationUrl: string, customMessage: string = "", senderName: string = "School Admin") {
+async function sendEmail(email: string, invitationUrl: string, customMessage: string = "", senderName: string = "School Admin", role: string = "teacher") {
   // Log the email that would be sent in development
   console.log(`
     To: ${email}
@@ -16,7 +16,7 @@ async function sendEmail(email: string, invitationUrl: string, customMessage: st
     
     Hi there,
     
-    You've been invited to join our school on Learnable. Click the link below to accept the invitation:
+    You've been invited to join our school on Learnable as a ${role}. Click the link below to accept the invitation:
     
     ${invitationUrl}
     
@@ -155,7 +155,7 @@ serve(async (req) => {
         console.error("Error fetching existing token:", tokenError);
       }
       
-      // Update the expiration date
+      // Update the expiration date and role
       const newExpiresAt = new Date();
       newExpiresAt.setDate(newExpiresAt.getDate() + 7); // 7 days from now
       
@@ -178,7 +178,7 @@ serve(async (req) => {
         .single();
         
       // Send the email
-      await sendEmail(email, invitationUrl, customMessage, senderData?.full_name);
+      await sendEmail(email, invitationUrl, customMessage, senderData?.full_name, role);
       
       return new Response(
         JSON.stringify({
@@ -235,7 +235,7 @@ serve(async (req) => {
       .single();
       
     // Send the invitation email
-    const emailResult = await sendEmail(email, invitationUrl, customMessage, senderData?.full_name);
+    const emailResult = await sendEmail(email, invitationUrl, customMessage, senderData?.full_name, role);
 
     return new Response(
       JSON.stringify({ 

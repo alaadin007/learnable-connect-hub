@@ -2005,6 +2005,7 @@ export type Database = {
           school_id: string
           school_name: string
           email: string
+          role: string
         }[]
       }
     }
