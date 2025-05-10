@@ -12,11 +12,6 @@ export async function getUserSchoolId(): Promise<string | null> {
       return storedSchoolId;
     }
     
-    // Use a demo ID if we're in development to prevent API errors
-    if (process.env.NODE_ENV === 'development') {
-      return 'demo-school-id';
-    }
-    
     // As a last resort, try to get from the session but with error handling
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -31,16 +26,26 @@ export async function getUserSchoolId(): Promise<string | null> {
         localStorage.setItem('schoolId', schoolId);
         return schoolId;
       }
+
+      // Try to get from a dedicated function
+      const { data: schoolId } = await supabase.rpc('get_user_school_id_safe', {
+        user_id_param: session.user.id
+      });
       
-      // Return a default value if we can't get the real one to prevent errors
-      return 'demo-school-id';
+      if (schoolId) {
+        localStorage.setItem('schoolId', schoolId);
+        return schoolId;
+      }
+      
+      // Return null if we couldn't get the school ID
+      return null;
     } catch (error) {
       console.error("Error getting user session:", error);
-      return 'demo-school-id';
+      return null;
     }
   } catch (error) {
     console.error("Error getting user school ID:", error);
-    return 'demo-school-id';
+    return null;
   }
 }
 
@@ -62,11 +67,21 @@ export async function getUserRole(): Promise<UserRole | null> {
       return role;
     }
     
-    // Return default role to prevent errors
-    return 'student';
+    // Try to get from a dedicated function
+    const { data: userRole } = await supabase.rpc('get_user_role_safe', {
+      user_id_param: session?.user?.id
+    });
+    
+    if (userRole) {
+      localStorage.setItem('userRole', userRole);
+      return userRole as UserRole;
+    }
+    
+    // Return null if we couldn't determine the role
+    return null;
   } catch (error) {
     console.error("Error getting user role:", error);
-    return 'student';
+    return null;
   }
 }
 
@@ -78,29 +93,57 @@ export function isSchoolAdmin(role: UserRole | null): boolean {
 // Generic function to invoke edge functions with better error handling
 export async function invokeEdgeFunction<T = any>(
   functionName: string, 
-  payload?: any
+  payload?: any,
+  options?: {
+    timeout?: number;
+    retries?: number;
+  }
 ): Promise<{ data: T | null; error: Error | null }> {
-  try {
-    // For development, provide mock responses to avoid API calls
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`Mock invoking edge function: ${functionName}`);
-      return { data: { success: true } as unknown as T, error: null };
-    }
-    
-    const { data, error } = await supabase.functions.invoke(functionName, {
-      body: payload || {}
-    });
-    
-    if (error) {
-      console.error(`Edge function error (${functionName}):`, error);
+  const timeout = options?.timeout || 15000; // 15s default
+  const maxRetries = options?.retries || 2;
+  
+  let attempts = 0;
+  
+  while (attempts <= maxRetries) {
+    try {
+      // Create AbortController for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
+      
+      const { data, error } = await supabase.functions.invoke(functionName, {
+        body: payload || {},
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (error) {
+        console.error(`Edge function error (${functionName}):`, error);
+        return { data: null, error };
+      }
+      
+      return { data, error: null };
+    } catch (error: any) {
+      attempts++;
+      
+      if (error.name === 'AbortError') {
+        console.error(`Edge function timeout (${functionName})`);
+        if (attempts <= maxRetries) {
+          console.log(`Retrying (${attempts}/${maxRetries})...`);
+          await new Promise(resolve => setTimeout(resolve, 1000 * attempts));
+          continue;
+        }
+      }
+      
+      console.error(`Exception invoking edge function (${functionName}):`, error);
       return { data: null, error };
     }
-    
-    return { data, error: null };
-  } catch (error: any) {
-    console.error(`Exception invoking edge function (${functionName}):`, error);
-    return { data: null, error };
   }
+  
+  return { 
+    data: null, 
+    error: new Error(`Failed after ${maxRetries} attempts`) 
+  };
 }
 
 // These functions always return values to prevent errors
@@ -150,7 +193,7 @@ export function getSchoolIdWithFallback(): string {
     console.error("Error parsing local session:", e);
   }
   
-  return 'demo-school-id';
+  return '';
 }
 
 // Function to save user role and school ID to database

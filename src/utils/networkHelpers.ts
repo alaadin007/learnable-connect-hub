@@ -25,7 +25,11 @@ export function isNetworkError(error: Error | unknown): boolean {
     'internet connection',
     'timeout exceeded',
     'aborted',
-    'abort'
+    'abort',
+    'connection refused',
+    'ECONNREFUSED',
+    'socket hang up',
+    'ETIMEDOUT'
   ];
   
   return networkErrorPatterns.some(pattern => 
@@ -39,7 +43,8 @@ export function isNetworkError(error: Error | unknown): boolean {
 export async function retryWithBackoff<T>(
   fn: () => Promise<T>,
   maxRetries: number = 3,
-  initialDelay: number = 1000
+  initialDelay: number = 1000,
+  onRetry?: (attempt: number, error: Error) => void
 ): Promise<T> {
   let retries = 0;
   let delay = initialDelay;
@@ -53,8 +58,39 @@ export async function retryWithBackoff<T>(
       }
       
       retries++;
+      
+      // Call onRetry callback if provided
+      if (onRetry && error instanceof Error) {
+        onRetry(retries, error);
+      }
+      
+      // Wait for the calculated delay
       await new Promise(resolve => setTimeout(resolve, delay));
-      delay *= 2; // Exponential backoff
+      
+      // Exponential backoff with jitter
+      delay = Math.min(delay * 2, 10000) * (0.8 + Math.random() * 0.4);
     }
   }
+}
+
+/**
+ * Creates a promise that rejects after a specified timeout
+ */
+export function createTimeout(ms: number): Promise<never> {
+  return new Promise((_, reject) => {
+    setTimeout(() => reject(new Error(`Request timed out after ${ms}ms`)), ms);
+  });
+}
+
+/**
+ * Execute a function with a timeout
+ */
+export async function executeWithTimeout<T>(
+  fn: () => Promise<T>,
+  timeoutMs: number = 10000
+): Promise<T> {
+  return Promise.race([
+    fn(),
+    createTimeout(timeoutMs)
+  ]);
 }

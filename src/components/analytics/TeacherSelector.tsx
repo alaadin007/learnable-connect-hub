@@ -43,12 +43,10 @@ export function TeacherSelector({
 
       setIsLoading(true);
       try {
-        // Use our database function with built-in AbortController for timeout
+        // Use AbortController for request timeout
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
         
-        // Use the updated secure function to get teachers
-        // This now uses the safe version that prevents infinite recursion
         const { data, error } = await supabase
           .rpc('get_teachers_for_school', { school_id_param: schoolId });
         
