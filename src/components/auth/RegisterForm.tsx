@@ -226,10 +226,12 @@ const RegisterForm = () => {
         try {
           const userId = authData.user.id;
           
-          // Use the typed helper functions
+          // Use the typed helper functions with correct type
+          const userType = data.userType as UserType;
+          
           await insertProfile({
             id: userId,
-            user_type: data.userType as UserType,
+            user_type: userType,
             full_name: data.fullName,
             email: data.email,
             school_id: schoolId,
@@ -258,7 +260,7 @@ const RegisterForm = () => {
           console.error("Fallback profile creation failed:", fallbackErr);
         }
       }
-      
+
       // Save the used code to the history if it's not already there
       try {
         const historyKey = `school_code_history_${schoolId}`;

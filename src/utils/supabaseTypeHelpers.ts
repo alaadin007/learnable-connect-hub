@@ -78,7 +78,7 @@ export const insertSchoolCode = async (codeData: {
 /**
  * Type definition for user types
  */
-export type UserType = "student" | "teacher" | "school_admin" | "school";
+export type UserType = "student" | "teacher" | "school_admin";
 
 /**
  * Helper function to verify a school code

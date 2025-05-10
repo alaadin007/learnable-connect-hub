@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -84,18 +85,21 @@ const SchoolRegistrationForm = () => {
       const schoolCode = generateSchoolCode();
       
       // Create school record using the typed helper
-      const { data: schools, error: schoolError } = await insertSchool({
+      const { data: schoolsData, error: schoolError } = await insertSchool({
         name: data.schoolName,
         code: schoolCode,
         contact_email: data.contactEmail || data.adminEmail,
       });
 
-      if (schoolError || !schools || schools.length === 0) {
+      if (schoolError || !schoolsData || schoolsData.length === 0) {
         console.error("Error creating school:", schoolError);
         throw new Error("Failed to create school record");
       }
       
-      const school = schools[0];
+      const school = schoolsData[0];
+      if (!school) {
+        throw new Error("Failed to create school record");
+      }
 
       // Create school code record with reference to the school
       const { error: schoolCodeError } = await insertSchoolCode({
