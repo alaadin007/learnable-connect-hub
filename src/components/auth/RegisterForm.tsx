@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/popover";
 import { Check, HelpCircle, Info, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { insertProfile, insertStudent, insertTeacher, UserType } from "@/utils/supabaseTypeHelpers";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Invalid email address" }),
@@ -223,37 +224,35 @@ const RegisterForm = () => {
         
         // Make a direct fallback attempt to update the profiles table
         try {
-          await supabase
-            .from('profiles')
-            .upsert({
-              user_type: data.userType,
-              full_name: data.fullName,
-              email: data.email,
-              school_id: schoolId,
-              school_code: data.schoolCode,
-              school_name: schoolName || "Unknown School"
-            }, {
-              onConflict: 'id'
-            });
+          const userId = authData.user.id;
+          
+          // Use the typed helper functions
+          await insertProfile({
+            id: userId,
+            user_type: data.userType as UserType,
+            full_name: data.fullName,
+            email: data.email,
+            school_id: schoolId,
+            school_code: data.schoolCode,
+            school_name: schoolName || "Unknown School"
+          });
             
           // If user is a student, also create a student record
           if (data.userType === 'student') {
-            await supabase
-              .from('students')
-              .insert({
-                school_id: schoolId,
-                status: 'pending' // Students start as pending
-              });
+            await insertStudent({
+              id: userId,
+              school_id: schoolId,
+              status: 'pending' // Students start as pending
+            });
           }
           
           // If user is a teacher, also create a teacher record
           if (data.userType === 'teacher') {
-            await supabase
-              .from('teachers')
-              .insert({
-                school_id: schoolId,
-                is_supervisor: false // Regular teachers are not supervisors
-              });
+            await insertTeacher({
+              id: userId,
+              school_id: schoolId,
+              is_supervisor: false // Regular teachers are not supervisors
+            });
           }
         } catch (fallbackErr) {
           console.error("Fallback profile creation failed:", fallbackErr);

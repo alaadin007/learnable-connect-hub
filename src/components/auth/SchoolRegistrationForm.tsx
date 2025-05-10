@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -19,6 +18,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { AlertCircle } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { insertSchool, insertSchoolCode } from "@/utils/supabaseTypeHelpers";
 
 const formSchema = z.object({
   schoolName: z.string().min(2, { message: "School name must be at least 2 characters" }),
@@ -83,32 +83,27 @@ const SchoolRegistrationForm = () => {
       // Generate unique school code
       const schoolCode = generateSchoolCode();
       
-      // Create school record using upsert
-      const { data: schoolData, error: schoolError } = await supabase
-        .from("schools")
-        .insert({
-          name: data.schoolName,
-          code: schoolCode,
-          contact_email: data.contactEmail || data.adminEmail,
-        })
-        .select();
+      // Create school record using the typed helper
+      const { data: schools, error: schoolError } = await insertSchool({
+        name: data.schoolName,
+        code: schoolCode,
+        contact_email: data.contactEmail || data.adminEmail,
+      });
 
-      if (schoolError || !schoolData || schoolData.length === 0) {
+      if (schoolError || !schools || schools.length === 0) {
         console.error("Error creating school:", schoolError);
         throw new Error("Failed to create school record");
       }
       
-      const school = schoolData[0];
+      const school = schools[0];
 
       // Create school code record with reference to the school
-      const { error: schoolCodeError } = await supabase
-        .from("school_codes")
-        .insert({
-          code: schoolCode,
-          school_name: data.schoolName,
-          active: true,
-          school_id: school.id
-        });
+      const { error: schoolCodeError } = await insertSchoolCode({
+        code: schoolCode,
+        school_name: data.schoolName,
+        active: true,
+        school_id: school.id
+      });
       
       if (schoolCodeError) {
         console.error("Error creating school code:", schoolCodeError);
