@@ -1,23 +1,19 @@
-// Define UserType enum and export it
-export type UserType = 'student' | 'teacher' | 'school_admin' | 'teacher_supervisor';
+import { supabase } from '@/integrations/supabase/client';
+import { UserType, ProfileData } from '@/types/profile';
+import { format } from 'date-fns';
+import { 
+  DateRange, 
+  AnalyticsFilters, 
+  SessionData, 
+  TopicData, 
+  StudyTimeData,
+  AnalyticsSummary,
+  SchoolPerformanceSummary
+} from '@/components/analytics/types';
+import { processProfileData } from '@/utils/analyticsUtils';
 
-// Interface for profile data
-export interface ProfileData {
-  id: string;
-  user_type: UserType;
-  full_name: string;
-  email?: string;
-  school_id?: string;
-  school_code?: string;
-  school_name?: string;
-  is_active?: boolean;
-  is_supervisor?: boolean;
-  organization?: {
-    id: string;
-    name?: string;
-    code?: string;
-  };
-}
+// Define UserType enum and export it
+export type UserRole = 'student' | 'teacher' | 'school_admin' | 'teacher_supervisor';
 
 // Helper functions
 
@@ -234,42 +230,6 @@ export async function deleteDocumentContent(documentId: string) {
     .from('document_content')
     .delete()
     .eq('document_id', documentId);
-}
-
-// Helper function to process profile data from Supabase
-function processProfileData(data: any): ProfileData {
-  let processedOrg: { id: string; name?: string; code?: string; } | undefined;
-  
-  if (data.organization) {
-    if (typeof data.organization === 'object' && !Array.isArray(data.organization)) {
-      // Handle organization object 
-      processedOrg = {
-        id: data.organization.id || data.school_id || '',
-        name: data.organization.name || data.school_name,
-        code: data.organization.code || data.school_code
-      };
-    } else if (data.school_id) {
-      // Fallback to school data
-      processedOrg = {
-        id: data.school_id,
-        name: data.school_name,
-        code: data.school_code
-      };
-    }
-  } else if (data.school_id) {
-    // Create organization from school data
-    processedOrg = {
-      id: data.school_id,
-      name: data.school_name,
-      code: data.school_code
-    };
-  }
-  
-  // Create processed profile with correctly typed organization
-  return {
-    ...data,
-    organization: processedOrg
-  } as ProfileData;
 }
 
 /**
@@ -642,12 +602,6 @@ export async function getStudyTime(schoolId: string, filters?: AnalyticsFilters)
   }
 }
 
-// Alias functions for backward compatibility
-export const fetchAnalyticsSummary = getAnalyticsSummary;
-export const fetchSessionLogs = getSessionLogs;
-export const fetchTopics = getTopics;
-export const fetchStudyTime = getStudyTime;
-
 /**
  * Format a date range as a readable string
  */
@@ -709,4 +663,32 @@ function downloadCSV(csvContent: string, filename: string): void {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+}
+
+// Export aliases for backward compatibility
+export {
+  getTopics as getPopularTopics,
+  getStudyTime as getStudentStudyTime
+};
+
+// Placeholder functions for missing exports referenced in AnalyticsDashboard
+export function getStudentPerformance(schoolId: string): Promise<any[]> {
+  return Promise.resolve([]);
+}
+
+export function getSchoolPerformance(schoolId: string): Promise<any[]> {
+  return Promise.resolve([]);
+}
+
+export function getSchoolPerformanceSummary(schoolId: string): Promise<SchoolPerformanceSummary> {
+  return Promise.resolve({
+    total_assessments: 0,
+    total_students: 0,
+    students_with_submissions: 0,
+    student_participation_rate: 0,
+    avg_score: 0,
+    completion_rate: 0,
+    improvement_rate: 0,
+    avg_submissions_per_assessment: 0
+  });
 }

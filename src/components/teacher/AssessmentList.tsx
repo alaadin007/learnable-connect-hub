@@ -1,101 +1,132 @@
 
 import React from 'react';
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
-import { Loader2 } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 
-interface AssessmentListProps {
-  assessments: any[];
-  isLoading: boolean;
-  onRefresh?: () => void;
-  studentView?: boolean;
+export interface Assessment {
+  id: string;
+  title: string;
+  description?: string;
+  due_date?: string;
+  max_score: number;
+  subject?: string;
+  teacher?: {
+    full_name: string;
+  };
+  submission?: {
+    id: string;
+    score: number | null;
+    completed: boolean;
+    submitted_at: string;
+  };
 }
 
-const AssessmentList = ({ 
-  assessments, 
-  isLoading, 
-  onRefresh,
-  studentView = false
-}: AssessmentListProps) => {
-  if (isLoading) {
-    return (
-      <div className="flex justify-center py-8">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
+interface AssessmentListProps {
+  assessments: Assessment[];
+  isLoading?: boolean;
+  isStudent?: boolean;
+  onTakeAssessment?: (assessmentId: string) => void;
+  onViewResult?: (assessmentId: string, submissionId: string) => void;
+}
 
-  if (assessments.length === 0) {
-    return (
-      <div className="text-center py-8">
-        <p className="text-muted-foreground">No assessments found.</p>
-        {onRefresh && (
-          <Button 
-            variant="outline" 
-            className="mt-2" 
-            onClick={onRefresh}
-          >
-            Refresh
-          </Button>
-        )}
-      </div>
-    );
-  }
+const AssessmentList: React.FC<AssessmentListProps> = ({
+  assessments,
+  isLoading = false,
+  isStudent = true,
+  onTakeAssessment,
+  onViewResult,
+}) => {
+  const formatDate = (dateStr?: string) => {
+    if (!dateStr) return 'No due date';
+    try {
+      return format(new Date(dateStr), 'MMM d, yyyy');
+    } catch (e) {
+      return 'Invalid date';
+    }
+  };
 
   return (
-    <div className="overflow-x-auto">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Title</TableHead>
-            <TableHead>Teacher</TableHead>
-            <TableHead>Due Date</TableHead>
-            <TableHead>Status</TableHead>
-            {!studentView && <TableHead>Actions</TableHead>}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {assessments.map((assessment) => (
-            <TableRow key={assessment.id}>
-              <TableCell>
-                <div>
-                  <div className="font-medium">{assessment.title}</div>
-                  {assessment.description && (
-                    <div className="text-sm text-muted-foreground truncate max-w-[250px]">
-                      {assessment.description}
-                    </div>
-                  )}
+    <Card>
+      <CardHeader>
+        <CardTitle>{isStudent ? 'My Assessments' : 'Assigned Assessments'}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="space-y-2">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="flex items-center justify-between p-2">
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-[250px]" />
+                  <Skeleton className="h-3 w-[200px]" />
                 </div>
-              </TableCell>
-              <TableCell>{assessment.teacher?.full_name || 'N/A'}</TableCell>
-              <TableCell>
-                {assessment.due_date 
-                  ? format(new Date(assessment.due_date), 'MMM d, yyyy') 
-                  : 'No due date'}
-              </TableCell>
-              <TableCell>
-                {assessment.submission ? (
-                  assessment.submission.completed ? (
-                    <Badge variant="success" className="bg-green-500">Completed</Badge>
-                  ) : (
-                    <Badge variant="secondary">In Progress</Badge>
-                  )
-                ) : (
-                  <Badge variant="outline">Not Started</Badge>
-                )}
-              </TableCell>
-              {!studentView && (
-                <TableCell>
-                  <Button variant="outline" size="sm">View</Button>
-                </TableCell>
-              )}
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
+                <Skeleton className="h-8 w-[100px]" />
+              </div>
+            ))}
+          </div>
+        ) : assessments.length === 0 ? (
+          <div className="text-center py-6 text-gray-500">
+            <p>No assessments found</p>
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Title</TableHead>
+                <TableHead>Subject</TableHead>
+                <TableHead>Due Date</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {assessments.map((assessment) => (
+                <TableRow key={assessment.id}>
+                  <TableCell className="font-medium">{assessment.title}</TableCell>
+                  <TableCell>{assessment.subject || 'General'}</TableCell>
+                  <TableCell>{formatDate(assessment.due_date)}</TableCell>
+                  <TableCell>
+                    {assessment.submission ? (
+                      assessment.submission.completed ? (
+                        <Badge variant="success">
+                          Completed {assessment.submission.score !== null && `(${assessment.submission.score}/${assessment.max_score})`}
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary">In Progress</Badge>
+                      )
+                    ) : (
+                      <Badge variant="outline">Not Started</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {assessment.submission && assessment.submission.completed ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onViewResult && onViewResult(assessment.id, assessment.submission!.id)}
+                      >
+                        View Results
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => onTakeAssessment && onTakeAssessment(assessment.id)}
+                      >
+                        {assessment.submission ? 'Continue' : 'Start'}
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 

@@ -101,14 +101,16 @@ const TeacherAnalytics = () => {
       <div className="container py-6">
         <h1 className="text-2xl font-bold mb-6">Student Analytics</h1>
         <AnalyticsDashboard
-          summary={summary}
-          sessions={sessions}
-          topics={topics}
-          studyTime={studyTime}
           isLoading={isLoading}
           filters={filters}
           onFilterChange={handleFilterChange}
           onExport={handleExport}
+          data={{
+            summary,
+            sessions,
+            topics,
+            studyTime
+          }}
         />
       </div>
     </DashboardLayout>
