@@ -1,9 +1,10 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
 import { Session, User } from "@supabase/supabase-js";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, checkSupabaseConnection } from "@/integrations/supabase/client";
 import { Database } from "@/integrations/supabase/types";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/use-toast";
+import { isNetworkError, retryWithBackoff } from "@/utils/networkHelpers";
 
 // Define types for user roles based on the actual application structure
 export type UserRole = "school" | "school_admin" | "teacher" | "student";
@@ -16,11 +17,13 @@ interface AuthState {
   isSuperviser: boolean;
   schoolId: string | null;
   isLoading: boolean;
+  connectionError: boolean;
   signIn: (email: string, password: string) => Promise<{ error: any | null; data: any | null }>;
   signUp: (email: string, password: string, metadata: any) => Promise<{ error: any | null; data: any | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   setTestUser: (type: "school" | "teacher" | "student", schoolIndex?: number) => Promise<void>;
+  recheckConnection: () => Promise<boolean>;
 }
 
 // Create context with a default value
@@ -32,11 +35,13 @@ const AuthContext = createContext<AuthState>({
   isSuperviser: false,
   schoolId: null,
   isLoading: true,
+  connectionError: false,
   signIn: async () => ({ error: null, data: null }),
   signUp: async () => ({ error: null, data: null }),
   signOut: async () => {},
   refreshProfile: async () => {},
   setTestUser: async () => {},
+  recheckConnection: async () => false,
 });
 
 // Define test user data
@@ -76,21 +81,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [schoolId, setSchoolId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSessionChecked, setIsSessionChecked] = useState(false);
+  const [connectionError, setConnectionError] = useState(false);
+
+  // Function to check database connection that can be called from components
+  const recheckConnection = async (): Promise<boolean> => {
+    const isConnected = await checkSupabaseConnection();
+    setConnectionError(!isConnected);
+    return isConnected;
+  };
 
   // Fetch user profile data including role and school information - wrapped in useCallback
   const fetchUserProfile = useCallback(async (userId: string) => {
     try {
       console.log("Fetching profile for user:", userId);
-
-      // Check for database access issues
-      const { error: testError } = await supabase
-        .from('profiles')
-        .select('count')
-        .limit(1);
-
-      if (testError) {
-        console.error("Database access test failed:", testError);
-        
+      
+      // Try connecting, if it fails we'll use fallback data
+      const isConnected = await checkSupabaseConnection();
+      
+      if (!isConnected) {
         // Use metadata from the session as a fallback if available
         if (user?.user_metadata) {
           const metadata = user.user_metadata;
@@ -127,7 +135,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             localStorage.setItem('userRole', 'student');
           }
           
-          toast.info("Using profile data from account metadata");
+          toast({
+            description: "Using profile data from account metadata",
+            variant: "default"
+          });
           return;
         }
 
@@ -136,13 +147,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUserRole('student');
         setIsSuperviser(false);
         localStorage.setItem('userRole', 'student');
-        toast.error("Failed to load user profile. Some features may be limited.");
+        toast({
+          title: "Connection Issue", 
+          description: "Failed to load user profile. Some features may be limited.",
+          variant: "destructive"
+        });
         return;
       }
       
       // First check if user is a school admin using the safer function
-      const { data: isAdminData } = await supabase
-        .rpc('is_school_admin_safe', { user_id_param: userId });
+      const { data: isAdminData, error: adminError } = await retryWithBackoff(
+        async () => await supabase.rpc('is_school_admin_safe', { user_id_param: userId }),
+        2, 1000
+      );
+      
+      if (adminError) {
+        console.error("Error checking if user is school admin:", adminError);
+        throw adminError;
+      }
       
       if (isAdminData) {
         console.log("User found as school admin");
@@ -188,11 +210,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
       
       // Get user profile data
-      const { data: profileData } = await supabase
+      const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .single();
+      
+      if (profileError) {
+        console.error("Error fetching user profile:", profileError);
+        throw profileError;
+      }
         
       if (profileData) {
         setProfile(profileData);
@@ -207,6 +234,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     } catch (error) {
       console.error("Error fetching user profile:", error);
+      
+      // Check if it's a network error
+      if (isNetworkError(error)) {
+        setConnectionError(true);
+      }
       
       // Set fallback role from metadata if we couldn't determine the role
       if (!userRole && user?.user_metadata?.user_type) {
@@ -269,6 +301,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       try {
         setIsLoading(true);
         
+        // First check if we can connect to the database
+        const isConnected = await checkSupabaseConnection();
+        setConnectionError(!isConnected);
+        
+        if (!isConnected) {
+          console.log("Database connection failed during initialization");
+          // We'll continue with the session check anyway,
+          // as we might have local data in localStorage
+        }
+        
         // Get current session
         const { data, error } = await supabase.auth.getSession();
         
@@ -292,6 +334,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (mounted) setIsSessionChecked(true);
       } catch (err) {
         console.error("Error loading initial session:", err);
+        
+        // Check if it's a network error
+        if (isNetworkError(err)) {
+          setConnectionError(true);
+        }
+        
         if (mounted) setIsSessionChecked(true);
       } finally {
         if (mounted) setIsLoading(false);
@@ -311,17 +359,46 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.log("Attempting to sign in with email:", email);
       setIsLoading(true);
       
+      // First check database connection
+      const isConnected = await checkSupabaseConnection();
+      if (!isConnected) {
+        return { 
+          error: { message: "Database connection failed. Please try again later." },
+          data: null
+        };
+      }
+      
       const response = await supabase.auth.signInWithPassword({ email, password });
       
       if (response.error) {
         console.error("Sign in error:", response.error);
-        toast.error(`Login failed: ${response.error.message}`);
+        toast({
+          title: "Login Failed", 
+          description: response.error.message,
+          variant: "destructive"
+        });
       }
       
       return response;
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error signing in:", error);
-      toast.error(`Login error: ${error.message || "Unknown error"}`);
+      
+      // Check if it's a network error
+      if (isNetworkError(error)) {
+        setConnectionError(true);
+        toast({
+          title: "Network Error",
+          description: "Please check your internet connection and try again.",
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Login Error",
+          description: error.message || "Unknown error",
+          variant: "destructive"
+        });
+      }
+      
       return { error, data: null };
     } finally {
       setIsLoading(false);
@@ -333,6 +410,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.log("Attempting to sign up with email:", email);
       setIsLoading(true);
       
+      // First check database connection
+      const isConnected = await checkSupabaseConnection();
+      if (!isConnected) {
+        return { 
+          error: { message: "Database connection failed. Please try again later." },
+          data: null
+        };
+      }
+      
       const response = await supabase.auth.signUp({ 
         email, 
         password, 
@@ -343,13 +429,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       if (response.error) {
         console.error("Sign up error:", response.error);
-        toast.error(`Registration failed: ${response.error.message}`);
+        toast({
+          title: "Registration Failed", 
+          description: response.error.message,
+          variant: "destructive"
+        });
       }
       
       return response;
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error signing up:", error);
-      toast.error(`Registration error: ${error.message || "Unknown error"}`);
+      
+      // Check if it's a network error
+      if (isNetworkError(error)) {
+        setConnectionError(true);
+        toast({
+          title: "Network Error",
+          description: "Please check your internet connection and try again.",
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Registration Error",
+          description: error.message || "Unknown error",
+          variant: "destructive"
+        });
+      }
+      
       return { error, data: null };
     } finally {
       setIsLoading(false);
@@ -365,7 +471,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       if (error) {
         console.error("Sign out error:", error);
-        toast.error(`Logout failed: ${error.message}`);
+        toast({
+          title: "Logout Failed", 
+          description: error.message,
+          variant: "destructive"
+        });
         throw error;
       }
       
@@ -379,10 +489,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       localStorage.removeItem('userRole');
       localStorage.removeItem('schoolId');
       
-      toast.success("You have been logged out successfully");
-    } catch (error) {
+      toast({
+        title: "Success",
+        description: "You have been logged out successfully",
+        variant: "default"
+      });
+    } catch (error: any) {
       console.error("Error signing out:", error);
-      toast.error(`Logout error: ${error.message || "Unknown error"}`);
+      toast({
+        title: "Logout Error", 
+        description: error.message || "Unknown error",
+        variant: "destructive"
+      });
     } finally {
       setIsLoading(false);
     }
@@ -436,8 +554,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setSchoolId(testUser.schoolId);
       localStorage.setItem('userRole', testUser.role);
       localStorage.setItem('schoolId', testUser.schoolId);
+      
+      // Reset connection error for test users
+      setConnectionError(false);
+      
+      toast({
+        title: "Test Account Activated",
+        description: `Now using ${testUser.role} test account: ${testUser.name}`,
+        variant: "default"
+      });
     } catch (error) {
       console.error("Error setting test user:", error);
+      toast({
+        title: "Test Account Error",
+        description: "Failed to set up test account.",
+        variant: "destructive"
+      });
       throw error;
     }
   }, []);
@@ -450,11 +582,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     isSuperviser,
     schoolId,
     isLoading: isLoading || !isSessionChecked,
+    connectionError,
     signIn,
     signUp,
     signOut,
     refreshProfile,
     setTestUser,
+    recheckConnection,
   };
 
   return (

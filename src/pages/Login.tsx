@@ -1,46 +1,61 @@
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import LoginForm from "@/components/auth/LoginForm";
 import Footer from "@/components/landing/Footer";
 import { Link, useNavigate } from "react-router-dom";
 import { AlertCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, checkSupabaseConnection } from "@/integrations/supabase/client";
 import { toast } from "@/components/ui/use-toast";
 import Navbar from "@/components/layout/Navbar";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const Login = () => {
   const { user, userRole, session, isLoading } = useAuth();
   const navigate = useNavigate();
+  const [connectionError, setConnectionError] = useState<boolean>(false);
+  const [connectionChecked, setConnectionChecked] = useState<boolean>(false);
   
   // Check Supabase connection on component mount
   useEffect(() => {
-    const checkSupabaseConnection = async () => {
+    const checkConnection = async () => {
       try {
-        // Simple ping test to verify API key is working
-        const { error } = await supabase.from('profiles').select('count', { count: 'exact', head: true });
-        if (error) {
-          console.error("Supabase connection error:", error);
-          
-          if (error.message.includes('No API key found')) {
-            // Attempt to refresh the session
-            const { data: refreshSessionData, error: refreshError } = await supabase.auth.refreshSession();
-            if (refreshError) {
-              console.error("Session refresh failed:", refreshError);
-              toast.error("Could not establish connection to database. Please refresh the page.");
-            }
-          } else {
-            toast.error("Database connection issue. Please try again later.");
-          }
-        }
+        const isConnected = await checkSupabaseConnection();
+        setConnectionError(!isConnected);
+        setConnectionChecked(true);
       } catch (err) {
-        console.error("Failed to check Supabase connection:", err);
-        toast.error("Connection error. Please refresh the page.");
+        console.error("Connection check failed:", err);
+        setConnectionError(true);
+        setConnectionChecked(true);
       }
     };
     
-    checkSupabaseConnection();
+    checkConnection();
   }, []);
+  
+  // Retry connection if there was an error
+  const retryConnection = async () => {
+    setConnectionChecked(false);
+    setConnectionError(false);
+    
+    try {
+      const isConnected = await checkSupabaseConnection();
+      setConnectionError(!isConnected);
+      setConnectionChecked(true);
+      
+      if (isConnected) {
+        toast({
+          title: "Connection Restored",
+          description: "Successfully reconnected to the database.",
+          variant: "default"
+        });
+      }
+    } catch (err) {
+      console.error("Retry connection failed:", err);
+      setConnectionError(true);
+      setConnectionChecked(true);
+    }
+  };
   
   // Redirect authenticated users to appropriate dashboard
   useEffect(() => {
@@ -81,6 +96,21 @@ const Login = () => {
       <Navbar />
       
       <main className="flex-grow bg-learnable-super-light flex flex-col items-center justify-center py-10">
+        {connectionError && connectionChecked && (
+          <Alert variant="destructive" className="mb-6 max-w-md w-full mx-auto">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription className="flex justify-between items-center">
+              <span>Database connection issue. Please try again later.</span>
+              <button 
+                onClick={retryConnection}
+                className="px-3 py-1 bg-red-900/20 hover:bg-red-900/30 rounded-md text-sm transition-colors"
+              >
+                Retry
+              </button>
+            </AlertDescription>
+          </Alert>
+        )}
+        
         <div className="max-w-md w-full mx-auto mb-6">
           <div className="bg-amber-100 border-l-4 border-amber-500 p-4 rounded-md shadow">
             <div className="flex items-start">
@@ -106,7 +136,22 @@ const Login = () => {
             </div>
           </div>
         </div>
-        <LoginForm />
+        
+        {/* Only show the login form if connection is not in error state */}
+        {(!connectionError || !connectionChecked) && <LoginForm />}
+        
+        {/* Show offline mode option when connection fails */}
+        {connectionError && connectionChecked && (
+          <div className="mt-4 text-center">
+            <p className="text-gray-600 mb-4">Having trouble connecting?</p>
+            <button
+              onClick={() => navigate("/test-accounts")}
+              className="text-learnable-blue hover:underline"
+            >
+              Try using test accounts in offline mode
+            </button>
+          </div>
+        )}
       </main>
       <Footer />
     </div>

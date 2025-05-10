@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -13,8 +14,8 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/components/ui/use-toast";
+import { supabase, checkSupabaseConnection } from "@/integrations/supabase/client";
 import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/contexts/AuthContext";
@@ -31,7 +32,7 @@ const LoginForm = () => {
   const location = useLocation();
   const [isLoading, setIsLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
-  const { signIn, user, userRole, session } = useAuth();
+  const { signIn, user, userRole, session, connectionError } = useAuth();
   
   // Check if we have a invitation token in the URL query params
   const searchParams = new URLSearchParams(location.search);
@@ -74,6 +75,18 @@ const LoginForm = () => {
     setIsLoading(true);
     setLoginError(null);
     
+    // Check database connection first
+    try {
+      const isConnected = await checkSupabaseConnection();
+      if (!isConnected) {
+        setLoginError("Cannot connect to the authentication service. Please try again later.");
+        setIsLoading(false);
+        return;
+      }
+    } catch (error) {
+      console.error("Connection check error:", error);
+    }
+    
     try {
       // Use the signIn method from AuthContext
       const { data: authData, error } = await signIn(data.email, data.password);
@@ -88,7 +101,10 @@ const LoginForm = () => {
       }
 
       console.log("Login successful:", authData);
-      toast.success("Login successful");
+      toast({
+        title: "Login Successful",
+        variant: "default"
+      });
       
       // Call the verify-and-setup-user function to ensure proper setup
       try {
@@ -107,7 +123,11 @@ const LoginForm = () => {
     } catch (error: any) {
       console.error("Login error:", error);
       setLoginError(error.message || "Login failed. Please try again.");
-      toast.error(error.message || "Login failed. Please try again.");
+      toast({
+        title: "Login Failed", 
+        description: error.message || "Login failed. Please try again.",
+        variant: "destructive"
+      });
     } finally {
       setIsLoading(false);
     }
@@ -116,8 +136,27 @@ const LoginForm = () => {
   const handleResetPassword = async () => {
     const email = form.getValues("email");
     if (!email) {
-      toast.error("Please enter your email address first");
+      toast({
+        title: "Email Required",
+        description: "Please enter your email address first",
+        variant: "destructive"
+      });
       return;
+    }
+    
+    // Check connection first
+    try {
+      const isConnected = await checkSupabaseConnection();
+      if (!isConnected) {
+        toast({
+          title: "Connection Error",
+          description: "Cannot connect to the authentication service. Please try again later.",
+          variant: "destructive"
+        });
+        return;
+      }
+    } catch (error) {
+      console.error("Connection check error:", error);
     }
     
     setIsLoading(true);
@@ -128,10 +167,18 @@ const LoginForm = () => {
       
       if (error) throw error;
       
-      toast.success("Password reset instructions sent to your email");
+      toast({
+        title: "Reset Instructions Sent",
+        description: "Password reset instructions sent to your email",
+        variant: "default"
+      });
     } catch (error: any) {
       console.error("Reset password error:", error);
-      toast.error(error.message || "Failed to send reset instructions");
+      toast({
+        title: "Reset Failed",
+        description: error.message || "Failed to send reset instructions",
+        variant: "destructive"
+      });
     } finally {
       setIsLoading(false);
     }
@@ -146,6 +193,15 @@ const LoginForm = () => {
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>{loginError}</AlertDescription>
+          </Alert>
+        )}
+
+        {connectionError && (
+          <Alert variant="warning">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              You appear to be offline or having connection issues. Some features may not work.
+            </AlertDescription>
           </Alert>
         )}
 

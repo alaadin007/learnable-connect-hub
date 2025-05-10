@@ -1,13 +1,15 @@
 
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@/integrations/supabase/types';
+import { toast } from '@/components/ui/use-toast';
+import { isNetworkError, retryWithBackoff } from '@/utils/networkHelpers';
 
 // Use hardcoded values as fallbacks for development
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://ldlgckwkdsvrfuymidrr.supabase.co"
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxkbGdja3drZHN2cmZ1eW1pZHJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDYwNTc2NzksImV4cCI6MjA2MTYzMzY3OX0.kItrTMcKThMXuwNDClYNTGkEq-1EVVldq1vFw7ZsKx0"
 
-// Create a properly initialized Supabase client with explicit typing
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+// Add retry and error handling options
+const clientOptions = {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
@@ -17,8 +19,60 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     headers: {
       'apikey': supabaseAnonKey
     }
+  },
+  // Add better error handling
+  db: {
+    schema: 'public'
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 10
+    }
   }
-})
+}
+
+// Create a properly initialized Supabase client with explicit typing
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, clientOptions);
+
+// Add a connection check function that can be used throughout the app
+export const checkSupabaseConnection = async (): Promise<boolean> => {
+  try {
+    // Try a simple query with retry mechanism
+    const { error } = await retryWithBackoff(
+      async () => await supabase.from('profiles').select('count', { count: 'exact', head: true }),
+      3, // max retries
+      1000 // initial delay in ms
+    );
+    
+    if (error) {
+      console.error("Database connection error:", error);
+      
+      // Don't show toast for unauthorized errors as these are handled by auth flow
+      if (!error.message.includes('JWT expired') && !error.message.includes('not authorized')) {
+        // Show a user-friendly error
+        toast({
+          title: "Database Connection Issue",
+          description: "We're having trouble connecting to our services. Please try again shortly.",
+          variant: "destructive"
+        });
+      }
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("Failed to check database connection:", err);
+    
+    // Only show toast for network errors
+    if (isNetworkError(err)) {
+      toast({
+        title: "Network Error",
+        description: "Please check your internet connection and try again.",
+        variant: "destructive" 
+      });
+    }
+    return false;
+  }
+};
 
 // Define test school code that will be used for test accounts
 export const TEST_SCHOOL_CODE = "SCHTEST0" 
@@ -29,7 +83,7 @@ export function isTestAccount(email: string): boolean {
   return email?.includes(".test@learnable.edu") || email?.startsWith("test-");
 }
 
-// Helper function to verify a school code
+// Helper function to verify a school code with improved error handling
 export async function verifySchoolCode(code: string): Promise<{
   valid: boolean;
   schoolId?: string;
@@ -45,9 +99,12 @@ export async function verifySchoolCode(code: string): Promise<{
       };
     }
     
-    // Try to verify the code using Supabase RPC function
-    const { data, error } = await supabase
-      .rpc('verify_and_link_school_code', { code });
+    // Try to verify the code using Supabase RPC function with retry mechanism
+    const { data, error } = await retryWithBackoff(
+      async () => await supabase.rpc('verify_and_link_school_code', { code }),
+      2,  // max retries
+      500  // initial delay in ms
+    );
     
     if (error) {
       console.error("Error verifying school code:", error);
