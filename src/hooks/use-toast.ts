@@ -1,5 +1,4 @@
 
-import { type Toast } from "@/components/ui/toast";
 import { toast as sonnerToast } from "sonner";
 
 // Define types for our toast system
@@ -10,6 +9,17 @@ export type ToastProps = {
   variant?: 'default' | 'destructive';
   duration?: number;
 };
+
+// Define a Toast type for consistency with shadcn/ui
+export type Toast = {
+  id: string;
+  title?: string;
+  description?: string;
+  action?: React.ReactNode;
+};
+
+// Export action element type for compatibility
+export type ToastActionElement = React.ReactElement;
 
 // Create a wrapper around sonner toast
 export function useToast() {
@@ -90,14 +100,3 @@ export function useToast() {
 
 // Re-export from sonner for direct usage
 export { toast } from "sonner";
-
-// Define a Toast type for consistency with shadcn/ui
-export type Toast = {
-  id: string;
-  title?: string;
-  description?: string;
-  action?: React.ReactNode;
-};
-
-// Export action element type for compatibility
-export type ToastActionElement = React.ReactElement;
