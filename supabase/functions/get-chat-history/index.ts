@@ -17,8 +17,21 @@ serve(async (req) => {
     });
   }
 
-  const url = new URL(req.url);
-  const conversationId = url.searchParams.get('conversationId');
+  let conversationId;
+  try {
+    // Extract conversation ID either from URL params or request body
+    const url = new URL(req.url);
+    conversationId = url.searchParams.get('conversationId');
+    
+    // If not in URL, check if it's in the body
+    if (!conversationId) {
+      const body = await req.json();
+      conversationId = body.conversationId;
+    }
+  } catch (error) {
+    // If JSON parsing fails, continue with URL param only
+    console.error("Error parsing request body:", error);
+  }
 
   if (!conversationId) {
     return new Response(JSON.stringify({ error: "Conversation ID is required" }), {
@@ -26,6 +39,8 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
+  
+  console.log(`Retrieving chat history for conversation ID: ${conversationId}`);
 
   try {
     // Get authorization header
@@ -47,11 +62,14 @@ serve(async (req) => {
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
     
     if (userError || !user) {
+      console.error("User validation error:", userError);
       return new Response(JSON.stringify({ error: "Invalid token or user not found" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    
+    console.log(`User ID: ${user.id}`);
 
     // Fetch conversation to verify ownership
     const { data: conversation, error: convoError } = await supabase
@@ -61,12 +79,22 @@ serve(async (req) => {
       .eq('user_id', user.id)
       .single();
 
-    if (convoError || !conversation) {
+    if (convoError) {
+      console.error("Error fetching conversation:", convoError);
       return new Response(JSON.stringify({ error: "Conversation not found or access denied" }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    if (!conversation) {
+      return new Response(JSON.stringify({ error: "Conversation not found or access denied" }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    
+    console.log(`Found conversation with title: "${conversation.title}"`);
 
     // Fetch messages for the conversation
     const { data: messages, error: msgsError } = await supabase
@@ -76,19 +104,26 @@ serve(async (req) => {
       .order('timestamp', { ascending: true });
 
     if (msgsError) {
+      console.error("Error fetching messages:", msgsError);
       throw msgsError;
     }
+    
+    console.log(`Retrieved ${messages?.length || 0} messages`);
 
     return new Response(JSON.stringify({ 
-      messages,
-      conversation
+      messages: messages || [],
+      conversation,
+      success: true
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
   } catch (error) {
     console.error("Error in get-chat-history function:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ 
+      error: error.message,
+      success: false
+    }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

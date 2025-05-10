@@ -32,7 +32,7 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
   activeConversationId,
 }) => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState<string>("");
   const { user } = useAuth();
@@ -41,6 +41,8 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
   useEffect(() => {
     if (user) {
       loadConversations();
+    } else {
+      setIsLoading(false);
     }
   }, [user]);
 
@@ -49,16 +51,26 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
     setHasError(false);
     
     try {
+      console.log("Fetching conversations for user:", user?.id);
       const { data, error } = await supabase.functions.invoke("get-conversations");
       
       if (error) {
-        throw error;
+        console.error("Error from get-conversations function:", error);
+        throw new Error(`API error: ${error.message}`);
       }
+      
+      if (data?.success === false) {
+        console.error("API returned error:", data.error);
+        throw new Error(data.error || "Unknown API error");
+      }
+      
+      console.log("Conversations data received:", data);
       
       if (data?.conversations) {
         setConversations(data.conversations);
       } else {
         // If data.conversations is undefined or null, set to empty array
+        console.warn("No conversations data received");
         setConversations([]);
       }
     } catch (error: any) {
@@ -96,6 +108,15 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
   };
 
   const renderContent = () => {
+    if (isLoading) {
+      return (
+        <div className="flex items-center justify-center py-4 text-muted-foreground">
+          <RefreshCcw className="h-4 w-4 animate-spin mr-2" />
+          <span>Loading conversations...</span>
+        </div>
+      );
+    }
+    
     if (hasError) {
       return (
         <div className="text-center py-4">
@@ -105,10 +126,6 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
           </Button>
         </div>
       );
-    }
-    
-    if (isLoading) {
-      return null; // Return nothing during loading to prevent flickering
     }
     
     if (filteredConversations.length === 0) {
@@ -134,7 +151,7 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
               <div className="font-medium truncate">{conversation.title || "Untitled Conversation"}</div>
               <div className="flex items-center text-xs text-muted-foreground">
                 <Timer className="h-3 w-3 mr-1" />
-                {formatDate(conversation.last_message_at)}
+                {formatDate(conversation.last_message_at || conversation.created_at)}
               </div>
             </div>
           </div>
@@ -151,7 +168,7 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
           <span>Chat History</span>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading}>
-              <RefreshCcw className="h-4 w-4" />
+              <RefreshCcw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
             </Button>
             <Button variant="outline" size="sm" onClick={onNewConversation} className="gap-1">
               <PlusCircle className="h-4 w-4" /> New
@@ -172,11 +189,6 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
         <ScrollArea className="h-[calc(100vh-320px)]">
           <div className="px-4 py-2">
             {renderContent()}
-            {isLoading && !conversations.length && (
-              <div className="text-center py-4 text-muted-foreground">
-                {searchTerm ? "Searching..." : "No conversations yet"}
-              </div>
-            )}
           </div>
         </ScrollArea>
       </CardContent>

@@ -21,7 +21,11 @@ serve(async (req) => {
     // Get authorization header
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Authorization header is required", conversations: [] }), {
+      return new Response(JSON.stringify({ 
+        error: "Authorization header is required", 
+        conversations: [],
+        success: false 
+      }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -37,6 +41,7 @@ serve(async (req) => {
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
     
     if (userError || !user) {
+      console.error("User validation error:", userError);
       return new Response(JSON.stringify({ 
         error: "Invalid token or user not found", 
         conversations: [],
@@ -46,6 +51,8 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    console.log(`Fetching conversations for user ID: ${user.id}`);
 
     // Fetch all conversations for the user
     const { data: conversations, error: convoError } = await supabase
@@ -65,6 +72,8 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    console.log(`Retrieved ${conversations?.length || 0} conversations`);
 
     // Always return an array, even if no conversations are found
     return new Response(JSON.stringify({ 

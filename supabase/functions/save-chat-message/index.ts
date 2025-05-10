@@ -18,8 +18,18 @@ serve(async (req) => {
   }
 
   try {
+    console.log("Processing save-chat-message request");
+    
     // Get the request body
-    const { message, conversationId, sessionId } = await req.json();
+    const requestBody = await req.json();
+    const { message, conversationId, sessionId } = requestBody;
+    
+    console.log("Request data:", JSON.stringify({
+      messageId: message?.id,
+      messageRole: message?.role,
+      conversationId,
+      sessionId
+    }));
     
     // Get authorization header
     const authHeader = req.headers.get("Authorization");
@@ -40,18 +50,24 @@ serve(async (req) => {
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
     
     if (userError || !user) {
+      console.error("User validation error:", userError);
       return new Response(JSON.stringify({ error: "Invalid token or user not found" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    
+    console.log(`Processing message for user ID: ${user.id}`);
 
     // Get user's school ID
     const { data: schoolData, error: schoolError } = await supabase.rpc('get_user_school_id');
     
     if (schoolError) {
+      console.error("Error getting user school ID:", schoolError);
       throw schoolError;
     }
+    
+    console.log(`User school ID: ${schoolData}`);
 
     // Ensure we have the required data
     if (!message || !message.role || !message.content) {
@@ -65,6 +81,7 @@ serve(async (req) => {
 
     // If no conversation ID is provided, create a new conversation
     if (!convoId) {
+      console.log("Creating new conversation");
       const { data: convoData, error: convoError } = await supabase
         .from('conversations')
         .insert([{ 
@@ -77,11 +94,14 @@ serve(async (req) => {
         .single();
 
       if (convoError) {
+        console.error("Error creating conversation:", convoError);
         throw convoError;
       }
       convoId = convoData.id;
+      console.log(`Created new conversation with ID: ${convoId}`);
     } else {
       // Update the last_message_at for the existing conversation
+      console.log(`Updating last_message_at for conversation ID: ${convoId}`);
       await supabase
         .from('conversations')
         .update({ last_message_at: new Date().toISOString() })
@@ -89,6 +109,7 @@ serve(async (req) => {
     }
 
     // Save the message to the database
+    console.log(`Saving message to conversation ID: ${convoId}`);
     const { data: msgData, error: msgError } = await supabase
       .from('messages')
       .insert([{
@@ -100,11 +121,15 @@ serve(async (req) => {
       .single();
 
     if (msgError) {
+      console.error("Error saving message:", msgError);
       throw msgError;
     }
+    
+    console.log(`Message saved successfully with ID: ${msgData.id}`);
 
     // If session ID is provided, update the session query count
     if (sessionId) {
+      console.log(`Incrementing query count for session ID: ${sessionId}`);
       await supabase.rpc("increment_session_query_count", { log_id: sessionId });
     }
 
