@@ -27,13 +27,13 @@ const AdminLayout = ({
   const { profile } = useAuth();
   
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-gray-50">
       <Navbar />
       
       <div className="flex-grow flex">
         <Sidebar className="hidden md:block bg-white border-r border-gray-200 shadow-sm">
-          <div className="p-4 border-b border-gray-200">
-            <h2 className="text-xl font-bold text-primary">School Admin</h2>
+          <div className="p-4 border-b border-gray-200 bg-gray-100">
+            <h2 className="text-xl font-bold text-gray-800">School Admin</h2>
             <p className="text-sm text-gray-500 mt-1">
               {profile?.school_name || 'School Management'}
             </p>
@@ -48,11 +48,11 @@ const AdminLayout = ({
           </div>
         </Sidebar>
       
-        <main className="flex-grow bg-gray-50">
+        <main className="flex-grow">
           <div className="container mx-auto px-4 py-8">
             {title && (
               <div className="mb-8">
-                <h1 className="text-3xl font-bold">{title}</h1>
+                <h1 className="text-3xl font-bold text-gray-800">{title}</h1>
                 {subtitle && <p className="text-gray-600 mt-2">{subtitle}</p>}
               </div>
             )}
