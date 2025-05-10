@@ -64,6 +64,44 @@ export interface LectureNote {
   updated_at?: string;
 }
 
+export interface Student {
+  id: string;
+  full_name: string;
+  email: string;
+  status: string;
+  created_at: string;
+}
+
+export interface Teacher {
+  id: string;
+  full_name: string;
+  email: string;
+  is_supervisor: boolean;
+  created_at: string;
+}
+
+export interface Assessment {
+  id: string;
+  title: string;
+  description: string | null;
+  due_date: string | null;
+  created_at: string;
+  teacher_id: string;
+  school_id: string;
+  subject: string | null;
+  max_score: number;
+}
+
+export interface AssessmentSubmission {
+  id: string;
+  assessment_id: string;
+  student_id: string;
+  score: number | null;
+  submitted_at: string;
+  completed: boolean;
+  time_spent: number | null;
+}
+
 export type SchoolId = Database['public']['Tables']['schools']['Row']['id'];
 export type UserId = Database['public']['Tables']['profiles']['Row']['id'];
 export type DocumentId = Database['public']['Tables']['documents']['Row']['id'];

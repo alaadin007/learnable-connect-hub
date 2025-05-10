@@ -10,7 +10,7 @@ import Footer from "@/components/layout/Footer";
 import { isSchoolAdmin, getUserRoleWithFallback } from "@/utils/apiHelpers";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { Lecture } from "@/utils/supabaseHelpers";
+import { Lecture, Assessment } from "@/utils/supabaseHelpers";
 
 // Dashboard Cards Component
 interface DashboardCardProps {

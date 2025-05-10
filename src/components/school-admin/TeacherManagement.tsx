@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Plus, Copy, Mail, Loader2 } from "lucide-react";
+import { Plus, Copy, Mail, Loader2, Trash, Check, AlertCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Table,
@@ -32,25 +32,23 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
-
-// Define TeacherInvitation type if not imported
-export interface TeacherInvitation {
-  id: string;
-  email: string;
-  status: string;
-  invitation_token: string;
-  school_id: string;
-  created_at: string;
-  expires_at: string;
-  created_by: string;
-  role?: string;
-}
+import { TeacherInvitation } from "@/utils/supabaseHelpers";
 
 const TeacherManagement = () => {
   const { profile } = useAuth();
@@ -63,12 +61,18 @@ const TeacherManagement = () => {
   const [open, setOpen] = useState(false);
   const [selectedInvitations, setSelectedInvitations] = useState<string[]>([]);
   const [selectAll, setSelectAll] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [alertOpen, setAlertOpen] = useState(false);
+  const [activeTeachers, setActiveTeachers] = useState<any[]>([]);
 
   // Get the school ID from the profile
-  const schoolId = profile?.organization?.id || null;
+  const schoolId = profile?.school_id || profile?.organization?.id || localStorage.getItem('schoolId') || null;
 
   useEffect(() => {
-    loadInvitations();
+    if (schoolId) {
+      loadInvitations();
+      loadActiveTeachers();
+    }
   }, [schoolId]);
 
   const loadInvitations = async () => {
@@ -90,11 +94,33 @@ const TeacherManagement = () => {
         throw error;
       }
 
+      console.log("Teacher invitations:", data);
       setInvitations(data as TeacherInvitation[]);
     } catch (error: any) {
       toast.error(error.message || "Failed to load invitations");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadActiveTeachers = async () => {
+    if (!schoolId) return;
+
+    try {
+      // Use the database function to get teachers for the school
+      const { data, error } = await supabase.rpc('get_teachers_for_school', {
+        school_id_param: schoolId
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      console.log("Active teachers:", data);
+      setActiveTeachers(data || []);
+    } catch (error: any) {
+      console.error("Error loading teachers:", error);
+      toast.error("Failed to load active teachers");
     }
   };
 
@@ -195,7 +221,11 @@ const TeacherManagement = () => {
       return;
     }
 
-    setIsLoading(true);
+    setAlertOpen(true);
+  };
+
+  const confirmDeleteSelected = async () => {
+    setIsDeleting(true);
     try {
       const { error } = await supabase
         .from("teacher_invitations")
@@ -213,176 +243,247 @@ const TeacherManagement = () => {
     } catch (error: any) {
       toast.error(error.message || "Failed to delete invitations");
     } finally {
-      setIsLoading(false);
+      setIsDeleting(false);
+      setAlertOpen(false);
     }
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Teacher Management</CardTitle>
-        <CardDescription>
-          Manage teacher invitations for your school
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="mb-4 flex justify-between items-center">
-          <div>
-            <Label htmlFor="selectAll" className="mr-2">
-              <Checkbox
-                id="selectAll"
-                checked={selectAll}
-                onCheckedChange={handleSelectAllChange}
-              />
-              <span className="ml-2">Select All</span>
-            </Label>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={handleDeleteSelected}
-              disabled={selectedInvitations.length === 0}
-              className="ml-4"
-            >
-              Delete Selected
-            </Button>
-          </div>
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline">
-                <Plus className="mr-2 h-4 w-4" />
-                Invite Teacher
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Teacher Invitations</CardTitle>
+          <CardDescription>
+            Manage teacher invitations for your school
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="mb-4 flex justify-between items-center">
+            <div>
+              <Label htmlFor="selectAll" className="mr-2">
+                <Checkbox
+                  id="selectAll"
+                  checked={selectAll}
+                  onCheckedChange={handleSelectAllChange}
+                />
+                <span className="ml-2">Select All</span>
+              </Label>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleDeleteSelected}
+                disabled={selectedInvitations.length === 0}
+                className="ml-4"
+              >
+                <Trash className="h-4 w-4 mr-1" />
+                Delete Selected
               </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>Invite a Teacher</DialogTitle>
-                <DialogDescription>
-                  Send an invitation to a teacher to join your school.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="email" className="text-right">
-                    Email
-                  </Label>
-                  <Input
-                    type="email"
-                    id="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="col-span-3"
-                    placeholder="teacher@example.com"
-                  />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="role" className="text-right">
-                    Role
-                  </Label>
-                  <Select value={role} onValueChange={setRole}>
-                    <SelectTrigger className="col-span-3">
-                      <SelectValue placeholder="Select a role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="teacher">Teacher</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-4 items-start gap-4">
-                  <Label htmlFor="message" className="text-right mt-2">
-                    Custom Message
-                  </Label>
-                  <Textarea
-                    id="message"
-                    value={customMessage}
-                    onChange={(e) => setCustomMessage(e.target.value)}
-                    className="col-span-3"
-                    placeholder="Add a personal message to the invitation"
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button type="submit" onClick={handleCreateInvitation} disabled={isCreating}>
-                  {isCreating ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Creating...
-                    </>
-                  ) : (
-                    "Send Invitation"
-                  )}
+            </div>
+            <Dialog open={open} onOpenChange={setOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Invite Teacher
                 </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </div>
-        {isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <span className="ml-2">Loading invitations...</span>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>Invite a Teacher</DialogTitle>
+                  <DialogDescription>
+                    Send an invitation to a teacher to join your school.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="email" className="text-right">
+                      Email
+                    </Label>
+                    <Input
+                      type="email"
+                      id="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="col-span-3"
+                      placeholder="teacher@example.com"
+                    />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="role" className="text-right">
+                      Role
+                    </Label>
+                    <Select value={role} onValueChange={setRole}>
+                      <SelectTrigger className="col-span-3">
+                        <SelectValue placeholder="Select a role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="teacher">Teacher</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-4 items-start gap-4">
+                    <Label htmlFor="message" className="text-right mt-2">
+                      Custom Message
+                    </Label>
+                    <Textarea
+                      id="message"
+                      value={customMessage}
+                      onChange={(e) => setCustomMessage(e.target.value)}
+                      className="col-span-3"
+                      placeholder="Add a personal message to the invitation"
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button type="submit" onClick={handleCreateInvitation} disabled={isCreating}>
+                    {isCreating ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      "Send Invitation"
+                    )}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
-        ) : (
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <span className="ml-2">Loading invitations...</span>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[50px]">Select</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Expires</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {invitations.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="h-24 text-center">
+                        No invitations found. Invite a teacher to get started.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    invitations.map((invitation) => (
+                      <TableRow key={invitation.id}>
+                        <TableCell className="w-[50px]">
+                          <Checkbox
+                            checked={selectedInvitations.includes(invitation.id)}
+                            onCheckedChange={() => handleCheckboxChange(invitation.id)}
+                          />
+                        </TableCell>
+                        <TableCell>{invitation.email}</TableCell>
+                        <TableCell>{invitation.role || "teacher"}</TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant={invitation.status === "accepted" ? "success" : 
+                                  invitation.status === "expired" ? "destructive" : 
+                                  "secondary"}
+                            className={invitation.status === "accepted" ? "bg-green-100 text-green-800" : 
+                                      invitation.status === "expired" ? "bg-red-100 text-red-800" : 
+                                      "bg-yellow-100 text-yellow-800"}
+                          >
+                            {invitation.status === "pending" ? "Pending" : 
+                            invitation.status === "accepted" ? "Accepted" : 
+                            invitation.status === "expired" ? "Expired" : 
+                            invitation.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {new Date(invitation.expires_at).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex space-x-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleCopyInvitationLink(invitation)}
+                            >
+                              <Copy className="h-4 w-4 mr-1" />
+                              Copy Link
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleResendInvitation(invitation)}
+                              disabled={invitation.status === "accepted" || isLoading}
+                            >
+                              <Mail className="h-4 w-4 mr-1" />
+                              Resend
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Active Teachers</CardTitle>
+          <CardDescription>
+            Teachers who have accepted invitations and joined your school
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[50px]">Select</TableHead>
+                  <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Role</TableHead>
+                  <TableHead>Joined</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {invitations.length === 0 ? (
+                {activeTeachers.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="h-24 text-center">
-                      No invitations found. Invite a teacher to get started.
+                      No active teachers found. Teachers will appear here after they accept invitations.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  invitations.map((invitation) => (
-                    <TableRow key={invitation.id}>
-                      <TableCell className="w-[50px]">
-                        <Checkbox
-                          checked={selectedInvitations.includes(invitation.id)}
-                          onCheckedChange={() => handleCheckboxChange(invitation.id)}
-                        />
-                      </TableCell>
-                      <TableCell>{invitation.email}</TableCell>
-                      <TableCell>{invitation.role || "teacher"}</TableCell>
+                  activeTeachers.map((teacher) => (
+                    <TableRow key={teacher.id}>
+                      <TableCell>{teacher.full_name || "Unknown"}</TableCell>
+                      <TableCell>{teacher.email}</TableCell>
                       <TableCell>
-                        <Badge 
-                          variant={invitation.status === "accepted" ? "success" : 
-                                 invitation.status === "expired" ? "destructive" : 
-                                 "secondary"}
-                        >
-                          {invitation.status === "pending" ? "Pending" : 
-                           invitation.status === "accepted" ? "Accepted" : 
-                           invitation.status === "expired" ? "Expired" : 
-                           invitation.status}
+                        {teacher.is_supervisor ? (
+                          <Badge variant="outline" className="bg-blue-50 text-blue-800 border-blue-200">
+                            Admin
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="bg-gray-50 text-gray-800 border-gray-200">
+                            Teacher
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {new Date(teacher.created_at).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell>
+                        <Badge className="bg-green-100 text-green-800">
+                          <Check className="h-3 w-3 mr-1" />
+                          Active
                         </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex space-x-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleCopyInvitationLink(invitation)}
-                          >
-                            <Copy className="h-4 w-4 mr-1" />
-                            Copy Link
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleResendInvitation(invitation)}
-                            disabled={invitation.status === "accepted" || isLoading}
-                          >
-                            <Mail className="h-4 w-4 mr-1" />
-                            Resend
-                          </Button>
-                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -390,9 +491,33 @@ const TeacherManagement = () => {
               </TableBody>
             </Table>
           </div>
-        )}
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+
+      <AlertDialog open={alertOpen} onOpenChange={setAlertOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the selected invitations. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteSelected} disabled={isDeleting}>
+              {isDeleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
   );
 };
 

@@ -1,11 +1,13 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, Navigate, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from 'sonner';
-import { Loader2, CheckCircle } from 'lucide-react';
+import { Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { persistUserRoleToDatabase } from '@/utils/apiHelpers';
 
 // Define the typed interface for invitation details
 interface InvitationDetails {
@@ -18,7 +20,7 @@ interface InvitationDetails {
 export default function AcceptInvitation() {
   const { token } = useParams();
   const navigate = useNavigate();
-  const { user, refreshProfile } = useAuth();
+  const { user, refreshProfile, profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [verifying, setVerifying] = useState(false);
   const [invitationDetails, setInvitationDetails] = useState<InvitationDetails>({});
@@ -44,11 +46,13 @@ export default function AcceptInvitation() {
         }
 
         if (data) {
+          console.log("Invitation details:", data);
           setInvitationDetails(data as InvitationDetails);
         } else {
           setError("Invalid or expired invitation");
         }
       } catch (err: any) {
+        console.error("Error verifying invitation:", err);
         setError(err.message || "Failed to verify invitation");
       } finally {
         setLoading(false);
@@ -60,7 +64,7 @@ export default function AcceptInvitation() {
 
   const handleAcceptInvitation = async () => {
     if (!user) {
-      // If not logged in, redirect to login first
+      // If not logged in, redirect to login first with invitation token in URL params
       navigate(`/login?invitation=${token}`);
       return;
     }
@@ -74,6 +78,15 @@ export default function AcceptInvitation() {
 
       if (error) throw error;
       
+      // Persist role to database
+      if (invitationDetails.school_id) {
+        await persistUserRoleToDatabase(user.id, 'teacher', invitationDetails.school_id);
+        
+        // Update local storage for immediate use
+        localStorage.setItem('userRole', 'teacher');
+        localStorage.setItem('schoolId', invitationDetails.school_id);
+      }
+      
       setAccepted(true);
       toast.success(`You've joined ${invitationDetails.school_name} as a teacher`);
       
@@ -86,13 +99,13 @@ export default function AcceptInvitation() {
       }, 2000);
       
     } catch (err: any) {
+      console.error("Error accepting invitation:", err);
       toast.error(err.message || "Failed to accept invitation");
     } finally {
       setVerifying(false);
     }
   };
 
-  // ... keep existing code (the rest of the component rendering)
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -106,13 +119,14 @@ export default function AcceptInvitation() {
       <div className="flex min-h-screen items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle className="text-red-500">Invitation Error</CardTitle>
-            <CardDescription>There was a problem with your invitation</CardDescription>
+            <AlertTriangle className="h-10 w-10 text-red-500 mb-2 mx-auto" />
+            <CardTitle className="text-red-500 text-center">Invitation Error</CardTitle>
+            <CardDescription className="text-center">There was a problem with your invitation</CardDescription>
           </CardHeader>
           <CardContent>
-            <p>{error}</p>
+            <p className="text-center">{error}</p>
           </CardContent>
-          <CardFooter>
+          <CardFooter className="justify-center">
             <Button onClick={() => navigate('/login')}>
               Go to Login
             </Button>
@@ -147,15 +161,18 @@ export default function AcceptInvitation() {
           <CardDescription>Join {invitationDetails.school_name} as a teacher</CardDescription>
         </CardHeader>
         <CardContent>
-          <p>
+          <p className="mb-4">
             You've been invited to join <strong>{invitationDetails.school_name}</strong> as a teacher
             using the email <strong>{invitationDetails.email}</strong>.
           </p>
           {user && user.email !== invitationDetails.email && (
-            <p className="mt-4 text-amber-600">
-              Note: You are currently logged in as {user.email}, but this invitation was sent to {invitationDetails.email}.
-              You may need to log out and sign in with the correct account.
-            </p>
+            <div className="bg-amber-50 border border-amber-200 rounded-md p-3 mt-4">
+              <p className="text-amber-700 flex items-center">
+                <AlertTriangle className="h-4 w-4 mr-2 flex-shrink-0" />
+                You are currently logged in as {user.email}, but this invitation was sent to {invitationDetails.email}.
+                You may need to log out and sign in with the correct account.
+              </p>
+            </div>
           )}
         </CardContent>
         <CardFooter className="flex justify-end space-x-2">
