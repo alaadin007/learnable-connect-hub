@@ -15,28 +15,30 @@ export async function getUserSchoolId(): Promise<string | null> {
     
     // As a last resort, try to get from the session but with error handling
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session?.user) {
         return null;
       }
       
       // Try to get from user metadata
-      if (session.user.user_metadata?.school_id) {
+      if (data.session.user.user_metadata?.school_id) {
         // Store in localStorage for future use
-        const schoolId = session.user.user_metadata.school_id;
+        const schoolId = data.session.user.user_metadata.school_id;
         localStorage.setItem('schoolId', schoolId);
         return schoolId;
       }
 
       // Try to get from a dedicated function with timeout
-      const { data: schoolId } = await executeWithTimeout(() => 
-        supabase.rpc('get_user_school_id_safe', {
-          user_id_param: session.user.id
-        }), 5000);
+      const { data: schoolIdResult } = await executeWithTimeout(async () => {
+        const response = await supabase.rpc('get_user_school_id_safe', {
+          user_id_param: data.session.user.id
+        });
+        return response;
+      }, 5000);
       
-      if (schoolId) {
-        localStorage.setItem('schoolId', schoolId);
-        return schoolId;
+      if (schoolIdResult) {
+        localStorage.setItem('schoolId', schoolIdResult);
+        return schoolIdResult;
       }
       
       // Return null if we couldn't get the school ID
@@ -61,23 +63,29 @@ export async function getUserRole(): Promise<UserRole | null> {
     }
     
     // Try to get from the session
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user?.user_metadata?.user_type) {
-      const role = session.user.user_metadata.user_type as UserRole;
+    const { data } = await supabase.auth.getSession();
+    if (!data.session?.user) {
+      return null;
+    }
+    
+    if (data.session.user.user_metadata?.user_type) {
+      const role = data.session.user.user_metadata.user_type as UserRole;
       // Store in localStorage for future use
       localStorage.setItem('userRole', role);
       return role;
     }
     
     // Try to get from a dedicated function with timeout
-    const { data: userRole } = await executeWithTimeout(() => 
-      supabase.rpc('get_user_role_safe', {
-        user_id_param: session?.user?.id
-      }), 5000);
+    const { data: userRoleResult } = await executeWithTimeout(async () => {
+      const response = await supabase.rpc('get_user_role_safe', {
+        user_id_param: data.session.user.id
+      });
+      return response;
+    }, 5000);
     
-    if (userRole) {
-      localStorage.setItem('userRole', userRole);
-      return userRole as UserRole;
+    if (userRoleResult) {
+      localStorage.setItem('userRole', userRoleResult);
+      return userRoleResult as UserRole;
     }
     
     // Return null if we couldn't determine the role
@@ -149,8 +157,8 @@ export async function fetchStudentAssessments(schoolId: string, studentId: strin
     const cacheKey = `assessments_${schoolId}_${studentId}`;
     
     // Get the access token from the current session
-    const { data: { session } } = await supabase.auth.getSession();
-    const accessToken = session?.access_token;
+    const { data } = await supabase.auth.getSession();
+    const accessToken = data.session?.access_token;
     
     return await fetchWithReliability(
       `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/assessments`,
