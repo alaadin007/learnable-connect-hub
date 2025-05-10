@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -47,18 +46,24 @@ const StudentLectures = () => {
   const [dataFetched, setDataFetched] = useState(false);
 
   useEffect(() => {
-    // Redirect if not logged in or not a student
-    if (!user) {
-      navigate("/login");
-      return;
-    }
+    const loadData = async () => {
+      // Safety check - ensure we have proper authentication
+      if (!user) {
+        console.log("No user found, redirecting to login");
+        navigate("/login");
+        return;
+      }
 
-    if (profile && profile.user_type !== "student") {
-      navigate("/dashboard");
-      return;
-    }
+      if (profile && profile.user_type !== "student") {
+        console.log("Not a student profile, redirecting to dashboard");
+        navigate("/dashboard");
+        return;
+      }
 
-    fetchLectures();
+      await fetchLectures();
+    };
+
+    loadData();
   }, [user, profile, schoolId, navigate]);
 
   const fetchLectures = async () => {
@@ -68,11 +73,14 @@ const StudentLectures = () => {
     try {
       // Fetch lectures for this student's school
       if (!schoolId) {
+        console.log("No school ID found");
         setError("School information not available. Please contact support.");
         setLoading(false);
         setDataFetched(true);
         return;
       }
+
+      console.log("Fetching lectures for school ID:", schoolId);
 
       // Get lectures with progress data
       const { data, error } = await supabase
@@ -99,6 +107,8 @@ const StudentLectures = () => {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
+
+      console.log("Lectures fetched:", data?.length || 0);
 
       // Process data to format teacher name and progress
       const formattedData = data ? data.map((lecture: any) => {

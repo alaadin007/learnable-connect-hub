@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Download, FileText, TextQuote, Video } from 'lucide-react';
@@ -12,10 +11,12 @@ import { Lecture, LectureResource, Transcript } from '@/utils/supabaseHelpers';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAuth } from '@/contexts/AuthContext';
 
 const StudentLectureView = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [lecture, setLecture] = useState<Lecture | null>(null);
   const [resources, setResources] = useState<LectureResource[]>([]);
   const [transcript, setTranscript] = useState<Transcript[]>([]);
@@ -25,6 +26,15 @@ const StudentLectureView = () => {
   const [activeTranscriptId, setActiveTranscriptId] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   
+  // Check authentication
+  useEffect(() => {
+    if (!user) {
+      console.log("No user found, redirecting to login");
+      navigate("/login");
+      return;
+    }
+  }, [user, navigate]);
+
   // Function to handle time updates
   const handleTimeUpdate = () => {
     if (!videoRef.current) return;
@@ -77,7 +87,7 @@ const StudentLectureView = () => {
   // Fetch lecture data
   useEffect(() => {
     const fetchLectureData = async () => {
-      if (!id) return;
+      if (!id || !user) return;
       
       setIsLoading(true);
       
@@ -98,6 +108,7 @@ const StudentLectureView = () => {
         
         if (lectureData) {
           setLecture(lectureData);
+          console.log("Lecture loaded:", lectureData.title);
         }
         
         // Fetch resources
@@ -111,6 +122,7 @@ const StudentLectureView = () => {
           toast.error('Could not load lecture resources');
         } else if (resourceData) {
           setResources(resourceData);
+          console.log("Resources loaded:", resourceData.length);
         }
 
         // Fetch transcripts - using raw query with explicit typing
@@ -134,6 +146,7 @@ const StudentLectureView = () => {
           }));
           
           setTranscript(typedTranscriptData);
+          console.log("Transcripts loaded:", typedTranscriptData.length);
         }
       } catch (err) {
         console.error('Error in fetchLectureData:', err);
@@ -144,7 +157,7 @@ const StudentLectureView = () => {
     };
     
     fetchLectureData();
-  }, [id, navigate]);
+  }, [id, user, navigate]);
 
   if (isLoading) {
     return (
