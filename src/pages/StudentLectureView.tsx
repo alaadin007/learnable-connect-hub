@@ -1,18 +1,18 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Download, FileText, TextQuote, Video, PlayCircle } from 'lucide-react';
+import { ArrowLeft, Download, FileText, TextQuote, Video } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Footer from '@/components/layout/Footer';
 import Navbar from '@/components/layout/Navbar';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Lecture, LectureResource, Transcript, TranscriptData } from '@/utils/supabaseHelpers';
+import { Lecture, LectureResource, Transcript } from '@/utils/supabaseHelpers';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { getUserSchoolId } from '@/utils/apiHelpers';
 import { Skeleton } from '@/components/ui/skeleton';
-import { getAiProvider, isApiKeyConfigured } from '@/integrations/supabase/client';
 
 const StudentLectureView = () => {
   const { id } = useParams<{ id: string }>();
@@ -114,31 +114,15 @@ const StudentLectureView = () => {
           setResources(resourceData);
         }
 
-        // Try to fetch transcript data from the database directly
-        try {
-          // Use a direct query to the transcripts table
-          const { data: transcriptData, error: transcriptError } = await supabase
-            .from('transcripts') // Use the correct table name
-            .select('*')
-            .eq('lecture_id', id)
-            .order('start_time');
+        // Use the stored procedure to fetch transcripts
+        const { data: transcriptData, error: transcriptError } = await supabase
+          .rpc('get_lecture_transcripts', { lecture_id_param: id });
 
-          if (transcriptError) {
-            console.error('Error fetching transcripts:', transcriptError);
-            // Continue without transcripts rather than failing the whole page
-          } else if (transcriptData && Array.isArray(transcriptData)) {
-            // Convert the data to the expected Transcript format
-            setTranscript(transcriptData.map(item => ({
-              id: item.id,
-              lecture_id: item.lecture_id,
-              text: item.text,
-              start_time: item.start_time,
-              end_time: item.end_time,
-              created_at: item.created_at
-            })));
-          }
-        } catch (err) {
-          console.error("Error processing transcripts:", err);
+        if (transcriptError) {
+          console.error('Error fetching transcripts:', transcriptError);
+        } else if (transcriptData && Array.isArray(transcriptData)) {
+          // Convert the data to the expected Transcript format
+          setTranscript(transcriptData as Transcript[]);
         }
       } catch (err) {
         console.error('Error in fetchLectureData:', err);
@@ -307,3 +291,4 @@ const StudentLectureView = () => {
 };
 
 export default StudentLectureView;
+
