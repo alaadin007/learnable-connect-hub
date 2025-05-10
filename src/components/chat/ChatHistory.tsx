@@ -124,7 +124,7 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
           <div className="px-4 py-2">
             {isLoading ? (
               <div className="text-center py-4 text-muted-foreground">
-                Loading conversations...
+                Loading...
               </div>
             ) : hasError ? (
               <div className="text-center py-4">

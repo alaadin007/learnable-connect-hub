@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -105,7 +106,7 @@ const StudentAssessments = () => {
         if (!isMounted) return;
 
         // Process data to format teacher name and submission
-        const formattedData = data.map((assessment: any) => {
+        const formattedData = data ? data.map((assessment: any) => {
           // Extract teacher name from nested object
           const teacherFullName = assessment.teacher?.profiles?.length > 0 
             ? assessment.teacher.profiles[0].full_name 
@@ -123,7 +124,7 @@ const StudentAssessments = () => {
             },
             submission
           };
-        });
+        }) : [];
 
         if (isMounted) {
           setAssessments(formattedData);
@@ -262,7 +263,6 @@ const StudentAssessments = () => {
 
   // Determine if we have any data to show
   const hasAssessments = assessments.length > 0;
-  const isInitialLoad = loading && !hasAssessments;
 
   return (
     <>
@@ -299,12 +299,9 @@ const StudentAssessments = () => {
             </TabsList>
             
             <TabsContent value="due-soon">
-              {isInitialLoad ? (
-                <div className="bg-white border border-gray-200 p-8 rounded-md shadow-sm">
-                  <div className="flex flex-col items-center justify-center min-h-[200px]">
-                    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
-                    <p className="text-gray-600">Loading your assessments...</p>
-                  </div>
+              {loading ? (
+                <div className="text-center py-12 bg-gray-50 rounded-md">
+                  <p className="text-gray-600">Loading assessments...</p>
                 </div>
               ) : dueSoonAssessments.length === 0 ? (
                 renderEmptyState("No assessments due today!")
@@ -316,12 +313,9 @@ const StudentAssessments = () => {
             </TabsContent>
             
             <TabsContent value="upcoming">
-              {isInitialLoad ? (
-                <div className="bg-white border border-gray-200 p-8 rounded-md shadow-sm">
-                  <div className="flex flex-col items-center justify-center min-h-[200px]">
-                    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
-                    <p className="text-gray-600">Loading your assessments...</p>
-                  </div>
+              {loading ? (
+                <div className="text-center py-12 bg-gray-50 rounded-md">
+                  <p className="text-gray-600">Loading assessments...</p>
                 </div>
               ) : upcomingAssessments.length === 0 ? (
                 renderEmptyState("No upcoming assessments.")
@@ -333,12 +327,9 @@ const StudentAssessments = () => {
             </TabsContent>
             
             <TabsContent value="completed">
-              {isInitialLoad ? (
-                <div className="bg-white border border-gray-200 p-8 rounded-md shadow-sm">
-                  <div className="flex flex-col items-center justify-center min-h-[200px]">
-                    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
-                    <p className="text-gray-600">Loading your assessments...</p>
-                  </div>
+              {loading ? (
+                <div className="text-center py-12 bg-gray-50 rounded-md">
+                  <p className="text-gray-600">Loading assessments...</p>
                 </div>
               ) : completedAssessments.length === 0 ? (
                 renderEmptyState("No completed assessments yet.")
@@ -350,12 +341,9 @@ const StudentAssessments = () => {
             </TabsContent>
             
             <TabsContent value="past-due">
-              {isInitialLoad ? (
-                <div className="bg-white border border-gray-200 p-8 rounded-md shadow-sm">
-                  <div className="flex flex-col items-center justify-center min-h-[200px]">
-                    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
-                    <p className="text-gray-600">Loading your assessments...</p>
-                  </div>
+              {loading ? (
+                <div className="text-center py-12 bg-gray-50 rounded-md">
+                  <p className="text-gray-600">Loading assessments...</p>
                 </div>
               ) : pastDueAssessments.length === 0 ? (
                 renderEmptyState("No past due assessments.")
