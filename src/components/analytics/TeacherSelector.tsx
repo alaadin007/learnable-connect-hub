@@ -47,7 +47,8 @@ export function TeacherSelector({
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
         
-        // Use the Supabase function to get teachers
+        // Use the updated secure function to get teachers
+        // This now uses the safe version that prevents infinite recursion
         const { data, error } = await supabase
           .rpc('get_teachers_for_school', { school_id_param: schoolId });
         

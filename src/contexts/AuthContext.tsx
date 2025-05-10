@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
@@ -139,99 +138,51 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
       
-      // First check if user is a school admin
-      const { data: adminData, error: adminError } = await supabase
-        .from('school_admins')
-        .select('id')
-        .eq('id', userId);
-
-      if (adminError) {
-        console.error("Error checking admin status:", adminError);
-        // If we get an error, try to use the metadata
-        if (user?.user_metadata?.user_type) {
-          const role = user.user_metadata.user_type as UserRole;
-          console.log("Using metadata role:", role);
-          setUserRole(role);
-          localStorage.setItem('userRole', role);
-          if (role === 'school' || role === 'school_admin') {
-            setIsSuperviser(true);
-          }
+      // First check if user is a school admin using the safer function
+      const { data: isAdminData } = await supabase
+        .rpc('is_school_admin_safe', { user_id_param: userId });
+      
+      if (isAdminData) {
+        console.log("User found as school admin");
+        setIsSuperviser(true);
+        localStorage.setItem('userRole', 'school');
+        
+        // Get schoolId from teachers table for school admins
+        const { data: schoolIdData } = await supabase
+          .rpc('get_user_school_id_safe', { user_id_param: userId });
+          
+        if (schoolIdData) {
+          setSchoolId(schoolIdData);
+          localStorage.setItem('schoolId', schoolIdData);
+        }
+        
+        setUserRole('school');
+      } else {
+        // If not found as admin, check if user is a supervisor
+        const { data: isSupervisorData } = await supabase
+          .rpc('is_user_supervisor_safe', { user_id_param: userId });
+        
+        const { data: userRoleData } = await supabase
+          .rpc('get_user_role_safe', { user_id_param: userId });
+        
+        const { data: schoolIdData } = await supabase
+          .rpc('get_user_school_id_safe', { user_id_param: userId });
+          
+        if (schoolIdData) {
+          setSchoolId(schoolIdData);
+          localStorage.setItem('schoolId', schoolIdData);
+        }
+        
+        if (userRoleData) {
+          setUserRole(userRoleData as UserRole);
+          localStorage.setItem('userRole', userRoleData);
         } else {
           // Default to student role if we can't determine
           setUserRole('student');
           localStorage.setItem('userRole', 'student');
         }
-      } else if (adminData && adminData.length > 0) {
-        console.log("User found in school_admins table, setting as school admin");
-        setIsSuperviser(true);
-        localStorage.setItem('userRole', 'school');
         
-        // Get schoolId from teachers table for school admins
-        const { data: teacherData } = await supabase
-          .from('teachers')
-          .select('school_id')
-          .eq('id', userId)
-          .single();
-          
-        if (teacherData) {
-          setSchoolId(teacherData.school_id);
-          localStorage.setItem('schoolId', teacherData.school_id);
-        }
-        
-        setUserRole('school');
-      } else {
-        // If not found as admin, check in teachers table
-        const { data: teacherData } = await supabase
-          .from('teachers')
-          .select('school_id, is_supervisor')
-          .eq('id', userId)
-          .single();
-          
-        if (teacherData) {
-          setSchoolId(teacherData.school_id);
-          localStorage.setItem('schoolId', teacherData.school_id);
-          setIsSuperviser(teacherData.is_supervisor || false);
-          setUserRole('teacher');
-          localStorage.setItem('userRole', 'teacher');
-        } else {
-          // Finally check in students table
-          const { data: studentData } = await supabase
-            .from('students')
-            .select('school_id, status')
-            .eq('id', userId)
-            .single();
-            
-          if (studentData) {
-            setSchoolId(studentData.school_id);
-            localStorage.setItem('schoolId', studentData.school_id);
-            setUserRole('student');
-            localStorage.setItem('userRole', 'student');
-            
-            // Log the student status - important for debugging
-            console.log("Student status:", studentData.status);
-            
-            // If student is pending approval, show a toast
-            if (studentData.status === 'pending') {
-              toast.warning("Your account is pending teacher approval", {
-                duration: 5000,
-                description: "You can continue using the app, but some features may be limited until approved."
-              });
-            }
-          } else {
-            // If no role found in database, check user metadata
-            if (user?.user_metadata?.user_type) {
-              const role = user.user_metadata.user_type as UserRole;
-              console.log("Using metadata role (no DB record):", role);
-              setUserRole(role);
-              localStorage.setItem('userRole', role);
-            } else {
-              // Last resort: default to student
-              console.log("No role found anywhere, defaulting to student");
-              setUserRole('student');
-              localStorage.setItem('userRole', 'student');
-            }
-          }
-        }
+        setIsSuperviser(isSupervisorData || false);
       }
       
       // Get user profile data

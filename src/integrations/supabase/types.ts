@@ -1867,12 +1867,20 @@ export type Database = {
         Args: { input_email: string }
         Returns: string
       }
+      get_user_role_safe: {
+        Args: { user_id_param?: string }
+        Returns: string
+      }
       get_user_roles: {
         Args: Record<PropertyKey, never>
         Returns: Database["public"]["Enums"]["app_role"][]
       }
       get_user_school_id: {
         Args: Record<PropertyKey, never> | { user_id?: string }
+        Returns: string
+      }
+      get_user_school_id_safe: {
+        Args: { user_id_param?: string }
         Returns: string
       }
       get_user_school_id_safely: {
@@ -1928,12 +1936,20 @@ export type Database = {
         Args: { user_id?: string }
         Returns: boolean
       }
+      is_school_admin_safe: {
+        Args: { user_id_param?: string }
+        Returns: boolean
+      }
       is_supervisor: {
         Args: { user_id?: string }
         Returns: boolean
       }
       is_user_supervisor: {
         Args: { user_id: string }
+        Returns: boolean
+      }
+      is_user_supervisor_safe: {
+        Args: { user_id_param?: string }
         Returns: boolean
       }
       populatetestaccountwithsessions: {
