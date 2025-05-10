@@ -2,6 +2,7 @@
 // Import the necessary utilities
 import { supabase } from "@/integrations/supabase/client";
 import { UserRole } from "@/contexts/AuthContext";
+import { fetchWithReliability, retryWithBackoff, executeWithTimeout } from "./networkHelpers";
 
 // Function to get user school ID in a safe way with fallback
 export async function getUserSchoolId(): Promise<string | null> {
@@ -27,10 +28,11 @@ export async function getUserSchoolId(): Promise<string | null> {
         return schoolId;
       }
 
-      // Try to get from a dedicated function
-      const { data: schoolId } = await supabase.rpc('get_user_school_id_safe', {
-        user_id_param: session.user.id
-      });
+      // Try to get from a dedicated function with timeout
+      const { data: schoolId } = await executeWithTimeout(() => 
+        supabase.rpc('get_user_school_id_safe', {
+          user_id_param: session.user.id
+        }), 5000);
       
       if (schoolId) {
         localStorage.setItem('schoolId', schoolId);
@@ -67,10 +69,11 @@ export async function getUserRole(): Promise<UserRole | null> {
       return role;
     }
     
-    // Try to get from a dedicated function
-    const { data: userRole } = await supabase.rpc('get_user_role_safe', {
-      user_id_param: session?.user?.id
-    });
+    // Try to get from a dedicated function with timeout
+    const { data: userRole } = await executeWithTimeout(() => 
+      supabase.rpc('get_user_role_safe', {
+        user_id_param: session?.user?.id
+      }), 5000);
     
     if (userRole) {
       localStorage.setItem('userRole', userRole);
@@ -88,73 +91,6 @@ export async function getUserRole(): Promise<UserRole | null> {
 // Check if a user is a school admin
 export function isSchoolAdmin(role: UserRole | null): boolean {
   return role === 'school' || role === 'school_admin';
-}
-
-// Generic function to invoke edge functions with better error handling
-export async function invokeEdgeFunction<T = any>(
-  functionName: string, 
-  payload?: any,
-  options?: {
-    timeout?: number;
-    retries?: number;
-  }
-): Promise<{ data: T | null; error: Error | null }> {
-  const timeout = options?.timeout || 15000; // 15s default
-  const maxRetries = options?.retries || 2;
-  
-  let attempts = 0;
-  
-  while (attempts <= maxRetries) {
-    try {
-      // Create AbortController for timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeout);
-      
-      // We need to use a separate options object without signal for compatibility
-      const invokeOptions: any = { body: payload || {} };
-      
-      // Use the controller signal here, but handle it properly
-      const { data, error } = await Promise.race([
-        supabase.functions.invoke<T>(functionName, invokeOptions),
-        new Promise<never>((_, reject) => {
-          const abortHandler = () => {
-            clearTimeout(timeoutId);
-            reject(new Error('Request timed out'));
-          };
-          controller.signal.addEventListener('abort', abortHandler);
-        })
-      ]);
-      
-      // Clear the timeout since we got a response
-      clearTimeout(timeoutId);
-      
-      if (error) {
-        console.error(`Edge function error (${functionName}):`, error);
-        return { data: null, error };
-      }
-      
-      return { data, error: null };
-    } catch (error: any) {
-      attempts++;
-      
-      if (error.name === 'AbortError' || error.message?.includes('timed out')) {
-        console.error(`Edge function timeout (${functionName})`);
-        if (attempts <= maxRetries) {
-          console.log(`Retrying (${attempts}/${maxRetries})...`);
-          await new Promise(resolve => setTimeout(resolve, 1000 * attempts));
-          continue;
-        }
-      }
-      
-      console.error(`Exception invoking edge function (${functionName}):`, error);
-      return { data: null, error };
-    }
-  }
-  
-  return { 
-    data: null, 
-    error: new Error(`Failed after ${maxRetries} attempts`) 
-  };
 }
 
 // These functions always return values to prevent errors
@@ -207,19 +143,68 @@ export function getSchoolIdWithFallback(): string {
   return '';
 }
 
-// Function to save user role and school ID to database
+// Optimized function to fetch assessments for students
+export async function fetchStudentAssessments(schoolId: string, studentId: string) {
+  try {
+    const cacheKey = `assessments_${schoolId}_${studentId}`;
+    
+    return await fetchWithReliability(
+      `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/assessments`,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${supabase.auth.session()?.access_token}`
+        },
+        params: {
+          select: `
+            id, 
+            title, 
+            description, 
+            due_date, 
+            created_at,
+            teacher_id,
+            teacher:teachers(
+              id, 
+              profiles(full_name)
+            ),
+            submission:assessment_submissions(
+              id, 
+              score, 
+              completed,
+              submitted_at
+            )
+          `,
+          school_id: `eq.${schoolId}`,
+          order: 'due_date.asc'
+        }
+      },
+      3,
+      8000,
+      cacheKey
+    );
+  } catch (error) {
+    console.error("Error fetching student assessments:", error);
+    throw error;
+  }
+}
+
+// Function to persist user role and school ID to database
 export async function persistUserRoleToDatabase(userId: string, role: UserRole, schoolId?: string): Promise<boolean> {
   try {
     console.log(`Persisting user role to database: ${role} for user ${userId}`);
     
     // First update the profiles table
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .upsert({
-        id: userId,
-        user_type: role,
-        school_id: schoolId || null
-      }, { onConflict: 'id' });
+    const { error: profileError } = await retryWithBackoff(async () => {
+      return await supabase
+        .from('profiles')
+        .upsert({
+          id: userId,
+          user_type: role,
+          school_id: schoolId || null
+        }, { onConflict: 'id' });
+    });
     
     if (profileError) {
       console.error("Error updating profile:", profileError);
@@ -228,38 +213,44 @@ export async function persistUserRoleToDatabase(userId: string, role: UserRole, 
     
     // Then update the specific role table (students, teachers, or school_admins)
     if (role === 'student') {
-      const { error: studentError } = await supabase
-        .from('students')
-        .upsert({
-          id: userId,
-          school_id: schoolId || null,
-          status: 'pending' // New students start as pending
-        }, { onConflict: 'id' });
+      const { error: studentError } = await retryWithBackoff(async () => {
+        return await supabase
+          .from('students')
+          .upsert({
+            id: userId,
+            school_id: schoolId || null,
+            status: 'pending' // New students start as pending
+          }, { onConflict: 'id' });
+      });
       
       if (studentError) {
         console.error("Error creating student record:", studentError);
         return false;
       }
     } else if (role === 'teacher') {
-      const { error: teacherError } = await supabase
-        .from('teachers')
-        .upsert({
-          id: userId,
-          school_id: schoolId || null,
-          is_supervisor: false // Default to non-supervisor
-        }, { onConflict: 'id' });
+      const { error: teacherError } = await retryWithBackoff(async () => {
+        return await supabase
+          .from('teachers')
+          .upsert({
+            id: userId,
+            school_id: schoolId || null,
+            is_supervisor: false // Default to non-supervisor
+          }, { onConflict: 'id' });
+      });
       
       if (teacherError) {
         console.error("Error creating teacher record:", teacherError);
         return false;
       }
     } else if (isSchoolAdmin(role)) {
-      const { error: adminError } = await supabase
-        .from('school_admins')
-        .upsert({
-          id: userId,
-          school_id: schoolId || null
-        }, { onConflict: 'id' });
+      const { error: adminError } = await retryWithBackoff(async () => {
+        return await supabase
+          .from('school_admins')
+          .upsert({
+            id: userId,
+            school_id: schoolId || null
+          }, { onConflict: 'id' });
+      });
       
       if (adminError) {
         console.error("Error creating school admin record:", adminError);

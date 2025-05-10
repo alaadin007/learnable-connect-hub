@@ -13,7 +13,8 @@ import { Calendar, Clock, FileCheck, BookOpen, AlertCircle } from "lucide-react"
 import { format, isPast, isToday } from "date-fns";
 import { toast } from "sonner";
 import { Assessment } from "@/utils/supabaseHelpers";
-import { executeWithTimeout } from "@/utils/networkHelpers";
+import { fetchWithReliability, getCachedData } from "@/utils/networkHelpers";
+import { getSchoolIdWithFallback } from "@/utils/apiHelpers";
 
 const StudentAssessments = () => {
   const { user, profile, schoolId } = useAuth();
@@ -21,6 +22,9 @@ const StudentAssessments = () => {
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Cache key for assessments
+  const assessmentsCacheKey = `student_assessments_${user?.id || ''}`;
 
   useEffect(() => {
     // Track component mount state
@@ -37,10 +41,19 @@ const StudentAssessments = () => {
       return;
     }
 
+    // Try to get cached data first for immediate rendering
+    const cachedData = getCachedData<Assessment[]>(assessmentsCacheKey);
+    if (cachedData) {
+      setAssessments(cachedData);
+      setLoading(false);
+    }
+
     const fetchAssessments = async () => {
       try {
-        // Fetch assessments for this student's school
-        if (!schoolId) {
+        // Use effective school ID
+        const effectiveSchoolId = schoolId || profile?.school_id || getSchoolIdWithFallback();
+        
+        if (!effectiveSchoolId) {
           if (isMounted) {
             setAssessments([]);
             setLoading(false);
@@ -48,37 +61,23 @@ const StudentAssessments = () => {
           return;
         }
 
-        const { data, error } = await executeWithTimeout(
-          async () => {
-            return await supabase
-              .from("assessments")
-              .select(`
-                id, 
-                title, 
-                description, 
-                due_date, 
-                created_at,
-                teacher_id,
-                teacher:teachers(
-                  id, 
-                  profiles(full_name)
-                ),
-                submission:assessment_submissions(
-                  id, 
-                  score, 
-                  completed,
-                  submitted_at
-                )
-              `)
-              .eq("school_id", schoolId)
-              .order("due_date", { ascending: true });
+        // Use optimized fetchWithReliability
+        const data = await fetchWithReliability<any[]>(
+          `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/assessments`,
+          {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+              'Authorization': `Bearer ${supabase.auth.session()?.access_token}`
+            },
           },
-          8000 // 8 seconds timeout
+          3, // retries
+          8000, // timeout
+          assessmentsCacheKey // For caching
         );
 
         if (!isMounted) return;
-
-        if (error) throw error;
 
         // Process data to format teacher name and submission
         const formattedData = data.map((assessment: any) => {
@@ -113,7 +112,11 @@ const StudentAssessments = () => {
           } else {
             setError(err.message || "Failed to load assessments");
           }
-          toast.error("Failed to load assessments");
+          
+          // Only show toast if not using cached data
+          if (!cachedData) {
+            toast.error("Failed to load assessments");
+          }
         }
       } finally {
         if (isMounted) {
@@ -232,13 +235,17 @@ const StudentAssessments = () => {
     </Card>
   );
 
+  // Determine if we have any data to show
+  const hasAssessments = assessments.length > 0;
+  const isInitialLoad = loading && !hasAssessments;
+
   return (
     <>
       <Navbar />
       <main className="container mx-auto px-4 py-8 min-h-screen">
         <h1 className="text-3xl font-bold mb-6">My Assessments</h1>
 
-        {error ? (
+        {error && !hasAssessments ? (
           <div className="bg-red-50 p-4 rounded-md">
             <div className="flex items-center mb-2">
               <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
@@ -267,7 +274,7 @@ const StudentAssessments = () => {
             </TabsList>
             
             <TabsContent value="due-soon">
-              {loading ? (
+              {isInitialLoad ? (
                 <div className="bg-white border border-gray-200 p-8 rounded-md shadow-sm">
                   <div className="flex flex-col items-center justify-center min-h-[200px]">
                     <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
@@ -284,7 +291,7 @@ const StudentAssessments = () => {
             </TabsContent>
             
             <TabsContent value="upcoming">
-              {loading ? (
+              {isInitialLoad ? (
                 <div className="bg-white border border-gray-200 p-8 rounded-md shadow-sm">
                   <div className="flex flex-col items-center justify-center min-h-[200px]">
                     <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
@@ -301,7 +308,7 @@ const StudentAssessments = () => {
             </TabsContent>
             
             <TabsContent value="completed">
-              {loading ? (
+              {isInitialLoad ? (
                 <div className="bg-white border border-gray-200 p-8 rounded-md shadow-sm">
                   <div className="flex flex-col items-center justify-center min-h-[200px]">
                     <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
@@ -318,7 +325,7 @@ const StudentAssessments = () => {
             </TabsContent>
             
             <TabsContent value="past-due">
-              {loading ? (
+              {isInitialLoad ? (
                 <div className="bg-white border border-gray-200 p-8 rounded-md shadow-sm">
                   <div className="flex flex-col items-center justify-center min-h-[200px]">
                     <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
