@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -196,7 +195,8 @@ const AssessmentTaker = () => {
       }
       
       // For each response, create an entry in quiz_responses
-      const responses = userResponses.map(response => {
+      const responses = [];
+      for (const response of userResponses) {
         // Get the current question
         const question = questions.find(q => q.id === response.questionId);
         
@@ -224,15 +224,15 @@ const AssessmentTaker = () => {
           }
         }
         
-        return {
+        responses.push({
           submission_id: submission.id,
           question_id: response.questionId,
           selected_option_id: response.selectedOptionId || null,
           text_response: response.textResponse || null,
           is_correct: isCorrect,
           points_earned: pointsEarned
-        };
-      });
+        });
+      }
       
       // Insert all responses
       const { error: responsesError } = await supabase
@@ -297,7 +297,7 @@ const AssessmentTaker = () => {
               <div className="text-center">
                 <BookOpen className="h-16 w-16 mx-auto text-gray-300 mb-4" />
                 <h2 className="text-lg font-medium">No questions available</h2>
-                <p className="text-gray-500 mt-2">This assessment doesn't have any questions yet.</p>
+                <p className="text-gray-500 mt-2">This assessment does not have any questions yet.</p>
                 <Button 
                   variant="outline" 
                   className="mt-4" 

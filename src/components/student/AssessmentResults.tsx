@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -179,12 +178,12 @@ const AssessmentResults = () => {
   
   const getFeedback = () => {
     const percentage = getScorePercentage();
-    if (percentage >= 90) return 'Excellent! You've mastered this topic.';
-    if (percentage >= 80) return 'Great job! You have a strong understanding.';
-    if (percentage >= 70) return 'Good work! You're on the right track.';
-    if (percentage >= 60) return 'Not bad, but there's room for improvement.';
-    if (percentage >= 50) return 'You passed, but should review this material.';
-    return 'You need to spend more time studying this material.';
+    if (percentage >= 90) return "Excellent! You have mastered this topic.";
+    if (percentage >= 80) return "Great job! You have a strong understanding.";
+    if (percentage >= 70) return "Good work! You are on the right track.";
+    if (percentage >= 60) return "Not bad, but there's room for improvement.";
+    if (percentage >= 50) return "You passed, but should review this material.";
+    return "You need to spend more time studying this material.";
   };
   
   if (!result) {
