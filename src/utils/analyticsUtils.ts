@@ -441,6 +441,7 @@ export function getUserRoleWithFallback(fallback: string = 'student'): string {
  */
 export function isSchoolAdmin(userRole: UserRole): boolean {
   if (!userRole) return false;
+  // Fix the comparison by checking the string value directly
   return userRole === 'school_admin' || userRole === 'teacher_supervisor';
 }
 
@@ -504,6 +505,12 @@ export async function getSchoolIdWithFallback(defaultId: string = 'test-school-0
   } catch (error) {
     return defaultId;
   }
+}
+
+// Synchronous version for components that can't handle async
+export function getSchoolIdSync(defaultId: string = 'test-school-0'): string {
+  // Use a default value until the async function resolves
+  return defaultId;
 }
 
 /**

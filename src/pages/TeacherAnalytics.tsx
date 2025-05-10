@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import AnalyticsDashboard from '@/components/analytics/AnalyticsDashboard';
+import { AnalyticsDashboard } from '@/components/analytics/AnalyticsDashboard';
 import { 
   SessionData, 
   TopicData, 
@@ -12,7 +12,7 @@ import {
   AnalyticsFilters 
 } from '@/components/analytics/types';
 import { 
-  getAnalyticsSummary, 
+  getAnalyticsSummary,
   getSessionLogs, 
   getTopics, 
   getStudyTime,

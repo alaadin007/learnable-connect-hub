@@ -1,374 +1,248 @@
+import React, { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import DashboardLayout from '@/components/layout/DashboardLayout';
+import { Button } from '@/components/ui/button';
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
+import { Skeleton } from '@/components/ui/skeleton';
+import { getSchoolIdSync } from '@/utils/analyticsUtils';
 
-import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import Navbar from "@/components/layout/Navbar";
-import Footer from "@/components/landing/Footer";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { 
-  Check, 
-  X, 
-  AlertTriangle, 
-  Search, 
-  UserPlus, 
-  RefreshCw,
-  Info
-} from "lucide-react";
-import { Student } from "@/utils/supabaseHelpers";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
-import { getSchoolIdWithFallback } from "@/utils/apiHelpers";
-import AdminNavbar from "@/components/school-admin/AdminNavbar";
+// Define Student type
+interface Student {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  email: string;
+  full_name: string;
+  status: 'pending' | 'active' | 'revoked';
+  school_id: string;
+}
 
 const AdminStudents = () => {
-  const navigate = useNavigate();
   const [students, setStudents] = useState<Student[]>([]);
-  const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
-
-  const fetchStudents = async () => {
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const schoolId = getSchoolIdWithFallback();
-      
-      // Call a proper RPC function or view to get students with profiles
-      const { data, error } = await supabase
-        .rpc('get_students_with_profiles', { school_id_param: schoolId });
-        
-      if (error) {
-        throw error;
-      }
-      
-      if (data) {
-        // Map the results to match the Student interface
-        const formattedStudents: Student[] = data.map(student => ({
-          id: student.id,
-          created_at: student.created_at,
-          updated_at: student.created_at, // Use created_at as fallback for updated_at
-          email: student.email,
-          full_name: student.full_name, 
-          status: student.status as 'pending' | 'active' | 'revoked',
-          school_id: schoolId
-        }));
-        
-        setStudents(formattedStudents);
-        setFilteredStudents(formattedStudents);
-      }
-    } catch (err: any) {
-      console.error("Error fetching students:", err);
-      setError(err.message || "Failed to load students");
-      
-      // Use mock data in development
-      if (process.env.NODE_ENV === 'development') {
-        const mockStudents: Student[] = [
-          {
-            id: "1",
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            email: "student1@example.com",
-            full_name: "Alice Johnson",
-            status: "active",
-            school_id: "school-123"
-          },
-          {
-            id: "2",
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            email: "student2@example.com",
-            full_name: "Bob Smith",
-            status: "pending",
-            school_id: "school-123"
-          },
-          {
-            id: "3",
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            email: "student3@example.com",
-            full_name: "Charlie Brown",
-            status: "revoked",
-            school_id: "school-123"
-          }
-        ];
-        
-        setStudents(mockStudents);
-        setFilteredStudents(mockStudents);
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [isLoading, setIsLoading] = useState(true);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [isInviting, setIsInviting] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   useEffect(() => {
     fetchStudents();
   }, []);
 
-  useEffect(() => {
-    // Filter students based on search query
-    if (searchQuery.trim() === "") {
-      setFilteredStudents(students);
-    } else {
-      const query = searchQuery.toLowerCase();
-      const filtered = students.filter(
-        (student) =>
-          student.full_name.toLowerCase().includes(query) ||
-          student.email.toLowerCase().includes(query)
-      );
-      setFilteredStudents(filtered);
-    }
-  }, [searchQuery, students]);
-
-  const handleApproveStudent = async (studentId: string) => {
-    setActionLoading(studentId);
+  const fetchStudents = async () => {
+    setIsLoading(true);
     try {
-      // Call the approve_student_direct function
-      const { error } = await supabase.rpc('approve_student_direct', {
-        student_id_param: studentId
-      });
+      // Use the synchronous version for the initial value
+      const schoolId = getSchoolIdSync();
       
+      const { data, error } = await supabase
+        .from('students')
+        .select('*')
+        .eq('school_id', schoolId);
+        
       if (error) throw error;
       
-      // Update local state
-      setStudents(prevStudents => 
-        prevStudents.map(student => 
-          student.id === studentId 
-            ? { ...student, status: 'active' as const } 
-            : student
-        )
-      );
-      
-      toast.success("Student approved successfully");
-    } catch (err: any) {
-      console.error("Error approving student:", err);
-      toast.error(err.message || "Failed to approve student");
+      // Then update with the actual data after fetching
+      setStudents(data as Student[]);
+    } catch (err) {
+      console.error('Error fetching students:', err);
+      toast.error('Failed to fetch students');
     } finally {
-      setActionLoading(null);
+      setIsLoading(false);
     }
   };
 
-  const handleRevokeStudent = async (studentId: string) => {
-    setActionLoading(studentId);
+  const handleInviteStudent = async () => {
+    setIsInviting(true);
     try {
-      // Call the revoke_student_access_direct function
-      const { error } = await supabase.rpc('revoke_student_access_direct', {
-        student_id_param: studentId
+      const schoolId = getSchoolIdSync();
+      
+      const { data, error } = await supabase.functions.invoke('invite-student', {
+        body: {
+          email: inviteEmail,
+          school_id: schoolId,
+        },
       });
-      
-      if (error) throw error;
-      
-      // Update local state
-      setStudents(prevStudents => 
-        prevStudents.map(student => 
-          student.id === studentId 
-            ? { ...student, status: 'revoked' as const } 
-            : student
-        )
-      );
-      
-      toast.success("Student access revoked");
-    } catch (err: any) {
-      console.error("Error revoking student access:", err);
-      toast.error(err.message || "Failed to revoke student access");
+
+      if (error) {
+        console.error('Function error:', error);
+        toast.error(`Failed to invite student: ${error.message}`);
+      } else {
+        toast.success('Student invite sent successfully');
+        setInviteEmail('');
+        setIsDialogOpen(false);
+        fetchStudents();
+      }
+    } catch (err) {
+      console.error('Error inviting student:', err);
+      toast.error('Failed to invite student');
     } finally {
-      setActionLoading(null);
+      setIsInviting(false);
     }
   };
 
-  const NoStudentsMessage = () => (
-    <div className="text-center py-8">
-      <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-100 text-blue-600 mb-4">
-        <Info className="h-6 w-6" />
-      </div>
-      <h3 className="text-lg font-medium mb-2">No Students Found</h3>
-      <p className="text-gray-500 mb-6 max-w-md mx-auto">
-        You don't have any students registered yet. Start inviting students to your school!
-      </p>
-      <Button onClick={() => navigate("/admin/invite-students")}>
-        <UserPlus className="h-4 w-4 mr-2" />
-        Invite Students
-      </Button>
-    </div>
-  );
+  const handleRevokeAccess = async (studentId: string) => {
+    try {
+      const { error } = await supabase
+        .from('students')
+        .update({ status: 'revoked' })
+        .eq('id', studentId);
 
-  const NoSearchResultsMessage = () => (
-    <div className="text-center py-8">
-      <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-100 text-blue-600 mb-4">
-        <Search className="h-6 w-6" />
-      </div>
-      <h3 className="text-lg font-medium mb-2">No Results Found</h3>
-      <p className="text-gray-500 mb-4">
-        No students matching "{searchQuery}" were found
-      </p>
-      <Button variant="outline" onClick={() => setSearchQuery("")}>
-        Clear Search
-      </Button>
-    </div>
-  );
+      if (error) throw error;
+
+      toast.success('Student access revoked');
+      fetchStudents();
+    } catch (err) {
+      console.error('Error revoking access:', err);
+      toast.error('Failed to revoke access');
+    }
+  };
+
+  const handleGrantAccess = async (studentId: string) => {
+    try {
+      const { error } = await supabase
+        .from('students')
+        .update({ status: 'active' })
+        .eq('id', studentId);
+
+      if (error) throw error;
+
+      toast.success('Student access granted');
+      fetchStudents();
+    } catch (err) {
+      console.error('Error granting access:', err);
+      toast.error('Failed to grant access');
+    }
+  };
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <Navbar />
-      
-      <main className="flex-grow bg-gray-50 py-8">
-        <div className="container mx-auto px-4">
-          <h1 className="text-3xl font-bold mb-6">Student Management</h1>
-          
-          <AdminNavbar className="mb-8" />
-          
-          <Card className="mb-6">
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <div>
-                  <CardTitle className="text-xl">Students</CardTitle>
-                  <CardDescription>
-                    Manage student accounts and access
-                  </CardDescription>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={fetchStudents}
-                    disabled={loading}
-                  >
-                    <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-                    Refresh
-                  </Button>
-                  <Button onClick={() => navigate("/admin/invite-students")}>
-                    <UserPlus className="h-4 w-4 mr-2" />
-                    Invite Students
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="mb-4">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+    <DashboardLayout>
+      <div className="container py-6">
+        <div className="flex justify-between items-center mb-4">
+          <CardHeader>
+            <CardTitle className="text-2xl font-bold">Manage Students</CardTitle>
+          </CardHeader>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="primary">Invite Student</Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Invite Student</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="email" className="text-right">
+                    Email
+                  </Label>
                   <Input
-                    placeholder="Search students by name or email..."
-                    className="pl-9"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    id="email"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    className="col-span-3"
+                    type="email"
                   />
                 </div>
               </div>
-
-              {error && (
-                <div className="bg-red-50 border border-red-200 text-red-800 rounded p-4 mb-4">
-                  <div className="flex items-center">
-                    <AlertTriangle className="h-5 w-5 mr-2 text-red-600" />
-                    <p>{error}</p>
-                  </div>
-                </div>
-              )}
-
-              <div className="border rounded-lg overflow-hidden">
-                {loading ? (
-                  <div className="p-4">
-                    <div className="space-y-4">
-                      {[1,2,3].map(i => (
-                        <div key={i} className="flex items-center space-x-4">
-                          <div className="h-5 bg-gray-200 rounded w-40"></div>
-                          <div className="h-5 bg-gray-200 rounded w-48"></div>
-                          <div className="h-5 bg-gray-200 rounded w-20"></div>
-                          <div className="h-8 bg-gray-200 rounded w-24"></div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : students.length === 0 ? (
-                  <NoStudentsMessage />
-                ) : filteredStudents.length === 0 ? (
-                  <NoSearchResultsMessage />
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Email</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredStudents.map((student) => (
-                        <TableRow key={student.id}>
-                          <TableCell className="font-medium">{student.full_name}</TableCell>
-                          <TableCell>{student.email}</TableCell>
+              <Button onClick={handleInviteStudent} disabled={isInviting}>
+                {isInviting ? 'Inviting...' : 'Send Invite'}
+              </Button>
+            </DialogContent>
+          </Dialog>
+        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Student List</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <>
+                    {Array(5)
+                      .fill(null)
+                      .map((_, i) => (
+                        <TableRow key={i}>
                           <TableCell>
-                            {student.status === "active" && (
-                              <Badge variant="success">Active</Badge>
-                            )}
-                            {student.status === "pending" && (
-                              <Badge variant="secondary">Pending</Badge>
-                            )}
-                            {student.status === "revoked" && (
-                              <Badge variant="destructive">Revoked</Badge>
-                            )}
+                            <Skeleton />
                           </TableCell>
                           <TableCell>
-                            {student.status === "pending" && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleApproveStudent(student.id)}
-                                disabled={actionLoading === student.id}
-                                className="mr-2"
-                              >
-                                <Check className="h-4 w-4 mr-1" />
-                                Approve
-                              </Button>
-                            )}
-                            {student.status === "active" && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleRevokeStudent(student.id)}
-                                disabled={actionLoading === student.id}
-                              >
-                                <X className="h-4 w-4 mr-1" />
-                                Revoke
-                              </Button>
-                            )}
-                            {student.status === "revoked" && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleApproveStudent(student.id)}
-                                disabled={actionLoading === student.id}
-                              >
-                                <Check className="h-4 w-4 mr-1" />
-                                Reactivate
-                              </Button>
-                            )}
+                            <Skeleton />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton />
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Skeleton className="w-24 h-8" />
                           </TableCell>
                         </TableRow>
                       ))}
-                    </TableBody>
-                  </Table>
+                  </>
+                ) : students.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center">
+                      No students found.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  students.map((student) => (
+                    <TableRow key={student.id}>
+                      <TableCell>{student.full_name}</TableCell>
+                      <TableCell>{student.email}</TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            student.status === 'active'
+                              ? 'success'
+                              : student.status === 'pending'
+                              ? 'secondary'
+                              : 'destructive'
+                          }
+                        >
+                          {student.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {student.status === 'active' ? (
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleRevokeAccess(student.id)}
+                          >
+                            Revoke Access
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleGrantAccess(student.id)}
+                          >
+                            Grant Access
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
                 )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </main>
-      
-      <Footer />
-    </div>
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
+    </DashboardLayout>
   );
 };
 

@@ -1,4 +1,3 @@
-
 // Define date range interface
 export interface DateRange {
   from: Date;
@@ -83,7 +82,8 @@ export interface SchoolPerformanceData {
   assessment_count: number;
 }
 
-export interface PerformanceSummary {
+// This was previously using PerformanceSummary but needs to be renamed to SchoolPerformanceSummary
+export interface SchoolPerformanceSummary {
   total_assessments: number;
   total_students: number;
   students_with_submissions: number;
@@ -93,3 +93,6 @@ export interface PerformanceSummary {
   improvement_rate: number;
   avg_submissions_per_assessment: number;
 }
+
+// Keep the original PerformanceSummary for backward compatibility
+export interface PerformanceSummary extends SchoolPerformanceSummary {}
