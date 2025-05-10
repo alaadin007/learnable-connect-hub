@@ -51,6 +51,7 @@ const Navbar = () => {
 
   const handleLogout = useCallback(async () => {
     try {
+      console.log("Navbar: Initiating logout");
       await signOut();
       // Always navigate to the home page after logout
       navigate("/", { replace: true }); 
@@ -170,8 +171,6 @@ const Navbar = () => {
     }
   }, [effectiveUserRole, isLoggedIn, isTestAccountsPage, isAdmin]);
 
-  const navLinks = getNavLinks();
-
   const isActiveLink = useCallback((href: string): boolean => {
     const currentPath = location.pathname;
     
@@ -227,10 +226,6 @@ const Navbar = () => {
     navigate(path, { state: navState });
     setIsOpen(false);
   }, [location.pathname, navigate, isAdmin]);
-
-  if (isTestAccountsPage) {
-    return null;
-  }
 
   // Don't render until we've determined loading state to prevent flickering
   if (!isLoaded) {

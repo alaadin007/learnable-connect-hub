@@ -75,6 +75,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isSuperviser, setIsSuperviser] = useState(false);
   const [schoolId, setSchoolId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSessionChecked, setIsSessionChecked] = useState(false);
 
   // Fetch user profile data including role and school information - wrapped in useCallback
   const fetchUserProfile = useCallback(async (userId: string) => {
@@ -223,20 +224,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [user, userRole]);
 
   useEffect(() => {
+    let mounted = true;
+    console.log("Auth context initialization");
+    
     // Set up auth state listener FIRST - critical for avoiding deadlocks
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
       console.log("Auth state changed:", event, !!newSession);
-      setSession(newSession);
-      setUser(newSession?.user ?? null);
       
-      // Don't make any Supabase calls directly in the callback
-      if (newSession?.user) {
-        // Use setTimeout to ensure we don't create a Supabase deadlock
-        setTimeout(() => {
-          fetchUserProfile(newSession.user.id);
-        }, 0);
+      if (!mounted) return;
+      
+      if (event === 'SIGNED_IN') {
+        console.log("User signed in event received");
+        setSession(newSession);
+        setUser(newSession?.user ?? null);
+        
+        // Don't make any Supabase calls directly in the callback
+        if (newSession?.user) {
+          // Use setTimeout to ensure we don't create a Supabase deadlock
+          setTimeout(() => {
+            if (mounted) fetchUserProfile(newSession.user.id);
+          }, 0);
+        }
       } else if (event === 'SIGNED_OUT') {
+        console.log("User signed out event received");
         // Clear all auth state
+        setSession(null);
+        setUser(null);
         setProfile(null);
         setUserRole(null);
         setIsSuperviser(false);
@@ -245,6 +258,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // Also clear localStorage items related to auth
         localStorage.removeItem('userRole');
         localStorage.removeItem('schoolId');
+      } else if (event === 'TOKEN_REFRESHED') {
+        console.log("Token refreshed event received");
+        setSession(newSession);
       }
     });
 
@@ -262,39 +278,61 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
         
         if (data.session) {
+          console.log("Found existing session", data.session.user.id);
           // Update state with session data
           setSession(data.session);
           setUser(data.session.user);
           
           // Fetch additional user information
-          await fetchUserProfile(data.session.user.id);
+          if (mounted) await fetchUserProfile(data.session.user.id);
+        } else {
+          console.log("No existing session found");
         }
+        
+        if (mounted) setIsSessionChecked(true);
       } catch (err) {
         console.error("Error loading initial session:", err);
+        if (mounted) setIsSessionChecked(true);
       } finally {
-        setIsLoading(false);
+        if (mounted) setIsLoading(false);
       }
     };
     
     loadInitialSession();
     
     return () => {
+      mounted = false;
       subscription.unsubscribe();
     };
   }, [fetchUserProfile]);
 
   const signIn = useCallback(async (email: string, password: string) => {
     try {
+      console.log("Attempting to sign in with email:", email);
+      setIsLoading(true);
+      
       const response = await supabase.auth.signInWithPassword({ email, password });
+      
+      if (response.error) {
+        console.error("Sign in error:", response.error);
+        toast.error(`Login failed: ${response.error.message}`);
+      }
+      
       return response;
     } catch (error) {
       console.error("Error signing in:", error);
+      toast.error(`Login error: ${error.message || "Unknown error"}`);
       return { error, data: null };
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
   const signUp = useCallback(async (email: string, password: string, metadata: any) => {
     try {
+      console.log("Attempting to sign up with email:", email);
+      setIsLoading(true);
+      
       const response = await supabase.auth.signUp({ 
         email, 
         password, 
@@ -303,16 +341,35 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       });
       
+      if (response.error) {
+        console.error("Sign up error:", response.error);
+        toast.error(`Registration failed: ${response.error.message}`);
+      }
+      
       return response;
     } catch (error) {
       console.error("Error signing up:", error);
+      toast.error(`Registration error: ${error.message || "Unknown error"}`);
       return { error, data: null };
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
   const signOut = useCallback(async () => {
     try {
-      await supabase.auth.signOut();
+      console.log("Signing out user");
+      setIsLoading(true);
+      
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        console.error("Sign out error:", error);
+        toast.error(`Logout failed: ${error.message}`);
+        throw error;
+      }
+      
+      // Clear state regardless of Supabase response
       setSession(null);
       setUser(null);
       setProfile(null);
@@ -321,8 +378,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setSchoolId(null);
       localStorage.removeItem('userRole');
       localStorage.removeItem('schoolId');
+      
+      toast.success("You have been logged out successfully");
     } catch (error) {
       console.error("Error signing out:", error);
+      toast.error(`Logout error: ${error.message || "Unknown error"}`);
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
@@ -387,7 +449,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     userRole,
     isSuperviser,
     schoolId,
-    isLoading,
+    isLoading: isLoading || !isSessionChecked,
     signIn,
     signUp,
     signOut,

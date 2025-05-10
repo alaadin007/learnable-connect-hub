@@ -42,7 +42,7 @@ const Login = () => {
     checkSupabaseConnection();
   }, []);
   
-  // Immediate redirection for authenticated users
+  // Redirect authenticated users to appropriate dashboard
   useEffect(() => {
     // Only proceed with redirection if auth state is loaded
     if (!isLoading) {

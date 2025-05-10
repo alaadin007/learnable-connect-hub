@@ -1,155 +1,256 @@
 
-import React, { useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAuth } from "@/contexts/AuthContext";
-import { persistUserRoleToDatabase } from "@/utils/apiHelpers"; 
-import { toast } from "sonner";
+import React, { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
+import { useAuth } from '@/contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import Navbar from '@/components/layout/Navbar';
+import Footer from '@/components/landing/Footer';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { School, GraduationCap, User, Loader2, LogOut } from 'lucide-react';
+import { toast } from 'sonner';
 
 const TestAccounts = () => {
-  const { setTestUser } = useAuth();
+  const { setTestUser, user, signOut } = useAuth();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState<string | null>(null);
 
-  // Helper to use test accounts with proper database persistence
-  const handleUseTestAccount = useCallback(async (accountType: "school" | "teacher" | "student") => {
+  const handleSelectAccount = async (type: 'school' | 'teacher' | 'student') => {
     try {
-      setIsLoading(accountType);
+      setIsLoading(type);
+      await setTestUser(type);
       
-      // First set the test user in auth context
-      await setTestUser(accountType);
+      // Navigate to the appropriate dashboard
+      setTimeout(() => {
+        if (type === 'school') {
+          navigate('/admin', { state: { fromTestAccounts: true }, replace: true });
+        } else if (type === 'teacher') {
+          navigate('/teacher/analytics', { state: { fromTestAccounts: true }, replace: true });
+        } else {
+          navigate('/dashboard', { state: { fromTestAccounts: true }, replace: true });
+        }
+      }, 1000);
       
-      // Store in sessionStorage for recovery during page reloads
-      sessionStorage.setItem('testAccountType', accountType);
-      
-      // Determine test user ID and school ID based on account type
-      const userId = accountType === 'school' 
-        ? 'test-school-admin' 
-        : accountType === 'teacher' 
-          ? 'test-teacher' 
-          : 'test-student';
-          
-      const schoolId = 'test-school-id';
-      
-      // Persist the role to database for proper functioning
-      await persistUserRoleToDatabase(userId, accountType, schoolId);
-      
-      // Success message
-      toast.success(`Logged in as ${accountType}`);
-      
-      // Navigate to the appropriate dashboard based on the account type
-      if (accountType === "school") {
-        navigate("/admin", { state: { fromTestAccounts: true, preserveContext: true } });
-      } else if (accountType === "teacher") {
-        navigate("/teacher/analytics", { state: { fromTestAccounts: true, preserveContext: true } });
-      } else {
-        navigate("/dashboard", { state: { fromTestAccounts: true, preserveContext: true } });
-      }
+      toast.success(`Logged in as ${type} test account`);
     } catch (error) {
-      console.error(`Error setting up test ${accountType} account:`, error);
-      toast.error(`Failed to set up test ${accountType} account`);
+      console.error(`Error using ${type} test account:`, error);
+      toast.error(`Failed to access ${type} test account`);
     } finally {
       setIsLoading(null);
     }
-  }, [navigate, setTestUser]);
+  };
+  
+  const handleLogout = async () => {
+    try {
+      setIsLoading('logout');
+      await signOut();
+      toast.success('Logged out from test account');
+    } catch (error) {
+      console.error('Error logging out:', error);
+      toast.error('Failed to log out');
+    } finally {
+      setIsLoading(null);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 flex flex-col items-center">
-      <div className="max-w-3xl w-full space-y-8">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Test Accounts</h1>
-          <p className="text-gray-600">
-            Use these test accounts to explore different user experiences without creating a real account.
-          </p>
-        </div>
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-blue-50 to-indigo-50">
+      <Navbar />
+      
+      <div className="flex-grow flex items-center justify-center p-4 sm:p-8">
+        <div className="w-full max-w-4xl">
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold gradient-text mb-4">Test Accounts</h1>
+            <p className="text-gray-600 max-w-xl mx-auto">
+              Access the platform with different user roles to explore features available to each type of user.
+              No password needed - just click on the account you want to use.
+            </p>
+            
+            {user && (
+              <div className="mt-6">
+                <Card className="border-amber-300 bg-amber-50">
+                  <CardContent className="pt-6">
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                      <div className="text-left">
+                        <p className="text-amber-800 font-medium">
+                          You are currently using a test account: <span className="font-bold">{user.email}</span>
+                        </p>
+                        <p className="text-amber-700 text-sm mt-1">
+                          You can switch to a different test account or log out below.
+                        </p>
+                      </div>
+                      <Button 
+                        variant="outline" 
+                        onClick={handleLogout}
+                        disabled={isLoading === 'logout'}
+                        className="border-amber-400 text-amber-800 hover:bg-amber-100 min-w-[120px]"
+                      >
+                        {isLoading === 'logout' ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <LogOut className="h-4 w-4 mr-2" />
+                        )}
+                        Log Out
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+          </div>
+          
+          <Tabs defaultValue="school" className="w-full">
+            <TabsList className="grid grid-cols-3 mb-8">
+              <TabsTrigger value="school" className="py-3">
+                <School className="h-5 w-5 mr-2" />
+                <span>School Admin</span>
+              </TabsTrigger>
+              <TabsTrigger value="teacher">
+                <GraduationCap className="h-5 w-5 mr-2" />
+                <span>Teacher</span>
+              </TabsTrigger>
+              <TabsTrigger value="student">
+                <User className="h-5 w-5 mr-2" />
+                <span>Student</span>
+              </TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="school" className="mt-0">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <School className="h-5 w-5 mr-2 text-blue-600" />
+                    School Administrator
+                  </CardTitle>
+                  <CardDescription>
+                    Access school-wide features, manage teachers and students, and view analytics.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-3 gap-2">
+                      <p className="font-semibold">Email:</p>
+                      <p className="col-span-2">school.test@learnable.edu</p>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <p className="font-semibold">Permissions:</p>
+                      <p className="col-span-2">Full access to school management, analytics, and teacher management</p>
+                    </div>
+                  </div>
+                </CardContent>
+                <CardFooter>
+                  <Button 
+                    onClick={() => handleSelectAccount('school')} 
+                    className="w-full"
+                    disabled={isLoading !== null}
+                  >
+                    {isLoading === 'school' ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Accessing...
+                      </>
+                    ) : (
+                      'Access School Admin Account'
+                    )}
+                  </Button>
+                </CardFooter>
+              </Card>
+            </TabsContent>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* School Admin Card */}
-          <Card>
-            <CardHeader className="bg-blue-50 border-b">
-              <CardTitle>School Admin</CardTitle>
-              <CardDescription>
-                Manage school, teachers and students
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <ul className="list-disc list-inside space-y-2 mb-6 text-sm text-gray-700">
-                <li>View analytics dashboard</li>
-                <li>Manage teachers</li>
-                <li>Configure school settings</li>
-                <li>Generate invite codes</li>
-              </ul>
-              <Button
-                className="w-full"
-                onClick={() => handleUseTestAccount("school")}
-                disabled={!!isLoading}
-              >
-                {isLoading === "school" ? "Loading..." : "Use School Admin Account"}
-              </Button>
-            </CardContent>
-          </Card>
+            <TabsContent value="teacher" className="mt-0">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <GraduationCap className="h-5 w-5 mr-2 text-green-600" />
+                    Teacher
+                  </CardTitle>
+                  <CardDescription>
+                    Manage your students, create assessments, and view student performance.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-3 gap-2">
+                      <p className="font-semibold">Email:</p>
+                      <p className="col-span-2">teacher.test@learnable.edu</p>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <p className="font-semibold">Permissions:</p>
+                      <p className="col-span-2">Student management, assessment creation, analytics for assigned students</p>
+                    </div>
+                  </div>
+                </CardContent>
+                <CardFooter>
+                  <Button 
+                    onClick={() => handleSelectAccount('teacher')} 
+                    className="w-full bg-green-600 hover:bg-green-700"
+                    disabled={isLoading !== null}
+                  >
+                    {isLoading === 'teacher' ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Accessing...
+                      </>
+                    ) : (
+                      'Access Teacher Account'
+                    )}
+                  </Button>
+                </CardFooter>
+              </Card>
+            </TabsContent>
 
-          {/* Teacher Card */}
-          <Card>
-            <CardHeader className="bg-green-50 border-b">
-              <CardTitle>Teacher</CardTitle>
-              <CardDescription>
-                Manage students and assessments
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <ul className="list-disc list-inside space-y-2 mb-6 text-sm text-gray-700">
-                <li>View student progress</li>
-                <li>Create assessments</li>
-                <li>Review student work</li>
-                <li>Track performance metrics</li>
-              </ul>
-              <Button
-                className="w-full"
-                onClick={() => handleUseTestAccount("teacher")}
-                disabled={!!isLoading}
-              >
-                {isLoading === "teacher" ? "Loading..." : "Use Teacher Account"}
-              </Button>
-            </CardContent>
-          </Card>
+            <TabsContent value="student" className="mt-0">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <User className="h-5 w-5 mr-2 text-purple-600" />
+                    Student
+                  </CardTitle>
+                  <CardDescription>
+                    Access learning materials, take assessments, and track your progress.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-3 gap-2">
+                      <p className="font-semibold">Email:</p>
+                      <p className="col-span-2">student.test@learnable.edu</p>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <p className="font-semibold">Permissions:</p>
+                      <p className="col-span-2">View assignments, submit assessments, chat with AI, track personal progress</p>
+                    </div>
+                  </div>
+                </CardContent>
+                <CardFooter>
+                  <Button 
+                    onClick={() => handleSelectAccount('student')} 
+                    className="w-full bg-purple-600 hover:bg-purple-700"
+                    disabled={isLoading !== null}
+                  >
+                    {isLoading === 'student' ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Accessing...
+                      </>
+                    ) : (
+                      'Access Student Account'
+                    )}
+                  </Button>
+                </CardFooter>
+              </Card>
+            </TabsContent>
+          </Tabs>
 
-          {/* Student Card */}
-          <Card>
-            <CardHeader className="bg-purple-50 border-b">
-              <CardTitle>Student</CardTitle>
-              <CardDescription>
-                Learn and complete assignments
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <ul className="list-disc list-inside space-y-2 mb-6 text-sm text-gray-700">
-                <li>Chat with AI assistant</li>
-                <li>Complete assessments</li>
-                <li>Track learning progress</li>
-                <li>Access study materials</li>
-              </ul>
-              <Button
-                className="w-full"
-                onClick={() => handleUseTestAccount("student")}
-                disabled={!!isLoading}
-              >
-                {isLoading === "student" ? "Loading..." : "Use Student Account"}
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="flex justify-center mt-8">
-          <Button
-            variant="outline"
-            onClick={() => navigate("/")}
-          >
-            Back to Home
-          </Button>
+          <div className="mt-8 text-center">
+            <p className="text-gray-500 text-sm">
+              These are test accounts with simulated data. In a production environment, users would need to register and be authenticated.
+            </p>
+          </div>
         </div>
       </div>
+      
+      <Footer />
     </div>
   );
 };

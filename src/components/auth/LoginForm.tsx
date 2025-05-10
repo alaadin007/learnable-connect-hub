@@ -1,5 +1,4 @@
-
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -18,6 +17,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useAuth } from "@/contexts/AuthContext";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Invalid email address" }),
@@ -31,10 +31,20 @@ const LoginForm = () => {
   const location = useLocation();
   const [isLoading, setIsLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const { signIn, user, userRole, session } = useAuth();
   
   // Check if we have a invitation token in the URL query params
   const searchParams = new URLSearchParams(location.search);
   const invitation = searchParams.get('invitation');
+
+  // Monitor authentication state and redirect if already logged in
+  useEffect(() => {
+    if (user && session) {
+      const redirectPath = getRedirectPath();
+      console.log(`Already authenticated as ${userRole}, redirecting to ${redirectPath}`);
+      navigate(redirectPath, { replace: true });
+    }
+  }, [user, session, userRole, navigate]);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -44,35 +54,40 @@ const LoginForm = () => {
     },
   });
 
+  const getRedirectPath = () => {
+    // Handle invitation flow first
+    if (invitation) {
+      return `/teacher-invitation/${invitation}`;
+    }
+    
+    // Otherwise route based on role
+    if (userRole === "school" || userRole === "school_admin") {
+      return "/admin";
+    } else if (userRole === "teacher") {
+      return "/teacher/analytics";
+    } else {
+      return "/dashboard";
+    }
+  };
+
   const onSubmit = async (data: FormData) => {
     setIsLoading(true);
     setLoginError(null);
     
     try {
-      // Authenticate with Supabase
-      const { data: authData, error } = await supabase.auth.signInWithPassword({
-        email: data.email,
-        password: data.password,
-      });
+      // Use the signIn method from AuthContext
+      const { data: authData, error } = await signIn(data.email, data.password);
 
       if (error) {
         console.error("Login error:", error);
         throw new Error(error.message);
       }
 
-      if (!authData.user) {
-        throw new Error("Login failed. Please try again.");
+      if (!authData?.user) {
+        throw new Error("Login failed. No user returned.");
       }
 
       console.log("Login successful:", authData);
-      
-      // Check if we need to handle a teacher invitation first
-      if (invitation) {
-        navigate(`/teacher-invitation/${invitation}`);
-        return;
-      }
-      
-      // Show success toast
       toast.success("Login successful");
       
       // Call the verify-and-setup-user function to ensure proper setup
@@ -87,17 +102,8 @@ const LoginForm = () => {
         // Continue anyway - verification not critical for login
       }
       
-      // Get user role directly from metadata for immediate routing
-      const userType = authData.user.user_metadata?.user_type;
-      
-      if (userType === 'school_admin' || userType === 'school') {
-        navigate("/admin", { replace: true });
-      } else if (userType === 'teacher') {
-        navigate("/teacher/analytics", { replace: true });
-      } else {
-        navigate("/dashboard", { replace: true });
-      }
-      
+      // Navigation will be handled by the useEffect in this component
+      // or by the Login page component's useEffect which monitors auth state
     } catch (error: any) {
       console.error("Login error:", error);
       setLoginError(error.message || "Login failed. Please try again.");
