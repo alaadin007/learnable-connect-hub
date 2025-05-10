@@ -3,14 +3,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
 import { toast } from 'sonner';
-import { 
-  getUserApiKeys, 
-  upsertUserApiKey, 
-  safeCast, 
-  hasData, 
-  asId,
-  safeApiKeyAccess
-} from '@/utils/supabaseTypeHelpers';
+import { hasData } from '@/utils/supabaseTypeHelpers';
 
 interface SettingsContextType {
   theme: string;
@@ -59,22 +52,22 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     if (!user) return;
 
     try {
-      const response = await getUserApiKeys(user.id);
+      const { data, error } = await supabase
+        .from('user_api_keys')
+        .select('provider, api_key')
+        .eq('user_id', user.id);
       
-      if (response.error) {
-        console.error("Error fetching API keys:", response.error);
+      if (error) {
+        console.error("Error fetching API keys:", error);
         return;
       }
 
-      if (hasData(response) && Array.isArray(response.data)) {
-        response.data.forEach(item => {
-          const apiKey = safeApiKeyAccess(item);
-          if (apiKey) {
-            if (apiKey.provider === 'openai') {
-              setOpenaiApiKey(String(apiKey.api_key));
-            } else if (apiKey.provider === 'gemini') {
-              setGeminiApiKey(String(apiKey.api_key));
-            }
+      if (data && Array.isArray(data)) {
+        data.forEach(apiKey => {
+          if (apiKey.provider === 'openai' && apiKey.api_key) {
+            setOpenaiApiKey(apiKey.api_key);
+          } else if (apiKey.provider === 'gemini' && apiKey.api_key) {
+            setGeminiApiKey(apiKey.api_key);
           }
         });
       }
@@ -98,14 +91,17 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
       const formattedKey = key.trim();
       
-      const response = await upsertUserApiKey({
-        user_id: user.id,
-        provider,
-        api_key: formattedKey
-      });
+      const { error } = await supabase
+        .from('user_api_keys')
+        .upsert({
+          user_id: user.id,
+          provider,
+          api_key: formattedKey
+        })
+        .select();
 
-      if (response.error) {
-        throw response.error;
+      if (error) {
+        throw error;
       }
 
       toast.success(`${provider.charAt(0).toUpperCase() + provider.slice(1)} API key saved successfully`);
@@ -116,7 +112,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       } else if (provider === 'gemini') {
         setGeminiApiKey(formattedKey);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(`Failed to save ${provider} API key:`, error);
       toast.error(`Failed to save ${provider} API key`);
     }

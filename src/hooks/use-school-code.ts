@@ -84,14 +84,17 @@ export const useSchoolCode = () => {
         const { data: schoolData, error } = await supabase
           .from("schools")
           .select("code")
-          .eq("id", asId<string>(schoolId))
+          .eq("id", schoolId)
           .single();
           
-        if (!error && schoolData && schoolData.code) {
-          localStorage.setItem(`${CURRENT_CODE_PREFIX}${schoolId}`, schoolData.code);
-          // Add to history
-          addCodeToHistory(schoolId, schoolData.code);
-          return schoolData.code;
+        if (!error && schoolData) {
+          const schoolCode = schoolData.code;
+          if (schoolCode) {
+            localStorage.setItem(`${CURRENT_CODE_PREFIX}${schoolId}`, schoolCode);
+            // Add to history
+            addCodeToHistory(schoolId, schoolCode);
+            return schoolCode;
+          }
         }
       }
       
@@ -150,12 +153,13 @@ export const useSchoolCode = () => {
       // Try to update in database
       try {
         if (process.env.NODE_ENV === 'production') {
+          // Create update with proper typing
           const updateData = { code: generatedCode };
           
           await supabase
             .from("schools")
-            .update(safeCast<Database["public"]["Tables"]["schools"]["Update"]>(updateData))
-            .eq("id", asId<string>(schoolId));
+            .update(updateData)
+            .eq("id", schoolId);
             
           // Also update in school_codes table for proper tracking
           const schoolCodesData = { 
@@ -167,7 +171,7 @@ export const useSchoolCode = () => {
           
           await supabase
             .from("school_codes")
-            .insert(safeCast<Database["public"]["Tables"]["school_codes"]["Insert"]>(schoolCodesData))
+            .insert(schoolCodesData)
             .select();
         }
       } catch (dbError) {

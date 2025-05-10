@@ -1,3 +1,4 @@
+
 import { Routes, Route, Navigate } from "react-router-dom";
 import Home from "@/pages/Home";
 import About from "@/pages/About";
@@ -22,7 +23,7 @@ import NotFound from "@/pages/NotFound";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import Pricing from "@/pages/Pricing";
 import TestAccounts from "@/pages/TestAccounts";
-import ProtectedRoute from "@/components/auth/ProtectedRoute";
+import ProtectedRoute, { UserRole } from "@/components/auth/ProtectedRoute";
 import StudentAssessments from "@/pages/StudentAssessments";
 import StudentProgress from "@/pages/StudentProgress";
 import StudentSettings from "@/pages/StudentSettings";
@@ -69,7 +70,7 @@ function App() {
             </ProtectedRoute>
           } />
 
-          {/* School admin routes - Note: Using allowedRoles instead of requiredUserType to be more flexible */}
+          {/* School admin routes */}
           <Route path="/admin" element={
             <ProtectedRoute allowedRoles={["school", "school_admin"]}>
               <SchoolAdmin />
@@ -108,44 +109,44 @@ function App() {
 
           {/* Teacher routes */}
           <Route path="/teacher/students" element={
-            <ProtectedRoute requiredUserType="teacher">
+            <ProtectedRoute allowedRoles={["teacher"]}>
               <TeacherStudents />
             </ProtectedRoute>
           } />
           
           <Route path="/teacher/analytics" element={
-            <ProtectedRoute requiredUserType="teacher">
+            <ProtectedRoute allowedRoles={["teacher"]}>
               <TeacherAnalytics />
             </ProtectedRoute>
           } />
           
           {/* Student routes */}
           <Route path="/student/assessments" element={
-            <ProtectedRoute requiredUserType="student">
+            <ProtectedRoute allowedRoles={["student"]}>
               <StudentAssessments />
             </ProtectedRoute>
           } />
           
           <Route path="/student/progress" element={
-            <ProtectedRoute requiredUserType="student">
+            <ProtectedRoute allowedRoles={["student"]}>
               <StudentProgress />
             </ProtectedRoute>
           } />
           
           <Route path="/student/settings" element={
-            <ProtectedRoute requiredUserType="student">
+            <ProtectedRoute allowedRoles={["student"]}>
               <StudentSettings />
             </ProtectedRoute>
           } />
           
           <Route path="/student/lectures" element={
-            <ProtectedRoute requiredUserType="student">
+            <ProtectedRoute allowedRoles={["student"]}>
               <StudentLectures />
             </ProtectedRoute>
           } />
 
           <Route path="/student/lecture/:id" element={
-            <ProtectedRoute requiredUserType="student">
+            <ProtectedRoute allowedRoles={["student"]}>
               <StudentLectureView />
             </ProtectedRoute>
           } />

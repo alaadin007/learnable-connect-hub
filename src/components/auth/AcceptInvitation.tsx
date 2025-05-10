@@ -1,13 +1,22 @@
-
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { hasData } from '@/utils/supabaseTypeHelpers';
+
+// Define a type for the verification result
+interface TeacherInvitationInfo {
+  invitation_id: string;
+  school_id: string;
+  school_name: string;
+  email: string;
+  role: string;
+}
 
 const AcceptInvitation = () => {
-  const { token } = useParams();
+  const { token } = useParams<{ token: string }>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { refreshProfile } = useAuth();
@@ -26,7 +35,7 @@ const AcceptInvitation = () => {
 
       try {
         // Get token info first
-        const { data: inviteInfo, error: verifyError } = await supabase.rpc(
+        const { data: inviteInfo, error: verifyError } = await supabase.rpc<TeacherInvitationInfo>(
           'verify_teacher_invitation',
           { token }
         );
@@ -71,7 +80,7 @@ const AcceptInvitation = () => {
     };
 
     acceptInvitation();
-  }, [token, navigate]);
+  }, [token, navigate, refreshProfile]);
 
   if (loading) {
     return (

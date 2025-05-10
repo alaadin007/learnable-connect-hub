@@ -12,13 +12,6 @@ import {
   RefreshCw
 } from "lucide-react";
 import { toast } from "sonner";
-import { 
-  getDocumentContent, 
-  getUserDocuments, 
-  deleteDocumentContent, 
-  deleteDocument,
-  safeCast
-} from "@/utils/supabaseTypeHelpers";
 
 interface DocumentItem {
   id: string;
@@ -40,7 +33,11 @@ const FileList = () => {
     try {
       if (!user) return;
       
-      const { data, error } = await getUserDocuments(user.id);
+      const { data, error } = await supabase
+        .from('documents')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
 
       if (error) {
         toast.error("Failed to load documents");
@@ -48,9 +45,8 @@ const FileList = () => {
         return;
       }
       
-      // Type cast the data to ensure it matches DocumentItem[]
       if (data) {
-        setDocuments(safeCast<DocumentItem[]>(data));
+        setDocuments(data as DocumentItem[]);
       } else {
         setDocuments([]);
       }
@@ -75,9 +71,13 @@ const FileList = () => {
   const handleViewDocument = async (documentId: string) => {
     try {
       // First get document content
-      const content = await getDocumentContent(documentId);
+      const { data: contentData, error: contentError } = await supabase
+        .from('document_content')
+        .select('content')
+        .eq('document_id', documentId)
+        .single();
         
-      if (!content) {
+      if (contentError || !contentData) {
         toast.warning("Document content not found");
         return;
       }
@@ -103,7 +103,7 @@ const FileList = () => {
             </head>
             <body>
               <h1>${document.filename}</h1>
-              <pre>${content}</pre>
+              <pre>${contentData.content}</pre>
             </body>
           </html>
         `);
@@ -120,17 +120,23 @@ const FileList = () => {
     
     try {
       // Delete content first due to foreign key constraints
-      const contentDeleteResult = await deleteDocumentContent(documentId);
+      const { error: contentDeleteError } = await supabase
+        .from('document_content')
+        .delete()
+        .eq('document_id', documentId);
         
-      if (contentDeleteResult.error) {
-        console.error("Error deleting document content:", contentDeleteResult.error);
+      if (contentDeleteError) {
+        console.error("Error deleting document content:", contentDeleteError);
       }
       
       // Then delete the document record
-      const docDeleteResult = await deleteDocument(documentId);
+      const { error: docDeleteError } = await supabase
+        .from('documents')
+        .delete()
+        .eq('id', documentId);
         
-      if (docDeleteResult.error) {
-        throw docDeleteResult.error;
+      if (docDeleteError) {
+        throw docDeleteError;
       }
       
       // Update the UI

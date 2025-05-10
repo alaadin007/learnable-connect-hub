@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -19,13 +18,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { AlertCircle } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { 
-  insertSchool, 
-  insertSchoolCode, 
-  hasData,
-  asId,
-  safeCast
-} from "@/utils/supabaseTypeHelpers";
+import { hasData } from '@/utils/supabaseTypeHelpers';
 import type { Database } from "@/integrations/supabase/types";
 
 const formSchema = z.object({
@@ -91,36 +84,44 @@ const SchoolRegistrationForm = () => {
       // Generate unique school code
       const schoolCode = generateSchoolCode();
       
-      // Create school record using the typed helper and safely handle the response
-      const schoolResponse = await insertSchool({
-        name: data.schoolName,
-        code: schoolCode,
-        contact_email: data.contactEmail || data.adminEmail,
-      });
+      // Create school record
+      const { data: schoolData, error: schoolError } = await supabase
+        .from("schools")
+        .insert({
+          name: data.schoolName,
+          code: schoolCode,
+          contact_email: data.contactEmail || data.adminEmail,
+        })
+        .select('id')
+        .single();
 
-      if (!hasData(schoolResponse)) {
-        console.error("Error creating school:", schoolResponse.error);
+      if (schoolError || !schoolData) {
+        console.error("Error creating school:", schoolError);
         throw new Error("Failed to create school record");
       }
       
-      const school = schoolResponse.data;
+      const schoolId = schoolData.id;
       
       // Create school code record with reference to the school
-      const schoolCodeResponse = await insertSchoolCode({
-        code: schoolCode,
-        school_name: data.schoolName,
-        school_id: school.id,
-        active: true
-      });
+      const { data: schoolCodeData, error: schoolCodeError } = await supabase
+        .from("school_codes")
+        .insert({
+          code: schoolCode,
+          school_name: data.schoolName,
+          school_id: schoolId,
+          active: true
+        })
+        .select()
+        .single();
       
-      if (!hasData(schoolCodeResponse)) {
-        console.error("Error creating school code:", schoolCodeResponse.error);
+      if (schoolCodeError || !schoolCodeData) {
+        console.error("Error creating school code:", schoolCodeError);
         
         // Clean up the school record if code creation fails
         await supabase
           .from("schools")
           .delete()
-          .eq("id", asId<string>(school.id));
+          .eq("id", schoolId);
           
         throw new Error("Failed to create school code");
       }
@@ -134,7 +135,7 @@ const SchoolRegistrationForm = () => {
             full_name: data.adminFullName,
             school_code: schoolCode,
             user_type: 'school_admin',
-            school_id: school.id,
+            school_id: schoolId,
             school_name: data.schoolName
           },
           emailRedirectTo: `${window.location.origin}/login`
@@ -148,12 +149,12 @@ const SchoolRegistrationForm = () => {
         await supabase
           .from("school_codes")
           .delete()
-          .eq("code", asId<string>(schoolCode));
+          .eq("code", schoolCode);
           
         await supabase
           .from("schools")
           .delete()
-          .eq("id", asId<string>(school.id));
+          .eq("id", schoolId);
           
         throw new Error(userError.message || "Failed to create admin user");
       }
@@ -168,7 +169,7 @@ const SchoolRegistrationForm = () => {
       }
 
       console.log("Successfully registered school and admin:", {
-        school_id: school.id,
+        school_id: schoolId,
         school_code: schoolCode,
         school_name: data.schoolName,
         admin_id: userData.user?.id

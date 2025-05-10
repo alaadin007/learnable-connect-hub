@@ -6,7 +6,7 @@ import { UploadCloud, File, X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { insertDocument, hasData, asId } from "@/utils/supabaseTypeHelpers";
+import { hasData } from '@/utils/supabaseTypeHelpers';
 
 const FileUpload = ({ onUploadComplete }: { onUploadComplete?: () => void }) => {
   const { user } = useAuth();
@@ -56,10 +56,6 @@ const FileUpload = ({ onUploadComplete }: { onUploadComplete?: () => void }) => 
       const storagePath = `uploads/${user.id}/${filePath}`;
       
       // Track upload progress manually
-      const trackProgress = (progress: number) => {
-        setUploadProgress(progress);
-      };
-      
       let progressInterval: any;
       
       try {
@@ -88,28 +84,30 @@ const FileUpload = ({ onUploadComplete }: { onUploadComplete?: () => void }) => 
         throw uploadErr;
       }
       
-      // Create document record in the database using helper
-      const docData = {
-        filename: file.name,
-        file_type: file.type,
-        file_size: file.size,
-        storage_path: storagePath,
-        processing_status: "pending",
-        user_id: user.id,
-        school_id: null // Assuming this is optional
-      };
-      
-      const docResponse = await insertDocument(docData);
+      // Create document record in the database
+      const { data: documentData, error: documentError } = await supabase
+        .from('documents')
+        .insert({
+          filename: file.name,
+          file_type: file.type,
+          file_size: file.size,
+          storage_path: storagePath,
+          processing_status: "pending",
+          user_id: user.id,
+          school_id: null // Assuming this is optional
+        })
+        .select()
+        .single();
         
-      if (!hasData(docResponse)) {
-        throw new Error(`Document record creation failed: ${docResponse.error?.message || "Unknown error"}`);
+      if (documentError || !documentData) {
+        throw new Error(`Document record creation failed: ${documentError?.message || "Unknown error"}`);
       }
       
       // Process the document
-      if (docResponse.data.id) {
+      if (documentData.id) {
         // Call edge function to process the document
         const { error: processError } = await supabase.functions.invoke('process-document', {
-          body: { documentId: docResponse.data.id }
+          body: { documentId: documentData.id }
         });
         
         if (processError) {

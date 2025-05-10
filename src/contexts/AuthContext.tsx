@@ -6,7 +6,6 @@ import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { 
   hasData, 
-  safeCast, 
   getUserProfile, 
   hasProperty, 
   isNotNullOrUndefined,
@@ -14,6 +13,11 @@ import {
 } from '@/utils/supabaseTypeHelpers';
 
 export type UserRole = 'student' | 'teacher' | 'school_admin' | 'school' | null;
+
+interface ProfileData {
+  user_type: UserType;
+  school_id?: string | null;
+}
 
 type AuthContextType = {
   user: User | null;
@@ -101,8 +105,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Try to get profile data using helper function
       const profileResponse = await getUserProfile(user.id);
       
-      if (hasData(profileResponse)) {
-        const profileData = profileResponse.data;
+      if (hasData(profileResponse) && profileResponse.data) {
+        const profileData = profileResponse.data as ProfileData;
         setProfile(profileData);
         
         // Set user role flags
@@ -121,7 +125,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Check if user is a supervisor
       try {
         const { data: supervisorData, error } = await supabase.rpc('is_user_supervisor_safe');
-        if (!error) {
+        if (!error && supervisorData !== null) {
           setIsSupervisor(Boolean(supervisorData));
         }
       } catch (error) {
@@ -168,10 +172,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (error) throw error;
 
       if (data) {
-        toast({
-          title: 'Sign up successful!', 
-          description: 'Please check your email to verify your account.'
-        });
+        toast.success('Sign up successful! Please check your email to verify your account.');
       }
     } catch (error: any) {
       console.error('Sign up error:', error);
