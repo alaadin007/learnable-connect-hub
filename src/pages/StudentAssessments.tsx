@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -300,9 +299,7 @@ const StudentAssessments = () => {
             
             <TabsContent value="due-soon">
               {loading ? (
-                <div className="text-center py-12 bg-gray-50 rounded-md">
-                  <p className="text-gray-600">Loading assessments...</p>
-                </div>
+                null // Remove loading indicator to prevent flickering
               ) : dueSoonAssessments.length === 0 ? (
                 renderEmptyState("No assessments due today!")
               ) : (
@@ -314,9 +311,7 @@ const StudentAssessments = () => {
             
             <TabsContent value="upcoming">
               {loading ? (
-                <div className="text-center py-12 bg-gray-50 rounded-md">
-                  <p className="text-gray-600">Loading assessments...</p>
-                </div>
+                null // Remove loading indicator to prevent flickering
               ) : upcomingAssessments.length === 0 ? (
                 renderEmptyState("No upcoming assessments.")
               ) : (
@@ -328,9 +323,7 @@ const StudentAssessments = () => {
             
             <TabsContent value="completed">
               {loading ? (
-                <div className="text-center py-12 bg-gray-50 rounded-md">
-                  <p className="text-gray-600">Loading assessments...</p>
-                </div>
+                null // Remove loading indicator to prevent flickering
               ) : completedAssessments.length === 0 ? (
                 renderEmptyState("No completed assessments yet.")
               ) : (
@@ -342,9 +335,7 @@ const StudentAssessments = () => {
             
             <TabsContent value="past-due">
               {loading ? (
-                <div className="text-center py-12 bg-gray-50 rounded-md">
-                  <p className="text-gray-600">Loading assessments...</p>
-                </div>
+                null // Remove loading indicator to prevent flickering
               ) : pastDueAssessments.length === 0 ? (
                 renderEmptyState("No past due assessments.")
               ) : (
