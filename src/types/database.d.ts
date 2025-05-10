@@ -1,4 +1,5 @@
 
+
 export interface VideoType {
   id: string;
   user_id: string;
@@ -43,7 +44,19 @@ export interface MessageType {
   timestamp: string;
   is_important?: boolean;
   feedback_rating?: number;
-  attachment_type?: string;
+  attachment_type?: 'document' | 'video';
   attachment_id?: string;
   attachment_name?: string;
 }
+
+export interface SharedLearningMaterialType {
+  id: string;
+  teacher_id: string;
+  school_id: string;
+  content_id: string;
+  content_type: 'document' | 'video';
+  note?: string;
+  shared_at: string;
+  updated_at: string;
+}
+

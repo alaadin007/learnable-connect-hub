@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
@@ -33,6 +32,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { SharedLearningMaterialType } from "@/types/database";
 
 interface Document {
   id: string;
@@ -106,7 +106,7 @@ const TeacherAITutor = () => {
       if (sharedError) throw sharedError;
       if (sharedData) {
         setSharedWithStudents(
-          new Set(sharedData.map((item) => item.content_id))
+          new Set(sharedData.map((item: SharedLearningMaterialType) => item.content_id))
         );
       }
     } catch (error) {
@@ -142,7 +142,7 @@ const TeacherAITutor = () => {
 
     try {
       // Create a new shared material record
-      const contentType = 'filename' in selectedContent ? 'document' : 'video';
+      const contentType = 'filename' in selectedContent ? 'document' as const : 'video' as const;
 
       const { error } = await supabase
         .from("shared_learning_materials")
@@ -152,7 +152,7 @@ const TeacherAITutor = () => {
           content_id: selectedContent.id,
           content_type: contentType,
           note: shareNote,
-          shared_at: new Date().toISOString(),
+          shared_at: new Date().toISOString()
         });
 
       if (error) throw error;

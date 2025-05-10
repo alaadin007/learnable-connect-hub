@@ -104,7 +104,7 @@ const AIChat: React.FC<AIChatProps> = ({
           sender: msg.sender as 'user' | 'ai',
           content: msg.content,
           timestamp: new Date(msg.timestamp),
-          attachmentType: msg.attachment_type,
+          attachmentType: msg.attachment_type as 'document' | 'video' | undefined,
           attachmentId: msg.attachment_id,
           attachmentName: msg.attachment_name
         }));

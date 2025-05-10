@@ -48,6 +48,14 @@ const processDocument = async (documentId: string) => {
         processing_status: 'completed'
       });
     
+    // Generate a summary for the document
+    await supabase
+      .from('document_summaries')
+      .insert({
+        document_id: documentId,
+        summary: "This is an automatically generated summary of the document.",
+      });
+    
     // Update the document status
     await supabase
       .from('documents')

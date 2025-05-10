@@ -1192,6 +1192,68 @@ export type Database = {
           },
         ]
       }
+      shared_learning_materials: {
+        Row: {
+          content_id: string
+          content_type: string
+          id: string
+          note: string | null
+          school_id: string
+          shared_at: string
+          teacher_id: string
+          updated_at: string
+        }
+        Insert: {
+          content_id: string
+          content_type: string
+          id?: string
+          note?: string | null
+          school_id: string
+          shared_at?: string
+          teacher_id: string
+          updated_at?: string
+        }
+        Update: {
+          content_id?: string
+          content_type?: string
+          id?: string
+          note?: string | null
+          school_id?: string
+          shared_at?: string
+          teacher_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shared_learning_materials_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_analytics_summary"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "shared_learning_materials_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_improvement_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "shared_learning_materials_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "school_performance_metrics"
+            referencedColumns: ["school_id"]
+          },
+          {
+            foreignKeyName: "shared_learning_materials_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       student_invites: {
         Row: {
           code: string | null
