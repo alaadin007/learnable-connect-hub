@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -88,7 +89,8 @@ const AssessmentResults = () => {
           return;
         }
         
-        setResult(submissionData as AssessmentResult);
+        // Type assertion to make TypeScript happy
+        setResult(submissionData as unknown as AssessmentResult);
         
         // Fetch questions
         const { data: questionsData, error: questionsError } = await supabase
@@ -123,7 +125,7 @@ const AssessmentResults = () => {
             if (!optionsByQuestion[option.question_id]) {
               optionsByQuestion[option.question_id] = [];
             }
-            optionsByQuestion[option.question_id].push(option);
+            optionsByQuestion[option.question_id].push(option as Option);
           });
           
           setOptions(optionsByQuestion);
@@ -235,7 +237,9 @@ const AssessmentResults = () => {
               <Progress 
                 value={getScorePercentage()} 
                 className="h-2 mt-2" 
-                indicatorClassName={getScorePercentage() >= 60 ? "bg-green-500" : "bg-red-500"}
+                // Fixed: indicatorClassName not supported, use className for styling instead
+                // Apply conditional class directly within the Progress component
+                className={`h-2 mt-2 ${getScorePercentage() >= 60 ? "[&>div]:bg-green-500" : "[&>div]:bg-red-500"}`}
               />
               <p className="text-sm mt-2 text-gray-500">
                 {Math.round(getScorePercentage())}% correct

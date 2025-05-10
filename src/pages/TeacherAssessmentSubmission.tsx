@@ -14,13 +14,20 @@ import { Label } from '@/components/ui/label';
 import { ArrowLeft, Clock, CheckCircle, XCircle, User, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
 
+interface StudentProfile {
+  id: string;
+  name: string;
+  email: string;
+  avatar_url?: string;
+}
+
 const TeacherAssessmentSubmission: React.FC = () => {
   const { assessmentId, submissionId } = useParams<{ assessmentId: string, submissionId: string }>();
   const navigate = useNavigate();
   
   const [assessment, setAssessment] = useState<any>(null);
   const [submission, setSubmission] = useState<any>(null);
-  const [student, setStudent] = useState<any>(null);
+  const [student, setStudent] = useState<StudentProfile | null>(null);
   const [questions, setQuestions] = useState<any[]>([]);
   const [options, setOptions] = useState<Record<string, any[]>>({});
   const [responses, setResponses] = useState<Record<string, any>>({});
@@ -69,13 +76,23 @@ const TeacherAssessmentSubmission: React.FC = () => {
         setSubmission(submissionData);
         setFeedback(submissionData.feedback || '');
         
-        // Extract student info
-        setStudent({
-          id: submissionData.student_id,
-          name: submissionData.student?.profiles?.full_name || 'Unknown Student',
-          email: submissionData.student?.profiles?.email || 'No email',
-          avatar_url: submissionData.student?.profiles?.avatar_url
-        });
+        // Extract student info - with proper type checking to avoid errors
+        if (submissionData.student && 
+            submissionData.student.profiles) {
+          setStudent({
+            id: submissionData.student_id,
+            name: submissionData.student.profiles.full_name || 'Unknown Student',
+            email: submissionData.student.profiles.email || 'No email',
+            avatar_url: submissionData.student.profiles.avatar_url
+          });
+        } else {
+          // Fallback when profile data is missing
+          setStudent({
+            id: submissionData.student_id,
+            name: 'Unknown Student',
+            email: 'No email'
+          });
+        }
         
         // Fetch questions
         const { data: questionsData, error: questionsError } = await supabase

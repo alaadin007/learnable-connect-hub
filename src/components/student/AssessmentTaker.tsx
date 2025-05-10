@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -92,10 +93,16 @@ const AssessmentTaker = () => {
         return;
       }
       
-      setQuestions(questionsData || []);
+      // Convert question_type string to the appropriate enum type
+      const typedQuestions: QuizQuestion[] = (questionsData || []).map(q => ({
+        ...q,
+        question_type: q.question_type as 'multiple_choice' | 'true_false' | 'short_answer'
+      }));
+      
+      setQuestions(typedQuestions);
       
       // Initialize user responses
-      const initialResponses = (questionsData || []).map(q => ({
+      const initialResponses = typedQuestions.map(q => ({
         questionId: q.id,
         selectedOptionId: '',
         textResponse: ''
@@ -104,7 +111,7 @@ const AssessmentTaker = () => {
       setUserResponses(initialResponses);
       
       // Fetch options for all questions
-      const allQuestionIds = (questionsData || []).map(q => q.id);
+      const allQuestionIds = typedQuestions.map(q => q.id);
       if (allQuestionIds.length > 0) {
         const { data: optionsData, error: optionsError } = await supabase
           .from('quiz_options')
@@ -122,7 +129,7 @@ const AssessmentTaker = () => {
           if (!optionsByQuestion[option.question_id]) {
             optionsByQuestion[option.question_id] = [];
           }
-          optionsByQuestion[option.question_id].push(option);
+          optionsByQuestion[option.question_id].push(option as QuizOption);
         });
         
         setOptions(optionsByQuestion);
