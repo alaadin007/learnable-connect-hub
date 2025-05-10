@@ -3,7 +3,6 @@ import React from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/landing/Footer";
 import SchoolRegistrationForm from "@/components/auth/SchoolRegistrationForm";
-import { Toaster } from "sonner";
 
 const SchoolRegistration = () => {
   return (
@@ -29,7 +28,6 @@ const SchoolRegistration = () => {
         </div>
       </main>
       <Footer />
-      <Toaster />
     </div>
   );
 };

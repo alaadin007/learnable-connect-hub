@@ -6,7 +6,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { AlertCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/use-toast";
 import Navbar from "@/components/layout/Navbar";
 
 const Login = () => {
