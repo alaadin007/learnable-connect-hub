@@ -21,7 +21,8 @@ import {
   AlertTriangle, 
   Search, 
   UserPlus, 
-  RefreshCw 
+  RefreshCw,
+  Info
 } from "lucide-react";
 import { Student } from "@/utils/supabaseHelpers";
 import { supabase } from "@/integrations/supabase/client";
@@ -187,6 +188,37 @@ const AdminStudents = () => {
     }
   };
 
+  const NoStudentsMessage = () => (
+    <div className="text-center py-8">
+      <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-100 text-blue-600 mb-4">
+        <Info className="h-6 w-6" />
+      </div>
+      <h3 className="text-lg font-medium mb-2">No Students Found</h3>
+      <p className="text-gray-500 mb-6 max-w-md mx-auto">
+        You don't have any students registered yet. Start inviting students to your school!
+      </p>
+      <Button onClick={() => navigate("/admin/invite-students")}>
+        <UserPlus className="h-4 w-4 mr-2" />
+        Invite Students
+      </Button>
+    </div>
+  );
+
+  const NoSearchResultsMessage = () => (
+    <div className="text-center py-8">
+      <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-100 text-blue-600 mb-4">
+        <Search className="h-6 w-6" />
+      </div>
+      <h3 className="text-lg font-medium mb-2">No Results Found</h3>
+      <p className="text-gray-500 mb-4">
+        No students matching "{searchQuery}" were found
+      </p>
+      <Button variant="outline" onClick={() => setSearchQuery("")}>
+        Clear Search
+      </Button>
+    </div>
+  );
+
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
@@ -245,30 +277,35 @@ const AdminStudents = () => {
               )}
 
               <div className="border rounded-lg overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {loading ? (
+                {loading ? (
+                  <div className="p-4">
+                    <div className="space-y-4">
+                      {[1,2,3].map(i => (
+                        <div key={i} className="flex items-center space-x-4">
+                          <div className="h-5 bg-gray-200 rounded w-40"></div>
+                          <div className="h-5 bg-gray-200 rounded w-48"></div>
+                          <div className="h-5 bg-gray-200 rounded w-20"></div>
+                          <div className="h-8 bg-gray-200 rounded w-24"></div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : students.length === 0 ? (
+                  <NoStudentsMessage />
+                ) : filteredStudents.length === 0 ? (
+                  <NoSearchResultsMessage />
+                ) : (
+                  <Table>
+                    <TableHeader>
                       <TableRow>
-                        <TableCell colSpan={4} className="h-24 text-center">
-                          Loading students...
-                        </TableCell>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Actions</TableHead>
                       </TableRow>
-                    ) : filteredStudents.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={4} className="h-24 text-center">
-                          No students found. Invite some students to get started!
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      filteredStudents.map((student) => (
+                    </TableHeader>
+                    <TableBody>
+                      {filteredStudents.map((student) => (
                         <TableRow key={student.id}>
                           <TableCell className="font-medium">{student.full_name}</TableCell>
                           <TableCell>{student.email}</TableCell>
@@ -320,10 +357,10 @@ const AdminStudents = () => {
                             )}
                           </TableCell>
                         </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
               </div>
             </CardContent>
           </Card>

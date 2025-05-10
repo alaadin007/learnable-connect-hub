@@ -85,7 +85,8 @@ const Dashboard = () => {
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [upcomingAssessments, setUpcomingAssessments] = useState<UpcomingAssessmentProps[]>([]);
   const [recentLectures, setRecentLectures] = useState<Partial<Lecture>[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loadingAssessments, setLoadingAssessments] = useState(false);
+  const [loadingLectures, setLoadingLectures] = useState(false);
   const [assessmentsError, setAssessmentsError] = useState<string | null>(null);
   const [lecturesError, setLecturesError] = useState<string | null>(null); 
   const navigate = useNavigate();
@@ -122,9 +123,9 @@ const Dashboard = () => {
         // Fetch student dashboard data
         const fetchDashboardData = async () => {
           if (!isMounted) return;
-          setLoading(true);
           
           // Fetch upcoming assessments with timeout protection
+          setLoadingAssessments(true);
           try {
             const { data: assessments, error: assessmentsError } = await executeWithTimeout(
               async () => {
@@ -167,9 +168,14 @@ const Dashboard = () => {
             console.error("Error fetching assessments:", err);
             setAssessmentsError("Could not connect to server");
             setUpcomingAssessments([]);
+          } finally {
+            if (isMounted) {
+              setLoadingAssessments(false);
+            }
           }
 
           // Fetch recent lectures with timeout protection
+          setLoadingLectures(true);
           try {
             const { data: lectures, error: lecturesError } = await executeWithTimeout(
               async () => {
@@ -202,10 +208,10 @@ const Dashboard = () => {
             console.error("Error fetching lectures:", err);
             setLecturesError("Could not connect to server");
             setRecentLectures([]);
-          }
-
-          if (isMounted) {
-            setLoading(false);
+          } finally {
+            if (isMounted) {
+              setLoadingLectures(false);
+            }
           }
         };
         
@@ -299,10 +305,19 @@ const Dashboard = () => {
                   <div className="bg-red-50 p-3 rounded-md text-red-600 text-sm">
                     {assessmentsError}
                   </div>
-                ) : loading && upcomingAssessments.length === 0 ? (
-                  <div className="min-h-[100px] flex items-center justify-center">
-                    <div className="inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-600 mr-2"></div>
-                    <span className="text-gray-600 text-sm">Loading assessments...</span>
+                ) : loadingAssessments ? (
+                  <div className="space-y-3">
+                    {[1,2].map(i => (
+                      <div key={i} className="border p-4 rounded-md">
+                        <div className="flex justify-between">
+                          <div className="space-y-2">
+                            <div className="h-5 bg-gray-200 rounded w-40"></div>
+                            <div className="h-3 bg-gray-100 rounded w-24"></div>
+                          </div>
+                          <div className="h-4 bg-gray-200 rounded w-32"></div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 ) : upcomingAssessments.length > 0 ? (
                   <div className="space-y-3">
@@ -342,10 +357,17 @@ const Dashboard = () => {
                   <div className="bg-red-50 p-3 rounded-md text-red-600 text-sm">
                     {lecturesError}
                   </div>
-                ) : loading && recentLectures.length === 0 ? (
-                  <div className="min-h-[100px] flex items-center justify-center">
-                    <div className="inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-600 mr-2"></div>
-                    <span className="text-gray-600 text-sm">Loading lectures...</span>
+                ) : loadingLectures ? (
+                  <div className="space-y-3">
+                    {[1,2].map(i => (
+                      <div key={i} className="flex items-center border p-4 rounded-md space-x-3">
+                        <div className="w-12 h-12 bg-gray-200 rounded-md flex-shrink-0"></div>
+                        <div className="space-y-1 flex-grow">
+                          <div className="h-5 bg-gray-200 rounded w-3/4"></div>
+                          <div className="h-3 bg-gray-100 rounded w-24"></div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 ) : recentLectures.length > 0 ? (
                   <div className="space-y-3">
