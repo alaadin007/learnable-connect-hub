@@ -1,8 +1,7 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
-// Define UserType enum and export it
-export type UserType = 'student' | 'teacher' | 'school_admin' | 'teacher_supervisor';
+// Define UserType enum and export it - add 'school' to valid types
+export type UserType = 'student' | 'teacher' | 'school_admin' | 'teacher_supervisor' | 'school';
 
 // Interface for profile data
 export interface ProfileData {

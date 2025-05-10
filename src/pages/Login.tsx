@@ -17,15 +17,14 @@ const Login = () => {
   usePagePerformance("LoginPage");
   
   useEffect(() => {
-    // If user is already authenticated, redirect based on normalized role
+    // If user is already authenticated, redirect based on role
     if (user && !isLoading) {
       console.log("User already logged in, redirecting based on role:", userRole);
       
-      const normalizedRole = userRole === 'school' ? 'school_admin' : userRole;
-      
-      if (normalizedRole === 'school_admin') {
+      // Handle both 'school' and 'school_admin' roles
+      if (userRole === 'school_admin' || userRole === 'school') {
         navigate('/admin', { replace: true });
-      } else if (normalizedRole === 'teacher') {
+      } else if (userRole === 'teacher') {
         navigate('/teacher/dashboard', { replace: true });
       } else {
         navigate(from, { replace: true });

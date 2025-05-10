@@ -1,10 +1,9 @@
-
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 
-// Export UserRole as a type that can be imported elsewhere
-export type UserRole = 'student' | 'teacher' | 'school_admin';
+// Export UserRole as a type that can be imported elsewhere - add 'school' to valid roles
+export type UserRole = 'student' | 'teacher' | 'school_admin' | 'school';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -38,13 +37,15 @@ const ProtectedRoute = ({
 
   // If roles are specified, check them
   if (allowedRoles && allowedRoles.length > 0 && userRole) {
-    // Normalize the user role
-    const normalizedUserRole = userRole === 'school' ? 'school_admin' : userRole as UserRole;
+    // No need to normalize the role anymore, since 'school' is now a valid UserRole
+    // But we'll keep the check for backward compatibility
+    const normalizedUserRole = userRole;
     
     if (!allowedRoles.includes(normalizedUserRole)) {
       // Redirect based on role
       switch (normalizedUserRole) {
         case 'school_admin':
+        case 'school': // Handle both school and school_admin the same way
           return <Navigate to="/admin" replace />;
         case 'teacher':
           return <Navigate to="/teacher/dashboard" replace />;
