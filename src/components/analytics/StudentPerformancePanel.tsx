@@ -1,7 +1,6 @@
 
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { format } from 'date-fns';
 import { StudentPerformanceData } from "./types";
@@ -12,20 +11,7 @@ interface StudentPerformanceTableProps {
 }
 
 export const StudentPerformanceTable = ({ data, isLoading }: StudentPerformanceTableProps) => {
-  if (isLoading) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Student Performance</CardTitle>
-          <CardDescription>Student assessment metrics</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Skeleton className="h-[300px] w-full" />
-        </CardContent>
-      </Card>
-    );
-  }
-
+  // Remove skeleton loading state in favor of immediate rendering
   return (
     <Card>
       <CardHeader>

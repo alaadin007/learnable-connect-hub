@@ -11,7 +11,6 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SessionData } from "./types";
-import { Skeleton } from "@/components/ui/skeleton";
 
 interface SessionsTableProps {
   sessions: SessionData[];
@@ -33,59 +32,51 @@ const SessionsTable = ({
         <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent>
-        {isLoading ? (
-          <div className="space-y-2">
-            <Skeleton className="h-8 w-full" />
-            <Skeleton className="h-8 w-full" />
-            <Skeleton className="h-8 w-full" />
-          </div>
-        ) : (
-          <Table>
-            <TableCaption>A list of recent learning sessions</TableCaption>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Student</TableHead>
-                <TableHead>Topic</TableHead>
-                <TableHead>Queries</TableHead>
-                <TableHead>Duration</TableHead>
-                <TableHead>Date</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sessions.length > 0 ? (
-                sessions.map((session) => (
-                  <TableRow key={session.id}>
-                    <TableCell className="font-medium">
-                      {session.student_name || session.userName || session.student || "Unknown"}
-                    </TableCell>
-                    <TableCell>
-                      {session.topics?.[0] || session.topicOrContent || session.topic || "General"}
-                    </TableCell>
-                    <TableCell>
-                      {session.questions_asked || session.numQueries || session.queries || 0}
-                    </TableCell>
-                    <TableCell>
-                      {typeof session.duration_minutes === 'number' ? 
-                        `${session.duration_minutes} min` : 
-                        (typeof session.duration === 'string' ? 
-                          session.duration : 
-                          `${session.duration || 0} min`)}
-                    </TableCell>
-                    <TableCell>
-                      {session.session_date || session.startTime || "N/A"}
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center h-24">
-                    No sessions recorded yet
+        <Table>
+          <TableCaption>A list of recent learning sessions</TableCaption>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Student</TableHead>
+              <TableHead>Topic</TableHead>
+              <TableHead>Queries</TableHead>
+              <TableHead>Duration</TableHead>
+              <TableHead>Date</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {sessions.length > 0 ? (
+              sessions.map((session) => (
+                <TableRow key={session.id}>
+                  <TableCell className="font-medium">
+                    {session.student_name || session.userName || session.student || "Unknown"}
+                  </TableCell>
+                  <TableCell>
+                    {session.topics?.[0] || session.topicOrContent || session.topic || "General"}
+                  </TableCell>
+                  <TableCell>
+                    {session.questions_asked || session.numQueries || session.queries || 0}
+                  </TableCell>
+                  <TableCell>
+                    {typeof session.duration_minutes === 'number' ? 
+                      `${session.duration_minutes} min` : 
+                      (typeof session.duration === 'string' ? 
+                        session.duration : 
+                        `${session.duration || 0} min`)}
+                  </TableCell>
+                  <TableCell>
+                    {session.session_date || session.startTime || "N/A"}
                   </TableCell>
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        )}
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center h-24">
+                  No sessions recorded yet
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
       </CardContent>
     </Card>
   );

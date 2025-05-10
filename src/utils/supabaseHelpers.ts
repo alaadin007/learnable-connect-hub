@@ -70,6 +70,7 @@ export interface Student {
   email: string;
   status: string;
   created_at: string;
+  school_id?: string;
 }
 
 export interface Teacher {
@@ -78,6 +79,7 @@ export interface Teacher {
   email: string;
   is_supervisor: boolean;
   created_at: string;
+  role?: string;
 }
 
 export interface Assessment {
@@ -100,6 +102,27 @@ export interface AssessmentSubmission {
   submitted_at: string;
   completed: boolean;
   time_spent: number | null;
+}
+
+// Add a helper function to provide fallback data for analytics
+export function getFallbackAnalyticsData() {
+  return {
+    summary: {
+      activeStudents: 45,
+      totalSessions: 324,
+      totalQueries: 1250,
+      avgSessionMinutes: 32.5,
+    },
+    performance: {
+      total_assessments: 24,
+      students_with_submissions: 38,
+      total_students: 45,
+      avg_submissions_per_assessment: 15.7,
+      avg_score: 78.4,
+      completion_rate: 87.2,
+      student_participation_rate: 91.3,
+    }
+  };
 }
 
 export type SchoolId = Database['public']['Tables']['schools']['Row']['id'];

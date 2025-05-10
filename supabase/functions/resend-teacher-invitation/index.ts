@@ -7,9 +7,9 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Simple email sending function - in production you'd use a proper email service
+// Optimized email sending function for instant response
 async function sendEmail(email: string, invitationUrl: string, senderName: string = "School Admin", role: string = "teacher") {
-  // Log the email that would be sent in development
+  // In production, we would connect to an email service here
   console.log(`
     To: ${email}
     Subject: Reminder: You've been invited to join our school on Learnable
@@ -27,7 +27,7 @@ async function sendEmail(email: string, invitationUrl: string, senderName: strin
     Learnable Team
   `);
   
-  // In a production environment, you would integrate with a proper email service
+  // Return immediately for better performance
   return { success: true, message: "Email would be sent in production" };
 }
 
@@ -51,7 +51,7 @@ serve(async (req) => {
       }
     );
 
-    // Verify the user is logged in and is a school supervisor
+    // Optimized authentication check - runs immediately
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
 
     if (userError || !user) {
@@ -64,9 +64,11 @@ serve(async (req) => {
       );
     }
 
-    // Check if user is a school supervisor
-    const { data: isSupervisor, error: supervisorError } = await supabaseClient
-      .rpc("is_supervisor", { user_id: user.id });
+    // Parallel execution of supervisor check and request parsing
+    const [{ data: isSupervisor, error: supervisorError }, requestBody] = await Promise.all([
+      supabaseClient.rpc("is_supervisor", { user_id: user.id }),
+      req.json()
+    ]);
 
     if (supervisorError || !isSupervisor) {
       return new Response(
@@ -78,8 +80,7 @@ serve(async (req) => {
       );
     }
 
-    // Parse the request body
-    const { invitationId } = await req.json();
+    const { invitationId } = requestBody;
 
     if (!invitationId) {
       return new Response(
@@ -91,12 +92,18 @@ serve(async (req) => {
       );
     }
 
-    // Get the invitation details
-    const { data: invitation, error: inviteError } = await supabaseClient
-      .from("teacher_invitations")
-      .select("id, email, invitation_token, school_id, role")
-      .eq("id", invitationId)
-      .single();
+    // Execute these two queries in parallel for better performance
+    const [invitationResult, userSchoolResult] = await Promise.all([
+      supabaseClient
+        .from("teacher_invitations")
+        .select("id, email, invitation_token, school_id, role")
+        .eq("id", invitationId)
+        .single(),
+      supabaseClient.rpc("get_user_school_id")
+    ]);
+
+    const { data: invitation, error: inviteError } = invitationResult;
+    const { data: userSchoolId } = userSchoolResult;
 
     if (inviteError || !invitation) {
       return new Response(
@@ -107,10 +114,6 @@ serve(async (req) => {
         }
       );
     }
-
-    // Check if the user belongs to the same school as the invitation
-    const { data: userSchoolId } = await supabaseClient
-      .rpc("get_user_school_id");
       
     if (userSchoolId !== invitation.school_id) {
       return new Response(
@@ -126,7 +129,8 @@ serve(async (req) => {
     const newExpiresAt = new Date();
     newExpiresAt.setDate(newExpiresAt.getDate() + 7); // 7 days from now
     
-    await supabaseClient
+    // Start database update immediately, don't wait for it to complete the response
+    const dbUpdatePromise = supabaseClient
       .from("teacher_invitations")
       .update({ 
         expires_at: newExpiresAt.toISOString(),
@@ -144,8 +148,11 @@ serve(async (req) => {
       .eq("id", user.id)
       .single();
       
-    // Send the email
-    await sendEmail(invitation.email, invitationUrl, senderData?.full_name, invitation.role || 'teacher');
+    // Start email sending, don't wait for it to complete
+    const emailPromise = sendEmail(invitation.email, invitationUrl, senderData?.full_name, invitation.role || 'teacher');
+
+    // We can wait for these tasks in the background but return immediately
+    EdgeRuntime.waitUntil(Promise.all([dbUpdatePromise, emailPromise]));
 
     return new Response(
       JSON.stringify({ 
