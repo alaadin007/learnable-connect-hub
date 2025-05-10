@@ -92,6 +92,15 @@ export interface Assessment {
   school_id: string;
   subject: string | null;
   max_score: number;
+  teacher: {
+    full_name: string;
+  };
+  submission?: {
+    id: string;
+    score: number | null;
+    completed: boolean | null;
+    submitted_at: string;
+  };
 }
 
 export interface AssessmentSubmission {

@@ -9,26 +9,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription }
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Calendar, Clock, FileCheck, BookOpen, AlertCircle } from "lucide-react";
+import { Calendar, Clock, FileCheck, BookOpen, AlertCircle } from "lucide-react";
 import { format, isPast, isToday } from "date-fns";
 import { toast } from "sonner";
-
-interface Assessment {
-  id: string;
-  title: string;
-  description: string | null;
-  due_date: string | null;
-  created_at: string;
-  teacher: {
-    full_name: string | null;
-  };
-  submission?: {
-    id: string;
-    score: number | null;
-    completed: boolean | null;
-    submitted_at: string;
-  };
-}
+import { Assessment } from "@/utils/supabaseHelpers";
 
 const StudentAssessments = () => {
   const { user, profile, schoolId } = useAuth();
@@ -50,11 +34,10 @@ const StudentAssessments = () => {
     }
 
     const fetchAssessments = async () => {
-      setLoading(true);
       try {
         // Fetch assessments for this student's school
         if (!schoolId) {
-          setError("School information not available. Please contact support.");
+          setAssessments([]);
           setLoading(false);
           return;
         }
@@ -150,6 +133,12 @@ const StudentAssessments = () => {
     !assessment.submission
   );
 
+  const renderEmptyState = (message: string) => (
+    <div className="text-center py-12 bg-gray-50 rounded-md">
+      <p className="text-xl text-gray-600">{message}</p>
+    </div>
+  );
+
   const renderAssessmentCard = (assessment: Assessment) => (
     <Card key={assessment.id} className="overflow-hidden">
       <CardHeader className="bg-gray-50 pb-2">
@@ -220,19 +209,8 @@ const StudentAssessments = () => {
       <main className="container mx-auto px-4 py-8 min-h-screen">
         <h1 className="text-3xl font-bold mb-6">My Assessments</h1>
 
-        {loading ? (
-          <div className="flex items-center justify-center h-64">
-            <Loader2 className="h-8 w-8 animate-spin text-learnable-blue" />
-            <span className="ml-2">Loading assessments...</span>
-          </div>
-        ) : error ? (
+        {error ? (
           <div className="bg-red-50 p-4 rounded-md text-red-500">{error}</div>
-        ) : assessments.length === 0 ? (
-          <div className="text-center py-12 bg-gray-50 rounded-md">
-            <BookOpen className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-            <p className="text-xl text-gray-600">No assessments assigned yet.</p>
-            <p className="text-gray-500 mt-2">Check back later for new assignments.</p>
-          </div>
         ) : (
           <Tabs defaultValue="due-soon" className="w-full">
             <TabsList className="mb-6 grid grid-cols-4 w-full max-w-2xl">
@@ -247,10 +225,12 @@ const StudentAssessments = () => {
             </TabsList>
             
             <TabsContent value="due-soon">
-              {dueSoonAssessments.length === 0 ? (
-                <div className="text-center py-12 bg-gray-50 rounded-md">
-                  <p className="text-xl text-gray-600">No assessments due today!</p>
+              {loading ? (
+                <div className="bg-gray-50 p-8 rounded-md text-center">
+                  <p className="text-gray-500">Retrieving your assessments...</p>
                 </div>
+              ) : dueSoonAssessments.length === 0 ? (
+                renderEmptyState("No assessments due today!")
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {dueSoonAssessments.map(renderAssessmentCard)}
@@ -259,10 +239,12 @@ const StudentAssessments = () => {
             </TabsContent>
             
             <TabsContent value="upcoming">
-              {upcomingAssessments.length === 0 ? (
-                <div className="text-center py-12 bg-gray-50 rounded-md">
-                  <p className="text-xl text-gray-600">No upcoming assessments.</p>
+              {loading ? (
+                <div className="bg-gray-50 p-8 rounded-md text-center">
+                  <p className="text-gray-500">Retrieving your assessments...</p>
                 </div>
+              ) : upcomingAssessments.length === 0 ? (
+                renderEmptyState("No upcoming assessments.")
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {upcomingAssessments.map(renderAssessmentCard)}
@@ -271,10 +253,12 @@ const StudentAssessments = () => {
             </TabsContent>
             
             <TabsContent value="completed">
-              {completedAssessments.length === 0 ? (
-                <div className="text-center py-12 bg-gray-50 rounded-md">
-                  <p className="text-xl text-gray-600">No completed assessments yet.</p>
+              {loading ? (
+                <div className="bg-gray-50 p-8 rounded-md text-center">
+                  <p className="text-gray-500">Retrieving your assessments...</p>
                 </div>
+              ) : completedAssessments.length === 0 ? (
+                renderEmptyState("No completed assessments yet.")
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {completedAssessments.map(renderAssessmentCard)}
@@ -283,10 +267,12 @@ const StudentAssessments = () => {
             </TabsContent>
             
             <TabsContent value="past-due">
-              {pastDueAssessments.length === 0 ? (
-                <div className="text-center py-12 bg-gray-50 rounded-md">
-                  <p className="text-xl text-gray-600">No past due assessments.</p>
+              {loading ? (
+                <div className="bg-gray-50 p-8 rounded-md text-center">
+                  <p className="text-gray-500">Retrieving your assessments...</p>
                 </div>
+              ) : pastDueAssessments.length === 0 ? (
+                renderEmptyState("No past due assessments.")
               ) : (
                 <div className="space-y-6">
                   <Card className="border-red-200">
