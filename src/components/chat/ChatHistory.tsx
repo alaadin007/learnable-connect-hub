@@ -32,7 +32,7 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
   activeConversationId,
 }) => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [hasError, setHasError] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState<string>("");
   const { user } = useAuth();
@@ -96,14 +96,6 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
   };
 
   const renderContent = () => {
-    if (isLoading) {
-      return (
-        <div className="text-center py-4 text-muted-foreground">
-          Loading...
-        </div>
-      );
-    }
-    
     if (hasError) {
       return (
         <div className="text-center py-4">
@@ -113,6 +105,10 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
           </Button>
         </div>
       );
+    }
+    
+    if (isLoading) {
+      return null; // Return nothing during loading to prevent flickering
     }
     
     if (filteredConversations.length === 0) {
@@ -176,6 +172,11 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
         <ScrollArea className="h-[calc(100vh-320px)]">
           <div className="px-4 py-2">
             {renderContent()}
+            {isLoading && !conversations.length && (
+              <div className="text-center py-4 text-muted-foreground">
+                {searchTerm ? "Searching..." : "No conversations yet"}
+              </div>
+            )}
           </div>
         </ScrollArea>
       </CardContent>
