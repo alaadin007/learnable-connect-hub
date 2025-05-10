@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -13,16 +12,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft, Clock, CheckCircle, XCircle, User, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
+import { ProfileData } from '@/types/profile';
 
 interface StudentProfile {
   id: string;
   name: string;
-  email: string;
-  avatar_url?: string;
-}
-
-interface ProfileData {
-  full_name: string;
   email: string;
   avatar_url?: string;
 }
@@ -82,8 +76,12 @@ const TeacherAssessmentSubmission: React.FC = () => {
         setSubmission(submissionData);
         setFeedback(submissionData.feedback || '');
         
-        // Extract student info - with proper type checking to avoid errors
-        if (submissionData.student && submissionData.student.profiles) {
+        // Extract student info with proper type checking
+        if (submissionData?.student && 
+            submissionData.student.profiles && 
+            !('error' in submissionData.student.profiles)) {
+          
+          // Properly typed profile data
           const profileData = submissionData.student.profiles as ProfileData;
           
           setStudent({
