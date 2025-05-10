@@ -1,17 +1,26 @@
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, FileText, BarChart3, Settings, Video, Calendar } from "lucide-react";
+import { 
+  MessageSquare, 
+  FileText, 
+  BarChart3, 
+  Settings, 
+  Video, 
+  Calendar,
+  BookOpen,
+  Plus
+} from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Footer from "@/components/layout/Footer";
 import { isSchoolAdmin, getUserRoleWithFallback } from "@/utils/apiHelpers";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { Lecture, Assessment } from "@/utils/supabaseHelpers";
 import { UserRole } from "@/components/auth/ProtectedRoute";
 import { usePagePerformance } from "@/hooks/usePagePerformance";
+import { Lecture } from "@/utils/supabaseHelpers";
 
 // Dashboard Cards Component
 interface DashboardCardProps {
@@ -20,14 +29,26 @@ interface DashboardCardProps {
   icon: React.ReactNode;
   buttonText: string;
   onClick: () => void;
+  iconBackground?: string;
+  iconColor?: string;
 }
 
-const DashboardCard: React.FC<DashboardCardProps> = ({ title, description, icon, buttonText, onClick }) => {
+const DashboardCard = ({ 
+  title, 
+  description, 
+  icon, 
+  buttonText, 
+  onClick,
+  iconBackground = "bg-purple-100",
+  iconColor = "text-purple-600"
+}: DashboardCardProps) => {
   return (
-    <Card className="hover:shadow-md transition-shadow">
+    <Card className="hover:shadow-md transition-shadow border-t-4 border-t-purple-500">
       <CardContent className="pt-6 pb-6">
         <div className="flex items-start mb-4">
-          <div className="text-learnable-blue mr-4">{icon}</div>
+          <div className={`${iconBackground} p-3 rounded-full mr-4`}>
+            <div className={`${iconColor}`}>{icon}</div>
+          </div>
           <div>
             <h3 className="text-xl font-semibold mb-2">{title}</h3>
             <p className="text-gray-600 mb-4">{description}</p>
@@ -35,7 +56,7 @@ const DashboardCard: React.FC<DashboardCardProps> = ({ title, description, icon,
         </div>
         <Button 
           onClick={onClick} 
-          className="w-full bg-blue-600 hover:bg-blue-700"
+          className="w-full bg-purple-600 hover:bg-purple-700"
         >
           {buttonText}
         </Button>
@@ -191,10 +212,10 @@ const Dashboard = () => {
   return (
     <>
       <Navbar />
-      <main className="container mx-auto px-4 py-8 min-h-screen">
-        <div className="mb-8">
+      <main className="container mx-auto px-4 py-8 min-h-screen bg-gradient-to-b from-purple-50 to-white">
+        <div className="mb-8 bg-purple-700 text-white p-6 rounded-lg shadow-lg">
           <h1 className="text-3xl font-bold mb-2">Welcome, {profile?.full_name || user?.user_metadata?.full_name || "Student"}</h1>
-          <p className="text-gray-600">
+          <p className="text-purple-100">
             Access your learning resources and complete your assessments
           </p>
         </div>
@@ -208,6 +229,8 @@ const Dashboard = () => {
                 icon={<MessageSquare className="h-10 w-10" />}
                 buttonText="Go to Chat with AI"
                 onClick={() => navigate("/chat", { state: { preserveContext: true } })}
+                iconBackground="bg-blue-100"
+                iconColor="text-blue-600"
               />
               
               <DashboardCard
@@ -216,6 +239,8 @@ const Dashboard = () => {
                 icon={<FileText className="h-10 w-10" />}
                 buttonText="Go to Assessments"
                 onClick={() => navigate("/student/assessments", { state: { preserveContext: true } })}
+                iconBackground="bg-green-100"
+                iconColor="text-green-600"
               />
               
               <DashboardCard
@@ -224,6 +249,8 @@ const Dashboard = () => {
                 icon={<Video className="h-10 w-10" />}
                 buttonText="Go to Lectures"
                 onClick={() => navigate("/student/lectures", { state: { preserveContext: true } })}
+                iconBackground="bg-amber-100"
+                iconColor="text-amber-600"
               />
               
               <DashboardCard
@@ -232,18 +259,23 @@ const Dashboard = () => {
                 icon={<BarChart3 className="h-10 w-10" />}
                 buttonText="Go to My Progress"
                 onClick={() => navigate("/student/progress", { state: { preserveContext: true } })}
+                iconBackground="bg-purple-100"
+                iconColor="text-purple-600"
               />
             </div>
           </div>
           
           <div className="col-span-1 md:col-span-2 space-y-6">
-            <Card>
-              <CardContent className="pt-6">
+            <Card className="border-t-4 border-t-amber-500">
+              <CardHeader className="bg-amber-50 pb-2">
+                <CardTitle className="flex items-center text-amber-800">
+                  <Calendar className="h-5 w-5 mr-2 text-amber-600" />
+                  Upcoming Assessments
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold flex items-center">
-                    <Calendar className="h-5 w-5 mr-2 text-blue-600" />
-                    Upcoming Assessments
-                  </h3>
+                  <p className="text-sm text-gray-500">Due this week</p>
                   <Button 
                     variant="ghost" 
                     size="sm" 
@@ -275,13 +307,16 @@ const Dashboard = () => {
               </CardContent>
             </Card>
             
-            <Card>
-              <CardContent className="pt-6">
+            <Card className="border-t-4 border-t-blue-500">
+              <CardHeader className="bg-blue-50 pb-2">
+                <CardTitle className="flex items-center text-blue-800">
+                  <Video className="h-5 w-5 mr-2 text-blue-600" />
+                  Recent Lectures
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold flex items-center">
-                    <Video className="h-5 w-5 mr-2 text-blue-600" />
-                    Recent Lectures
-                  </h3>
+                  <p className="text-sm text-gray-500">Latest materials</p>
                   <Button 
                     variant="ghost" 
                     size="sm" 
@@ -331,16 +366,36 @@ const Dashboard = () => {
               </CardContent>
             </Card>
             
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold flex items-center">
-                    <Settings className="h-5 w-5 mr-2 text-blue-600" />
-                    Settings
-                  </h3>
+            <Card className="border-t-4 border-t-green-500">
+              <CardHeader className="bg-green-50 pb-2">
+                <CardTitle className="flex items-center text-green-800">
+                  <BookOpen className="h-5 w-5 mr-2 text-green-600" />
+                  Study Materials
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4">
+                <div className="flex justify-between items-center mb-4">
+                  <p className="text-sm text-gray-500">Your learning resources</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigate('/documents')}
+                    className="flex items-center"
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Upload
+                  </Button>
                 </div>
-                
                 <div className="space-y-3">
+                  <Button 
+                    variant="outline" 
+                    className="w-full text-left justify-start"
+                    onClick={() => navigate("/documents")}
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    View All Documents
+                  </Button>
+                  
                   <Button 
                     variant="outline" 
                     className="w-full text-left justify-start"
@@ -348,14 +403,6 @@ const Dashboard = () => {
                   >
                     <Settings className="h-4 w-4 mr-2" />
                     Account Settings
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    className="w-full text-left justify-start"
-                    onClick={() => navigate("/student/settings")}
-                  >
-                    <MessageSquare className="h-4 w-4 mr-2" />
-                    Notification Preferences
                   </Button>
                 </div>
               </CardContent>

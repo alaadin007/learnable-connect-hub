@@ -4,8 +4,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import StudentManagement from "@/components/teacher/StudentManagement";
-import Navbar from "@/components/layout/Navbar";
-import Footer from "@/components/landing/Footer";
+import TeacherLayout from "@/components/layout/TeacherLayout";
 
 const TeacherStudents = () => {
   const navigate = useNavigate();
@@ -15,7 +14,7 @@ const TeacherStudents = () => {
   const handleBack = () => {
     if (location.state?.fromTestAccounts || location.state?.fromNavigation) {
       // Preserve context when navigating back
-      navigate("/teacher/analytics", { 
+      navigate("/teacher/dashboard", { 
         state: { 
           preserveContext: true,
           fromNavigation: location.state?.fromNavigation,
@@ -24,35 +23,31 @@ const TeacherStudents = () => {
         } 
       });
     } else {
-      navigate("/teacher/analytics", { 
+      navigate("/teacher/dashboard", { 
         state: { preserveContext: true } 
       });
     }
   };
   
   return (
-    <div className="min-h-screen flex flex-col">
-      <Navbar />
-      <main className="flex-grow bg-learnable-super-light py-8">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center gap-4 mb-6">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="flex items-center gap-1"
-              onClick={handleBack}
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back
-            </Button>
-            <h1 className="text-3xl font-bold gradient-text">Student Management</h1>
-          </div>
-          
-          <StudentManagement />
-        </div>
-      </main>
-      <Footer />
-    </div>
+    <TeacherLayout
+      title="Student Management"
+      subtitle="Manage your students, view their progress, and handle enrollments"
+    >
+      <div className="mb-6">
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="flex items-center gap-1"
+          onClick={handleBack}
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Dashboard
+        </Button>
+      </div>
+      
+      <StudentManagement />
+    </TeacherLayout>
   );
 };
 

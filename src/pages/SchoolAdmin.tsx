@@ -1,22 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import Navbar from '@/components/layout/Navbar';
-import Sidebar from '@/components/layout/Sidebar';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
-import Footer from '@/components/landing/Footer';
+import AdminLayout from '@/components/layout/AdminLayout';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, AlertCircle, Users, BookOpen, School, UserPlus } from 'lucide-react';
+import { AlertCircle, UserPlus, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import SchoolCodeGenerator from '@/components/school-admin/SchoolCodeGenerator';
 import SchoolCodeManager from '@/components/school-admin/SchoolCodeManager';
+import { usePagePerformance } from '@/hooks/usePagePerformance';
 
 const SchoolAdmin = () => {
   const navigate = useNavigate();
-  const { user, profile, loading } = useAuth();
+  const { user, profile } = useAuth();
   const [schoolData, setSchoolData] = useState<any>(null);
   const [schoolStats, setSchoolStats] = useState({
     totalTeachers: 0,
@@ -25,24 +22,16 @@ const SchoolAdmin = () => {
     pendingStudents: 0
   });
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Track performance
+  usePagePerformance("SchoolAdmin");
 
   useEffect(() => {
-    if (!loading) {
-      if (!user) {
-        navigate('/login');
-        return;
-      }
-      
-      if (profile?.user_type !== 'school_admin' && profile?.user_type !== 'teacher_supervisor') {
-        toast.error("You don't have access to this page");
-        navigate('/dashboard');
-        return;
-      }
-      
+    if (user) {
       // Load school data and stats
       loadSchoolData();
     }
-  }, [loading, user, profile, navigate]);
+  }, [user, profile]);
 
   const loadSchoolData = async () => {
     setIsLoading(true);
@@ -118,163 +107,99 @@ const SchoolAdmin = () => {
     navigate('/admin/students');
   };
 
-  if (loading || isLoading) {
+  if (isLoading) {
     return (
-      <div className="h-screen flex items-center justify-center">
-        <div className="flex flex-col items-center">
-          <Loader2 className="h-8 w-8 animate-spin text-learnable-purple" />
-          <p className="mt-2 text-gray-600">Loading school admin panel...</p>
+      <AdminLayout>
+        <div className="flex flex-col items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+          <p className="mt-4 text-gray-500">Loading school information...</p>
         </div>
-      </div>
+      </AdminLayout>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <Navbar />
-      
-      <div className="flex-grow bg-learnable-super-light flex">
-        <Sidebar className="hidden lg:block">
-          <div className="px-4 py-6 space-y-6">
-            <div>
-              <h2 className="text-lg font-semibold">School Administration</h2>
-              <p className="text-sm text-gray-500">Manage your school</p>
-            </div>
-            <Separator />
-            <ScrollArea className="h-[calc(100vh-220px)]">
-              <div className="space-y-1.5 py-2">
-                <Button 
-                  variant="ghost" 
-                  className="w-full justify-start font-normal"
-                  onClick={() => navigate('/admin/overview')}
-                >
-                  <School className="mr-2 h-4 w-4" />
-                  School Overview
+    <AdminLayout>
+      {/* School Information */}
+      <Card className="mb-8">
+        <CardHeader>
+          <CardTitle>School Information</CardTitle>
+          <CardDescription>
+            Overview of your school and quick actions
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {schoolData ? (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h3 className="text-lg font-semibold">{schoolData.name}</h3>
+                  <p className="text-sm text-gray-500">School Code: {schoolData.code}</p>
+                  <p className="text-sm text-gray-500">Contact: {schoolData.contact_email}</p>
+                </div>
+                <div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-blue-50 p-3 rounded-lg">
+                      <p className="text-sm text-blue-600">Teachers</p>
+                      <p className="text-2xl font-bold">{schoolStats.totalTeachers}</p>
+                    </div>
+                    <div className="bg-green-50 p-3 rounded-lg">
+                      <p className="text-sm text-green-600">Students</p>
+                      <p className="text-2xl font-bold">{schoolStats.totalStudents}</p>
+                    </div>
+                    <div className="bg-amber-50 p-3 rounded-lg">
+                      <p className="text-sm text-amber-600">Active Students</p>
+                      <p className="text-2xl font-bold">{schoolStats.activeStudents}</p>
+                    </div>
+                    <div className="bg-purple-50 p-3 rounded-lg">
+                      <p className="text-sm text-purple-600">Pending Students</p>
+                      <p className="text-2xl font-bold">{schoolStats.pendingStudents}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex flex-wrap gap-4">
+                <Button onClick={handleTeacherInvite}>
+                  <UserPlus className="mr-2 h-4 w-4" />
+                  Invite Teachers
                 </Button>
-                <Button 
-                  variant="ghost" 
-                  className="w-full justify-start font-normal"
-                  onClick={() => navigate('/admin/teachers')}
-                >
+                <Button onClick={handleStudentManagement} variant="outline">
                   <Users className="mr-2 h-4 w-4" />
-                  Teachers
-                </Button>
-                <Button 
-                  variant="ghost" 
-                  className="w-full justify-start font-normal"
-                  onClick={() => navigate('/admin/students')}
-                >
-                  <Users className="mr-2 h-4 w-4" />
-                  Students
-                </Button>
-                <Button 
-                  variant="ghost" 
-                  className="w-full justify-start font-normal"
-                  onClick={() => navigate('/admin/analytics')}
-                >
-                  <BookOpen className="mr-2 h-4 w-4" />
-                  Analytics
-                </Button>
-                <Button 
-                  variant="ghost" 
-                  className="w-full justify-start font-normal"
-                  onClick={() => navigate('/admin/settings')}
-                >
-                  <School className="mr-2 h-4 w-4" />
-                  School Settings
+                  Manage Students
                 </Button>
               </div>
-            </ScrollArea>
-          </div>
-        </Sidebar>
-
-        <main className="flex-grow p-4 md:p-8">
-          <div className="max-w-5xl mx-auto space-y-8">
-            {/* School Information */}
-            <Card>
-              <CardHeader>
-                <CardTitle>School Information</CardTitle>
-                <CardDescription>
-                  Overview of your school and quick actions
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {schoolData ? (
-                  <div className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <h3 className="text-lg font-semibold">{schoolData.name}</h3>
-                        <p className="text-sm text-gray-500">School Code: {schoolData.code}</p>
-                        <p className="text-sm text-gray-500">Contact: {schoolData.contact_email}</p>
-                      </div>
-                      <div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="bg-blue-50 p-3 rounded-lg">
-                            <p className="text-sm text-blue-600">Teachers</p>
-                            <p className="text-2xl font-bold">{schoolStats.totalTeachers}</p>
-                          </div>
-                          <div className="bg-green-50 p-3 rounded-lg">
-                            <p className="text-sm text-green-600">Students</p>
-                            <p className="text-2xl font-bold">{schoolStats.totalStudents}</p>
-                          </div>
-                          <div className="bg-amber-50 p-3 rounded-lg">
-                            <p className="text-sm text-amber-600">Active Students</p>
-                            <p className="text-2xl font-bold">{schoolStats.activeStudents}</p>
-                          </div>
-                          <div className="bg-purple-50 p-3 rounded-lg">
-                            <p className="text-sm text-purple-600">Pending Students</p>
-                            <p className="text-2xl font-bold">{schoolStats.pendingStudents}</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="flex flex-wrap gap-4">
-                      <Button onClick={handleTeacherInvite}>
-                        <UserPlus className="mr-2 h-4 w-4" />
-                        Invite Teachers
-                      </Button>
-                      <Button onClick={handleStudentManagement} variant="outline">
-                        <Users className="mr-2 h-4 w-4" />
-                        Manage Students
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center space-x-4 text-amber-600 bg-amber-50 p-4 rounded-lg">
-                    <AlertCircle className="h-5 w-5" />
-                    <p>School information not available. Please contact support.</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-            
-            {/* School Code and Invitation */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <SchoolCodeGenerator onCodeGenerated={handleCodeGenerated} />
-              <SchoolCodeManager onCodeGenerated={handleCodeGenerated} />
             </div>
-            
-            {/* Quick Stats */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Activity</CardTitle>
-                <CardDescription>
-                  Recent activity in your school
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-center py-6 text-gray-500">
-                  Activity dashboard coming soon. You'll be able to monitor student engagement, teacher activity, and more.
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        </main>
+          ) : (
+            <div className="flex items-center space-x-4 text-amber-600 bg-amber-50 p-4 rounded-lg">
+              <AlertCircle className="h-5 w-5" />
+              <p>School information not available. Please contact support.</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      
+      {/* School Code and Invitation */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <SchoolCodeGenerator onCodeGenerated={(code) => toast.success(`New school code generated: ${code}`)} />
+        <SchoolCodeManager onCodeGenerated={(code) => toast.success(`New school code generated: ${code}`)} />
       </div>
       
-      <Footer />
-    </div>
+      {/* Quick Stats */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent Activity</CardTitle>
+          <CardDescription>
+            Recent activity in your school
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-center py-6 text-gray-500">
+            Activity dashboard coming soon. You'll be able to monitor student engagement, teacher activity, and more.
+          </p>
+        </CardContent>
+      </Card>
+    </AdminLayout>
   );
 };
 

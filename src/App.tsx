@@ -37,6 +37,7 @@ import TeacherAssessments from './pages/TeacherAssessments';
 import TeacherAssessmentResults from './pages/TeacherAssessmentResults';
 import TeacherAssessmentSubmission from './pages/TeacherAssessmentSubmission';
 import AssessmentCreator from './components/teacher/AssessmentCreator';
+import TeacherDashboard from './pages/TeacherDashboard';
 import { initPerformanceMonitoring } from './utils/performanceMonitor';
 import { initRoutePreloader, preloadAnticipatedRoutes } from './utils/routePreloader';
 
@@ -113,6 +114,7 @@ function App() {
       <Route path="/test-accounts" element={<ProtectedRoute allowedRoles={['school_admin', 'school']}><TestAccounts /></ProtectedRoute>} />
 
       {/* Teacher routes */}
+      <Route path="/teacher/dashboard" element={<ProtectedRoute allowedRoles={['teacher', 'school_admin']}><TeacherDashboard /></ProtectedRoute>} />
       <Route path="/teacher/students" element={<ProtectedRoute allowedRoles={['teacher', 'school_admin']}><TeacherStudents /></ProtectedRoute>} />
       <Route path="/teacher/analytics" element={<ProtectedRoute allowedRoles={['teacher', 'school_admin']}><TeacherAnalytics /></ProtectedRoute>} />
       <Route path="/teacher/assessments" element={<ProtectedRoute allowedRoles={['teacher', 'school_admin']}><TeacherAssessments /></ProtectedRoute>} />

@@ -61,7 +61,7 @@ const Navbar: React.FC = () => {
     // Admin-specific links
     if (isAdmin) {
       return [
-        { to: "/admin", label: "Dashboard", icon: <BarChart className="mr-2 h-4 w-4" /> },
+        { to: "/admin", label: "Dashboard", icon: <BarChart className="mr-2 h-4 w-4" />, className: "text-gray-800 bg-amber-100 hover:bg-amber-200" },
         { to: "/admin/teachers", label: "Teachers", icon: <GraduationCap className="mr-2 h-4 w-4" /> },
         { to: "/admin/students", label: "Students", icon: <Users className="mr-2 h-4 w-4" /> },
         { to: "/chat", label: "Chat", icon: <MessageSquare className="mr-2 h-4 w-4" /> },
@@ -72,8 +72,9 @@ const Navbar: React.FC = () => {
     // Teacher-specific links
     if (effectiveRole === "teacher") {
       return [
-        { to: "/teacher/analytics", label: "Analytics", icon: <BarChart className="mr-2 h-4 w-4" /> },
+        { to: "/teacher/dashboard", label: "Dashboard", icon: <BarChart className="mr-2 h-4 w-4" />, className: "text-gray-800 bg-blue-100 hover:bg-blue-200" },
         { to: "/teacher/students", label: "Students", icon: <Users className="mr-2 h-4 w-4" /> },
+        { to: "/teacher/assessments", label: "Assessments", icon: <FileText className="mr-2 h-4 w-4" /> },
         { to: "/chat", label: "Chat", icon: <MessageSquare className="mr-2 h-4 w-4" /> },
         { to: "/documents", label: "Documents", icon: <FileText className="mr-2 h-4 w-4" /> }
       ];
@@ -82,7 +83,7 @@ const Navbar: React.FC = () => {
     // Student-specific links
     if (effectiveRole === "student") {
       return [
-        { to: "/dashboard", label: "Dashboard", icon: <Home className="mr-2 h-4 w-4" /> },
+        { to: "/dashboard", label: "Dashboard", icon: <Home className="mr-2 h-4 w-4" />, className: "text-gray-800 bg-purple-100 hover:bg-purple-200" },
         { to: "/student/lectures", label: "Lectures", icon: <BookOpen className="mr-2 h-4 w-4" /> },
         { to: "/student/assessments", label: "Assessments", icon: <FileText className="mr-2 h-4 w-4" /> },
         { to: "/student/progress", label: "Progress", icon: <BarChart className="mr-2 h-4 w-4" /> },
@@ -106,6 +107,13 @@ const Navbar: React.FC = () => {
     setIsMenuOpen(false);
   }, [location.pathname]);
 
+  // Get logo color based on role
+  const getLogoColor = () => {
+    if (isAdmin) return "bg-gradient-to-r from-amber-500 to-orange-600";
+    if (effectiveRole === "teacher") return "bg-gradient-to-r from-blue-500 to-blue-600";
+    return "bg-gradient-to-r from-purple-500 to-purple-600";
+  };
+
   return (
     <nav className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
       <div className="container mx-auto px-4">
@@ -114,7 +122,7 @@ const Navbar: React.FC = () => {
           <div className="flex items-center">
             <Link to="/" className="flex items-center">
               <div className="relative">
-                <div className="h-10 w-10 rounded-md bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg">
+                <div className={`h-10 w-10 rounded-md ${getLogoColor()} flex items-center justify-center text-white font-bold text-lg`}>
                   L
                 </div>
                 <div className="absolute -top-1 -right-1 h-3 w-3 bg-green-500 rounded-full border-2 border-white"></div>
@@ -122,6 +130,21 @@ const Navbar: React.FC = () => {
               <span className="ml-2 text-xl font-bold text-gray-800 hidden sm:block">
                 Learnable
               </span>
+              {isAdmin && (
+                <span className="ml-2 bg-amber-200 text-amber-800 text-xs px-2 py-0.5 rounded">
+                  Admin
+                </span>
+              )}
+              {effectiveRole === "teacher" && (
+                <span className="ml-2 bg-blue-200 text-blue-800 text-xs px-2 py-0.5 rounded">
+                  Teacher
+                </span>
+              )}
+              {effectiveRole === "student" && (
+                <span className="ml-2 bg-purple-200 text-purple-800 text-xs px-2 py-0.5 rounded">
+                  Student
+                </span>
+              )}
             </Link>
           </div>
 
@@ -133,7 +156,7 @@ const Navbar: React.FC = () => {
                 to={link.to}
                 className={`px-3 py-2 rounded-md text-sm font-medium ${
                   location.pathname === link.to
-                    ? "text-blue-600 bg-blue-50"
+                    ? link.className || "text-blue-600 bg-blue-50"
                     : "text-gray-700 hover:bg-gray-100"
                 }`}
               >
