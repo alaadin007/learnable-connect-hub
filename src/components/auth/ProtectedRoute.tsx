@@ -4,7 +4,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 
 // Export UserRole as a type that can be imported elsewhere
-export type UserRole = 'student' | 'teacher' | 'school_admin' | 'school';
+export type UserRole = 'student' | 'teacher' | 'school_admin';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -38,23 +38,19 @@ const ProtectedRoute = ({
 
   // If roles are specified, check them
   if (allowedRoles && allowedRoles.length > 0 && userRole) {
-    const userRoleTyped = userRole as UserRole;
-    // Handle 'school' as equivalent to 'school_admin'
-    const normalizedUserRole = userRoleTyped === 'school' ? 'school_admin' : userRoleTyped;
+    // Normalize the user role
+    const normalizedUserRole = userRole === 'school' ? 'school_admin' : userRole as UserRole;
     
-    // Check against normalized roles
-    const normalizedAllowedRoles = allowedRoles.map(role => 
-      role === 'school' ? 'school_admin' : role
-    );
-    
-    if (!normalizedAllowedRoles.includes(normalizedUserRole)) {
+    if (!allowedRoles.includes(normalizedUserRole)) {
       // Redirect based on role
-      if (normalizedUserRole === 'school_admin') {
-        return <Navigate to="/admin" replace />;
-      } else if (normalizedUserRole === 'teacher') {
-        return <Navigate to="/teacher/dashboard" replace />;
-      } else {
-        return <Navigate to="/dashboard" replace />;
+      switch (normalizedUserRole) {
+        case 'school_admin':
+          return <Navigate to="/admin" replace />;
+        case 'teacher':
+          return <Navigate to="/teacher/dashboard" replace />;
+        case 'student':
+        default:
+          return <Navigate to="/dashboard" replace />;
       }
     }
   }

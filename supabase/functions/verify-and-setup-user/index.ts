@@ -44,10 +44,16 @@ serve(async (req) => {
     
     // Get the user metadata
     const userMetadata = user.user_metadata;
-    let userType = userMetadata.user_type;
-    const schoolId = userMetadata.school_id;
-    const schoolCode = userMetadata.school_code;
-    const schoolName = userMetadata.school_name;
+    
+    // Normalize user_type: 'school' should be treated as 'school_admin'
+    let userType = userMetadata?.user_type || 'student'; // Default to student if not specified
+    if (userType === 'school') {
+      userType = 'school_admin';
+    }
+    
+    const schoolId = userMetadata?.school_id;
+    const schoolCode = userMetadata?.school_code;
+    const schoolName = userMetadata?.school_name;
     
     console.log("User setup with metadata:", {
       userType,
@@ -56,7 +62,7 @@ serve(async (req) => {
       schoolName
     });
     
-    // Ensure profile has the correct details
+    // Ensure profile has the correct details with normalized user_type
     const { error: profileError } = await supabaseClient
       .from("profiles")
       .upsert({
@@ -65,8 +71,9 @@ serve(async (req) => {
         school_id: schoolId,
         school_code: schoolCode,
         school_name: schoolName,
-        full_name: userMetadata.full_name,
-        email: user.email
+        full_name: userMetadata?.full_name,
+        email: user.email,
+        is_active: true
       });
     
     if (profileError) {
@@ -80,7 +87,7 @@ serve(async (req) => {
       );
     }
     
-    // Verify if user should be a teacher or student
+    // Process based on user type
     if (userType === "teacher") {
       // Add user to teachers table
       const { data: teacherData, error: teacherError } = await supabaseClient
@@ -161,17 +168,7 @@ serve(async (req) => {
         console.error("Error assigning student role:", roleError);
       }
       
-    } else if (userType === "school_admin" || userType === "school") {
-      // Normalize user type for school admins
-      if (userType === "school") {
-        userType = "school_admin";
-        // Update the profile to ensure consistent typing
-        await supabaseClient
-          .from("profiles")
-          .update({ user_type: "school_admin" })
-          .eq("id", user.id);
-      }
-      
+    } else if (userType === "school_admin") {
       // Add user to school_admins table
       const { data: adminData, error: adminError } = await supabaseClient
         .from("school_admins")
@@ -225,7 +222,11 @@ serve(async (req) => {
     }
     
     return new Response(
-      JSON.stringify({ success: true, userType }),
+      JSON.stringify({ 
+        success: true, 
+        userType,
+        normalized: true
+      }),
       {
         status: 200,
         headers: { "Content-Type": "application/json", ...corsHeaders },
