@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { UserRole } from '@/components/auth/ProtectedRoute';
@@ -16,6 +17,11 @@ export interface ProfileData {
   school_name?: string;
   is_active?: boolean;
   is_supervisor?: boolean;
+  organization?: {
+    id: string;
+    name?: string;
+    code?: string;
+  };
 }
 
 // Helper functions
@@ -393,3 +399,18 @@ export function isSchoolAdmin(userRole: UserRole): boolean {
   if (!userRole) return false;
   return userRole === 'school_admin' || userRole === 'teacher_supervisor';
 }
+
+/**
+ * Get school ID with fallback
+ * This function tries to get a school ID from various sources
+ */
+export function getSchoolIdWithFallback(): string | null {
+  // Try to get from localStorage first
+  const storedSchoolId = localStorage.getItem('schoolId');
+  if (storedSchoolId) {
+    return storedSchoolId;
+  }
+  
+  return null;
+}
+
