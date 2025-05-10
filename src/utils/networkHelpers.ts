@@ -94,3 +94,40 @@ export async function executeWithTimeout<T>(
     createTimeout(timeoutMs)
   ]);
 }
+
+// New function to fetch data with improved reliability
+export async function fetchWithReliability<T>(
+  url: string, 
+  options: RequestInit = {}, 
+  retries: number = 3,
+  timeout: number = 8000
+): Promise<T> {
+  // Add abort controller for timeout handling
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+  try {
+    // Add the signal to the options
+    const fetchOptions = {
+      ...options,
+      signal: controller.signal
+    };
+
+    // Use retry with backoff
+    return await retryWithBackoff(
+      async () => {
+        const response = await fetch(url, fetchOptions);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status} - ${response.statusText}`);
+        }
+        
+        return await response.json();
+      },
+      retries,
+      1000
+    );
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}

@@ -11,6 +11,7 @@ import { isSchoolAdmin, getUserRoleWithFallback } from "@/utils/apiHelpers";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Lecture, Assessment } from "@/utils/supabaseHelpers";
+import { executeWithTimeout } from "@/utils/networkHelpers";
 
 // Dashboard Cards Component
 interface DashboardCardProps {
@@ -81,11 +82,13 @@ const EmptyState = ({ message }: { message: string }) => (
 
 const Dashboard = () => {
   const { user, profile, userRole } = useAuth();
-  const navigate = useNavigate();
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [upcomingAssessments, setUpcomingAssessments] = useState<UpcomingAssessmentProps[]>([]);
   const [recentLectures, setRecentLectures] = useState<Partial<Lecture>[]>([]);
   const [loading, setLoading] = useState(false);
+  const [assessmentsError, setAssessmentsError] = useState<string | null>(null);
+  const [lecturesError, setLecturesError] = useState<string | null>(null); 
+  const navigate = useNavigate();
   
   // Redirect check for admin/teacher users with proper dependency array
   const checkAndRedirect = useCallback(() => {
@@ -108,34 +111,46 @@ const Dashboard = () => {
       return false;
     }
   }, [userRole, navigate]);
-  
+
   useEffect(() => {
+    let isMounted = true;
+
     // Only redirect if we haven't started redirecting yet
-    if (!isRedirecting) {
+    if (!isRedirecting && user) {
       const shouldRedirect = checkAndRedirect();
-      if (!shouldRedirect && user) {
+      if (!shouldRedirect) {
         // Fetch student dashboard data
         const fetchDashboardData = async () => {
+          if (!isMounted) return;
+          setLoading(true);
+          
+          // Fetch upcoming assessments with timeout protection
           try {
-            setLoading(true);
-            
-            // Fetch upcoming assessments
-            const { data: assessments, error: assessmentsError } = await supabase
-              .from("assessments")
-              .select(`
-                id, 
-                title, 
-                due_date,
-                subject
-              `)
-              .gt('due_date', new Date().toISOString())
-              .order('due_date', { ascending: true })
-              .limit(3);
+            const { data: assessments, error: assessmentsError } = await executeWithTimeout(
+              async () => {
+                return await supabase
+                  .from("assessments")
+                  .select(`
+                    id, 
+                    title, 
+                    due_date,
+                    subject
+                  `)
+                  .gt('due_date', new Date().toISOString())
+                  .order('due_date', { ascending: true })
+                  .limit(3);
+              },
+              5000 // 5 seconds timeout
+            );
 
+            if (!isMounted) return;
+            
             if (assessmentsError) {
               console.error("Error fetching assessments:", assessmentsError);
-              toast.error("Failed to load assessments");
+              setAssessmentsError("Could not load upcoming assessments");
+              setUpcomingAssessments([]);
             } else if (assessments && assessments.length > 0) {
+              setAssessmentsError(null);
               setUpcomingAssessments(assessments.map(assessment => ({
                 id: assessment.id,
                 title: assessment.title,
@@ -144,31 +159,52 @@ const Dashboard = () => {
               })));
             } else {
               // Empty array for no assessments
+              setAssessmentsError(null);
               setUpcomingAssessments([]);
             }
+          } catch (err) {
+            if (!isMounted) return;
+            console.error("Error fetching assessments:", err);
+            setAssessmentsError("Could not connect to server");
+            setUpcomingAssessments([]);
+          }
 
-            // Fetch recent lectures
-            const { data: lectures, error: lecturesError } = await supabase
-              .from("lectures")
-              .select(`
-                id,
-                title,
-                thumbnail_url,
-                created_at
-              `)
-              .order('created_at', { ascending: false })
-              .limit(3);
+          // Fetch recent lectures with timeout protection
+          try {
+            const { data: lectures, error: lecturesError } = await executeWithTimeout(
+              async () => {
+                return await supabase
+                  .from("lectures")
+                  .select(`
+                    id,
+                    title,
+                    thumbnail_url,
+                    created_at
+                  `)
+                  .order('created_at', { ascending: false })
+                  .limit(3);
+              },
+              5000 // 5 seconds timeout
+            );
 
+            if (!isMounted) return;
+            
             if (lecturesError) {
               console.error("Error fetching lectures:", lecturesError);
-              toast.error("Failed to load lectures");
+              setLecturesError("Could not load recent lectures");
+              setRecentLectures([]);
             } else {
+              setLecturesError(null);
               setRecentLectures(lectures || []);
             }
           } catch (err) {
-            console.error("Error fetching dashboard data:", err);
-            toast.error("Failed to load dashboard data");
-          } finally {
+            if (!isMounted) return;
+            console.error("Error fetching lectures:", err);
+            setLecturesError("Could not connect to server");
+            setRecentLectures([]);
+          }
+
+          if (isMounted) {
             setLoading(false);
           }
         };
@@ -176,6 +212,11 @@ const Dashboard = () => {
         fetchDashboardData();
       }
     }
+
+    // Cleanup function
+    return () => {
+      isMounted = false;
+    };
   }, [user, userRole, isRedirecting, checkAndRedirect]);
 
   // If we're redirecting or user is a school admin/teacher, show loading state
@@ -254,10 +295,14 @@ const Dashboard = () => {
                   </Button>
                 </div>
                 
-                {loading ? (
-                  <div className="text-center py-1 text-gray-600">
+                {assessmentsError ? (
+                  <div className="bg-red-50 p-3 rounded-md text-red-600 text-sm">
+                    {assessmentsError}
+                  </div>
+                ) : loading && upcomingAssessments.length === 0 ? (
+                  <div className="min-h-[100px] flex items-center justify-center">
                     <div className="inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-600 mr-2"></div>
-                    Loading...
+                    <span className="text-gray-600 text-sm">Loading assessments...</span>
                   </div>
                 ) : upcomingAssessments.length > 0 ? (
                   <div className="space-y-3">
@@ -293,10 +338,14 @@ const Dashboard = () => {
                   </Button>
                 </div>
                 
-                {loading ? (
-                  <div className="text-center py-1 text-gray-600">
+                {lecturesError ? (
+                  <div className="bg-red-50 p-3 rounded-md text-red-600 text-sm">
+                    {lecturesError}
+                  </div>
+                ) : loading && recentLectures.length === 0 ? (
+                  <div className="min-h-[100px] flex items-center justify-center">
                     <div className="inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-600 mr-2"></div>
-                    Loading...
+                    <span className="text-gray-600 text-sm">Loading lectures...</span>
                   </div>
                 ) : recentLectures.length > 0 ? (
                   <div className="space-y-3">

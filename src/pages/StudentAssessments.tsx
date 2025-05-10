@@ -13,6 +13,7 @@ import { Calendar, Clock, FileCheck, BookOpen, AlertCircle } from "lucide-react"
 import { format, isPast, isToday } from "date-fns";
 import { toast } from "sonner";
 import { Assessment } from "@/utils/supabaseHelpers";
+import { executeWithTimeout } from "@/utils/networkHelpers";
 
 const StudentAssessments = () => {
   const { user, profile, schoolId } = useAuth();
@@ -22,6 +23,9 @@ const StudentAssessments = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Track component mount state
+    let isMounted = true;
+
     // Redirect if not logged in or not a student
     if (!user) {
       navigate("/login");
@@ -37,33 +41,42 @@ const StudentAssessments = () => {
       try {
         // Fetch assessments for this student's school
         if (!schoolId) {
-          setAssessments([]);
-          setLoading(false);
+          if (isMounted) {
+            setAssessments([]);
+            setLoading(false);
+          }
           return;
         }
 
-        const { data, error } = await supabase
-          .from("assessments")
-          .select(`
-            id, 
-            title, 
-            description, 
-            due_date, 
-            created_at,
-            teacher_id,
-            teacher:teachers(
-              id, 
-              profiles(full_name)
-            ),
-            submission:assessment_submissions(
-              id, 
-              score, 
-              completed,
-              submitted_at
-            )
-          `)
-          .eq("school_id", schoolId)
-          .order("due_date", { ascending: true });
+        const { data, error } = await executeWithTimeout(
+          async () => {
+            return await supabase
+              .from("assessments")
+              .select(`
+                id, 
+                title, 
+                description, 
+                due_date, 
+                created_at,
+                teacher_id,
+                teacher:teachers(
+                  id, 
+                  profiles(full_name)
+                ),
+                submission:assessment_submissions(
+                  id, 
+                  score, 
+                  completed,
+                  submitted_at
+                )
+              `)
+              .eq("school_id", schoolId)
+              .order("due_date", { ascending: true });
+          },
+          8000 // 8 seconds timeout
+        );
+
+        if (!isMounted) return;
 
         if (error) throw error;
 
@@ -88,17 +101,33 @@ const StudentAssessments = () => {
           };
         });
 
-        setAssessments(formattedData);
+        if (isMounted) {
+          setAssessments(formattedData);
+          setError(null);
+        }
       } catch (err: any) {
         console.error("Error fetching assessments:", err);
-        setError(err.message || "Failed to load assessments");
-        toast.error("Failed to load assessments");
+        if (isMounted) {
+          if (err.message?.includes('timeout') || err.name === 'AbortError') {
+            setError("Request timed out. Please try again.");
+          } else {
+            setError(err.message || "Failed to load assessments");
+          }
+          toast.error("Failed to load assessments");
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
     fetchAssessments();
+
+    // Cleanup function
+    return () => {
+      isMounted = false;
+    };
   }, [user, profile, schoolId, navigate]);
 
   const handleTakeAssessment = (assessmentId: string) => {
@@ -210,7 +239,20 @@ const StudentAssessments = () => {
         <h1 className="text-3xl font-bold mb-6">My Assessments</h1>
 
         {error ? (
-          <div className="bg-red-50 p-4 rounded-md text-red-500">{error}</div>
+          <div className="bg-red-50 p-4 rounded-md">
+            <div className="flex items-center mb-2">
+              <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
+              <h3 className="text-red-700 font-medium">Error</h3>
+            </div>
+            <p className="text-red-600">{error}</p>
+            <Button 
+              variant="outline" 
+              className="mt-4 border-red-300 text-red-700 hover:bg-red-50"
+              onClick={() => window.location.reload()}
+            >
+              Try Again
+            </Button>
+          </div>
         ) : (
           <Tabs defaultValue="due-soon" className="w-full">
             <TabsList className="mb-6 grid grid-cols-4 w-full max-w-2xl">
@@ -226,8 +268,11 @@ const StudentAssessments = () => {
             
             <TabsContent value="due-soon">
               {loading ? (
-                <div className="bg-gray-50 p-8 rounded-md text-center">
-                  <p className="text-gray-500">Retrieving your assessments...</p>
+                <div className="bg-white border border-gray-200 p-8 rounded-md shadow-sm">
+                  <div className="flex flex-col items-center justify-center min-h-[200px]">
+                    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+                    <p className="text-gray-600">Loading your assessments...</p>
+                  </div>
                 </div>
               ) : dueSoonAssessments.length === 0 ? (
                 renderEmptyState("No assessments due today!")
@@ -240,8 +285,11 @@ const StudentAssessments = () => {
             
             <TabsContent value="upcoming">
               {loading ? (
-                <div className="bg-gray-50 p-8 rounded-md text-center">
-                  <p className="text-gray-500">Retrieving your assessments...</p>
+                <div className="bg-white border border-gray-200 p-8 rounded-md shadow-sm">
+                  <div className="flex flex-col items-center justify-center min-h-[200px]">
+                    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+                    <p className="text-gray-600">Loading your assessments...</p>
+                  </div>
                 </div>
               ) : upcomingAssessments.length === 0 ? (
                 renderEmptyState("No upcoming assessments.")
@@ -254,8 +302,11 @@ const StudentAssessments = () => {
             
             <TabsContent value="completed">
               {loading ? (
-                <div className="bg-gray-50 p-8 rounded-md text-center">
-                  <p className="text-gray-500">Retrieving your assessments...</p>
+                <div className="bg-white border border-gray-200 p-8 rounded-md shadow-sm">
+                  <div className="flex flex-col items-center justify-center min-h-[200px]">
+                    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+                    <p className="text-gray-600">Loading your assessments...</p>
+                  </div>
                 </div>
               ) : completedAssessments.length === 0 ? (
                 renderEmptyState("No completed assessments yet.")
@@ -268,8 +319,11 @@ const StudentAssessments = () => {
             
             <TabsContent value="past-due">
               {loading ? (
-                <div className="bg-gray-50 p-8 rounded-md text-center">
-                  <p className="text-gray-500">Retrieving your assessments...</p>
+                <div className="bg-white border border-gray-200 p-8 rounded-md shadow-sm">
+                  <div className="flex flex-col items-center justify-center min-h-[200px]">
+                    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+                    <p className="text-gray-600">Loading your assessments...</p>
+                  </div>
                 </div>
               ) : pastDueAssessments.length === 0 ? (
                 renderEmptyState("No past due assessments.")
