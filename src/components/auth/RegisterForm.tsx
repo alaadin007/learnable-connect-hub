@@ -227,7 +227,7 @@ const RegisterForm = () => {
           const userId = authData.user.id;
           
           // Use the typed helper functions with correct type
-          const userType = data.userType as UserType;
+          const userType = data.userType as "student" | "teacher" | "school_admin";
           
           await insertProfile({
             id: userId,

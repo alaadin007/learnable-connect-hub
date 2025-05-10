@@ -5,6 +5,7 @@ import { UploadCloud, File, X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { insertDocument } from "@/utils/supabaseTypeHelpers";
 
 const FileUpload = ({ onUploadComplete }: { onUploadComplete?: () => void }) => {
   const { user } = useAuth();
@@ -57,6 +58,7 @@ const FileUpload = ({ onUploadComplete }: { onUploadComplete?: () => void }) => 
       const { error: uploadError } = await supabase.storage
         .from("documents")
         .upload(storagePath, file, {
+          // Handle progress manually instead
           onUploadProgress: (progress) => {
             const percent = Math.round((progress.loaded / progress.total) * 100);
             setUploadProgress(percent);
@@ -67,8 +69,8 @@ const FileUpload = ({ onUploadComplete }: { onUploadComplete?: () => void }) => 
         throw new Error(`Upload failed: ${uploadError.message}`);
       }
       
-      // Create document record in the database
-      const docData = {
+      // Create document record in the database using helper
+      const { data: docRecord, error: docError } = await insertDocument({
         filename: file.name,
         file_type: file.type,
         file_size: file.size,
@@ -76,15 +78,7 @@ const FileUpload = ({ onUploadComplete }: { onUploadComplete?: () => void }) => 
         processing_status: "pending",
         user_id: user.id,
         school_id: null // Assuming this is optional
-      };
-      
-      // Use an as any type assertion to bypass TypeScript errors for now
-      // In a production app, you'd want to properly type this
-      const { data: docRecord, error: docError } = await supabase
-        .from('documents')
-        .insert(docData as any)
-        .select()
-        .single();
+      });
         
       if (docError) {
         throw new Error(`Document record creation failed: ${docError.message}`);

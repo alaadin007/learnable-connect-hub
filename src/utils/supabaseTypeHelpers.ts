@@ -97,3 +97,65 @@ export const verifySchoolCodeTyped = async (code: string) => {
     schoolName: data[0]?.school_name
   };
 };
+
+/**
+ * Helper function for inserting documents
+ */
+export const insertDocument = async (docData: {
+  user_id: string;
+  filename: string;
+  file_type: string;
+  file_size: number;
+  storage_path: string;
+  processing_status?: string;
+  school_id?: string | null;
+}) => {
+  return await supabase
+    .from('documents')
+    .insert(docData)
+    .select()
+    .single();
+};
+
+/**
+ * Helper function for inserting student invites
+ */
+export const insertStudentInvite = async (inviteData: {
+  school_id: string;
+  code?: string;
+  email?: string;
+  status?: string;
+  expires_at?: string;
+}) => {
+  return await supabase
+    .from('student_invites')
+    .insert(inviteData);
+};
+
+/**
+ * Safe type assertion helper for Supabase data
+ * @param data Response data which may contain errors
+ * @param fallback Default fallback if data is error or undefined
+ */
+export function safeDataAccess<T, F>(data: any, fallback: F): T | F {
+  if (data === null || data === undefined) return fallback;
+  if (typeof data === 'object' && 'error' in data) return fallback;
+  return data as T;
+}
+
+/**
+ * Helper function to safely get document content
+ */
+export const getDocumentContent = async (documentId: string) => {
+  const { data, error } = await supabase
+    .from('document_content')
+    .select('content')
+    .eq('document_id', documentId as any);
+    
+  if (error || !data || data.length === 0) {
+    return null;
+  }
+  
+  return data[0].content;
+};
+

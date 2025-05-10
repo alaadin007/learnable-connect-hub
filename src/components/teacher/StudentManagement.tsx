@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { format } from 'date-fns';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSchoolCode } from '@/hooks/use-school-code';
+import { insertStudentInvite } from '@/utils/supabaseTypeHelpers';
 
 type Student = {
   id: string;
@@ -89,7 +89,7 @@ const StudentManagement = () => {
       const { data: studentData, error: studentError } = await supabase
         .from('students')
         .select('id')
-        .eq('school_id', effectiveSchoolId);
+        .filter('school_id', 'eq', effectiveSchoolId);
 
       if (studentError) throw studentError;
 
@@ -109,12 +109,12 @@ const StudentManagement = () => {
       if (profileError) throw profileError;
 
       // Format student data with profile info
-      const formattedStudents = (profileData || []).map(profile => ({
+      const formattedStudents = profileData ? profileData.map(profile => ({
         id: profile.id,
         full_name: profile.full_name,
         email: profile.email || profile.id, // Fallback to ID if email is not available
         created_at: profile.created_at
-      }));
+      })) : [];
 
       setStudents(formattedStudents);
     } catch (error) {
@@ -136,13 +136,17 @@ const StudentManagement = () => {
       const { data: inviteData, error: inviteError } = await supabase
         .from('student_invites')
         .select('*')
-        .eq('school_id', effectiveSchoolId);
+        .filter('school_id', 'eq', effectiveSchoolId);
       
       if (inviteError) {
         throw inviteError;
       }
       
-      setInvites(inviteData as StudentInvite[]);
+      if (inviteData) {
+        setInvites(inviteData as StudentInvite[]);
+      } else {
+        setInvites([]);
+      }
     } catch (error) {
       console.error('Error fetching invites:', error);
       toast.error('Failed to load student invites');
@@ -178,20 +182,17 @@ const StudentManagement = () => {
       // Generate a random code with SCH prefix
       const randomCode = `SCH${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
       
-      const { data: inviteData, error: insertError } = await supabase
-        .from('student_invites')
-        .insert({
-          code: randomCode,
-          school_id: effectiveSchoolId,
-          status: 'pending',
-          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-        })
-        .select('code')
-        .single();
+      // Use helper function for insert
+      const { error: insertError } = await insertStudentInvite({
+        code: randomCode,
+        school_id: effectiveSchoolId as string,
+        status: 'pending',
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+      });
         
       if (insertError) throw insertError;
       
-      setGeneratedCode(inviteData.code);
+      setGeneratedCode(randomCode);
       toast.success("Invite code generated successfully");
       fetchInvites();
     } catch (error: any) {
@@ -236,14 +237,14 @@ const StudentManagement = () => {
       
       // Fallback to direct database insertion
       console.log("Falling back to direct database insertion");
-      const { error: insertError } = await supabase
-        .from('student_invites')
-        .insert({
-          email: newStudentEmail.trim(),
-          school_id: effectiveSchoolId,
-          status: 'pending',
-          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-        });
+      
+      // Use helper function for insert
+      const { error: insertError } = await insertStudentInvite({
+        email: newStudentEmail.trim(),
+        school_id: effectiveSchoolId as string,
+        status: 'pending',
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+      });
         
       if (insertError) throw insertError;
       
@@ -292,7 +293,7 @@ const StudentManagement = () => {
         const { error: updateError } = await supabase
           .from('students')
           .update({ status: 'revoked' })
-          .eq('id', studentId);
+          .filter('id', 'eq', studentId);
           
         if (updateError) throw updateError;
         

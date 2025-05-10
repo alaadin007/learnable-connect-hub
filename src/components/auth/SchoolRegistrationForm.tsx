@@ -97,7 +97,7 @@ const SchoolRegistrationForm = () => {
       }
       
       const school = schoolsData[0];
-      if (!school) {
+      if (!school || !school.id) {
         throw new Error("Failed to create school record");
       }
 

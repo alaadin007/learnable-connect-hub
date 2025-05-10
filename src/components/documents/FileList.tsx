@@ -11,6 +11,7 @@ import {
   RefreshCw
 } from "lucide-react";
 import { toast } from "sonner";
+import { getDocumentContent } from "@/utils/supabaseTypeHelpers";
 
 interface DocumentItem {
   id: string;
@@ -35,7 +36,7 @@ const FileList = () => {
       const { data, error } = await supabase
         .from('documents')
         .select('*')
-        .eq('user_id', user.id)
+        .filter('user_id', 'eq', user.id)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -69,17 +70,9 @@ const FileList = () => {
   const handleViewDocument = async (documentId: string) => {
     try {
       // First get document content
-      const { data: contentData, error: contentError } = await supabase
-        .from('document_content')
-        .select('content')
-        .eq('document_id', documentId as any);
+      const content = await getDocumentContent(documentId);
         
-      if (contentError) {
-        toast.error("Failed to fetch document content");
-        return;
-      }
-      
-      if (!contentData || contentData.length === 0) {
+      if (!content) {
         toast.warning("Document content not found");
         return;
       }
@@ -105,7 +98,7 @@ const FileList = () => {
             </head>
             <body>
               <h1>${document.filename}</h1>
-              <pre>${contentData[0].content}</pre>
+              <pre>${content}</pre>
             </body>
           </html>
         `);
@@ -125,7 +118,7 @@ const FileList = () => {
       const { error: contentError } = await supabase
         .from('document_content')
         .delete()
-        .eq('document_id', documentId as any);
+        .filter('document_id', 'eq', documentId);
         
       if (contentError) {
         console.error("Error deleting document content:", contentError);
@@ -135,7 +128,7 @@ const FileList = () => {
       const { error: docError } = await supabase
         .from('documents')
         .delete()
-        .eq('id', documentId as any);
+        .filter('id', 'eq', documentId);
         
       if (docError) {
         throw docError;
