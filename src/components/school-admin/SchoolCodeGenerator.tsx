@@ -1,129 +1,81 @@
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from 'react';
+import { toast } from 'sonner';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Copy, CheckCircle, RefreshCw } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
-import useSchoolCode from "@/hooks/use-school-code";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Copy, CheckCircle } from "lucide-react";
+import { useSchoolCode } from "@/hooks/use-school-code";
 
-const SchoolCodeGenerator = () => {
+export interface SchoolCodeGeneratorProps {
+  onCodeGenerated?: (code: string) => void;
+}
+
+const SchoolCodeGenerator = ({ onCodeGenerated }: SchoolCodeGeneratorProps) => {
   const [schoolCode, setSchoolCode] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
-  const { toast } = useToast();
-  
   const { generateCode, isGenerating } = useSchoolCode();
-  
-  useEffect(() => {
-    // Load existing school code or generate a new one on mount
-    const loadInitialCode = async () => {
-      try {
-        setIsLoading(true);
-        
-        // Call generateCode without arguments now
-        const newCode = await generateCode();
-        
-        if (newCode) {
-          setSchoolCode(newCode);
-        }
-      } catch (error: any) {
-        console.error("Error loading initial code:", error);
-        toast({
-          variant: "destructive",
-          title: "Failed to load school code",
-          description: "Please try again or contact support.",
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    loadInitialCode();
-  }, [generateCode, toast]);
-  
-  const handleGenerateClick = async () => {
+
+  const handleGenerateCode = async () => {
     try {
-      setIsLoading(true);
-      
-      // Call generateCode without arguments now
-      const newCode = await generateCode();
-      
-      if (newCode) {
-        setSchoolCode(newCode);
-        toast({
-          title: "New school code generated!",
-          description: "Share this code with teachers and students to invite them to your school.",
-        });
+      const code = await generateCode();
+      if (code) {
+        setSchoolCode(code);
+        
+        // Call the onCodeGenerated callback if provided
+        if (onCodeGenerated) {
+          onCodeGenerated(code);
+        }
       }
     } catch (error: any) {
-      console.error("Error generating code:", error);
-      // Use correct toast interface
-      toast({
-        variant: "destructive",
-        title: "Failed to generate school code",
-        description: error.message || "An error occurred"
-      });
-    } finally {
-      setIsLoading(false);
+      console.error("Error generating school code:", error);
+      toast.error("Failed to generate school code");
     }
   };
-  
-  // Use proper method calls without arguments
-  const copyCodeToClipboard = () => {
+
+  const copyToClipboard = () => {
     if (schoolCode) {
       navigator.clipboard.writeText(schoolCode);
       setIsCopied(true);
-      toast({
-        title: "Code copied to clipboard!",
-      });
+      toast.success("School code copied to clipboard");
       setTimeout(() => setIsCopied(false), 2000);
     }
   };
-  
+
   return (
     <Card className="w-full">
       <CardHeader>
-        <CardTitle>School Code Generator</CardTitle>
-        <CardDescription>
-          Generate a unique code for your school to invite teachers and
-          students.
-        </CardDescription>
+        <CardTitle>Teacher Invitation Code</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex items-center space-x-2">
+      <CardContent>
+        <div className="mb-4">
+          <p className="text-sm text-gray-500">
+            Generate a unique code for teachers to join your school.
+          </p>
+        </div>
+        <div className="flex items-center space-x-2 mb-4">
           <Input
             type="text"
-            value={schoolCode || "No code generated"}
+            value={schoolCode || ""}
             readOnly
+            placeholder="Generate a school code"
             className="flex-grow"
           />
           <Button
-            variant="secondary"
-            onClick={copyCodeToClipboard}
+            variant="outline"
+            onClick={copyToClipboard}
             disabled={!schoolCode || isCopied}
           >
-            {isCopied ? (
-              <CheckCircle className="h-4 w-4 mr-2" />
-            ) : (
-              <Copy className="h-4 w-4 mr-2" />
-            )}
+            {isCopied ? <CheckCircle className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />}
             {isCopied ? "Copied!" : "Copy"}
           </Button>
         </div>
         <Button
           className="w-full gradient-bg"
-          onClick={handleGenerateClick}
-          disabled={isLoading || isGenerating}
+          onClick={handleGenerateCode}
+          disabled={isGenerating}
         >
-          {isLoading || isGenerating ? (
-            <>
-              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-              Generating...
-            </>
-          ) : (
-            "Generate New Code"
-          )}
+          {isGenerating ? "Generating..." : "Generate Teacher Code"}
         </Button>
       </CardContent>
     </Card>

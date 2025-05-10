@@ -8,7 +8,7 @@ import { Copy, CheckCircle } from "lucide-react";
 import { useSchoolCode } from "@/hooks/use-school-code";
 
 // Define a proper onCodeGenerated prop type
-interface SchoolCodeManagerProps {
+export interface SchoolCodeManagerProps {
   onCodeGenerated?: (code: string) => void;
 }
 

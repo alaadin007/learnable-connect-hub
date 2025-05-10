@@ -1,194 +1,236 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from './AuthContext';
 import { toast } from 'sonner';
-import { hasData, asId, safeApiKeyAccess } from '@/utils/supabaseTypeHelpers';
-import type { Database } from '@/integrations/supabase/types';
+import { hasData } from '@/utils/supabaseTypeHelpers';
 
-interface SettingsContextType {
-  theme: string;
-  toggleTheme: () => void;
-  fontSize: string;
-  setFontSize: (size: string) => void;
-  openaiApiKey: string;
-  setOpenaiApiKey: (key: string) => void;
-  geminiApiKey: string;
-  setGeminiApiKey: (key: string) => void;
-  saveApiKey: (provider: string, key: string) => Promise<void>;
-  settings: {
-    maxTokens: number;
-    temperature: number;
-    model: string;
-    showSources: boolean;
-    aiProvider: string;
-    openAiKey?: string;
-    geminiKey?: string;
-  };
-  updateSettings?: (newSettings: Partial<typeof defaultSettings>) => void;
-  isLoading: boolean;
+// Define the interface for user settings
+export interface UserSettings {
+  maxTokens: number;
+  temperature: number;
+  model: string;
+  showSources: boolean;
+  aiProvider: string;
+  openAiKey?: string;
+  geminiKey?: string;
 }
 
+// Define accepted AI provider types
+export type AIProvider = 'openai' | 'gemini';
+
+// Define the context type
+export interface SettingsContextType {
+  settings: UserSettings;
+  isLoading: boolean;
+  saveApiKey: (provider: AIProvider, apiKey: string) => Promise<boolean>;
+  setAIProvider: (provider: AIProvider) => void;
+  saveSettings: (settings: Partial<UserSettings>) => Promise<boolean>;
+  isUpdating: boolean;
+}
+
+// Create context with a default value
+const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
+
 // Default settings
-const defaultSettings = {
+const defaultSettings: UserSettings = {
   maxTokens: 500,
   temperature: 0.7,
   model: 'gpt-3.5-turbo',
   showSources: true,
   aiProvider: 'openai',
-  openAiKey: '',
-  geminiKey: ''
 };
 
-const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
+interface SettingsProviderProps {
+  children: ReactNode;
+}
 
-export function SettingsProvider({ children }: { children: React.ReactNode }) {
+export const SettingsProvider = ({ children }: SettingsProviderProps) => {
+  const [settings, setSettings] = useState<UserSettings>(defaultSettings);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isUpdating, setIsUpdating] = useState<boolean>(false);
   const { user } = useAuth();
-  const [theme, setTheme] = useState('light');
-  const [fontSize, setFontSize] = useState('medium');
-  const [openaiApiKey, setOpenaiApiKey] = useState('');
-  const [geminiApiKey, setGeminiApiKey] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [settings, setSettings] = useState(defaultSettings);
-
+  
+  // Load settings on mount and when user changes
   useEffect(() => {
-    // Load theme from localStorage
-    const savedTheme = localStorage.getItem('theme') || 'light';
-    setTheme(savedTheme);
-    document.documentElement.classList.toggle('dark', savedTheme === 'dark');
-
-    // Load font size from localStorage
-    const savedFontSize = localStorage.getItem('fontSize') || 'medium';
-    setFontSize(savedFontSize);
-    
-    // Load settings from localStorage
-    try {
-      const savedSettings = localStorage.getItem('aiSettings');
-      if (savedSettings) {
-        setSettings({...defaultSettings, ...JSON.parse(savedSettings)});
-      }
-    } catch (e) {
-      console.error("Failed to load saved settings:", e);
+    if (user?.id) {
+      loadSettings();
+    } else {
+      setSettings(defaultSettings);
+      setIsLoading(false);
     }
-  }, []);
-
-  useEffect(() => {
-    loadApiKeys();
-  }, [user]);
-
-  const toggleTheme = () => {
-    const newTheme = theme === 'light' ? 'dark' : 'light';
-    setTheme(newTheme);
-    localStorage.setItem('theme', newTheme);
-    document.documentElement.classList.toggle('dark', newTheme === 'dark');
-  };
-
-  const updateSettings = (newSettings: Partial<typeof defaultSettings>) => {
-    const updatedSettings = { ...settings, ...newSettings };
-    setSettings(updatedSettings);
-    localStorage.setItem('aiSettings', JSON.stringify(updatedSettings));
-  };
-
-  const loadApiKeys = async () => {
-    if (!user) return;
-    setIsLoading(true);
-
+  }, [user?.id]);
+  
+  // Function to load settings from the database
+  const loadSettings = async () => {
     try {
-      const { data, error } = await supabase
-        .from('user_api_keys')
-        .select('provider, api_key')
-        .eq('user_id', asId(user.id));
+      setIsLoading(true);
       
-      if (error) {
-        console.error("Error fetching API keys:", error);
-        return;
+      // Try to get settings from local storage first as a cached version
+      const cachedSettings = localStorage.getItem('userSettings');
+      if (cachedSettings) {
+        setSettings(JSON.parse(cachedSettings));
       }
-
-      if (data && Array.isArray(data)) {
-        data.forEach(apiKeyItem => {
-          const keyData = safeApiKeyAccess(apiKeyItem);
-          if (keyData) {
-            if (keyData.provider === 'openai' && keyData.api_key) {
-              setOpenaiApiKey(keyData.api_key);
-            } else if (keyData.provider === 'gemini' && keyData.api_key) {
-              setGeminiApiKey(keyData.api_key);
-            }
-          }
-        });
-      }
+      
+      // Load API keys if available
+      await loadApiKeys();
+      
+      // Here you would typically fetch settings from your Supabase database
+      // For now, we're just using the defaults or local storage
+      
+      // const { data, error } = await supabase.from('user_settings').select('*').eq('user_id', user.id).single();
+      // if (!error && data) {
+      //   setSettings({
+      //     ...defaultSettings,
+      //     ...data
+      //   });
+      // }
     } catch (error) {
-      console.error("Failed to load API keys:", error);
+      console.error("Failed to load settings:", error);
     } finally {
       setIsLoading(false);
     }
   };
-
-  const saveApiKey = async (provider: string, key: string) => {
-    if (!user) {
-      toast.error("You must be logged in to save API keys");
-      return;
-    }
-
+  
+  // Function to load API keys
+  const loadApiKeys = async () => {
+    if (!user?.id) return;
+    
     try {
-      // Basic validation
-      if (!key || key.trim().length < 10) {
-        toast.error("Please enter a valid API key");
-        return;
-      }
-
-      const formattedKey = key.trim();
+      const { data: openAiData, error: openAiError } = await supabase
+        .from('user_api_keys')
+        .select('api_key')
+        .eq('user_id', user.id)
+        .eq('provider', 'openai')
+        .maybeSingle();
       
-      // Use upsertUserApiKey helper or handle the type casting properly
-      const { data, error } = await supabase
+      const { data: geminiData, error: geminiError } = await supabase
+        .from('user_api_keys')
+        .select('api_key')
+        .eq('user_id', user.id)
+        .eq('provider', 'gemini')
+        .maybeSingle();
+      
+      setSettings(prev => ({
+        ...prev,
+        openAiKey: hasData(openAiData) ? openAiData.api_key : undefined,
+        geminiKey: hasData(geminiData) ? geminiData.api_key : undefined,
+        // If we have the key for the currently selected provider, use that provider
+        aiProvider: 
+          (prev.aiProvider === 'openai' && hasData(openAiData)) || 
+          (prev.aiProvider === 'gemini' && hasData(geminiData)) 
+            ? prev.aiProvider 
+            : (hasData(openAiData) ? 'openai' : (hasData(geminiData) ? 'gemini' : 'openai'))
+      }));
+    } catch (error) {
+      console.error("Failed to load API keys:", error);
+    }
+  };
+
+  // Function to save API key
+  const saveApiKey = async (provider: AIProvider, apiKey: string): Promise<boolean> => {
+    if (!user?.id) return false;
+    
+    setIsUpdating(true);
+    try {
+      const { error } = await supabase
         .from('user_api_keys')
         .upsert({
           user_id: user.id,
           provider,
-          api_key: formattedKey
-        } as Database['public']['Tables']['user_api_keys']['Insert'])
-        .select();
+          api_key: apiKey
+        }, { onConflict: 'user_id,provider' });
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
-      toast.success(`${provider.charAt(0).toUpperCase() + provider.slice(1)} API key saved successfully`);
+      // Update local state
+      setSettings(prev => ({
+        ...prev,
+        [provider === 'openai' ? 'openAiKey' : 'geminiKey']: apiKey
+      }));
       
-      // Update the local state
-      if (provider === 'openai') {
-        setOpenaiApiKey(formattedKey);
-      } else if (provider === 'gemini') {
-        setGeminiApiKey(formattedKey);
-      }
-    } catch (error: any) {
-      console.error(`Failed to save ${provider} API key:`, error);
-      toast.error(`Failed to save ${provider} API key`);
+      toast.success('API key saved successfully');
+      return true;
+    } catch (error) {
+      console.error('Failed to save API key:', error);
+      toast.error('Failed to save API key');
+      return false;
+    } finally {
+      setIsUpdating(false);
     }
   };
 
+  // Function to set AI provider
+  const setAIProvider = (provider: AIProvider) => {
+    setSettings(prev => ({
+      ...prev,
+      aiProvider: provider
+    }));
+    
+    // Save to local storage
+    const updatedSettings = {
+      ...settings,
+      aiProvider: provider
+    };
+    localStorage.setItem('userSettings', JSON.stringify(updatedSettings));
+  };
+
+  // Function to save settings
+  const saveSettings = async (newSettings: Partial<UserSettings>): Promise<boolean> => {
+    setIsUpdating(true);
+    try {
+      // Update local state
+      const updatedSettings = {
+        ...settings,
+        ...newSettings
+      };
+      setSettings(updatedSettings);
+      
+      // Save to local storage
+      localStorage.setItem('userSettings', JSON.stringify(updatedSettings));
+      
+      // Here you would typically save to your Supabase database
+      // if (user?.id) {
+      //   const { error } = await supabase
+      //     .from('user_settings')
+      //     .upsert({
+      //       user_id: user.id,
+      //       ...updatedSettings
+      //     });
+      //   if (error) throw error;
+      // }
+      
+      toast.success('Settings saved successfully');
+      return true;
+    } catch (error) {
+      console.error('Failed to save settings:', error);
+      toast.error('Failed to save settings');
+      return false;
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const value: SettingsContextType = {
+    settings,
+    isLoading,
+    saveApiKey,
+    setAIProvider,
+    saveSettings,
+    isUpdating
+  };
+
   return (
-    <SettingsContext.Provider value={{
-      theme,
-      toggleTheme,
-      fontSize,
-      setFontSize,
-      openaiApiKey,
-      setOpenaiApiKey,
-      geminiApiKey,
-      setGeminiApiKey,
-      saveApiKey,
-      settings,
-      updateSettings,
-      isLoading
-    }}>
+    <SettingsContext.Provider value={value}>
       {children}
     </SettingsContext.Provider>
   );
-}
+};
 
-export function useSettings() {
+export const useSettings = () => {
   const context = useContext(SettingsContext);
   if (context === undefined) {
     throw new Error('useSettings must be used within a SettingsProvider');
   }
   return context;
-}
+};

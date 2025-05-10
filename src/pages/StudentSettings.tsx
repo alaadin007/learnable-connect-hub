@@ -16,296 +16,267 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useSettings } from '@/contexts/SettingsContext';
 import { toast } from 'sonner';
-
-// Define proper types for API providers
-type ApiProvider = "openai" | "gemini";
+import { AIProvider } from '@/contexts/SettingsContext';
 
 const StudentSettings = () => {
   const { user } = useAuth();
-  const { settings, updateSettings, saveSettings, isUpdating } = useSettings();
-  const { toast: uiToast } = useToast();
-  const [showApiKey, setShowApiKey] = useState(false);
-  const [apiKey, setApiKey] = useState('');
-  const [apiProvider, setApiProvider] = useState<ApiProvider>("openai");
+  const { settings, saveApiKey, setAIProvider, saveSettings, isUpdating } = useSettings();
+  const [apiKey, setApiKey] = useState("");
+  const [isTestingKey, setIsTestingKey] = useState(false);
+  const [aiModel, setAiModel] = useState(settings.model);
+  const [temperature, setTemperature] = useState(settings.temperature);
+  const [maxTokens, setMaxTokens] = useState(settings.maxTokens);
+  const [showSources, setShowSources] = useState(settings.showSources);
+  const [provider, setProvider] = useState<AIProvider>(settings.aiProvider as AIProvider || 'openai');
 
+  // Form state for API key
+  const [formState, setFormState] = useState({
+    provider: provider,
+    apiKey: ''
+  });
+
+  // Reset form values when settings change
   useEffect(() => {
-    // Initialize API provider from settings if available
-    if (settings?.aiProvider) {
-      // Make sure we only set values that match our type
-      const provider = settings.aiProvider as string;
-      if (provider === "openai" || provider === "gemini") {
-        setApiProvider(provider);
-      } else {
-        // Default to openai if the value doesn't match our type
-        setApiProvider("openai");
-      }
+    setAiModel(settings.model);
+    setTemperature(settings.temperature);
+    setMaxTokens(settings.maxTokens);
+    setShowSources(settings.showSources);
+    setProvider(settings.aiProvider as AIProvider || 'openai');
+  }, [settings]);
+
+  const handleSaveSettings = async () => {
+    const updatedSettings = {
+      model: aiModel,
+      temperature: temperature,
+      maxTokens: maxTokens,
+      showSources: showSources,
+      aiProvider: provider
+    };
+    
+    const result = await saveSettings(updatedSettings);
+    
+    if (result) {
+      toast.success("Settings saved successfully");
+    } else {
+      toast.error("Failed to save settings");
+    }
+  };
+
+  const handleApiKeySubmit = async () => {
+    if (!formState.apiKey) {
+      toast.error("Please enter an API key");
+      return;
     }
     
-    const fetchApiKey = async () => {
-      if (!user || !apiProvider) return;
+    setIsTestingKey(true);
+    try {
+      const result = await saveApiKey(formState.provider, formState.apiKey);
       
-      try {
-        const { data, error } = await supabase
-          .from('user_api_keys')
-          .select('api_key')
-          .eq('user_id', user.id)
-          .eq('provider', apiProvider)
-          .single();
-
-        if (error) {
-          console.error('Error fetching API key:', error);
-          return;
-        }
-
-        if (data?.api_key) {
-          setApiKey(data.api_key);
-        }
-      } catch (err) {
-        console.error('Failed to fetch API key:', err);
+      if (result) {
+        toast.success(`${formState.provider.toUpperCase()} API key saved successfully`);
+        setFormState({ ...formState, apiKey: '' });
       }
-    };
-
-    fetchApiKey();
-  }, [user, settings, apiProvider]);
-
-  const handleSaveApiKey = async () => {
-    if (!user || !apiKey || !apiProvider) return;
-
-    try {
-      // Validate API key format (basic validation only)
-      if (apiProvider === "openai" && !apiKey.startsWith("sk-")) {
-        toast.error('Invalid OpenAI API key format');
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from('user_api_keys')
-        .upsert({
-          user_id: user.id,
-          provider: apiProvider,
-          api_key: apiKey
-        }, {
-          onConflict: 'user_id,provider'
-        });
-
-      if (error) throw error;
-
-      // Update settings context with the provider
-      await updateSettings({
-        ...settings,
-        aiProvider: apiProvider
-      });
-
-      toast.success('API key saved successfully');
-      setShowApiKey(false);
-    } catch (err: any) {
-      console.error('Error saving API key:', err);
-      toast.error('Failed to save API key');
+    } catch (error) {
+      console.error("Error saving API key:", error);
+      toast.error("Failed to save API key");
+    } finally {
+      setIsTestingKey(false);
     }
   };
-
-  const handleUpdateSettings = async () => {
-    try {
-      await saveSettings();
-      toast.success('Settings saved successfully');
-    } catch (err) {
-      toast.error('Failed to save settings');
-    }
-  };
-
-  if (!user) {
-    return (
-      <div className="min-h-screen flex flex-col">
-        <Navbar />
-        <main className="flex-grow flex items-center justify-center">
-          <p>Please log in to access your settings.</p>
-        </main>
-        <Footer />
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
       <main className="flex-grow bg-learnable-super-light py-8">
-        <div className="container mx-auto px-4">
-          <h1 className="text-3xl font-bold gradient-text mb-6">Student Settings</h1>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="container max-w-4xl">
+          <h1 className="text-2xl font-bold mb-6">Settings</h1>
+          
+          <div className="grid gap-6">
+            {/* API Keys */}
             <Card>
               <CardHeader>
-                <CardTitle>AI Assistant Settings</CardTitle>
-                <CardDescription>
-                  Configure how the AI assistant responds to your questions
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-2">
-                  <Label htmlFor="model">AI Model</Label>
-                  <Select
-                    value={settings?.model || "gpt-3.5-turbo"}
-                    onValueChange={(value) => updateSettings({ ...settings, model: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a model" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
-                      <SelectItem value="gpt-4">GPT-4</SelectItem>
-                      <SelectItem value="gemini-pro">Gemini Pro</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-sm text-gray-500">
-                    Different models have different capabilities and costs
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="temperature">Temperature: {settings?.temperature || 0.7}</Label>
-                  </div>
-                  <Slider
-                    id="temperature"
-                    min={0}
-                    max={1}
-                    step={0.1}
-                    defaultValue={[settings?.temperature || 0.7]}
-                    onValueChange={(value) => updateSettings({ ...settings, temperature: value[0] })}
-                  />
-                  <p className="text-sm text-gray-500">
-                    Lower values give more focused responses, higher values make responses more creative
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="maxTokens">Max Response Length: {settings?.maxTokens || 500}</Label>
-                  </div>
-                  <Slider
-                    id="maxTokens"
-                    min={100}
-                    max={2000}
-                    step={100}
-                    defaultValue={[settings?.maxTokens || 500]}
-                    onValueChange={(value) => updateSettings({ ...settings, maxTokens: value[0] })}
-                  />
-                  <p className="text-sm text-gray-500">
-                    Controls the maximum length of the AI's responses
-                  </p>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="sources">Show Sources</Label>
-                    <p className="text-sm text-gray-500">
-                      Display references for information in responses
-                    </p>
-                  </div>
-                  <Switch
-                    id="sources"
-                    checked={settings?.showSources ?? true}
-                    onCheckedChange={(checked) => updateSettings({ ...settings, showSources: checked })}
-                  />
-                </div>
-
-                <Button
-                  onClick={handleUpdateSettings}
-                  className="w-full gradient-bg"
-                  disabled={isUpdating}
-                >
-                  {isUpdating ? (
-                    <>
-                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="mr-2 h-4 w-4" />
-                      Save Settings
-                    </>
-                  )}
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>API Configuration</CardTitle>
+                <CardTitle>API Keys</CardTitle>
                 <CardDescription>
                   Configure your AI provider API keys
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-2">
-                  <Label htmlFor="apiProvider">API Provider</Label>
-                  <Select
-                    value={apiProvider}
-                    onValueChange={(value: ApiProvider) => setApiProvider(value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select an API provider" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="openai">OpenAI</SelectItem>
-                      <SelectItem value="gemini">Google Gemini</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-sm text-gray-500">
-                    Select which AI provider to use with your own API key
-                  </p>
-                </div>
-
-                {showApiKey ? (
+              <CardContent>
+                <div className="space-y-6">
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="apiKey">{apiProvider === "openai" ? "OpenAI" : "Google Gemini"} API Key</Label>
-                      <Input
-                        id="apiKey"
-                        type="password"
-                        value={apiKey}
-                        onChange={(e) => setApiKey(e.target.value)}
-                        placeholder="Enter your API key"
-                      />
-                      <p className="text-sm text-gray-500">
-                        Your API key is stored securely and never shared
+                      <Label>AI Provider</Label>
+                      <Select 
+                        value={formState.provider} 
+                        onValueChange={(value: AIProvider) => setFormState({ ...formState, provider: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select AI provider" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="openai">OpenAI (GPT-3.5/4)</SelectItem>
+                          <SelectItem value="gemini">Google Gemini</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="apiKey">API Key</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          type="password"
+                          id="apiKey"
+                          value={formState.apiKey}
+                          onChange={(e) => setFormState({ ...formState, apiKey: e.target.value })}
+                          placeholder={`Enter your ${formState.provider === 'openai' ? 'OpenAI' : 'Google Gemini'} API key`}
+                          className="flex-grow"
+                        />
+                        <Button 
+                          onClick={handleApiKeySubmit} 
+                          disabled={isTestingKey || !formState.apiKey}
+                        >
+                          {isTestingKey ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                          Save
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {formState.provider === 'openai' ? (
+                          <>Your OpenAI API key is stored securely and used only for your requests. <a href="https://platform.openai.com/account/api-keys" target="_blank" rel="noopener noreferrer" className="underline">Get your API key here</a>.</>
+                        ) : (
+                          <>Your Google Gemini API key is stored securely and used only for your requests. <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="underline">Get your API key here</a>.</>
+                        )}
                       </p>
                     </div>
-
-                    <div className="flex space-x-2">
-                      <Button
-                        variant="default"
-                        onClick={handleSaveApiKey}
-                        className="flex-1 gradient-bg"
-                      >
-                        <Save className="mr-2 h-4 w-4" />
-                        Save Key
-                      </Button>
-                      <Button
-                        variant="outline"
-                        onClick={() => setShowApiKey(false)}
-                        className="flex-1"
-                      >
-                        Cancel
-                      </Button>
+                    
+                    <div className="space-y-2 pt-2">
+                      <div className="flex items-center justify-between">
+                        <Label>Current Provider</Label>
+                        <div className="flex items-center gap-4">
+                          {settings.openAiKey && (
+                            <div className={`flex items-center gap-1 px-2 py-1 rounded ${settings.aiProvider === 'openai' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
+                              <div className={`w-2 h-2 rounded-full ${settings.aiProvider === 'openai' ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                              <span className="text-xs font-medium">OpenAI</span>
+                            </div>
+                          )}
+                          
+                          {settings.geminiKey && (
+                            <div className={`flex items-center gap-1 px-2 py-1 rounded ${settings.aiProvider === 'gemini' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
+                              <div className={`w-2 h-2 rounded-full ${settings.aiProvider === 'gemini' ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                              <span className="text-xs font-medium">Gemini</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {(settings.openAiKey || settings.geminiKey) && (
+                        <div className="pt-2">
+                          <Label>Select Active Provider</Label>
+                          <div className="flex gap-2 mt-2">
+                            {settings.openAiKey && (
+                              <Button
+                                variant={settings.aiProvider === 'openai' ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => setAIProvider('openai')}
+                                disabled={isUpdating}
+                              >
+                                Use OpenAI
+                              </Button>
+                            )}
+                            
+                            {settings.geminiKey && (
+                              <Button
+                                variant={settings.aiProvider === 'gemini' ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => setAIProvider('gemini')}
+                                disabled={isUpdating}
+                              >
+                                Use Gemini
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
-                ) : (
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowApiKey(true)}
-                    className="w-full"
-                  >
-                    <Key className="mr-2 h-4 w-4" />
-                    {apiKey ? "Change API Key" : "Add API Key"}
+                </div>
+              </CardContent>
+            </Card>
+            
+            {/* AI Settings */}
+            <Card>
+              <CardHeader>
+                <CardTitle>AI Chat Settings</CardTitle>
+                <CardDescription>
+                  Configure how the AI responds to your queries
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-6">
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>AI Model</Label>
+                      <Select value={aiModel} onValueChange={setAiModel}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select model" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo (Fast)</SelectItem>
+                          <SelectItem value="gpt-4o-mini">GPT-4o Mini (Balanced)</SelectItem>
+                          <SelectItem value="gpt-4o">GPT-4o (Advanced)</SelectItem>
+                          <SelectItem value="gemini-1.0-pro">Gemini 1.0 Pro</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Select which AI model to use. More advanced models may give better answers but may be slower or more expensive.
+                      </p>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label>Temperature: {temperature}</Label>
+                        <span className="text-xs text-muted-foreground">{temperature < 0.3 ? 'More precise' : temperature > 0.7 ? 'More creative' : 'Balanced'}</span>
+                      </div>
+                      <Slider 
+                        value={[temperature]} 
+                        min={0} 
+                        max={1} 
+                        step={0.1} 
+                        onValueChange={([value]) => setTemperature(value)} 
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Lower values produce more consistent, factual responses. Higher values produce more diverse, creative responses.
+                      </p>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label>Max Tokens: {maxTokens}</Label>
+                      </div>
+                      <Slider 
+                        value={[maxTokens]} 
+                        min={100} 
+                        max={1000} 
+                        step={50}
+                        onValueChange={([value]) => setMaxTokens(value)}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Maximum length of the AI response. Higher values allow for longer answers.
+                      </p>
+                    </div>
+                    
+                    <div className="flex items-center space-x-2 pt-2">
+                      <Switch 
+                        id="show-sources" 
+                        checked={showSources} 
+                        onCheckedChange={setShowSources}
+                      />
+                      <Label htmlFor="show-sources">Show source references in answers</Label>
+                    </div>
+                  </div>
+                  
+                  <Button onClick={handleSaveSettings} disabled={isUpdating} className="w-full">
+                    {isUpdating ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                    Save Settings
                   </Button>
-                )}
-
-                <div>
-                  <p className="text-sm text-gray-500">
-                    Using your own API key will give you more control over the AI responses and may provide access to
-                    more advanced features.
-                  </p>
                 </div>
               </CardContent>
             </Card>

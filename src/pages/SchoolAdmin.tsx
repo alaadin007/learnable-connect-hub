@@ -2,229 +2,281 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import Navbar from "@/components/layout/Navbar";
-import Footer from "@/components/landing/Footer";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { useNavigate } from 'react-router-dom';
-import { Package2, Users, BookOpen, PieChart, Settings, School, UserPlus } from 'lucide-react';
-import AdminNavbar from '@/components/school-admin/AdminNavbar';
-import SchoolCodeGenerator from '@/components/school-admin/SchoolCodeGenerator';
+import Navbar from '@/components/layout/Navbar';
+import { Sidebar } from '@/components/layout/Sidebar';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
+import Footer from '@/components/landing/Footer';
+import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-
-// Define the proper type for SchoolCodeGenerator props
-interface SchoolCodeGeneratorProps {
-  onCodeGenerated?: (code: string) => void;
-}
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Loader2, AlertCircle, Users, BookOpen, School, UserPlus } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import SchoolCodeGenerator from '@/components/school-admin/SchoolCodeGenerator';
+import SchoolCodeManager from '@/components/school-admin/SchoolCodeManager';
 
 const SchoolAdmin = () => {
-  const { user, profile } = useAuth();
+  const navigate = useNavigate();
+  const { user, profile, loading } = useAuth();
+  const [schoolData, setSchoolData] = useState<any>(null);
   const [schoolStats, setSchoolStats] = useState({
-    totalStudents: 0,
     totalTeachers: 0,
-    totalSessions: 0,
-    averageScore: 0,
+    totalStudents: 0,
+    activeStudents: 0,
+    pendingStudents: 0
   });
   const [isLoading, setIsLoading] = useState(true);
-  const navigate = useNavigate();
 
   useEffect(() => {
-    // Redirect if not logged in or not a school admin
-    if (!user || !profile || profile.user_type !== 'school_admin') {
-      toast.error('You must be a school administrator to access this page.');
-      navigate('/login');
-      return;
-    }
-
-    const fetchSchoolStats = async () => {
-      setIsLoading(true);
-      try {
-        const schoolId = profile.school_id;
-
-        if (!schoolId) {
-          throw new Error('School ID not found');
-        }
-
-        // Get student count
-        const { count: studentCount, error: studentError } = await supabase
-          .from('students')
-          .select('*', { count: 'exact', head: true })
-          .eq('school_id', schoolId);
-
-        if (studentError) throw studentError;
-
-        // Get teacher count
-        const { count: teacherCount, error: teacherError } = await supabase
-          .from('teachers')
-          .select('*', { count: 'exact', head: true })
-          .eq('school_id', schoolId);
-
-        if (teacherError) throw teacherError;
-
-        // Get session count
-        const { count: sessionCount, error: sessionError } = await supabase
-          .from('session_logs')
-          .select('*', { count: 'exact', head: true })
-          .eq('school_id', schoolId);
-
-        if (sessionError) throw sessionError;
-
-        // Get average scores from student_performance_metrics
-        const { data: performanceData, error: performanceError } = await supabase
-          .from('student_performance_metrics')
-          .select('avg_score')
-          .eq('school_id', schoolId);
-
-        if (performanceError) throw performanceError;
-
-        // Calculate average score
-        const avgScore = performanceData && performanceData.length > 0
-          ? performanceData.reduce((acc, item) => acc + (item.avg_score || 0), 0) / performanceData.length
-          : 0;
-
-        setSchoolStats({
-          totalStudents: studentCount || 0,
-          totalTeachers: teacherCount || 0,
-          totalSessions: sessionCount || 0,
-          averageScore: Math.round(avgScore),
-        });
-
-      } catch (error: any) {
-        console.error('Error fetching school stats:', error);
-        toast.error('Failed to load school statistics');
-      } finally {
-        setIsLoading(false);
+    if (!loading) {
+      if (!user) {
+        navigate('/login');
+        return;
       }
-    };
+      
+      if (profile?.user_type !== 'school_admin' && profile?.user_type !== 'teacher_supervisor') {
+        toast.error("You don't have access to this page");
+        navigate('/dashboard');
+        return;
+      }
+      
+      // Load school data and stats
+      loadSchoolData();
+    }
+  }, [loading, user, profile, navigate]);
 
-    fetchSchoolStats();
-  }, [user, profile, navigate]);
-
-  // Create a properly typed handler for the SchoolCodeManager component
-  const handleCodeGenerated = (code: string) => {
-    toast.success('New invite code generated!');
-    // Additional logic can be added here
+  const loadSchoolData = async () => {
+    setIsLoading(true);
+    try {
+      // Get school information
+      const schoolId = profile?.school_id;
+      if (!schoolId) {
+        throw new Error("No school associated with this account");
+      }
+      
+      // Call the RPC to get school info
+      const { data: schoolInfo, error: schoolError } = await supabase.rpc(
+        'get_school_by_id',
+        { school_id_param: schoolId }
+      );
+      
+      if (schoolError) throw schoolError;
+      
+      if (schoolInfo && schoolInfo.length > 0) {
+        setSchoolData(schoolInfo[0]);
+      }
+      
+      // Get stats data
+      await loadSchoolStats(schoolId);
+      
+    } catch (error) {
+      console.error("Error loading school data:", error);
+      toast.error("Failed to load school data");
+    } finally {
+      setIsLoading(false);
+    }
   };
+  
+  const loadSchoolStats = async (schoolId: string) => {
+    try {
+      // Get teacher count
+      const { data: teachers, error: teacherError } = await supabase
+        .from('teachers')
+        .select('id')
+        .eq('school_id', schoolId);
+      
+      if (teacherError) throw teacherError;
+      
+      // Get student counts by status
+      const { data: students, error: studentError } = await supabase
+        .from('students')
+        .select('id, status')
+        .eq('school_id', schoolId);
+      
+      if (studentError) throw studentError;
+      
+      setSchoolStats({
+        totalTeachers: teachers?.length || 0,
+        totalStudents: students?.length || 0,
+        activeStudents: students?.filter(s => s.status === 'active').length || 0,
+        pendingStudents: students?.filter(s => s.status === 'pending').length || 0
+      });
+      
+    } catch (error) {
+      console.error("Error loading school stats:", error);
+    }
+  };
+
+  const handleCodeGenerated = (code: string) => {
+    toast.success(`New school code generated: ${code}`);
+  };
+
+  const handleTeacherInvite = () => {
+    navigate('/admin/teachers');
+  };
+
+  const handleStudentManagement = () => {
+    navigate('/admin/students');
+  };
+
+  if (loading || isLoading) {
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <div className="flex flex-col items-center">
+          <Loader2 className="h-8 w-8 animate-spin text-learnable-purple" />
+          <p className="mt-2 text-gray-600">Loading school admin panel...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
-      <main className="flex-grow bg-learnable-super-light py-8">
-        <div className="container mx-auto px-4">
-          <div className="flex justify-between items-center mb-6">
-            <h1 className="text-3xl font-bold gradient-text">School Administration</h1>
-          </div>
-
-          <AdminNavbar />
-
-          {isLoading ? (
-            <div className="flex justify-center items-center h-64">
-              <p className="text-lg text-gray-500">Loading school data...</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-              <StatCard
-                title="Total Students"
-                value={schoolStats.totalStudents}
-                icon={<Users className="h-8 w-8 text-blue-500" />}
-              />
-              <StatCard
-                title="Total Teachers"
-                value={schoolStats.totalTeachers}
-                icon={<UserPlus className="h-8 w-8 text-green-500" />}
-              />
-              <StatCard
-                title="Study Sessions"
-                value={schoolStats.totalSessions}
-                icon={<BookOpen className="h-8 w-8 text-purple-500" />}
-              />
-              <StatCard
-                title="Avg. Score"
-                value={`${schoolStats.averageScore}%`}
-                icon={<PieChart className="h-8 w-8 text-orange-500" />}
-              />
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+      
+      <div className="flex-grow bg-learnable-super-light flex">
+        <Sidebar className="hidden lg:block">
+          <div className="px-4 py-6 space-y-6">
             <div>
-              <h2 className="text-2xl font-semibold mb-4">Quick Actions</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <ActionCard
-                  title="Manage Teachers"
-                  description="Add or manage school teachers"
-                  icon={<UserPlus className="h-6 w-6" />}
-                  onClick={() => navigate('/admin/teacher-management')}
-                />
-                <ActionCard
-                  title="Student Management"
-                  description="View and manage students"
-                  icon={<Users className="h-6 w-6" />}
+              <h2 className="text-lg font-semibold">School Administration</h2>
+              <p className="text-sm text-gray-500">Manage your school</p>
+            </div>
+            <Separator />
+            <ScrollArea className="h-[calc(100vh-220px)]">
+              <div className="space-y-1.5 py-2">
+                <Button 
+                  variant="ghost" 
+                  className="w-full justify-start font-normal"
+                  onClick={() => navigate('/admin/overview')}
+                >
+                  <School className="mr-2 h-4 w-4" />
+                  School Overview
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  className="w-full justify-start font-normal"
+                  onClick={() => navigate('/admin/teachers')}
+                >
+                  <Users className="mr-2 h-4 w-4" />
+                  Teachers
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  className="w-full justify-start font-normal"
                   onClick={() => navigate('/admin/students')}
-                />
-                <ActionCard
-                  title="View Analytics"
-                  description="School performance reports"
-                  icon={<PieChart className="h-6 w-6" />}
+                >
+                  <Users className="mr-2 h-4 w-4" />
+                  Students
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  className="w-full justify-start font-normal"
                   onClick={() => navigate('/admin/analytics')}
-                />
-                <ActionCard
-                  title="School Settings"
-                  description="Configure school preferences"
-                  icon={<Settings className="h-6 w-6" />}
+                >
+                  <BookOpen className="mr-2 h-4 w-4" />
+                  Analytics
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  className="w-full justify-start font-normal"
                   onClick={() => navigate('/admin/settings')}
-                />
+                >
+                  <School className="mr-2 h-4 w-4" />
+                  School Settings
+                </Button>
               </div>
-            </div>
-            <div>
-              {/* Use properly typed component */}
-              <SchoolCodeGenerator onCodeGenerated={handleCodeGenerated} />
-            </div>
+            </ScrollArea>
           </div>
-        </div>
-      </main>
+        </Sidebar>
+
+        <main className="flex-grow p-4 md:p-8">
+          <div className="max-w-5xl mx-auto space-y-8">
+            {/* School Information */}
+            <Card>
+              <CardHeader>
+                <CardTitle>School Information</CardTitle>
+                <CardDescription>
+                  Overview of your school and quick actions
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {schoolData ? (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <h3 className="text-lg font-semibold">{schoolData.name}</h3>
+                        <p className="text-sm text-gray-500">School Code: {schoolData.code}</p>
+                        <p className="text-sm text-gray-500">Contact: {schoolData.contact_email}</p>
+                      </div>
+                      <div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="bg-blue-50 p-3 rounded-lg">
+                            <p className="text-sm text-blue-600">Teachers</p>
+                            <p className="text-2xl font-bold">{schoolStats.totalTeachers}</p>
+                          </div>
+                          <div className="bg-green-50 p-3 rounded-lg">
+                            <p className="text-sm text-green-600">Students</p>
+                            <p className="text-2xl font-bold">{schoolStats.totalStudents}</p>
+                          </div>
+                          <div className="bg-amber-50 p-3 rounded-lg">
+                            <p className="text-sm text-amber-600">Active Students</p>
+                            <p className="text-2xl font-bold">{schoolStats.activeStudents}</p>
+                          </div>
+                          <div className="bg-purple-50 p-3 rounded-lg">
+                            <p className="text-sm text-purple-600">Pending Students</p>
+                            <p className="text-2xl font-bold">{schoolStats.pendingStudents}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex flex-wrap gap-4">
+                      <Button onClick={handleTeacherInvite}>
+                        <UserPlus className="mr-2 h-4 w-4" />
+                        Invite Teachers
+                      </Button>
+                      <Button onClick={handleStudentManagement} variant="outline">
+                        <Users className="mr-2 h-4 w-4" />
+                        Manage Students
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center space-x-4 text-amber-600 bg-amber-50 p-4 rounded-lg">
+                    <AlertCircle className="h-5 w-5" />
+                    <p>School information not available. Please contact support.</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+            
+            {/* School Code and Invitation */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <SchoolCodeGenerator onCodeGenerated={handleCodeGenerated} />
+              <SchoolCodeManager onCodeGenerated={handleCodeGenerated} />
+            </div>
+            
+            {/* Quick Stats */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Activity</CardTitle>
+                <CardDescription>
+                  Recent activity in your school
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-center py-6 text-gray-500">
+                  Activity dashboard coming soon. You'll be able to monitor student engagement, teacher activity, and more.
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </main>
+      </div>
+      
       <Footer />
     </div>
   );
 };
-
-interface StatCardProps {
-  title: string;
-  value: number | string;
-  icon: React.ReactNode;
-}
-
-const StatCard = ({ title, value, icon }: StatCardProps) => (
-  <Card>
-    <CardContent className="flex items-center justify-between p-6">
-      <div>
-        <p className="text-sm font-medium text-gray-500">{title}</p>
-        <h3 className="text-2xl font-bold">{value}</h3>
-      </div>
-      <div className="bg-gray-100 p-3 rounded-full">{icon}</div>
-    </CardContent>
-  </Card>
-);
-
-interface ActionCardProps {
-  title: string;
-  description: string;
-  icon: React.ReactNode;
-  onClick: () => void;
-}
-
-const ActionCard = ({ title, description, icon, onClick }: ActionCardProps) => (
-  <Card className="cursor-pointer hover:shadow-md transition-shadow duration-200" onClick={onClick}>
-    <CardContent className="flex items-center gap-4 p-4">
-      <div className="bg-gradient-to-r from-learnable-blue to-learnable-purple rounded-full p-2 text-white">
-        {icon}
-      </div>
-      <div>
-        <h3 className="font-medium mb-1">{title}</h3>
-        <p className="text-sm text-gray-500">{description}</p>
-      </div>
-    </CardContent>
-  </Card>
-);
 
 export default SchoolAdmin;

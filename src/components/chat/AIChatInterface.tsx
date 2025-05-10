@@ -12,6 +12,7 @@ import { z } from "zod";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useCompletion } from 'ai/react';
 import { supabase } from '@/integrations/supabase/client';
+import { AIProvider } from '@/contexts/SettingsContext';
 
 // Define the API key schema
 const ApiKeySchema = z.object({
@@ -24,7 +25,7 @@ type ApiKeyFormValues = z.infer<typeof ApiKeySchema>;
 const AIChatInterface = () => {
   const { toast } = useToast();
   const { user } = useAuth();
-  const { settings } = useSettings();
+  const { settings, saveApiKey } = useSettings();
   const [showApiKeyForm, setShowApiKeyForm] = useState(false);
   const [apiKeySaving, setApiKeySaving] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -34,7 +35,7 @@ const AIChatInterface = () => {
   // Simplified state management - avoiding excessive state variables
   const [apiKeyState, setApiKeyState] = useState({
     apiKey: "",
-    provider: "openai",
+    provider: "openai" as AIProvider,
     isValid: true,
     errorMessage: null as string | null
   });
@@ -67,21 +68,7 @@ const AIChatInterface = () => {
   const handleApiKeySubmit = async (values: ApiKeyFormValues) => {
     setApiKeySaving(true);
     try {
-      const { data, error } = await supabase
-        .from('user_api_keys')
-        .upsert({
-          user_id: user?.id,
-          provider: values.provider,
-          api_key: values.apiKey
-        }, { onConflict: 'user_id,provider' });
-
-      if (error) throw error;
-
-      toast({
-        title: "API Key Saved",
-        description: "Your API key has been successfully saved"
-      });
-      
+      await saveApiKey(values.provider, values.apiKey);
       setShowApiKeyForm(false);
     } catch (error: any) {
       console.error("Error saving API key:", error);
@@ -135,7 +122,7 @@ const AIChatInterface = () => {
             </Button>
           </div>
           
-          {!settings?.apiKey && (
+          {!settings.openAiKey && !settings.geminiKey && (
             <Button
               variant="outline"
               className="mt-2 w-full"
