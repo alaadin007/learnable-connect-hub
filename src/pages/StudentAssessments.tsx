@@ -6,11 +6,22 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import AssessmentList from '@/components/teacher/AssessmentList';
+import { usePagePerformance } from '@/hooks/usePagePerformance';
 
 const StudentAssessments: React.FC = () => {
   const { profile } = useAuth();
   const [assessments, setAssessments] = useState<any[]>([]);
   const navigate = useNavigate();
+  
+  // Add performance monitoring
+  usePagePerformance("StudentAssessments");
+
+  useEffect(() => {
+    // Only fetch if we have a school_id - no loading state needed
+    if (profile?.school_id) {
+      fetchAssessments();
+    }
+  }, [profile?.school_id]);
 
   const fetchAssessments = async () => {
     if (!profile?.school_id) {
@@ -50,17 +61,11 @@ const StudentAssessments: React.FC = () => {
       });
 
       setAssessments(processedData || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching assessments:", error);
       toast.error("Failed to load assessments");
     }
   };
-
-  useEffect(() => {
-    if (profile?.school_id) {
-      fetchAssessments();
-    }
-  }, [profile?.school_id]);
 
   const handleTakeAssessment = (assessmentId: string) => {
     navigate(`/student/assessment/${assessmentId}`);
@@ -70,6 +75,7 @@ const StudentAssessments: React.FC = () => {
     navigate(`/student/assessment/${assessmentId}/results/${submissionId}`);
   };
 
+  // Render directly without loading state
   return (
     <DashboardLayout>
       <div className="container py-6">

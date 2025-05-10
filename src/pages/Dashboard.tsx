@@ -1,5 +1,4 @@
-
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import { Button } from "@/components/ui/button";
@@ -11,8 +10,8 @@ import { isSchoolAdmin, getUserRoleWithFallback } from "@/utils/apiHelpers";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Lecture, Assessment } from "@/utils/supabaseHelpers";
-import { executeWithTimeout } from "@/utils/networkHelpers";
 import { UserRole } from "@/components/auth/ProtectedRoute";
+import { usePagePerformance } from "@/hooks/usePagePerformance";
 
 // Dashboard Cards Component
 interface DashboardCardProps {
@@ -82,72 +81,60 @@ const EmptyState = ({ message }: { message: string }) => (
 );
 
 const Dashboard = () => {
+  // Performance tracking
+  usePagePerformance("Dashboard");
+  
   const { user, profile, userRole } = useAuth();
-  const [isRedirecting, setIsRedirecting] = useState(false);
   const [upcomingAssessments, setUpcomingAssessments] = useState<UpcomingAssessmentProps[]>([]);
   const [recentLectures, setRecentLectures] = useState<Partial<Lecture>[]>([]);
   const [assessmentsError, setAssessmentsError] = useState<string | null>(null);
   const [lecturesError, setLecturesError] = useState<string | null>(null); 
   const navigate = useNavigate();
   
-  // Redirect check for admin/teacher users with proper dependency array
-  const checkAndRedirect = useCallback(() => {
-    // Get both context role and fallback role to ensure we catch all cases
-    const fallbackRole = getUserRoleWithFallback();
-    const effectiveRole = userRole || fallbackRole;
-    
-    // More comprehensive check for school admin roles
-    if (isSchoolAdmin(effectiveRole as UserRole)) {
-      setIsRedirecting(true);
-      toast.info("Redirecting to School Admin Dashboard...");
-      navigate("/admin", { state: { preserveContext: true, adminRedirect: true }, replace: true });
-      return true;
-    } else if (effectiveRole === 'teacher') {
-      setIsRedirecting(true);
-      toast.info("Redirecting to Teacher Dashboard...");
-      navigate("/teacher/students", { state: { preserveContext: true }, replace: true });
-      return true;
-    } else {
-      return false;
-    }
-  }, [userRole, navigate]);
-
+  // Get effective user role, fallback to stored role if context hasn't loaded yet
+  const fallbackRole = getUserRoleWithFallback();
+  const effectiveRole = useMemo(() => userRole || fallbackRole, [userRole, fallbackRole]);
+  const isAdmin = useMemo(() => isSchoolAdmin(effectiveRole as UserRole), [effectiveRole]);
+  
+  // Determine if we need to redirect based on role
   useEffect(() => {
-    let isMounted = true;
+    if (user) {
+      if (isAdmin) {
+        navigate("/admin", { state: { preserveContext: true, adminRedirect: true }, replace: true });
+      } else if (effectiveRole === 'teacher') {
+        navigate("/teacher/students", { state: { preserveContext: true }, replace: true });
+      }
+    }
+  }, [user, effectiveRole, isAdmin, navigate]);
 
-    // Only redirect if we haven't started redirecting yet
-    if (!isRedirecting && user) {
-      const shouldRedirect = checkAndRedirect();
-      if (!shouldRedirect) {
-        // Fetch student dashboard data
-        const fetchDashboardData = async () => {
-          if (!isMounted) return;
-          
-          // Fetch upcoming assessments with timeout protection
+  // Fetch student dashboard data in parallel
+  useEffect(() => {
+    if (!user || isAdmin || effectiveRole === 'teacher') {
+      return;
+    }
+    
+    // Fetch both assessments and lectures in parallel
+    const fetchDashboardData = async () => {
+      // Use Promise.all to fetch both in parallel
+      await Promise.all([
+        // Fetch upcoming assessments
+        (async () => {
           try {
-            const { data: assessments, error: assessmentsError } = await executeWithTimeout(
-              async () => {
-                return await supabase
-                  .from("assessments")
-                  .select(`
-                    id, 
-                    title, 
-                    due_date,
-                    subject
-                  `)
-                  .gt('due_date', new Date().toISOString())
-                  .order('due_date', { ascending: true })
-                  .limit(3);
-              },
-              5000 // 5 seconds timeout
-            );
+            const { data: assessments, error: assessmentsError } = await supabase
+              .from("assessments")
+              .select(`
+                id, 
+                title, 
+                due_date,
+                subject
+              `)
+              .gt('due_date', new Date().toISOString())
+              .order('due_date', { ascending: true })
+              .limit(3);
 
-            if (!isMounted) return;
-            
             if (assessmentsError) {
               console.error("Error fetching assessments:", assessmentsError);
               setAssessmentsError("Could not load upcoming assessments");
-              setUpcomingAssessments([]);
             } else {
               setAssessmentsError(null);
               setUpcomingAssessments(assessments ? assessments.map(assessment => ({
@@ -158,65 +145,46 @@ const Dashboard = () => {
               })) : []);
             }
           } catch (err) {
-            if (!isMounted) return;
             console.error("Error fetching assessments:", err);
             setAssessmentsError("Could not connect to server");
-            setUpcomingAssessments([]);
           }
-
-          // Fetch recent lectures with timeout protection
+        })(),
+        
+        // Fetch recent lectures
+        (async () => {
           try {
-            const { data: lectures, error: lecturesError } = await executeWithTimeout(
-              async () => {
-                return await supabase
-                  .from("lectures")
-                  .select(`
-                    id,
-                    title,
-                    thumbnail_url,
-                    created_at
-                  `)
-                  .order('created_at', { ascending: false })
-                  .limit(3);
-              },
-              5000 // 5 seconds timeout
-            );
-
-            if (!isMounted) return;
+            const { data: lectures, error: lecturesError } = await supabase
+              .from("lectures")
+              .select(`
+                id,
+                title,
+                thumbnail_url,
+                created_at
+              `)
+              .order('created_at', { ascending: false })
+              .limit(3);
             
             if (lecturesError) {
               console.error("Error fetching lectures:", lecturesError);
               setLecturesError("Could not load recent lectures");
-              setRecentLectures([]);
             } else {
               setLecturesError(null);
               setRecentLectures(lectures || []);
             }
           } catch (err) {
-            if (!isMounted) return;
             console.error("Error fetching lectures:", err);
             setLecturesError("Could not connect to server");
-            setRecentLectures([]);
           }
-        };
-        
-        fetchDashboardData();
-      }
-    }
-
-    // Cleanup function
-    return () => {
-      isMounted = false;
+        })()
+      ]);
     };
-  }, [user, userRole, isRedirecting, checkAndRedirect]);
+    
+    fetchDashboardData();
+  }, [user, effectiveRole, isAdmin]);
 
-  // If we're redirecting or user is a school admin/teacher, show loading state without spinner
-  if (isRedirecting || isSchoolAdmin(userRole as UserRole) || isSchoolAdmin(getUserRoleWithFallback() as UserRole) || userRole === 'teacher') {
-    return (
-      <div className="h-screen flex flex-col items-center justify-center">
-        <p className="text-xl mb-4">Redirecting to appropriate dashboard...</p>
-      </div>
-    );
+  // If we're redirecting, render minimal content to avoid flicker
+  if (isAdmin || effectiveRole === 'teacher') {
+    return null;
   }
 
   // Standard student dashboard below

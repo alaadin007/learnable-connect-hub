@@ -1,5 +1,5 @@
 
-import React, { ReactNode } from 'react';
+import React, { ReactNode, memo } from 'react';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/landing/Footer';
 
@@ -7,7 +7,8 @@ interface DashboardLayoutProps {
   children: ReactNode;
 }
 
-const DashboardLayout = ({ children }: DashboardLayoutProps) => {
+// Using memo to prevent re-renders when only children change
+const DashboardLayout = memo(({ children }: DashboardLayoutProps) => {
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
       <Navbar />
@@ -19,6 +20,8 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       <Footer />
     </div>
   );
-};
+});
+
+DashboardLayout.displayName = 'DashboardLayout';
 
 export default DashboardLayout;

@@ -1,5 +1,6 @@
 
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, useLocation, useNavigationType } from 'react-router-dom';
+import { useEffect } from 'react';
 import './App.css';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import NotFound from './pages/NotFound';
@@ -36,8 +37,53 @@ import TeacherAssessments from './pages/TeacherAssessments';
 import TeacherAssessmentResults from './pages/TeacherAssessmentResults';
 import TeacherAssessmentSubmission from './pages/TeacherAssessmentSubmission';
 import AssessmentCreator from './components/teacher/AssessmentCreator';
+import { initPerformanceMonitoring } from './utils/performanceMonitor';
+import { initRoutePreloader, preloadAnticipatedRoutes } from './utils/routePreloader';
 
 function App() {
+  const location = useLocation();
+  const navigationType = useNavigationType();
+  
+  // Initialize performance monitoring
+  useEffect(() => {
+    const cleanup = initPerformanceMonitoring();
+    const preloaderCleanup = initRoutePreloader();
+    
+    return () => {
+      cleanup();
+      preloaderCleanup();
+    };
+  }, []);
+  
+  // Track navigation performance
+  useEffect(() => {
+    // Only measure if this is not the initial load
+    if (navigationType !== 'POP') {
+      const pageStart = performance.now();
+      
+      // Mark the navigation start
+      performance.mark(`navigation-${location.pathname}-start`);
+      
+      const markEndAndMeasure = () => {
+        const pageEnd = performance.now();
+        performance.mark(`navigation-${location.pathname}-end`);
+        performance.measure(
+          `navigation-${location.pathname}`,
+          `navigation-${location.pathname}-start`,
+          `navigation-${location.pathname}-end`
+        );
+        
+        console.log(`[Navigation] ${location.pathname} loaded in ${Math.round(pageEnd - pageStart)}ms`);
+      };
+      
+      // Mark end on next tick after render
+      setTimeout(markEndAndMeasure, 0);
+      
+      // Preload anticipated routes
+      preloadAnticipatedRoutes(location.pathname);
+    }
+  }, [location.pathname, navigationType]);
+
   return (
     <Routes>
       {/* Public routes */}
