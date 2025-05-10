@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -21,7 +22,6 @@ interface Document {
 const FileList = () => {
   const { user } = useAuth();
   const [documents, setDocuments] = useState<Document[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
   const [deleting, setDeleting] = useState<{[key: string]: boolean}>({});
 
   useEffect(() => {
@@ -32,8 +32,6 @@ const FileList = () => {
 
   const fetchDocuments = async () => {
     try {
-      setLoading(true);
-      
       const { data, error } = await supabase
         .from('documents')
         .select('*')
@@ -50,8 +48,6 @@ const FileList = () => {
     } catch (error: any) {
       console.error('Error fetching documents:', error);
       toast.error('Failed to load documents');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -160,14 +156,6 @@ const FileList = () => {
     return <FileText className="h-5 w-5 text-gray-500" />;
   };
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-      </div>
-    );
-  }
-
   if (documents.length === 0) {
     return (
       <div className="text-center py-8">
@@ -210,11 +198,7 @@ const FileList = () => {
                   onClick={() => handleDelete(doc.id)}
                   disabled={deleting[doc.id]}
                 >
-                  {deleting[doc.id] ? (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  ) : (
-                    <Trash2 className="h-4 w-4 mr-1" />
-                  )}
+                  <Trash2 className="h-4 w-4 mr-1" />
                   Delete
                 </Button>
               </div>

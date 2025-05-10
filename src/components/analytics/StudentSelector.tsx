@@ -8,7 +8,7 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select";
-import { User, Loader2 } from "lucide-react";
+import { User } from "lucide-react";
 
 interface StudentSelectorProps {
   students: { value: string; label: string }[];
@@ -20,27 +20,20 @@ interface StudentSelectorProps {
 const StudentSelector: React.FC<StudentSelectorProps> = ({ 
   students, 
   selectedStudent, 
-  onSelectStudent, 
-  isLoading = false
+  onSelectStudent
 }) => {
   return (
     <div className="space-y-2">
       <Label htmlFor="student-selector">Select Student</Label>
       <Select 
         onValueChange={onSelectStudent} 
-        value={selectedStudent || ""} 
-        disabled={isLoading}
+        value={selectedStudent || ""}
       >
         <SelectTrigger className="w-full" id="student-selector">
           <SelectValue placeholder="Select a student" />
         </SelectTrigger>
         <SelectContent>
-          {isLoading ? (
-            <div className="flex items-center justify-center p-2">
-              <Loader2 className="h-4 w-4 animate-spin mr-2 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Loading students...</span>
-            </div>
-          ) : students.length === 0 ? (
+          {students.length === 0 ? (
             <div className="p-2 text-center text-sm text-muted-foreground">
               No students available
             </div>

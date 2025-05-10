@@ -9,7 +9,6 @@ import AssessmentList from '@/components/teacher/AssessmentList';
 const StudentAssessments: React.FC = () => {
   const { profile } = useAuth();
   const [assessments, setAssessments] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
 
   const fetchAssessments = async () => {
     if (!profile?.school_id) {
@@ -17,7 +16,6 @@ const StudentAssessments: React.FC = () => {
       return;
     }
 
-    setIsLoading(true);
     try {
       const { data, error } = await supabase
         .from('assessments')
@@ -33,8 +31,6 @@ const StudentAssessments: React.FC = () => {
     } catch (error) {
       console.error("Error fetching assessments:", error);
       toast.error("Failed to load assessments");
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -53,7 +49,7 @@ const StudentAssessments: React.FC = () => {
 
         <AssessmentList 
           assessments={assessments} 
-          isLoading={isLoading} 
+          isLoading={false} 
           studentView={true}
         />
       </div>

@@ -1,4 +1,4 @@
-// Add the toast import at the top
+
 import { toast } from "sonner";
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -13,7 +13,6 @@ const SchoolSettings = () => {
   const { user, profile } = useAuth();
   const [schoolName, setSchoolName] = useState('');
   const [schoolCode, setSchoolCode] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -45,9 +44,6 @@ const SchoolSettings = () => {
         toast.error("Failed to update school settings");
         return;
       }
-
-      // Optimistically update the local profile
-      // setProfile({ ...profile, ...updates });
 
       toast.success("School settings updated successfully!");
     } catch (error: any) {

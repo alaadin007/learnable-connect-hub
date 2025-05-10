@@ -3,18 +3,12 @@ import React, { useState } from 'react';
 import SessionsTable from './SessionsTable';
 import TopicsChart from './TopicsChart';
 import StudyTimeChart from './StudyTimeChart';
-import { AnalyticsFilters, AnalyticsFiltersProps } from './AnalyticsFilters';
-import { AnalyticsExport, AnalyticsExportProps } from './AnalyticsExport';
+import { AnalyticsFilters } from './AnalyticsFilters';
+import { AnalyticsExport } from './AnalyticsExport';
 import { AnalyticsSummaryCards } from './AnalyticsSummaryCards';
-import { DateRange, AnalyticsFilters as FiltersType } from '@/components/analytics/types';
+import { AnalyticsFilters as FiltersType } from '@/components/analytics/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  getAnalyticsSummary, 
-  getSessionLogs, 
-  getTopics,
-  getStudyTime
-} from '@/utils/analyticsUtils';
 
 // Define props interface for the dashboard
 export interface AnalyticsDashboardProps {
@@ -31,7 +25,6 @@ export interface AnalyticsDashboardProps {
 }
 
 export const AnalyticsDashboard = ({
-  isLoading,
   filters,
   onFilterChange,
   onExport,
@@ -45,14 +38,14 @@ export const AnalyticsDashboard = ({
         <AnalyticsFilters 
           currentFilters={filters} 
           onFiltersChange={onFilterChange} 
-          isLoading={isLoading}
+          isLoading={false}
         />
-        <AnalyticsExport onExportClick={onExport} isLoading={isLoading} />
+        <AnalyticsExport onExportClick={onExport} isLoading={false} />
       </div>
       
       <AnalyticsSummaryCards 
         summary={data.summary}
-        isLoading={isLoading}
+        isLoading={false}
         dateRange={filters.dateRange}
       />
       
@@ -69,7 +62,7 @@ export const AnalyticsDashboard = ({
             <CardContent className="pt-6">
               <SessionsTable 
                 sessions={data.sessions} 
-                isLoading={isLoading} 
+                isLoading={false} 
                 title="Recent Sessions" 
               />
             </CardContent>
@@ -78,12 +71,12 @@ export const AnalyticsDashboard = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card>
               <CardContent className="pt-6">
-                <TopicsChart data={data.topics} isLoading={isLoading} />
+                <TopicsChart data={data.topics} isLoading={false} />
               </CardContent>
             </Card>
             <Card>
               <CardContent className="pt-6">
-                <StudyTimeChart data={data.studyTime} isLoading={isLoading} />
+                <StudyTimeChart data={data.studyTime} isLoading={false} />
               </CardContent>
             </Card>
           </div>
@@ -94,7 +87,7 @@ export const AnalyticsDashboard = ({
             <CardContent className="pt-6">
               <SessionsTable 
                 sessions={data.sessions} 
-                isLoading={isLoading} 
+                isLoading={false} 
                 title="All Sessions" 
               />
             </CardContent>
@@ -104,7 +97,7 @@ export const AnalyticsDashboard = ({
         <TabsContent value="topics">
           <Card>
             <CardContent className="pt-6">
-              <TopicsChart data={data.topics} isLoading={isLoading} />
+              <TopicsChart data={data.topics} isLoading={false} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -112,7 +105,7 @@ export const AnalyticsDashboard = ({
         <TabsContent value="time">
           <Card>
             <CardContent className="pt-6">
-              <StudyTimeChart data={data.studyTime} isLoading={isLoading} />
+              <StudyTimeChart data={data.studyTime} isLoading={false} />
             </CardContent>
           </Card>
         </TabsContent>

@@ -14,8 +14,7 @@ export interface SessionsTableProps {
 const SessionsTable: React.FC<SessionsTableProps> = ({ 
   sessions, 
   title = "Recent Sessions", 
-  description, 
-  isLoading 
+  description
 }) => {
   return (
     <div>
@@ -37,13 +36,7 @@ const SessionsTable: React.FC<SessionsTableProps> = ({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading ? (
-              <TableRow>
-                <TableCell colSpan={5} className="h-24 text-center">
-                  Loading sessions...
-                </TableCell>
-              </TableRow>
-            ) : sessions.length > 0 ? (
+            {sessions.length > 0 ? (
               sessions.map((session) => (
                 <TableRow key={session.id}>
                   <TableCell className="font-medium">{session.student_name || 'Unknown'}</TableCell>

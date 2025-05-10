@@ -54,11 +54,11 @@ const StudentSettings = () => {
           <Button 
             variant="outline" 
             size="sm" 
-            onClick={() => navigate(-1)}
+            onClick={() => navigate('/dashboard')}
             className="mr-2"
           >
             <ChevronLeft className="h-4 w-4 mr-1" />
-            Back
+            Back to Dashboard
           </Button>
           <h1 className="text-2xl font-bold">Student Settings</h1>
         </div>

@@ -10,8 +10,7 @@ interface StudentPerformanceTableProps {
   isLoading: boolean;
 }
 
-export const StudentPerformanceTable = ({ data, isLoading }: StudentPerformanceTableProps) => {
-  // Remove skeleton loading state in favor of immediate rendering
+export const StudentPerformanceTable = ({ data }: StudentPerformanceTableProps) => {
   return (
     <Card>
       <CardHeader>
