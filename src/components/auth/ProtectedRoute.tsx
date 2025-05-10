@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 
 // Export UserRole as a type that can be imported elsewhere
@@ -17,21 +17,23 @@ const ProtectedRoute = ({
   allowedRoles,
   requireSupervisor = false,
 }: ProtectedRouteProps) => {
-  const { user, userRole, profile, isLoading } = useAuth(); // Using isLoading instead of loading
+  const { user, userRole, profile, isLoading } = useAuth();
+  const location = useLocation();
+  
+  // Check if the user is logged in
   const isLoggedIn = !!user;
+  
+  // Check if the user is a supervisor
   const isSupervisor = profile?.is_supervisor || false;
-
+  
+  // If still loading auth state, return a null to avoid flicker
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-learnable-blue"></div>
-      </div>
-    );
+    return null;
   }
 
-  // If not logged in, redirect to login
+  // If not logged in, redirect to login with the return URL
   if (!isLoggedIn) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" state={{ from: location.pathname }} replace />;
   }
 
   // If supervisor is required, check for that
@@ -54,6 +56,7 @@ const ProtectedRoute = ({
     }
   }
 
+  // User is authorized, render the protected content
   return <>{children}</>;
 };
 

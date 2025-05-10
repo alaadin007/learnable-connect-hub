@@ -1,9 +1,9 @@
-
 import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Profile, UserType } from '@/types/profile';
 import { useNavigate } from 'react-router-dom';
 import { UserRole } from '@/components/auth/ProtectedRoute';
+import { toast } from 'sonner';
 
 interface AuthContextType {
   user: any;
@@ -38,6 +38,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [testUser, setTestUserInternal] = useState<{ email: string; password: string; role: string } | null>(null);
   const [sessionData, setSessionData] = useState<any>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   const navigate = useNavigate();
 
@@ -51,11 +52,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const { data: { session } } = await supabase.auth.getSession();
 
         if (session) {
+          console.log("User session found:", session.user.email);
           setUser(session.user);
           setSessionData(session);
           setIsLoggedIn(true);
           await loadProfile(session.user);
         } else if (testUser) {
+          console.log("Test user sign-in:", testUser.email);
           const { data, error } = await supabase.auth.signInWithPassword({
             email: testUser.email,
             password: testUser.password,
@@ -71,6 +74,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setIsLoggedIn(true);
           await loadProfile(data.user);
         }
+      } catch (error) {
+        console.error("Session loading error:", error);
       } finally {
         setIsLoading(false);
       }
@@ -79,6 +84,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     loadSession();
 
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("Auth state change:", event, session?.user?.email);
       if (event === 'SIGNED_IN' && session) {
         setUser(session.user);
         setSessionData(session);
@@ -91,6 +97,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setIsSupervisor(false);
         setSessionData(null);
         setIsLoggedIn(false);
+      } else if (event === 'TOKEN_REFRESHED' && session) {
+        setSessionData(session);
       }
     });
 
@@ -152,6 +160,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setProfile(processedProfile);
         setUserRole(typedRole);
         setIsSupervisor(Boolean(profileData.is_supervisor));
+
+        // Store user role in localStorage for fallback
+        try {
+          localStorage.setItem('userRole', typedRole || '');
+          if (profileData.school_id) {
+            localStorage.setItem('schoolId', profileData.school_id);
+          }
+        } catch (e) {
+          console.warn("Could not store user role in localStorage:", e);
+        }
       }
     } catch (error) {
       console.error("Error loading profile:", error);
@@ -160,11 +178,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const signIn = async (email: string, password: string) => {
     setIsLoading(true);
+    setAuthError(null);
     try {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
       if (error) {
         console.error("Sign-in error:", error);
+        setAuthError(error.message);
         return { error };
       }
 
@@ -172,7 +192,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setSessionData(data.session);
       setIsLoggedIn(true);
       await loadProfile(data.user);
+
+      // Let the redirect happen via useEffect in Login component
       return { success: true };
+    } catch (error: any) {
+      console.error("Unexpected sign-in error:", error);
+      setAuthError(error.message || "An unexpected error occurred");
+      return { error };
     } finally {
       setIsLoading(false);
     }
@@ -180,6 +206,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const signUp = async (email: string, password: string, metadata: any = {}) => {
     setIsLoading(true);
+    setAuthError(null);
     try {
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -189,14 +216,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       if (error) {
         console.error("Signup error:", error);
+        setAuthError(error.message);
         return { error };
       }
 
-      setUser(data.user);
-      setSessionData(data.session);
-      setIsLoggedIn(true);
-      await loadProfile(data.user);
-      return { success: true };
+      // For immediate sign-in apps
+      if (data.session) {
+        setUser(data.user);
+        setSessionData(data.session);
+        setIsLoggedIn(true);
+        await loadProfile(data.user);
+      }
+      
+      return { success: true, session: data.session };
+    } catch (error: any) {
+      console.error("Unexpected signup error:", error);
+      setAuthError(error.message || "An unexpected error occurred");
+      return { error };
     } finally {
       setIsLoading(false);
     }
@@ -208,15 +244,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const { error } = await supabase.auth.signOut();
       if (error) {
         console.error("Sign-out error:", error);
+        toast.error("Error signing out. Please try again.");
         throw error;
       }
 
+      // Clear all auth state
       setUser(null);
       setProfile(null);
       setUserRole(null);
       setIsSupervisor(false);
       setSessionData(null);
       setIsLoggedIn(false);
+      
+      // Clear local storage - but keep theme and other preferences
+      try {
+        localStorage.removeItem('userRole');
+        localStorage.removeItem('schoolId');
+      } catch (e) {
+        console.warn("Could not clear localStorage items:", e);
+      }
+      
+      // Navigate to login page
       navigate('/login');
     } finally {
       setIsLoading(false);

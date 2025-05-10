@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -16,6 +17,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
+import { Loader2 } from 'lucide-react';
 
 const formSchema = z.object({
   email: z.string().email({
@@ -40,11 +42,10 @@ const LoginForm = () => {
       const result = await signIn(data.email, data.password);
       
       if (result?.error) {
-        console.error("Login error:", result.error);
         toast.error(result.error.message || "Failed to sign in");
       } else if (result?.success) {
         toast.success("Signed in successfully!");
-        navigate('/dashboard');
+        // Let the auth context handle the redirect based on user role
       }
     } catch (error: any) {
       console.error("Login error:", error);
@@ -55,13 +56,13 @@ const LoginForm = () => {
   };
 
   return (
-    <Card>
+    <Card className="w-full">
       <CardHeader>
-        <CardTitle>Login</CardTitle>
+        <CardTitle>Login to LearnAble</CardTitle>
         <CardDescription>Enter your email and password to login</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" id="login-form">
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <Input
@@ -69,6 +70,7 @@ const LoginForm = () => {
               type="email"
               placeholder="Enter your email"
               {...register("email")}
+              autoComplete="email"
             />
             {errors.email && (
               <p className="text-red-500 text-sm">{errors.email.message}</p>
@@ -81,18 +83,35 @@ const LoginForm = () => {
               type="password"
               placeholder="Enter your password"
               {...register("password")}
+              autoComplete="current-password"
             />
             {errors.password && (
               <p className="text-red-500 text-sm">{errors.password.message}</p>
             )}
           </div>
-          <CardFooter>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Logging in..." : "Login"}
-            </Button>
-          </CardFooter>
         </form>
       </CardContent>
+      <CardFooter className="flex flex-col space-y-2 items-stretch">
+        <Button 
+          type="submit" 
+          form="login-form"
+          className="w-full" 
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Logging in...
+            </>
+          ) : "Log In"}
+        </Button>
+        <div className="text-sm text-center text-gray-500 pt-2">
+          Don't have an account?{' '}
+          <Button variant="link" className="p-0 h-auto" onClick={() => navigate('/register')}>
+            Sign up
+          </Button>
+        </div>
+      </CardFooter>
     </Card>
   );
 };

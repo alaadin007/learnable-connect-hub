@@ -1,128 +1,115 @@
+
 /**
- * Performance monitoring utilities
+ * Performance monitoring utilities for tracking page loads, 
+ * component rendering, and authentication events
  */
 
-// Track and report component render times
+const DEBUG_PERFORMANCE = process.env.NODE_ENV === 'development';
+
+/**
+ * Initialize performance monitoring
+ * @returns A cleanup function
+ */
+export function initPerformanceMonitoring(): () => void {
+  // Create a performance observer to monitor page loads and navigation
+  const observer = new PerformanceObserver((list) => {
+    for (const entry of list.getEntries()) {
+      if (DEBUG_PERFORMANCE) {
+        console.log(`[Performance] ${entry.name}: ${Math.round(entry.duration)}ms`);
+      }
+    }
+  });
+
+  // Start observing various performance entry types
+  observer.observe({ entryTypes: ['navigation', 'resource', 'measure'] });
+  
+  // Track authentication events
+  trackAuthEvents();
+
+  // Return cleanup function
+  return () => observer.disconnect();
+}
+
+/**
+ * Track auth events to debug authentication issues
+ */
+function trackAuthEvents(): void {
+  try {
+    const originalSetItem = localStorage.setItem;
+    localStorage.setItem = function(key, value) {
+      // Monitor auth-related localStorage values
+      if (key === 'userRole' || key === 'schoolId' || key === 'sb-' || key.includes('supabase')) {
+        if (DEBUG_PERFORMANCE) {
+          console.log(`[Auth] Setting ${key} in localStorage`);
+        }
+      }
+      originalSetItem.apply(this, arguments as any);
+    };
+    
+    // Log when localStorage items are removed
+    const originalRemoveItem = localStorage.removeItem;
+    localStorage.removeItem = function(key) {
+      if (key === 'userRole' || key === 'schoolId' || key === 'sb-' || key.includes('supabase')) {
+        if (DEBUG_PERFORMANCE) {
+          console.log(`[Auth] Removing ${key} from localStorage`);
+        }
+      }
+      originalRemoveItem.apply(this, arguments as any);
+    };
+  } catch (error) {
+    console.error("Error setting up auth tracking:", error);
+  }
+}
+
+/**
+ * Track component render time
+ * @param componentName Name of the component being rendered
+ * @returns Function to call when component is done rendering
+ */
 export function trackComponentRender(componentName: string): () => void {
   const startTime = performance.now();
-  const navigationStart = window.performance.timing?.navigationStart || 0;
-  const pageLoadTime = startTime - navigationStart;
+  const markName = `${componentName}-render-start`;
   
-  // Log immediately for first-paint metrics
-  if (pageLoadTime < 10000) { // Only log if it's a reasonable number
-    console.log(`[Performance] Initial page load: ${Math.round(pageLoadTime)}ms`);
-  }
+  // Mark the start of the render
+  performance.mark(markName);
   
-  // Mark the start of this component's render
-  performance.mark(`${componentName}-start`);
-  
+  // Return function to call when component is done rendering
   return () => {
     const endTime = performance.now();
-    const duration = endTime - startTime;
+    const duration = Math.round(endTime - startTime);
     
-    // Mark end and measure
-    performance.mark(`${componentName}-end`);
-    performance.measure(
-      `render-${componentName}`,
-      `${componentName}-start`,
-      `${componentName}-end`
-    );
+    // Only log if over 100ms to reduce noise
+    if (duration > 100 || DEBUG_PERFORMANCE) {
+      console.log(`[Component] ${componentName} rendered in ${duration}ms`);
+    }
     
-    // Log performance data
-    console.log(`[Performance] ${componentName} rendered in ${Math.round(duration)}ms`);
-    
-    // Create a performance measure
-    if (window.PerformanceObserver) {
-      const metric = {
-        name: `render-${componentName.toLowerCase().replace(/\s+/g, '-')}`,
-        startTime,
-        duration,
-        entryType: 'measure',
-      };
+    try {
+      performance.measure(`${componentName}-render`, markName);
+    } catch (error) {
+      // Ignore measurement errors
     }
   };
 }
 
-// Track API calls with timeout detection
-export function trackApiCall(endpoint: string, timeoutThreshold = 1000): () => void {
-  const startTime = performance.now();
-  const timeoutId = setTimeout(() => {
-    console.warn(`[API] Request to ${endpoint} is taking longer than ${timeoutThreshold}ms`);
-  }, timeoutThreshold);
-  
-  return () => {
-    clearTimeout(timeoutId);
-    const duration = performance.now() - startTime;
-    console.log(`[API] ${endpoint} completed in ${Math.round(duration)}ms`);
+/**
+ * Preload a route for faster navigation
+ * @param route Route path to preload
+ */
+export function preloadRoute(route: string): void {
+  // This is a simple preload implementation
+  // In a more complex app, this would preload 
+  // the actual component bundle
+  try {
+    const link = document.createElement('link');
+    link.rel = 'prefetch';
+    link.href = route;
+    link.as = 'document';
+    document.head.appendChild(link);
     
-    // Report slow API calls
-    if (duration > timeoutThreshold) {
-      console.warn(`[API] Slow request to ${endpoint}: ${Math.round(duration)}ms`);
+    if (DEBUG_PERFORMANCE) {
+      console.log(`[Preload] Prefetching route: ${route}`);
     }
-  };
-}
-
-// Monitor long tasks
-export function setupLongTaskMonitoring(): () => void {
-  if (!('PerformanceObserver' in window)) return () => {};
-  
-  // Track long tasks that block the main thread
-  const observer = new PerformanceObserver((list) => {
-    list.getEntries().forEach((entry) => {
-      // Long tasks are operations that block the main thread for more than 50ms
-      console.warn(`[Performance] Long task detected: ${Math.round(entry.duration)}ms`);
-    });
-  });
-  
-  observer.observe({ entryTypes: ['longtask'] });
-  
-  return () => observer.disconnect();
-}
-
-// Monitor layout shifts
-export function monitorLayoutShifts(): () => void {
-  if (!('PerformanceObserver' in window)) return () => {};
-  
-  const observer = new PerformanceObserver((list) => {
-    list.getEntries().forEach((entry: any) => {
-      // Report significant layout shifts (CLS events)
-      if (entry.value > 0.1) {
-        console.warn(`[Performance] Layout shift detected: ${entry.value.toFixed(3)}`);
-      }
-    });
-  });
-  
-  observer.observe({ entryTypes: ['layout-shift'] });
-  
-  return () => observer.disconnect();
-}
-
-// Initialize performance monitoring and return cleanup function
-export function initPerformanceMonitoring(): () => void {
-  // Mark initial page load time
-  const loadTime = performance.now();
-  console.log(`[Performance] App loaded in ${Math.round(loadTime)}ms`);
-  performance.mark('app-loaded');
-  
-  // Setup monitoring
-  const cleanup1 = setupLongTaskMonitoring();
-  const cleanup2 = monitorLayoutShifts();
-  
-  // Add interaction tracking
-  document.addEventListener('click', () => {
-    performance.mark('user-interaction');
-  });
-  
-  return () => {
-    cleanup1();
-    cleanup2();
-  };
-}
-
-// Add preload capabilities
-export function preloadRoute(path: string): void {
-  const link = document.createElement('link');
-  link.rel = 'prefetch';
-  link.href = path;
-  document.head.appendChild(link);
+  } catch (error) {
+    // Ignore preload errors
+  }
 }

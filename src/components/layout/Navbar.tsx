@@ -43,8 +43,8 @@ const Navbar: React.FC = () => {
   const handleSignOut = async () => {
     try {
       await signOut();
+      // No need to navigate, AuthContext will handle this
       toast.success("Logged out successfully");
-      navigate("/");
     } catch (error) {
       console.error("Error signing out:", error);
       toast.error("Error signing out. Please try again.");
