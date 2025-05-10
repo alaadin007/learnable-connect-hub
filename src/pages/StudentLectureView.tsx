@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Download, FileText, TextQuote, Video, PlayCircle } from 'lucide-react';
@@ -8,22 +7,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Lecture, LectureResource, Transcript } from '@/utils/supabaseHelpers';
+import { Lecture, LectureResource, Transcript, TranscriptData } from '@/utils/supabaseHelpers';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { getUserSchoolId } from '@/utils/apiHelpers';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getAiProvider, isApiKeyConfigured } from '@/integrations/supabase/client';
-
-// Interface for transcript data from our custom RPC function
-interface TranscriptData {
-  id: string;
-  lecture_id: string;
-  text: string;
-  start_time: number;
-  end_time: number;
-  created_at: string;
-}
 
 const StudentLectureView = () => {
   const { id } = useParams<{ id: string }>();
@@ -148,22 +137,22 @@ const StudentLectureView = () => {
           setResources(resourceData);
         }
 
-        // Try to fetch transcript data using a custom SQL function
+        // Try to fetch transcript data from the database directly
         try {
-          // Use a proper database function to get the transcripts
+          // Use a direct query instead of RPC function
           const { data: transcriptData, error: transcriptError } = await supabase
-            .rpc('get_lecture_transcripts', { lecture_id_param: id })
+            .from('lecture_transcripts')
+            .select('*')
+            .eq('lecture_id', id)
             .order('start_time');
 
           if (transcriptError) {
             console.error('Error fetching transcripts:', transcriptError);
             // Continue without transcripts rather than failing the whole page
           } else if (transcriptData) {
-            // Type assertion to handle the response data safely
-            const typedData = transcriptData as unknown as TranscriptData[];
-            
-            if (Array.isArray(typedData)) {
-              setTranscript(typedData.map(item => ({
+            // Convert the data to the expected Transcript format
+            if (Array.isArray(transcriptData)) {
+              setTranscript(transcriptData.map(item => ({
                 id: item.id,
                 lecture_id: item.lecture_id,
                 text: item.text,

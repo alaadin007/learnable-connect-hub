@@ -277,7 +277,7 @@ const AdminStudents = () => {
                               <Badge variant="success">Active</Badge>
                             )}
                             {student.status === "pending" && (
-                              <Badge variant="warning">Pending</Badge>
+                              <Badge variant="secondary">Pending</Badge>
                             )}
                             {student.status === "revoked" && (
                               <Badge variant="destructive">Revoked</Badge>

@@ -102,8 +102,8 @@ export interface Student {
   created_at: string;
   updated_at: string;
   status: 'pending' | 'active' | 'revoked';
-  email: string;  // Making email required since it's used throughout the code
-  full_name: string; // Making full_name required since it's used throughout the code
+  email: string;  
+  full_name: string; 
 }
 
 export interface Assessment {
