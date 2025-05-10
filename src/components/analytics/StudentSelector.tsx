@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React from "react";
 import { Label } from "@/components/ui/label";
 import { 
   Select, 
@@ -17,7 +17,6 @@ interface StudentSelectorProps {
   isLoading?: boolean;
 }
 
-// Make sure the component is exported as default
 const StudentSelector: React.FC<StudentSelectorProps> = ({ 
   students, 
   selectedStudent, 

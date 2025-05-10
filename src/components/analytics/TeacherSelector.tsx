@@ -43,15 +43,18 @@ export function TeacherSelector({
 
       setIsLoading(true);
       try {
-        // Use AbortController for request timeout
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-        
-        const { data, error } = await supabase
-          .rpc('get_teachers_for_school', { school_id_param: schoolId });
-        
-        // Clear the timeout since we got a response
-        clearTimeout(timeoutId);
+        // Use a direct query with explicit JOIN instead of relying on foreign key relationship
+        const { data, error } = await retryWithBackoff(() => supabase
+          .from('teachers')
+          .select(`
+            id,
+            is_supervisor,
+            profiles:id (
+              full_name
+            )
+          `)
+          .eq('school_id', schoolId),
+        3, 1000);
 
         if (error) {
           console.error("Error fetching teachers:", error);
@@ -64,7 +67,7 @@ export function TeacherSelector({
         } else {
           const formattedTeachers: Teacher[] = data.map((teacher: any) => ({
             id: teacher.id,
-            name: teacher.full_name || "Unknown Teacher",
+            name: teacher.profiles?.full_name || "Unknown Teacher",
           }));
 
           setTeachers(formattedTeachers);

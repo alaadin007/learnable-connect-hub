@@ -110,11 +110,22 @@ export async function invokeEdgeFunction<T = any>(
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeout);
       
-      const { data, error } = await supabase.functions.invoke(functionName, {
-        body: payload || {},
-        signal: controller.signal
-      });
+      // We need to use a separate options object without signal for compatibility
+      const invokeOptions: any = { body: payload || {} };
       
+      // Use the controller signal here, but handle it properly
+      const { data, error } = await Promise.race([
+        supabase.functions.invoke<T>(functionName, invokeOptions),
+        new Promise<never>((_, reject) => {
+          const abortHandler = () => {
+            clearTimeout(timeoutId);
+            reject(new Error('Request timed out'));
+          };
+          controller.signal.addEventListener('abort', abortHandler);
+        })
+      ]);
+      
+      // Clear the timeout since we got a response
       clearTimeout(timeoutId);
       
       if (error) {
@@ -126,7 +137,7 @@ export async function invokeEdgeFunction<T = any>(
     } catch (error: any) {
       attempts++;
       
-      if (error.name === 'AbortError') {
+      if (error.name === 'AbortError' || error.message?.includes('timed out')) {
         console.error(`Edge function timeout (${functionName})`);
         if (attempts <= maxRetries) {
           console.log(`Retrying (${attempts}/${maxRetries})...`);
