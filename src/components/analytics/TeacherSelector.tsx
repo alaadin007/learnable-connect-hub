@@ -43,36 +43,25 @@ export function TeacherSelector({
 
       setIsLoading(true);
       try {
-        // Wrap the Supabase query in a function that returns a promise
-        const fetchTeachersData = async () => {
-          const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-teachers`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${session?.access_token}`
-            },
-            body: JSON.stringify({ schoolId }),
-          });
+        // Call the get_teachers_for_school function (now with SECURITY DEFINER)
+        const { data, error } = await supabase.rpc('get_teachers_for_school', {
+          school_id_param: schoolId
+        });
 
-          if (!response.ok) {
-            throw new Error(`Failed to fetch teachers: ${response.statusText}`);
-          }
-          
-          return await response.json();
-        };
+        if (error) {
+          console.error("Error fetching teachers:", error);
+          throw error;
+        }
 
-        // Use retryWithBackoff with our promise-returning function
-        const teachersData = await retryWithBackoff(fetchTeachersData, 3, 1000);
-
-        if (Array.isArray(teachersData)) {
-          const formattedTeachers: Teacher[] = teachersData.map((teacher) => ({
+        if (Array.isArray(data)) {
+          const formattedTeachers: Teacher[] = data.map((teacher) => ({
             id: teacher.id,
             name: teacher.full_name || "Unknown Teacher",
           }));
 
           setTeachers(formattedTeachers);
         } else {
-          console.log("TeacherSelector: Unexpected response format", teachersData);
+          console.log("TeacherSelector: Unexpected response format", data);
           setTeachers([]);
         }
       } catch (error: any) {
