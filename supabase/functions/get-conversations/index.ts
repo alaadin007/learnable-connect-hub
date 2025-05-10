@@ -54,13 +54,21 @@ serve(async (req) => {
       throw convoError;
     }
 
-    return new Response(JSON.stringify({ conversations }), {
+    // Always return an array, even if no conversations are found
+    return new Response(JSON.stringify({ 
+      conversations: conversations || [],
+      success: true 
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
   } catch (error) {
     console.error("Error in get-conversations function:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ 
+      error: error.message,
+      conversations: [],
+      success: false
+    }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

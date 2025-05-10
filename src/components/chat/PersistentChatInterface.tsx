@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, Loader2, MessageCircle, Paperclip } from 'lucide-react';
+import { Send, Loader2, MessageCircle, Paperclip, RefreshCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
 import { Badge } from '@/components/ui/badge';
@@ -39,6 +39,7 @@ const PersistentChatInterface: React.FC<PersistentChatInterfaceProps> = ({
   const { user } = useAuth();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [loadingHistory, setLoadingHistory] = useState(!!conversationId);
+  const [loadingError, setLoadingError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Start session on component mount
@@ -69,6 +70,7 @@ const PersistentChatInterface: React.FC<PersistentChatInterfaceProps> = ({
       loadChatHistory(conversationId);
     } else {
       setMessages([]);
+      setLoadingError(null);
     }
   }, [conversationId]);
 
@@ -83,8 +85,9 @@ const PersistentChatInterface: React.FC<PersistentChatInterfaceProps> = ({
 
   const loadChatHistory = async (convoId: string) => {
     setLoadingHistory(true);
+    setLoadingError(null);
+    
     try {
-      // Fix: Change from params to queryKey for proper URL parameter handling
       const { data, error } = await supabase.functions.invoke('get-chat-history', {
         body: { conversationId: convoId }
       });
@@ -101,12 +104,22 @@ const PersistentChatInterface: React.FC<PersistentChatInterfaceProps> = ({
         }));
         
         setMessages(chatMessages);
+      } else {
+        // Set empty array if no messages found
+        setMessages([]);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error loading chat history:", error);
+      setLoadingError("Failed to load chat history. Please try again.");
       toast.error("Failed to load chat history");
     } finally {
       setLoadingHistory(false);
+    }
+  };
+
+  const handleRetryLoadHistory = () => {
+    if (conversationId) {
+      loadChatHistory(conversationId);
     }
   };
 
@@ -318,10 +331,18 @@ const PersistentChatInterface: React.FC<PersistentChatInterfaceProps> = ({
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
               <span className="ml-2">Loading chat history...</span>
             </div>
+          ) : loadingError ? (
+            <div className="flex flex-col items-center justify-center h-40 text-center">
+              <p className="text-muted-foreground mb-4">{loadingError}</p>
+              <Button onClick={handleRetryLoadHistory} variant="outline" size="sm">
+                <RefreshCcw className="h-4 w-4 mr-2" /> Try Again
+              </Button>
+            </div>
           ) : messages.length === 0 ? (
             <div className="text-center text-muted-foreground p-8">
               <MessageCircle className="h-12 w-12 mx-auto mb-2 opacity-20" />
               <p>Start a conversation with the AI assistant</p>
+              <p className="text-sm mt-2">Ask any question related to your studies</p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -422,6 +443,12 @@ const PersistentChatInterface: React.FC<PersistentChatInterfaceProps> = ({
       </CardFooter>
     </Card>
   );
+};
+
+// Format timestamp for display
+const formatTime = (timestamp: string) => {
+  const date = new Date(timestamp);
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
 export default PersistentChatInterface;
