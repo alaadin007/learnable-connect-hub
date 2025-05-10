@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -82,21 +83,22 @@ const SchoolRegistrationForm = () => {
       // Generate unique school code
       const schoolCode = generateSchoolCode();
       
-      // Create school record
-      const { data: school, error: schoolError } = await supabase
+      // Create school record using upsert
+      const { data: schoolData, error: schoolError } = await supabase
         .from("schools")
         .insert({
           name: data.schoolName,
           code: schoolCode,
           contact_email: data.contactEmail || data.adminEmail,
         })
-        .select()
-        .single();
+        .select();
 
-      if (schoolError) {
+      if (schoolError || !schoolData || schoolData.length === 0) {
         console.error("Error creating school:", schoolError);
         throw new Error("Failed to create school record");
       }
+      
+      const school = schoolData[0];
 
       // Create school code record with reference to the school
       const { error: schoolCodeError } = await supabase

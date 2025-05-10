@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -169,8 +168,8 @@ const RegisterForm = () => {
           throw new Error(validationError.message || "Invalid school code. Please check and try again.");
         }
 
-        // schoolInfo is an array, so we need to get the first element
-        if (!schoolInfoArray || schoolInfoArray.length === 0 || !schoolInfoArray[0].valid) {
+        // Check if schoolInfoArray exists and has at least one element
+        if (!schoolInfoArray || !Array.isArray(schoolInfoArray) || schoolInfoArray.length === 0 || !schoolInfoArray[0]?.valid) {
           throw new Error("Invalid school code. Please check and try again.");
         }
 
@@ -227,13 +226,14 @@ const RegisterForm = () => {
           await supabase
             .from('profiles')
             .upsert({
-              id: authData.user.id,
               user_type: data.userType,
               full_name: data.fullName,
               email: data.email,
               school_id: schoolId,
               school_code: data.schoolCode,
               school_name: schoolName || "Unknown School"
+            }, {
+              onConflict: 'id'
             });
             
           // If user is a student, also create a student record
@@ -241,7 +241,6 @@ const RegisterForm = () => {
             await supabase
               .from('students')
               .insert({
-                id: authData.user.id,
                 school_id: schoolId,
                 status: 'pending' // Students start as pending
               });
@@ -252,7 +251,6 @@ const RegisterForm = () => {
             await supabase
               .from('teachers')
               .insert({
-                id: authData.user.id,
                 school_id: schoolId,
                 is_supervisor: false // Regular teachers are not supervisors
               });

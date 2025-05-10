@@ -107,7 +107,8 @@ export async function verifySchoolCode(code: string): Promise<{
       return { valid: false };
     }
     
-    if (!data || data.length === 0 || !data[0]?.valid) {
+    // Verify data exists and is an array
+    if (!data || !Array.isArray(data) || data.length === 0 || !data[0]?.valid) {
       return { valid: false };
     }
     
