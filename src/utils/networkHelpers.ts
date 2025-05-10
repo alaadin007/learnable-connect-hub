@@ -66,3 +66,21 @@ export async function retryWithBackoff<T>(
   // If we get here, all retries failed
   throw lastError;
 }
+
+/**
+ * Execute a function with a timeout
+ * @param fn Function to execute
+ * @param timeout Timeout in milliseconds
+ * @returns Promise that resolves with the function result or rejects with a timeout error
+ */
+export async function executeWithTimeout<T>(
+  fn: () => Promise<T>,
+  timeout: number = 5000
+): Promise<T> {
+  return Promise.race([
+    fn(),
+    new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error(`Operation timed out after ${timeout}ms`)), timeout);
+    })
+  ]);
+}

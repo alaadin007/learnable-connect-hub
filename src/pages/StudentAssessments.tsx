@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -6,7 +7,7 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import AssessmentList from '@/components/teacher/AssessmentList';
 import { Button } from '@/components/ui/button';
 import { PlusCircle } from 'lucide-react';
-// Update import to use the newly added function
+// Import getUserSchoolId directly
 import { getUserSchoolId } from '@/utils/apiHelpers';
 
 const StudentAssessments = () => {
@@ -59,6 +60,7 @@ const StudentAssessments = () => {
           assessments={assessments} 
           isLoading={isLoading} 
           onRefresh={fetchAssessments}
+          studentView={true}
         />
       </div>
     </DashboardLayout>

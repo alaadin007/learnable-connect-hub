@@ -110,14 +110,39 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (profileData) {
         const typedRole = profileData.user_type as UserRole;
         
-        // Convert organization JSON to expected format if needed
+        // Process organization to ensure correct type
+        let processedOrg: { id: string; name?: string; code?: string; } | undefined;
+        
+        if (profileData.organization) {
+          if (typeof profileData.organization === 'object') {
+            // Handle organization object 
+            const org = profileData.organization as any;
+            processedOrg = {
+              id: org.id || profileData.school_id || '',
+              name: org.name || profileData.school_name,
+              code: org.code || profileData.school_code
+            };
+          } else if (profileData.school_id) {
+            // Fallback to school data
+            processedOrg = {
+              id: profileData.school_id,
+              name: profileData.school_name,
+              code: profileData.school_code
+            };
+          }
+        } else if (profileData.school_id) {
+          // Create organization from school data
+          processedOrg = {
+            id: profileData.school_id,
+            name: profileData.school_name,
+            code: profileData.school_code
+          };
+        }
+        
+        // Create processed profile with correctly typed organization
         const processedProfile: Profile = {
           ...profileData,
-          organization: typeof profileData.organization === 'object' 
-            ? profileData.organization 
-            : profileData.organization 
-              ? { id: profileData.school_id || '', name: profileData.school_name, code: profileData.school_code }
-              : undefined
+          organization: processedOrg
         };
         
         setProfile(processedProfile);
@@ -219,14 +244,36 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         throw error;
       }
 
-      // Convert organization JSON to expected format if needed
+      // Process organization properly
+      let processedOrg: { id: string; name?: string; code?: string; } | undefined;
+      
+      if (data.organization) {
+        if (typeof data.organization === 'object') {
+          const org = data.organization as any;
+          processedOrg = {
+            id: org.id || data.school_id || '',
+            name: org.name || data.school_name,
+            code: org.code || data.school_code
+          };
+        } else if (data.school_id) {
+          processedOrg = {
+            id: data.school_id,
+            name: data.school_name,
+            code: data.school_code
+          };
+        }
+      } else if (data.school_id) {
+        processedOrg = {
+          id: data.school_id,
+          name: data.school_name,
+          code: data.school_code
+        };
+      }
+      
+      // Create processed profile with correctly typed organization
       const processedProfile: Profile = {
         ...data,
-        organization: typeof data.organization === 'object' 
-          ? data.organization 
-          : data.organization 
-            ? { id: data.school_id || '', name: data.school_name, code: data.school_code }
-            : undefined
+        organization: processedOrg
       };
       
       setProfile(processedProfile);

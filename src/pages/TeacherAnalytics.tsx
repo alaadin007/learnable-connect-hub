@@ -11,16 +11,16 @@ import { format } from "date-fns";
 import { BarChart, LineChart, PieChart } from "@/components/ui/charts";
 import { Loader2, Download, Users, Clock, BookOpen, Search, RefreshCw, AlertCircle } from "lucide-react";
 import { 
-  fetchAnalyticsSummary, 
-  fetchSessionLogs, 
-  fetchTopics, 
-  fetchStudyTime,
+  getAnalyticsSummary, 
+  getSessionLogs, 
+  getTopics, 
+  getStudyTime,
   getDateRangeText,
-  exportAnalyticsToCSV
+  exportAnalyticsToCSV,
+  DateRange,
+  AnalyticsFilters
 } from "@/utils/analyticsUtils";
-import { DateRange } from "react-day-picker";
 import { 
-  AnalyticsFilters, 
   AnalyticsSummary,
   SessionData,
   TopicData,
@@ -94,20 +94,20 @@ const TeacherAnalytics = () => {
     
     // Set mock topics data
     const mockTopics: TopicData[] = [
-      { id: '1', topic: 'Math', count: 15, percentage: 30 },
-      { id: '2', topic: 'Science', count: 12, percentage: 24 },
-      { id: '3', topic: 'History', count: 8, percentage: 16 },
-      { id: '4', topic: 'English', count: 7, percentage: 14 },
-      { id: '5', topic: 'Geography', count: 5, percentage: 10 }
+      { id: '1', topic: 'Math', count: 15, percentage: 30, name: 'Math', value: 15 },
+      { id: '2', topic: 'Science', count: 12, percentage: 24, name: 'Science', value: 12 },
+      { id: '3', topic: 'History', count: 8, percentage: 16, name: 'History', value: 8 },
+      { id: '4', topic: 'English', count: 7, percentage: 14, name: 'English', value: 7 },
+      { id: '5', topic: 'Geography', count: 5, percentage: 10, name: 'Geography', value: 5 }
     ];
     
     // Set mock study time data
     const mockStudyTime: StudyTimeData[] = [
-      { student_id: 'student-1', student_name: 'Student 1', total_minutes: 240, sessions_count: 4 },
-      { student_id: 'student-2', student_name: 'Student 2', total_minutes: 180, sessions_count: 3 },
-      { student_id: 'student-3', student_name: 'Student 3', total_minutes: 150, sessions_count: 2 },
-      { student_id: 'student-4', student_name: 'Student 4', total_minutes: 120, sessions_count: 2 },
-      { student_id: 'student-5', student_name: 'Student 5', total_minutes: 90, sessions_count: 1 }
+      { student_id: 'student-1', student_name: 'Student 1', total_minutes: 240, sessions_count: 4, name: 'Student 1', studentName: 'Student 1', hours: 4 },
+      { student_id: 'student-2', student_name: 'Student 2', total_minutes: 180, sessions_count: 3, name: 'Student 2', studentName: 'Student 2', hours: 3 },
+      { student_id: 'student-3', student_name: 'Student 3', total_minutes: 150, sessions_count: 2, name: 'Student 3', studentName: 'Student 3', hours: 2.5 },
+      { student_id: 'student-4', student_name: 'Student 4', total_minutes: 120, sessions_count: 2, name: 'Student 4', studentName: 'Student 4', hours: 2 },
+      { student_id: 'student-5', student_name: 'Student 5', total_minutes: 90, sessions_count: 1, name: 'Student 5', studentName: 'Student 5', hours: 1.5 }
     ];
     
     // Update state all at once to minimize re-renders
@@ -157,7 +157,7 @@ const TeacherAnalytics = () => {
       const promises = [];
       
       // Fetch summary
-      promises.push(fetchAnalyticsSummary(schoolId, filters)
+      promises.push(getAnalyticsSummary(schoolId)
         .then(summaryData => setSummary(summaryData))
         .catch(error => {
           console.error("Error loading summary data:", error);
@@ -165,7 +165,7 @@ const TeacherAnalytics = () => {
         }));
 
       // Fetch sessions
-      promises.push(fetchSessionLogs(schoolId, filters)
+      promises.push(getSessionLogs(schoolId, filters)
         .then(sessionsData => {
           setSessions(Array.isArray(sessionsData) ? sessionsData : []);
         })
@@ -175,7 +175,7 @@ const TeacherAnalytics = () => {
         }));
 
       // Fetch topics
-      promises.push(fetchTopics(schoolId, filters)
+      promises.push(getTopics(schoolId, filters)
         .then(topicsData => {
           setTopics(Array.isArray(topicsData) ? topicsData : []);
         })
@@ -185,7 +185,7 @@ const TeacherAnalytics = () => {
         }));
 
       // Fetch study time
-      promises.push(fetchStudyTime(schoolId, filters)
+      promises.push(getStudyTime(schoolId, filters)
         .then(studyTimeData => {
           setStudyTime(Array.isArray(studyTimeData) ? studyTimeData : []);
         })

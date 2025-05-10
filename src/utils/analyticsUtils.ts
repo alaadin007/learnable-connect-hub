@@ -1,15 +1,28 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { UserRole } from '@/components/auth/ProtectedRoute';
 import {
-  AnalyticsFilters,
   AnalyticsSummary,
   SessionData,
   TopicData,
   StudyTimeData,
   TeacherPerformanceData,
-  DateRange
 } from "@/components/analytics/types";
+import { format } from 'date-fns';
+
+// Define date range interface
+export interface DateRange {
+  from: Date;
+  to?: Date | undefined;
+}
+
+// Define analytics filters interface
+export interface AnalyticsFilters {
+  dateRange?: DateRange;
+  teacherId?: string;
+  studentId?: string;
+}
 
 // Define UserType enum and export it
 export type UserType = 'student' | 'teacher' | 'school_admin' | 'teacher_supervisor';
@@ -405,7 +418,7 @@ export function getUserRoleWithFallback(fallback: string = 'student'): string {
  */
 export function isSchoolAdmin(userRole: UserRole): boolean {
   if (!userRole) return false;
-  return userRole === 'school_admin' || userRole === 'teacher_supervisor';
+  return userRole === 'school_admin' || userRole === 'school';
 }
 
 /**
@@ -433,7 +446,7 @@ export async function getUserSchoolId(userId?: string): Promise<string | null> {
       return teacherData.school_id;
     }
     
-    // If not found in teachers, try students table
+    // If not found, try students table
     let { data: studentData } = await supabase
       .from('students')
       .select('school_id')
@@ -461,16 +474,16 @@ export async function getUserSchoolId(userId?: string): Promise<string | null> {
 /**
  * Get school ID with fallback for legacy components
  */
-export function getSchoolIdWithFallback(defaultId: string = 'test-school-0'): string {
-  return getUserSchoolId().then(id => id || defaultId).catch(() => defaultId);
+export function getSchoolIdWithFallback(defaultId: string = 'test-school-0'): Promise<string> {
+  return getUserSchoolId()
+    .then(id => id || defaultId)
+    .catch(() => defaultId);
 }
-
-// Function that was defined but not exported previously:
 
 /**
  * Get analytics summary data from database
  */
-export async function getAnalyticsSummary(schoolId: string): Promise<any> {
+export async function getAnalyticsSummary(schoolId: string): Promise<AnalyticsSummary> {
   try {
     const { data, error } = await supabase
       .from('school_analytics_summary')
@@ -480,19 +493,25 @@ export async function getAnalyticsSummary(schoolId: string): Promise<any> {
       
     if (error) throw error;
     
-    return data || {
-      active_students: 0,
-      total_sessions: 0,
-      total_queries: 0,
-      avg_session_minutes: 0
+    // Map to the expected AnalyticsSummary format
+    return data ? {
+      activeStudents: data.active_students || 0,
+      totalSessions: data.total_sessions || 0,
+      totalQueries: data.total_queries || 0,
+      avgSessionMinutes: data.avg_session_minutes || 0
+    } : {
+      activeStudents: 0,
+      totalSessions: 0,
+      totalQueries: 0,
+      avgSessionMinutes: 0
     };
   } catch (err) {
     console.error('Error getting analytics summary:', err);
     return {
-      active_students: 0,
-      total_sessions: 0,
-      total_queries: 0,
-      avg_session_minutes: 0
+      activeStudents: 0,
+      totalSessions: 0,
+      totalQueries: 0,
+      avgSessionMinutes: 0
     };
   }
 }
@@ -500,17 +519,46 @@ export async function getAnalyticsSummary(schoolId: string): Promise<any> {
 /**
  * Get session logs data from database
  */
-export async function getSessionLogs(schoolId: string): Promise<any[]> {
+export async function getSessionLogs(schoolId: string, filters?: AnalyticsFilters): Promise<SessionData[]> {
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('session_logs')
-      .select('*')
+      .select(`
+        *,
+        student:user_id (
+          full_name
+        )
+      `)
       .eq('school_id', schoolId)
       .order('session_start', { ascending: false });
       
+    // Apply date filters if provided
+    if (filters?.dateRange) {
+      if (filters.dateRange.from) {
+        query = query.gte('session_start', filters.dateRange.from.toISOString());
+      }
+      if (filters.dateRange.to) {
+        query = query.lte('session_start', filters.dateRange.to.toISOString());
+      }
+    }
+    
+    const { data, error } = await query;
+      
     if (error) throw error;
     
-    return data || [];
+    // Map to SessionData format
+    return data?.map(session => ({
+      id: session.id,
+      student_id: session.user_id,
+      student_name: session.student?.full_name || 'Unknown Student',
+      start_time: session.session_start,
+      end_time: session.session_end,
+      duration_minutes: session.session_end ? 
+        Math.round((new Date(session.session_end).getTime() - new Date(session.session_start).getTime()) / 60000) : 
+        0,
+      queries_count: session.num_queries || 0,
+      topic: session.topic_or_content_used
+    })) || [];
   } catch (err) {
     console.error('Error getting session logs:', err);
     return [];
@@ -518,9 +566,9 @@ export async function getSessionLogs(schoolId: string): Promise<any[]> {
 }
 
 /**
- * Get popular topics data from database
+ * Get popular topics data
  */
-export async function getPopularTopics(schoolId: string): Promise<any[]> {
+export async function getTopics(schoolId: string, filters?: AnalyticsFilters): Promise<TopicData[]> {
   try {
     const { data, error } = await supabase
       .from('most_studied_topics')
@@ -529,11 +577,17 @@ export async function getPopularTopics(schoolId: string): Promise<any[]> {
       
     if (error) throw error;
     
+    // Calculate percentages
+    const totalCount = data?.reduce((sum, item) => sum + (item.count_of_sessions || 0), 0) || 0;
+    
     return data?.map(item => ({
-      id: item.topic_or_content_used,
-      topic: item.topic_or_content_used,
-      count: item.count_of_sessions,
-      percentage: 0 // Calculate this on the frontend
+      id: item.topic_or_content_used || `topic-${Math.random().toString(36).substring(7)}`,
+      topic: item.topic_or_content_used || 'Unknown Topic',
+      count: item.count_of_sessions || 0,
+      percentage: totalCount ? Math.round((item.count_of_sessions || 0) / totalCount * 100) : 0,
+      // Add compatibility fields
+      name: item.topic_or_content_used || 'Unknown Topic',
+      value: item.count_of_sessions || 0
     })) || [];
   } catch (err) {
     console.error('Error getting popular topics:', err);
@@ -542,9 +596,9 @@ export async function getPopularTopics(schoolId: string): Promise<any[]> {
 }
 
 /**
- * Get student study time data from database
+ * Get student study time data
  */
-export async function getStudentStudyTime(schoolId: string): Promise<any[]> {
+export async function getStudyTime(schoolId: string, filters?: AnalyticsFilters): Promise<StudyTimeData[]> {
   try {
     const { data, error } = await supabase
       .from('student_weekly_study_time')
@@ -554,10 +608,14 @@ export async function getStudentStudyTime(schoolId: string): Promise<any[]> {
     if (error) throw error;
     
     return data?.map(item => ({
-      student_id: item.user_id,
-      student_name: item.student_name,
-      total_minutes: Math.round(item.study_hours * 60),
-      sessions_count: 0 // This might need to be calculated separately
+      student_id: item.user_id || '',
+      student_name: item.student_name || 'Unknown Student',
+      total_minutes: Math.round((item.study_hours || 0) * 60),
+      sessions_count: 0, // This might need to be calculated separately
+      // Add compatibility fields
+      name: item.student_name || 'Unknown Student',
+      studentName: item.student_name || 'Unknown Student',
+      hours: item.study_hours || 0
     })) || [];
   } catch (err) {
     console.error('Error getting student study time:', err);
@@ -565,96 +623,71 @@ export async function getStudentStudyTime(schoolId: string): Promise<any[]> {
   }
 }
 
+// Alias functions for backward compatibility
+export const fetchAnalyticsSummary = getAnalyticsSummary;
+export const fetchSessionLogs = getSessionLogs;
+export const fetchTopics = getTopics;
+export const fetchStudyTime = getStudyTime;
+
 /**
- * Get student performance data from database
+ * Format a date range as a readable string
  */
-export async function getStudentPerformance(schoolId: string): Promise<any[]> {
-  try {
-    const { data, error } = await supabase
-      .from('student_performance_metrics')
-      .select('*')
-      .eq('school_id', schoolId);
-      
-    if (error) throw error;
-    
-    return data?.map(item => ({
-      id: item.student_id,
-      student_id: item.student_id,
-      student_name: item.student_name,
-      email: "", // This might need to be fetched separately
-      assessments_taken: item.assessments_taken || 0,
-      completed_assessments: item.assessments_completed || 0,
-      avg_score: item.avg_score || 0,
-      improvement_rate: 0, // This might need to be calculated separately
-      last_assessment_date: new Date().toISOString(), // This might need to be fetched separately
-      completion_rate: item.completion_rate || 0,
-      last_active: new Date().toISOString() // Placeholder, replace with actual data if available
-    })) || [];
-  } catch (err) {
-    console.error('Error getting student performance:', err);
-    return [];
-  }
+export function getDateRangeText(dateRange?: DateRange): string {
+  if (!dateRange) return 'All Time';
+  
+  const fromDate = dateRange.from ? format(dateRange.from, 'MMM d, yyyy') : '';
+  const toDate = dateRange.to ? format(dateRange.to, 'MMM d, yyyy') : 'Present';
+  
+  return `${fromDate} to ${toDate}`;
 }
 
 /**
- * Get school performance data from database
+ * Export analytics data to CSV
  */
-export async function getSchoolPerformance(schoolId: string): Promise<any[]> {
-  try {
-    const { data, error } = await supabase
-      .from('school_improvement_metrics')
-      .select('*')
-      .eq('school_id', schoolId);
-      
-    if (error) throw error;
-    
-    return data?.map(item => ({
-      date: item.month,
-      avg_score: item.avg_monthly_score,
-      completion_rate: item.monthly_completion_rate,
-      student_count: 0, // This might need to be calculated separately
-      assessment_count: 0 // This might need to be calculated separately
-    })) || [];
-  } catch (err) {
-    console.error('Error getting school performance:', err);
-    return [];
-  }
+export function exportAnalyticsToCSV(
+  summary: AnalyticsSummary,
+  sessions: SessionData[],
+  topics: TopicData[],
+  studyTime: StudyTimeData[],
+  dateRangeText: string
+): void {
+  // Create CSV for sessions
+  const sessionsCSV = [
+    'Student Name,Start Time,End Time,Duration (min),Queries,Topic',
+    ...sessions.map(s => 
+      `"${s.student_name}","${s.start_time}","${s.end_time || ''}",${s.duration_minutes},${s.queries_count},"${s.topic || ''}"`)
+  ].join('\n');
+  
+  downloadCSV(sessionsCSV, `sessions-${dateRangeText.replace(/\s+/g, '-')}.csv`);
+  
+  // Create CSV for topics
+  const topicsCSV = [
+    'Topic,Count,Percentage',
+    ...topics.map(t => `"${t.topic}",${t.count},${t.percentage}%`)
+  ].join('\n');
+  
+  downloadCSV(topicsCSV, `topics-${dateRangeText.replace(/\s+/g, '-')}.csv`);
+  
+  // Create CSV for study time
+  const studyTimeCSV = [
+    'Student,Total Minutes,Sessions',
+    ...studyTime.map(s => `"${s.student_name}",${s.total_minutes},${s.sessions_count}`)
+  ].join('\n');
+  
+  downloadCSV(studyTimeCSV, `study-time-${dateRangeText.replace(/\s+/g, '-')}.csv`);
 }
 
 /**
- * Get school performance summary data from database
+ * Download data as a CSV file
  */
-export async function getSchoolPerformanceSummary(schoolId: string): Promise<any> {
-  try {
-    const { data, error } = await supabase
-      .from('school_performance_metrics')
-      .select('*')
-      .eq('school_id', schoolId)
-      .maybeSingle();
-      
-    if (error) throw error;
-    
-    return data || {
-      total_assessments: 0,
-      total_students: 0,
-      students_with_submissions: 0,
-      student_participation_rate: 0,
-      avg_score: 0,
-      completion_rate: 0,
-      improvement_rate: 0,
-      avg_submissions_per_assessment: 0
-    };
-  } catch (err) {
-    console.error('Error getting school performance summary:', err);
-    return {
-      total_assessments: 0,
-      total_students: 0,
-      students_with_submissions: 0,
-      student_participation_rate: 0,
-      avg_score: 0,
-      completion_rate: 0,
-      improvement_rate: 0,
-      avg_submissions_per_assessment: 0
-    };
-  }
+function downloadCSV(csvContent: string, filename: string): void {
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', filename);
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }
