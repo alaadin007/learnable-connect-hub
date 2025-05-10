@@ -14,7 +14,6 @@ interface StudentSelectorProps {
   students: { value: string; label: string }[];
   selectedStudent: string | null;
   onSelectStudent: (studentId: string | null) => void;
-  isLoading?: boolean;
 }
 
 const StudentSelector: React.FC<StudentSelectorProps> = ({ 

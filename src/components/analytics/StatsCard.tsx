@@ -7,7 +7,6 @@ interface StatsCardProps {
   value: number | string;
   description: string;
   icon: React.ReactNode;
-  isLoading?: boolean;
 }
 
 const StatsCard = ({ title, value, description, icon }: StatsCardProps) => {

@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -85,8 +86,6 @@ const Dashboard = () => {
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [upcomingAssessments, setUpcomingAssessments] = useState<UpcomingAssessmentProps[]>([]);
   const [recentLectures, setRecentLectures] = useState<Partial<Lecture>[]>([]);
-  const [loadingAssessments, setLoadingAssessments] = useState(false);
-  const [loadingLectures, setLoadingLectures] = useState(false);
   const [assessmentsError, setAssessmentsError] = useState<string | null>(null);
   const [lecturesError, setLecturesError] = useState<string | null>(null); 
   const navigate = useNavigate();
@@ -125,7 +124,6 @@ const Dashboard = () => {
           if (!isMounted) return;
           
           // Fetch upcoming assessments with timeout protection
-          setLoadingAssessments(true);
           try {
             const { data: assessments, error: assessmentsError } = await executeWithTimeout(
               async () => {
@@ -164,14 +162,9 @@ const Dashboard = () => {
             console.error("Error fetching assessments:", err);
             setAssessmentsError("Could not connect to server");
             setUpcomingAssessments([]);
-          } finally {
-            if (isMounted) {
-              setLoadingAssessments(false);
-            }
           }
 
           // Fetch recent lectures with timeout protection
-          setLoadingLectures(true);
           try {
             const { data: lectures, error: lecturesError } = await executeWithTimeout(
               async () => {
@@ -204,10 +197,6 @@ const Dashboard = () => {
             console.error("Error fetching lectures:", err);
             setLecturesError("Could not connect to server");
             setRecentLectures([]);
-          } finally {
-            if (isMounted) {
-              setLoadingLectures(false);
-            }
           }
         };
         
@@ -221,12 +210,11 @@ const Dashboard = () => {
     };
   }, [user, userRole, isRedirecting, checkAndRedirect]);
 
-  // If we're redirecting or user is a school admin/teacher, show loading state
+  // If we're redirecting or user is a school admin/teacher, show loading state without spinner
   if (isRedirecting || isSchoolAdmin(userRole as UserRole) || isSchoolAdmin(getUserRoleWithFallback() as UserRole) || userRole === 'teacher') {
     return (
       <div className="h-screen flex flex-col items-center justify-center">
         <p className="text-xl mb-4">Redirecting to appropriate dashboard...</p>
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-600"></div>
       </div>
     );
   }
@@ -301,8 +289,6 @@ const Dashboard = () => {
                   <div className="bg-red-50 p-3 rounded-md text-red-600 text-sm">
                     {assessmentsError}
                   </div>
-                ) : loadingAssessments ? (
-                  null // Remove loading skeleton to prevent flickering
                 ) : upcomingAssessments.length > 0 ? (
                   <div className="space-y-3">
                     {upcomingAssessments.map(assessment => (
@@ -341,8 +327,6 @@ const Dashboard = () => {
                   <div className="bg-red-50 p-3 rounded-md text-red-600 text-sm">
                     {lecturesError}
                   </div>
-                ) : loadingLectures ? (
-                  null // Remove loading skeleton to prevent flickering
                 ) : recentLectures.length > 0 ? (
                   <div className="space-y-3">
                     {recentLectures.map(lecture => (
