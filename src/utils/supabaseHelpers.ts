@@ -1,4 +1,3 @@
-
 export interface UserProfile {
   id: string;
   created_at: string;
@@ -92,6 +91,8 @@ export interface Student {
   created_at: string;
   updated_at: string;
   status: 'pending' | 'active' | 'revoked';
+  email?: string;  // Adding email property that's being referenced
+  full_name?: string; // Adding full_name property that's being referenced
 }
 
 export interface Assessment {

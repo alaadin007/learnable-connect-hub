@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Download, FileText, TextQuote, Video, PlayCircle } from 'lucide-react';
@@ -111,26 +112,32 @@ const StudentLectureView = () => {
         }
 
         // Fetch transcript data - using a custom RPC function instead of directly accessing the table
-        // since the lecture_transcripts table might not be directly accessible via the API
-        const { data: transcriptData, error: transcriptError } = await supabase
-          .rpc('get_lecture_transcripts', { lecture_id_param: id })
-          .order('start_time');
+        try {
+          const { data: transcriptData, error: transcriptError } = await supabase
+            .rpc('get_lecture_transcripts', { lecture_id_param: id });
 
-        if (transcriptError) {
-          console.error('Error fetching transcripts:', transcriptError);
-          // Don't show error to user, just log it and continue without transcripts
-        } else if (transcriptData) {
-          // Ensure the data matches our Transcript interface
-          const formattedTranscripts: Transcript[] = (transcriptData as TranscriptData[]).map(item => ({
-            id: item.id,
-            lecture_id: item.lecture_id,
-            text: item.text,
-            start_time: item.start_time,
-            end_time: item.end_time,
-            created_at: item.created_at
-          }));
-          
-          setTranscript(formattedTranscripts);
+          if (transcriptError) {
+            console.error('Error fetching transcripts:', transcriptError);
+            // Don't show error to user, just log it and continue without transcripts
+          } else if (transcriptData) {
+            // Type assertion to safely convert the data
+            const typedData = transcriptData as unknown as TranscriptData[];
+            
+            // Ensure the data matches our Transcript interface
+            const formattedTranscripts: Transcript[] = typedData.map(item => ({
+              id: item.id,
+              lecture_id: item.lecture_id,
+              text: item.text,
+              start_time: item.start_time,
+              end_time: item.end_time,
+              created_at: item.created_at
+            }));
+            
+            setTranscript(formattedTranscripts);
+          }
+        } catch (transcriptErr) {
+          console.error('Error processing transcripts:', transcriptErr);
+          // Continue without transcripts rather than failing the whole page load
         }
       } catch (err: any) {
         console.error('Error fetching lecture data:', err);
