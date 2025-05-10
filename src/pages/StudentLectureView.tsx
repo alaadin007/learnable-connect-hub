@@ -14,35 +14,15 @@ import {
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Progress } from "@/components/ui/progress";
+import { Lecture, LectureResource, LectureProgress, LectureNote } from "@/utils/supabaseHelpers";
 
-interface Lecture {
-  id: string;
-  title: string;
-  description: string;
-  video_url: string;
-  duration_minutes: number;
+interface LectureWithTeacher extends Lecture {
   teacher: {
     id: string;
     full_name: string;
     email: string;
   };
-  subject: string;
-  upload_date: string;
   resources: LectureResource[];
-}
-
-interface LectureResource {
-  id: string;
-  title: string;
-  file_url: string;
-  file_type: string;
-}
-
-interface LectureProgress {
-  id?: string;
-  progress: number;
-  last_watched: string;
-  completed: boolean;
 }
 
 const StudentLectureView = () => {
@@ -52,11 +32,13 @@ const StudentLectureView = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const progressIntervalRef = useRef<number | null>(null);
   
-  const [lecture, setLecture] = useState<Lecture | null>(null);
+  const [lecture, setLecture] = useState<LectureWithTeacher | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<LectureProgress>({
     progress: 0,
+    student_id: '',
+    lecture_id: '',
     last_watched: new Date().toISOString(),
     completed: false
   });
@@ -130,8 +112,11 @@ const StudentLectureView = () => {
             email: teacherData.email || ""
           },
           subject: lectureData.subject,
+          created_at: lectureData.created_at,
           upload_date: lectureData.created_at,
-          resources: lectureData.resources || []
+          resources: lectureData.resources || [],
+          school_id: '', // Will be populated by the query but not needed in our component
+          teacher_id: lectureData.teacher_id,
         });
 
         // If progress data exists, update state
@@ -140,7 +125,17 @@ const StudentLectureView = () => {
             id: progressData.id,
             progress: progressData.progress,
             last_watched: progressData.last_watched,
-            completed: progressData.completed
+            completed: progressData.completed,
+            student_id: user.id,
+            lecture_id: lectureId
+          });
+        } else {
+          setProgress({
+            progress: 0,
+            last_watched: new Date().toISOString(),
+            completed: false,
+            student_id: user.id,
+            lecture_id: lectureId
           });
         }
 
@@ -352,7 +347,7 @@ const StudentLectureView = () => {
                     <div className="flex flex-wrap gap-2 text-sm text-gray-600 mb-4">
                       <span>Subject: {lecture.subject}</span>
                       <span>•</span>
-                      <span>Uploaded: {format(new Date(lecture.upload_date), "MMM d, yyyy")}</span>
+                      <span>Uploaded: {format(new Date(lecture.created_at), "MMM d, yyyy")}</span>
                     </div>
                     <p className="text-gray-700 mb-6 whitespace-pre-line">{lecture.description}</p>
                     

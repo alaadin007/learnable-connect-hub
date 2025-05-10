@@ -10,6 +10,7 @@ import Footer from "@/components/layout/Footer";
 import { isSchoolAdmin, getUserRoleWithFallback } from "@/utils/apiHelpers";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { Lecture } from "@/utils/supabaseHelpers";
 
 // Dashboard Cards Component
 interface DashboardCardProps {
@@ -77,7 +78,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [upcomingAssessments, setUpcomingAssessments] = useState<UpcomingAssessmentProps[]>([]);
-  const [recentLectures, setRecentLectures] = useState<any[]>([]);
+  const [recentLectures, setRecentLectures] = useState<Partial<Lecture>[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Redirect check for admin/teacher users with proper dependency array
@@ -140,7 +141,12 @@ const Dashboard = () => {
             if (assessmentsError) {
               console.error("Error fetching assessments:", assessmentsError);
             } else {
-              setUpcomingAssessments(assessments || []);
+              setUpcomingAssessments(assessments?.map(assessment => ({
+                id: assessment.id,
+                title: assessment.title,
+                dueDate: assessment.due_date,
+                subject: assessment.subject || undefined
+              })) || []);
             }
 
             // Fetch recent lectures
@@ -313,7 +319,7 @@ const Dashboard = () => {
                           <div>
                             <h4 className="font-medium line-clamp-1">{lecture.title}</h4>
                             <p className="text-xs text-gray-500">
-                              Added {new Date(lecture.created_at).toLocaleDateString()}
+                              Added {lecture.created_at ? new Date(lecture.created_at).toLocaleDateString() : 'Recently'}
                             </p>
                           </div>
                         </div>

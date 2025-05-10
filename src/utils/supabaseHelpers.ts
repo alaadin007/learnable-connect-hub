@@ -28,7 +28,7 @@ export interface TeacherInvitation {
 export interface Lecture {
   id: string;
   title: string;
-  description: string;
+  description: string | null;
   video_url: string;
   thumbnail_url?: string | null;
   duration_minutes: number;
