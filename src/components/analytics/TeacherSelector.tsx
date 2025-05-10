@@ -41,15 +41,7 @@ export function TeacherSelector({
 
       setIsLoading(true);
       try {
-        console.log(`TeacherSelector: Fetching teachers for school ${schoolId}`);
-        
-        // First check if we have an active session
-        if (!session) {
-          console.warn("TeacherSelector: No active session when fetching teachers");
-          throw new Error("Authentication required");
-        }
-        
-        // Use the get_teachers_for_school database function to avoid RLS policy issues
+        // Use our new database function that avoids the relationship error
         const { data, error } = await supabase
           .rpc('get_teachers_for_school', { school_id_param: schoolId });
 
@@ -67,17 +59,13 @@ export function TeacherSelector({
             name: teacher.full_name || "Unknown Teacher",
           }));
 
-          console.log(`TeacherSelector: Found ${formattedTeachers.length} teachers`);
           setTeachers(formattedTeachers);
         }
       } catch (error: any) {
         console.error("Error in TeacherSelector:", error);
         
-        // If specifically an auth error, show a friendly message
         if (error.message?.includes("Authentication") || error.message?.includes("Authorization")) {
-          toast.error("Please log in to view teachers", {
-            description: "Your session may have expired"
-          });
+          toast.error("Please log in to view teachers");
         } else {
           toast.error("Failed to load teachers");
         }

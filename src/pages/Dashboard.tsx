@@ -93,31 +93,18 @@ const Dashboard = () => {
     const fallbackRole = getUserRoleWithFallback();
     const effectiveRole = userRole || fallbackRole;
     
-    console.log("Dashboard detected user role:", effectiveRole);
-    
     // More comprehensive check for school admin roles
     if (isSchoolAdmin(effectiveRole)) {
-      console.log(`DASHBOARD REDIRECT: School admin (${effectiveRole}) detected, redirecting to /admin`);
       setIsRedirecting(true);
-      
-      // Show toast notification
       toast.info("Redirecting to School Admin Dashboard...");
-      
-      // Use navigate instead of window.location for smoother experience
       navigate("/admin", { state: { preserveContext: true, adminRedirect: true }, replace: true });
       return true;
     } else if (effectiveRole === 'teacher') {
-      console.log(`DASHBOARD REDIRECT: Teacher (${effectiveRole}) detected, redirecting to /teacher/students`);
       setIsRedirecting(true);
-      
-      // Show toast notification
       toast.info("Redirecting to Teacher Dashboard...");
-      
-      // Redirect to teacher dashboard
       navigate("/teacher/students", { state: { preserveContext: true }, replace: true });
       return true;
     } else {
-      console.log(`Dashboard component rendering for student user: ${effectiveRole}`);
       return false;
     }
   }, [userRole, navigate]);
@@ -201,7 +188,7 @@ const Dashboard = () => {
     );
   }
 
-  // Standard student dashboard below - always include Navbar
+  // Standard student dashboard below
   return (
     <>
       <Navbar />
