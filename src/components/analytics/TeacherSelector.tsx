@@ -43,34 +43,37 @@ export function TeacherSelector({
 
       setIsLoading(true);
       try {
-        // Use a direct query with explicit JOIN instead of relying on foreign key relationship
-        const { data, error } = await retryWithBackoff(() => supabase
-          .from('teachers')
-          .select(`
-            id,
-            is_supervisor,
-            profiles:id (
-              full_name
-            )
-          `)
-          .eq('school_id', schoolId),
-        3, 1000);
+        // Wrap the Supabase query in a function that returns a promise
+        const fetchTeachersData = async () => {
+          const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-teachers`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session?.access_token}`
+            },
+            body: JSON.stringify({ schoolId }),
+          });
 
-        if (error) {
-          console.error("Error fetching teachers:", error);
-          throw new Error(`Failed to load teachers: ${error.message}`);
-        }
+          if (!response.ok) {
+            throw new Error(`Failed to fetch teachers: ${response.statusText}`);
+          }
+          
+          return await response.json();
+        };
 
-        if (!data || data.length === 0) {
-          console.log("TeacherSelector: No teachers found");
-          setTeachers([]);
-        } else {
-          const formattedTeachers: Teacher[] = data.map((teacher: any) => ({
+        // Use retryWithBackoff with our promise-returning function
+        const teachersData = await retryWithBackoff(fetchTeachersData, 3, 1000);
+
+        if (Array.isArray(teachersData)) {
+          const formattedTeachers: Teacher[] = teachersData.map((teacher) => ({
             id: teacher.id,
-            name: teacher.profiles?.full_name || "Unknown Teacher",
+            name: teacher.full_name || "Unknown Teacher",
           }));
 
           setTeachers(formattedTeachers);
+        } else {
+          console.log("TeacherSelector: Unexpected response format", teachersData);
+          setTeachers([]);
         }
       } catch (error: any) {
         console.error("Error in TeacherSelector:", error);
