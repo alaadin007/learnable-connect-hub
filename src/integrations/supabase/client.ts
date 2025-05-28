@@ -34,28 +34,43 @@ const clientOptions = {
 // Create a properly initialized Supabase client with explicit typing
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, clientOptions);
 
-// Add a connection check function that can be used throughout the app
+// Simplified connection check that doesn't rely on profiles table
 export const checkSupabaseConnection = async (): Promise<boolean> => {
   try {
-    // Try a simple query with retry mechanism
-    const { error } = await retryWithBackoff(
-      async () => await supabase.from('profiles').select('count', { count: 'exact', head: true }),
-      3, // max retries
-      1000 // initial delay in ms
-    );
+    console.log("Checking Supabase connection...");
+    
+    // Use a simpler query that doesn't depend on RLS policies
+    const { error } = await supabase
+      .from('schools')
+      .select('count', { count: 'exact', head: true })
+      .limit(0);
     
     if (error) {
-      console.error("Database connection error:", error);
+      console.error("Database connection error details:", {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      });
       
-      // Don't show toast for unauthorized errors as these are handled by auth flow
-      if (!error.message.includes('JWT expired') && !error.message.includes('not authorized')) {
-        // Show a user-friendly error
+      // Only show user-friendly errors for specific cases
+      if (error.message.includes('relation') && error.message.includes('does not exist')) {
+        console.warn("Database schema may not be fully initialized");
+        return false;
+      }
+      
+      // Don't show toast for auth-related errors as these are handled by auth flow
+      if (!error.message.includes('JWT expired') && 
+          !error.message.includes('not authorized') &&
+          !error.message.includes('permission denied')) {
         toast.error("Database Connection Issue", {
-          description: "We're having trouble connecting to our services. Database connection is required."
+          description: "Having trouble connecting to the database. Please refresh the page."
         });
       }
       return false;
     }
+    
+    console.log("Database connection successful");
     return true;
   } catch (err) {
     console.error("Failed to check database connection:", err);
@@ -63,7 +78,7 @@ export const checkSupabaseConnection = async (): Promise<boolean> => {
     // Only show toast for network errors
     if (isNetworkError(err)) {
       toast.error("Network Error", {
-        description: "Please check your internet connection. Database connectivity is required."
+        description: "Please check your internet connection and try again."
       });
     }
     return false;

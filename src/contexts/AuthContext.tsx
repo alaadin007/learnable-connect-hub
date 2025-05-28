@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Profile, UserType } from '@/types/profile';
@@ -108,74 +107,63 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const loadProfile = async (currentUser: any) => {
     try {
-      const { data: profileData, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', currentUser.id)
-        .single();
+      console.log("Loading profile for user:", currentUser.id);
+      
+      // Use the safe function to get profile data
+      const { data: profileData, error } = await supabase.rpc('get_profile_safely', { 
+        uid: currentUser.id 
+      });
 
       if (error) {
         console.error("Error fetching profile:", error);
+        
+        // If the function doesn't exist, fall back to direct query
+        if (error.message.includes('function') && error.message.includes('does not exist')) {
+          console.warn("Profile function not available, using direct query");
+          
+          const { data: directProfile, error: directError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', currentUser.id)
+            .single();
+            
+          if (directError) {
+            console.error("Direct profile query also failed:", directError);
+            return;
+          }
+          
+          if (directProfile) {
+            const processedProfile: Profile = {
+              ...directProfile,
+              user_type: directProfile.user_type as UserType | undefined,
+            };
+            setProfile(processedProfile);
+            setUserRole(directProfile.user_type as UserRole | null);
+          }
+        }
         return;
       }
 
       if (profileData) {
-        // Ensure user_type is a valid UserType or undefined
-        let userTypeValue = profileData.user_type as UserType | undefined;
+        console.log("Profile loaded successfully:", profileData);
         
-        // Checking metadata for user_type if it's not in the profile
-        if (!userTypeValue && currentUser.user_metadata?.user_type) {
-          userTypeValue = currentUser.user_metadata.user_type as UserType;
-          
-          // Update the profile with the correct role from metadata if needed
-          await supabase
-            .from('profiles')
-            .update({ user_type: userTypeValue })
-            .eq('id', currentUser.id);
-        }
+        // Parse the JSON response from the function
+        const parsedProfile = typeof profileData === 'string' ? JSON.parse(profileData) : profileData;
         
-        const typedRole = userTypeValue as UserRole | null;
-
-        let processedOrg: { id: string; name?: string; code?: string } | undefined;
-
-        if (profileData.organization) {
-          if (typeof profileData.organization === 'object' && !Array.isArray(profileData.organization)) {
-            const org = profileData.organization as any;
-            processedOrg = {
-              id: org.id || profileData.school_id || '',
-              name: org.name || profileData.school_name,
-              code: org.code || profileData.school_code,
-            };
-          } else if (profileData.school_id) {
-            processedOrg = {
-              id: profileData.school_id,
-              name: profileData.school_name,
-              code: profileData.school_code,
-            };
-          }
-        } else if (profileData.school_id) {
-          processedOrg = {
-            id: profileData.school_id,
-            name: profileData.school_name,
-            code: profileData.school_code,
-          };
-        }
-
         const processedProfile: Profile = {
-          ...profileData,
-          organization: processedOrg,
-          user_type: userTypeValue,
+          ...parsedProfile,
+          user_type: parsedProfile.user_type as UserType | undefined,
         };
 
         setProfile(processedProfile);
-        setUserRole(typedRole);
-        setIsSupervisor(Boolean(profileData.is_supervisor));
+        setUserRole(parsedProfile.user_type as UserRole | null);
+        setIsSupervisor(Boolean(parsedProfile.is_supervisor));
 
         // Store user role in localStorage for fallback
         try {
-          localStorage.setItem('userRole', typedRole || '');
-          if (profileData.school_id) {
-            localStorage.setItem('schoolId', profileData.school_id);
+          localStorage.setItem('userRole', parsedProfile.user_type || '');
+          if (parsedProfile.school_id) {
+            localStorage.setItem('schoolId', parsedProfile.school_id);
           }
         } catch (e) {
           console.warn("Could not store user role in localStorage:", e);
