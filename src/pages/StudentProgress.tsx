@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -103,29 +104,39 @@ const StudentProgress = () => {
         return;
       }
 
-      // 1. Fetch performance metrics with timeout protection
+      // 1. Fetch performance metrics using the security definer function
       try {
-        const { data: metricsData, error: metricsError } = await executeWithTimeout(
+        const { data: studentMetricsData, error: metricsError } = await executeWithTimeout(
           async () => {
-            return await supabase
-              .from("student_performance_metrics")
-              .select("*")
-              .eq("student_id", user.id)
-              .eq("school_id", schoolId)
-              .single();
+            return await supabase.rpc('get_student_performance_metrics_view', {
+              p_school_id: schoolId
+            });
           },
           5000 // 5 seconds timeout
         );
 
         if (!isMounted) return;
 
-        if (metricsError && metricsError.code !== 'PGRST116') {
+        if (metricsError) {
           console.error("Error fetching student metrics:", metricsError);
           setMetricsError("Failed to load performance metrics");
         } else {
-          // If metrics data exists, use it; otherwise use defaults
           setMetricsError(null);
-          setMetrics(metricsData || defaultMetrics);
+          // Find the current user's metrics from the returned data
+          const userMetrics = studentMetricsData?.find((metric: any) => metric.student_id === user.id);
+          if (userMetrics) {
+            setMetrics({
+              assessments_completed: userMetrics.assessments_completed || 0,
+              assessments_taken: userMetrics.assessments_taken || 0,
+              avg_score: userMetrics.avg_score || 0,
+              avg_time_spent_seconds: userMetrics.avg_time_spent_seconds || 0,
+              completion_rate: userMetrics.completion_rate || 0,
+              top_strengths: userMetrics.top_strengths,
+              top_weaknesses: userMetrics.top_weaknesses
+            });
+          } else {
+            setMetrics(defaultMetrics);
+          }
         }
       } catch (err) {
         if (!isMounted) return;
