@@ -347,7 +347,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  // No loading state in updateProfile to avoid UI flicker
+  // Fixed updateProfile function with proper typing
   const updateProfile = async (updates: Partial<Profile>) => {
     if (!user) {
       console.error("No user is currently signed in.");
@@ -355,16 +355,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
 
     try {
-      // Security: Sanitize text inputs in updates
-      const sanitizedUpdates = Object.keys(updates).reduce((acc, key) => {
+      // Security: Sanitize text inputs in updates - use proper typing
+      const sanitizedUpdates: Record<string, any> = {};
+      
+      Object.keys(updates).forEach((key) => {
         const value = updates[key as keyof Profile];
         if (typeof value === 'string' && key !== 'id' && key !== 'school_id') {
-          acc[key as keyof Profile] = sanitizeTextInput(value) as any;
+          sanitizedUpdates[key] = sanitizeTextInput(value);
         } else {
-          acc[key as keyof Profile] = value;
+          sanitizedUpdates[key] = value;
         }
-        return acc;
-      }, {} as Partial<Profile>);
+      });
 
       const { data, error } = await supabase
         .from('profiles')
