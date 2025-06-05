@@ -1,31 +1,11 @@
-
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
 import { isNetworkError, retryWithBackoff } from '@/utils/networkHelpers';
 
-// Security: Remove hardcoded credentials - require environment variables
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-// Security: Validate that required environment variables are present
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error(
-    'Missing required Supabase environment variables. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.'
-  );
-}
-
-// Security: Validate URL format to prevent injection attacks
-const urlPattern = /^https:\/\/[a-zA-Z0-9-]+\.supabase\.co$/;
-if (!urlPattern.test(supabaseUrl)) {
-  throw new Error('Invalid Supabase URL format. URL must be a valid Supabase domain.');
-}
-
-// Security: Validate API key format (basic validation)
-const keyPattern = /^[A-Za-z0-9._-]+$/;
-if (!keyPattern.test(supabaseAnonKey)) {
-  throw new Error('Invalid Supabase API key format.');
-}
+// Use the actual Supabase project credentials
+const supabaseUrl = 'https://ldlgckwkdsvrfuymidrr.supabase.co';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxkbGdja3drZHN2cmZ1eW1pZHJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDYwNTc2NzksImV4cCI6MjA2MTYzMzY3OX0.kItrTMcKThMXuwNDClYNTGkEq-1EVVldq1vFw7ZsKx0';
 
 // Add retry and error handling options
 const clientOptions = {

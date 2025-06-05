@@ -134,10 +134,30 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           }
           
           if (directProfile) {
+            // Process organization data properly
+            let processedOrg: { id: string; name?: string; code?: string } | undefined;
+            
+            if (directProfile.organization && typeof directProfile.organization === 'object') {
+              const org = directProfile.organization as any;
+              processedOrg = {
+                id: org.id || directProfile.school_id || '',
+                name: org.name || directProfile.school_name,
+                code: org.code || directProfile.school_code,
+              };
+            } else if (directProfile.school_id) {
+              processedOrg = {
+                id: directProfile.school_id,
+                name: directProfile.school_name || undefined,
+                code: directProfile.school_code || undefined,
+              };
+            }
+
             const processedProfile: Profile = {
               ...directProfile,
+              organization: processedOrg,
               user_type: directProfile.user_type as UserType | undefined,
             };
+            
             setProfile(processedProfile);
             setUserRole(directProfile.user_type as UserRole | null);
           }
@@ -151,8 +171,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // Parse the JSON response from the function
         const parsedProfile = typeof profileData === 'string' ? JSON.parse(profileData) : profileData;
         
+        // Process organization data properly
+        let processedOrg: { id: string; name?: string; code?: string } | undefined;
+        
+        if (parsedProfile.organization && typeof parsedProfile.organization === 'object') {
+          const org = parsedProfile.organization as any;
+          processedOrg = {
+            id: org.id || parsedProfile.school_id || '',
+            name: org.name || parsedProfile.school_name,
+            code: org.code || parsedProfile.school_code,
+          };
+        } else if (parsedProfile.school_id) {
+          processedOrg = {
+            id: parsedProfile.school_id,
+            name: parsedProfile.school_name || undefined,
+            code: parsedProfile.school_code || undefined,
+          };
+        }
+
         const processedProfile: Profile = {
           ...parsedProfile,
+          organization: processedOrg,
           user_type: parsedProfile.user_type as UserType | undefined,
         };
 
@@ -344,26 +383,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       let processedOrg: { id: string; name?: string; code?: string } | undefined;
 
-      if (data.organization) {
-        if (typeof data.organization === 'object' && !Array.isArray(data.organization)) {
-          const org = data.organization as any;
-          processedOrg = {
-            id: org.id || data.school_id || '',
-            name: org.name || data.school_name,
-            code: org.code || data.school_code,
-          };
-        } else if (data.school_id) {
-          processedOrg = {
-            id: data.school_id,
-            name: data.school_name,
-            code: data.school_code,
-          };
-        }
+      if (data.organization && typeof data.organization === 'object') {
+        const org = data.organization as any;
+        processedOrg = {
+          id: org.id || data.school_id || '',
+          name: org.name || data.school_name,
+          code: org.code || data.school_code,
+        };
       } else if (data.school_id) {
         processedOrg = {
           id: data.school_id,
-          name: data.school_name,
-          code: data.school_code,
+          name: data.school_name || undefined,
+          code: data.school_code || undefined,
         };
       }
 
