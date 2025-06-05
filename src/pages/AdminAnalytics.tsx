@@ -50,13 +50,11 @@ const AdminAnalytics: React.FC<AdminAnalyticsProps> = () => {
     // Check if we have a real school ID
     if (!schoolId) return [];
     
-    // Use a Supabase RPC or view that already exists
     try {
-      // Use the student_performance_metrics view instead of student_engagement_metrics
-      const { data, error } = await supabase
-        .from('student_performance_metrics')
-        .select('*')
-        .eq('school_id', schoolId);
+      // Use the new security definer function instead of the view
+      const { data, error } = await supabase.rpc('get_student_performance_metrics_view', {
+        p_school_id: schoolId
+      });
       
       if (error) throw error;
       return data || [];
@@ -71,11 +69,10 @@ const AdminAnalytics: React.FC<AdminAnalyticsProps> = () => {
     if (!schoolId) return [];
     
     try {
-      // Use the teacher_performance_metrics view instead of teacher_activity_metrics
-      const { data, error } = await supabase
-        .from('teacher_performance_metrics')
-        .select('*')
-        .eq('school_id', schoolId);
+      // Use the new security definer function instead of the view
+      const { data, error } = await supabase.rpc('get_teacher_performance_metrics_view', {
+        p_school_id: schoolId
+      });
       
       if (error) throw error;
       return data || [];

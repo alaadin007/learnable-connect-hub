@@ -498,13 +498,41 @@ export {
   getStudyTime
 };
 
-// Placeholder functions for missing exports referenced in AnalyticsDashboard
-export function getStudentPerformance(schoolId: string): Promise<any[]> {
-  return Promise.resolve([]);
+// Updated functions to use the new security definer functions
+export async function getStudentPerformance(schoolId: string): Promise<any[]> {
+  try {
+    const { data, error } = await supabase.rpc('get_student_performance_metrics_view', {
+      p_school_id: schoolId
+    });
+    
+    if (error) {
+      console.error('Error fetching student performance:', error);
+      return [];
+    }
+    
+    return data || [];
+  } catch (error) {
+    console.error('Error in getStudentPerformance:', error);
+    return [];
+  }
 }
 
-export function getSchoolPerformance(schoolId: string): Promise<any[]> {
-  return Promise.resolve([]);
+export async function getSchoolPerformance(schoolId: string): Promise<any[]> {
+  try {
+    const { data, error } = await supabase.rpc('get_school_performance_metrics', {
+      p_school_id: schoolId
+    });
+    
+    if (error) {
+      console.error('Error fetching school performance:', error);
+      return [];
+    }
+    
+    return data || [];
+  } catch (error) {
+    console.error('Error in getSchoolPerformance:', error);
+    return [];
+  }
 }
 
 export function getSchoolPerformanceSummary(schoolId: string): Promise<SchoolPerformanceSummary> {
