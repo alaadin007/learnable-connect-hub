@@ -1,445 +1,242 @@
-import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
+
+import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
-import { Profile, UserType } from '@/types/profile';
-import { useNavigate } from 'react-router-dom';
-import { UserRole } from '@/components/auth/ProtectedRoute';
+import { validateAndSanitizeForm, authRateLimiter } from '@/utils/security';
 import { toast } from 'sonner';
-import { validateEmail, sanitizeTextInput } from '@/utils/security';
+
+interface UserProfile {
+  id: string;
+  user_type: 'student' | 'teacher' | 'school_admin' | 'school';
+  full_name: string;
+  email?: string;
+  school_id?: string;
+  school_code?: string;
+  is_supervisor?: boolean;
+}
 
 interface AuthContextType {
-  user: any;
-  profile: Profile | null;
-  userRole: UserRole | null;
-  isSupervisor: boolean;
-  isLoading: boolean;  // backward compatibility
-  loading: boolean;    // alternative loading property
-  isLoggedIn: boolean;
-  signIn: (email: string, password: string) => Promise<any>;
-  signUp: (email: string, password: string, metadata?: any) => Promise<any>;
+  user: User | null;
+  profile: UserProfile | null;
+  session: Session | null;
+  loading: boolean;
+  signIn: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, userData: any) => Promise<void>;
   signOut: () => Promise<void>;
-  updateProfile: (updates: Partial<Profile>) => Promise<void>;
-  setTestUser?: (user: { email: string; password: string; role: string }) => void;
-  schoolId: string | undefined;
-  session: any; // authentication session data
+  isTeacher: boolean;
+  isStudent: boolean;
+  isSupervisor: boolean;
+  isSchoolAdmin: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
 
 interface AuthProviderProps {
   children: ReactNode;
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  // State declarations
-  const [user, setUser] = useState<any>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [userRole, setUserRole] = useState<UserRole | null>(null);
-  const [isSupervisor, setIsSupervisor] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [testUser, setTestUserInternal] = useState<{ email: string; password: string; role: string } | null>(null);
-  const [sessionData, setSessionData] = useState<any>(null);
-  const [authError, setAuthError] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const navigate = useNavigate();
-
-  const schoolId = profile?.school_id;
-
-  // Load initial session and subscribe to auth changes
-  useEffect(() => {
-    const loadSession = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-
-        if (session) {
-          console.log("User session found:", session.user.email);
-          setUser(session.user);
-          setSessionData(session);
-          setIsLoggedIn(true);
-          await loadProfile(session.user);
-        } else if (testUser) {
-          console.log("Test user sign-in:", testUser.email);
-          const { data, error } = await supabase.auth.signInWithPassword({
-            email: testUser.email,
-            password: testUser.password,
-          });
-
-          if (error) {
-            console.error('Test user sign-in error:', error);
-            return;
-          }
-
-          setUser(data.user);
-          setSessionData(data.session);
-          setIsLoggedIn(true);
-          await loadProfile(data.user);
-        }
-      } catch (error) {
-        console.error("Session loading error:", error);
-      }
-    };
-
-    loadSession();
-
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("Auth state change:", event, session?.user?.email);
-      if (event === 'SIGNED_IN' && session) {
-        setUser(session.user);
-        setSessionData(session);
-        setIsLoggedIn(true);
-        await loadProfile(session.user);
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null);
-        setProfile(null);
-        setUserRole(null);
-        setIsSupervisor(false);
-        setSessionData(null);
-        setIsLoggedIn(false);
-      } else if (event === 'TOKEN_REFRESHED' && session) {
-        setSessionData(session);
-      }
-    });
-
-    // Cleanup listener on unmount
-    return () => {
-      authListener?.subscription.unsubscribe();
-    };
-  }, [testUser]);
-
-  const loadProfile = async (currentUser: any) => {
+  // Load user profile with security validation
+  const loadUserProfile = async (userId: string) => {
     try {
-      console.log("Loading profile for user:", currentUser.id);
-      
-      // Use the safe function to get profile data
-      const { data: profileData, error } = await supabase.rpc('get_profile_safely', { 
-        uid: currentUser.id 
-      });
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
 
       if (error) {
-        console.error("Error fetching profile:", error);
-        
-        // If the function doesn't exist, fall back to direct query
-        if (error.message.includes('function') && error.message.includes('does not exist')) {
-          console.warn("Profile function not available, using direct query");
-          
-          const { data: directProfile, error: directError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', currentUser.id)
-            .single();
-            
-          if (directError) {
-            console.error("Direct profile query also failed:", directError);
-            return;
-          }
-          
-          if (directProfile) {
-            // Process organization data properly
-            let processedOrg: { id: string; name?: string; code?: string } | undefined;
-            
-            if (directProfile.organization && typeof directProfile.organization === 'object') {
-              const org = directProfile.organization as any;
-              processedOrg = {
-                id: org.id || directProfile.school_id || '',
-                name: org.name || directProfile.school_name,
-                code: org.code || directProfile.school_code,
-              };
-            } else if (directProfile.school_id) {
-              processedOrg = {
-                id: directProfile.school_id,
-                name: directProfile.school_name || undefined,
-                code: directProfile.school_code || undefined,
-              };
-            }
-
-            const processedProfile: Profile = {
-              ...directProfile,
-              organization: processedOrg,
-              user_type: directProfile.user_type as UserType | undefined,
-            };
-            
-            setProfile(processedProfile);
-            setUserRole(directProfile.user_type as UserRole | null);
-          }
-        }
+        console.error('Error loading profile:', error);
         return;
       }
 
-      if (profileData) {
-        console.log("Profile loaded successfully:", profileData);
+      if (data) {
+        // Validate and sanitize profile data
+        const { valid, sanitized } = validateAndSanitizeForm(data);
         
-        // Parse the JSON response from the function
-        const parsedProfile = typeof profileData === 'string' ? JSON.parse(profileData) : profileData;
-        
-        // Process organization data properly
-        let processedOrg: { id: string; name?: string; code?: string } | undefined;
-        
-        if (parsedProfile.organization && typeof parsedProfile.organization === 'object') {
-          const org = parsedProfile.organization as any;
-          processedOrg = {
-            id: org.id || parsedProfile.school_id || '',
-            name: org.name || parsedProfile.school_name,
-            code: org.code || parsedProfile.school_code,
-          };
-        } else if (parsedProfile.school_id) {
-          processedOrg = {
-            id: parsedProfile.school_id,
-            name: parsedProfile.school_name || undefined,
-            code: parsedProfile.school_code || undefined,
-          };
-        }
-
-        const processedProfile: Profile = {
-          ...parsedProfile,
-          organization: processedOrg,
-          user_type: parsedProfile.user_type as UserType | undefined,
-        };
-
-        setProfile(processedProfile);
-        setUserRole(parsedProfile.user_type as UserRole | null);
-        setIsSupervisor(Boolean(parsedProfile.is_supervisor));
-
-        // Store user role in localStorage for fallback
-        try {
-          localStorage.setItem('userRole', parsedProfile.user_type || '');
-          if (parsedProfile.school_id) {
-            localStorage.setItem('schoolId', parsedProfile.school_id);
-          }
-        } catch (e) {
-          console.warn("Could not store user role in localStorage:", e);
+        if (valid) {
+          setProfile(sanitized as UserProfile);
+        } else {
+          console.error('Invalid profile data received');
+          toast.error('Profile data validation failed');
         }
       }
     } catch (error) {
-      console.error("Error loading profile:", error);
+      console.error('Exception loading profile:', error);
     }
   };
 
-  const signIn = async (email: string, password: string) => {
-    setAuthError(null);
-    
-    // Security: Validate input
-    if (!validateEmail(email)) {
-      const error = new Error("Invalid email format");
-      setAuthError(error.message);
-      return { error };
-    }
-    
-    if (!password || password.length < 6) {
-      const error = new Error("Password must be at least 6 characters");
-      setAuthError(error.message);
-      return { error };
-    }
-    
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({ 
-        email: email.toLowerCase().trim(), 
-        password 
-      });
-
-      if (error) {
-        console.error("Sign-in error:", error);
-        setAuthError(error.message);
-        return { error };
-      }
-
-      setUser(data.user);
-      setSessionData(data.session);
-      setIsLoggedIn(true);
-      await loadProfile(data.user);
-
-      // Let the redirect happen via useEffect in Login component
-      return { success: true };
-    } catch (error: any) {
-      console.error("Unexpected sign-in error:", error);
-      setAuthError(error.message || "An unexpected error occurred");
-      return { error };
-    }
-  };
-
-  const signUp = async (email: string, password: string, metadata: any = {}) => {
-    setAuthError(null);
-    
-    // Security: Validate input
-    if (!validateEmail(email)) {
-      const error = new Error("Invalid email format");
-      setAuthError(error.message);
-      return { error };
-    }
-    
-    if (!password || password.length < 6) {
-      const error = new Error("Password must be at least 6 characters");
-      setAuthError(error.message);
-      return { error };
-    }
-    
-    // Security: Sanitize metadata
-    const sanitizedMetadata = Object.keys(metadata).reduce((acc, key) => {
-      if (typeof metadata[key] === 'string') {
-        acc[key] = sanitizeTextInput(metadata[key]);
-      } else {
-        acc[key] = metadata[key];
-      }
-      return acc;
-    }, {} as any);
-    
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email: email.toLowerCase().trim(),
-        password,
-        options: { data: sanitizedMetadata },
-      });
-
-      if (error) {
-        console.error("Signup error:", error);
-        setAuthError(error.message);
-        return { error };
-      }
-
-      // For immediate sign-in apps
-      if (data.session) {
-        setUser(data.user);
-        setSessionData(data.session);
-        setIsLoggedIn(true);
-        await loadProfile(data.user);
+  useEffect(() => {
+    // Get initial session
+    const getInitialSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setSession(session);
+      setUser(session?.user ?? null);
+      
+      if (session?.user) {
+        await loadUserProfile(session.user.id);
       }
       
-      return { success: true, session: data.session };
-    } catch (error: any) {
-      console.error("Unexpected signup error:", error);
-      setAuthError(error.message || "An unexpected error occurred");
-      return { error };
+      setLoading(false);
+    };
+
+    getInitialSession();
+
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      
+      if (session?.user) {
+        await loadUserProfile(session.user.id);
+      } else {
+        setProfile(null);
+      }
+      
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const signIn = async (email: string, password: string) => {
+    // Rate limiting check
+    if (!authRateLimiter.isAllowed(email)) {
+      toast.error('Too many login attempts. Please try again later.');
+      throw new Error('Rate limit exceeded');
+    }
+
+    // Validate and sanitize input
+    const { valid, sanitized, errors } = validateAndSanitizeForm({ email, password });
+    
+    if (!valid) {
+      toast.error('Invalid input: ' + errors.join(', '));
+      throw new Error('Invalid input');
+    }
+
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: sanitized.email,
+        password: sanitized.password,
+      });
+
+      if (error) {
+        // Don't expose internal error details
+        if (error.message.includes('Invalid login credentials')) {
+          toast.error('Invalid email or password');
+        } else {
+          toast.error('Login failed. Please try again.');
+        }
+        throw error;
+      }
+
+      // Reset rate limiter on successful login
+      authRateLimiter.reset(email);
+      toast.success('Signed in successfully');
+    } catch (error) {
+      console.error('Sign in error:', error);
+      throw error;
+    }
+  };
+
+  const signUp = async (email: string, password: string, userData: any) => {
+    // Rate limiting check
+    if (!authRateLimiter.isAllowed(email)) {
+      toast.error('Too many registration attempts. Please try again later.');
+      throw new Error('Rate limit exceeded');
+    }
+
+    // Validate and sanitize all input data
+    const allData = { email, password, ...userData };
+    const { valid, sanitized, errors } = validateAndSanitizeForm(allData);
+    
+    if (!valid) {
+      toast.error('Invalid input: ' + errors.join(', '));
+      throw new Error('Invalid input');
+    }
+
+    try {
+      const { error } = await supabase.auth.signUp({
+        email: sanitized.email,
+        password: sanitized.password,
+        options: {
+          data: {
+            full_name: sanitized.full_name,
+            user_type: sanitized.user_type,
+            school_code: sanitized.school_code
+          }
+        }
+      });
+
+      if (error) {
+        // Don't expose internal error details
+        if (error.message.includes('already registered')) {
+          toast.error('An account with this email already exists');
+        } else {
+          toast.error('Registration failed. Please try again.');
+        }
+        throw error;
+      }
+
+      toast.success('Account created successfully');
+    } catch (error) {
+      console.error('Sign up error:', error);
+      throw error;
     }
   };
 
   const signOut = async () => {
     try {
-      // Clear local storage items first to ensure they're cleared even if supabase logout fails
-      try {
-        localStorage.removeItem('userRole');
-        localStorage.removeItem('schoolId');
-      } catch (e) {
-        console.warn("Could not clear localStorage items:", e);
-      }
-      
       const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.error("Sign-out error:", error);
-        toast.error("Error signing out. Please try again.");
-        throw error;
-      }
-
-      // Clear all auth state
-      setUser(null);
+      if (error) throw error;
+      
       setProfile(null);
-      setUserRole(null);
-      setIsSupervisor(false);
-      setSessionData(null);
-      setIsLoggedIn(false);
-      
-      // Navigate to login page
-      navigate('/login');
-      
-      toast.success("Logged out successfully");
+      toast.success('Signed out successfully');
     } catch (error) {
-      // We don't set loading state here to avoid flicker
-      console.error("Error during sign out:", error);
-      toast.error("Failed to sign out properly. Please refresh the page.");
+      console.error('Sign out error:', error);
+      toast.error('Error signing out');
+      throw error;
     }
   };
 
-  // Fixed updateProfile function with proper typing
-  const updateProfile = async (updates: Partial<Profile>) => {
-    if (!user) {
-      console.error("No user is currently signed in.");
-      return;
-    }
-
-    try {
-      // Security: Sanitize text inputs in updates - use proper typing
-      const sanitizedUpdates: Record<string, any> = {};
-      
-      Object.keys(updates).forEach((key) => {
-        const value = updates[key as keyof Profile];
-        if (typeof value === 'string' && key !== 'id' && key !== 'school_id') {
-          sanitizedUpdates[key] = sanitizeTextInput(value);
-        } else {
-          sanitizedUpdates[key] = value;
-        }
-      });
-
-      const { data, error } = await supabase
-        .from('profiles')
-        .update(sanitizedUpdates)
-        .eq('id', user.id)
-        .select()
-        .single();
-
-      if (error) {
-        console.error("Profile update error:", error);
-        throw error;
-      }
-
-      // Ensure user_type is a valid UserType or undefined
-      const userTypeValue = data.user_type as UserType | undefined;
-
-      let processedOrg: { id: string; name?: string; code?: string } | undefined;
-
-      if (data.organization && typeof data.organization === 'object') {
-        const org = data.organization as any;
-        processedOrg = {
-          id: org.id || data.school_id || '',
-          name: org.name || data.school_name,
-          code: org.code || data.school_code,
-        };
-      } else if (data.school_id) {
-        processedOrg = {
-          id: data.school_id,
-          name: data.school_name || undefined,
-          code: data.school_code || undefined,
-        };
-      }
-
-      const processedProfile: Profile = {
-        ...data,
-        organization: processedOrg,
-        user_type: userTypeValue,
-      };
-
-      setProfile(processedProfile);
-    } catch (error) {
-      console.error("Error updating profile:", error);
-    }
-  };
-
-  const setTestUser = (user: { email: string; password: string; role: string }) => {
-    setTestUserInternal(user);
-  };
+  // Computed properties for user roles
+  const isTeacher = profile?.user_type === 'teacher' || profile?.user_type === 'school_admin';
+  const isStudent = profile?.user_type === 'student';
+  const isSupervisor = Boolean(profile?.is_supervisor);
+  const isSchoolAdmin = profile?.user_type === 'school_admin' || profile?.user_type === 'school';
 
   const value: AuthContextType = {
     user,
     profile,
-    userRole,
-    isSupervisor,
-    isLoading,
-    loading: isLoading, // alias for backward compatibility
-    isLoggedIn,
+    session,
+    loading,
     signIn,
     signUp,
     signOut,
-    updateProfile,
-    setTestUser,
-    schoolId,
-    session: sessionData,
+    isTeacher,
+    isStudent,
+    isSupervisor,
+    isSchoolAdmin,
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-};
-
-// Custom hook to consume AuthContext
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-  return context;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
