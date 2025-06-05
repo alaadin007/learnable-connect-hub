@@ -1,290 +1,217 @@
 import { supabase } from '@/integrations/supabase/client';
-import { ProfileData } from '@/types/profile';
-import { format } from 'date-fns';
-import { 
-  DateRange, 
-  AnalyticsFilters, 
-  SessionData, 
-  TopicData, 
-  StudyTimeData,
-  AnalyticsSummary,
-  SchoolPerformanceSummary 
-} from '@/components/analytics/types';
+import { SessionData, TopicData, StudyTimeData, AnalyticsSummary, AnalyticsFilters, DateRange } from '@/components/analytics/types';
 
-// Helper function to process profile data from Supabase
-export function processProfileData(data: any): ProfileData {
-  let processedOrg: { id: string; name?: string; code?: string; } | undefined;
-  
-  if (data.organization) {
-    if (typeof data.organization === 'object' && !Array.isArray(data.organization)) {
-      // Handle organization object 
-      processedOrg = {
-        id: data.organization.id || data.school_id || '',
-        name: data.organization.name || data.school_name,
-        code: data.organization.code || data.school_code
-      };
-    } else if (data.school_id) {
-      // Fallback to school data
-      processedOrg = {
-        id: data.school_id,
-        name: data.school_name,
-        code: data.school_code
+// Get analytics summary using the new security definer function
+export const getAnalyticsSummary = async (schoolId: string): Promise<AnalyticsSummary> => {
+  try {
+    const { data, error } = await supabase.rpc('get_school_analytics_summary', {
+      p_school_id: schoolId
+    });
+
+    if (error) {
+      console.error('Error fetching analytics summary:', error);
+      throw error;
+    }
+
+    if (!data || data.length === 0) {
+      return {
+        activeStudents: 0,
+        totalSessions: 0,
+        totalQueries: 0,
+        avgSessionMinutes: 0
       };
     }
-  } else if (data.school_id) {
-    // Create organization from school data
-    processedOrg = {
-      id: data.school_id,
-      name: data.school_name,
-      code: data.school_code
-    };
-  }
-  
-  // Create processed profile with correctly typed organization
-  return {
-    ...data,
-    organization: processedOrg
-  } as ProfileData;
-}
 
-/**
- * Get user role with fallback value
- */
-export function getUserRoleWithFallback(fallback: string = 'student'): string {
-  // Try to get from localStorage first
-  const storedRole = localStorage.getItem('userRole');
-  if (storedRole) {
-    return storedRole;
-  }
-  
-  return fallback;
-}
-
-/**
- * Check if user is a school admin
- */
-export function isSchoolAdmin(userRole: string | null | undefined): boolean {
-  if (!userRole) return false;
-  // Fix the comparison by checking string values
-  return userRole === 'school_admin' || userRole === 'teacher_supervisor';
-}
-
-/**
- * Get school ID synchronously with fallback
- */
-export function getSchoolIdSync(defaultId: string = 'test-school-0'): string {
-  // Use a default value until the async function resolves
-  return defaultId;
-}
-
-/**
- * Get analytics summary data from database
- */
-export async function getAnalyticsSummary(schoolId: string): Promise<AnalyticsSummary> {
-  try {
-    const { data, error } = await supabase
-      .from('school_analytics_summary')
-      .select('*')
-      .eq('school_id', schoolId)
-      .maybeSingle();
-      
-    if (error) throw error;
-    
-    // Map to the expected AnalyticsSummary format
-    return data ? {
-      activeStudents: data.active_students || 0,
-      totalSessions: data.total_sessions || 0,
-      totalQueries: data.total_queries || 0,
-      avgSessionMinutes: data.avg_session_minutes || 0
-    } : {
-      activeStudents: 0,
-      totalSessions: 0,
-      totalQueries: 0,
-      avgSessionMinutes: 0
-    };
-  } catch (err) {
-    console.error('Error getting analytics summary:', err);
+    const result = data[0];
     return {
-      activeStudents: 0,
-      totalSessions: 0,
-      totalQueries: 0,
-      avgSessionMinutes: 0
+      activeStudents: result.active_students || 0,
+      totalSessions: result.total_sessions || 0,
+      totalQueries: result.total_queries || 0,
+      avgSessionMinutes: result.avg_session_minutes || 0
     };
+  } catch (error) {
+    console.error('Error in getAnalyticsSummary:', error);
+    throw error;
   }
-}
+};
 
-/**
- * Get session logs data from database
- */
-export async function getSessionLogs(schoolId: string, filters?: AnalyticsFilters): Promise<SessionData[]> {
+// Get session logs with filters
+export const getSessionLogs = async (schoolId: string, filters?: AnalyticsFilters): Promise<SessionData[]> => {
   try {
     let query = supabase
       .from('session_logs')
       .select(`
-        *,
-        student:user_id (
-          full_name
-        )
+        id,
+        user_id,
+        session_start,
+        session_end,
+        num_queries,
+        topic_or_content_used,
+        profiles!inner(full_name)
       `)
       .eq('school_id', schoolId)
       .order('session_start', { ascending: false });
-      
+
     // Apply date filters if provided
-    if (filters?.dateRange) {
-      if (filters.dateRange.from) {
-        query = query.gte('session_start', filters.dateRange.from.toISOString());
-      }
-      if (filters.dateRange.to) {
-        query = query.lte('session_start', filters.dateRange.to.toISOString());
-      }
+    if (filters?.dateRange?.from) {
+      query = query.gte('session_start', filters.dateRange.from.toISOString());
     }
-    
+    if (filters?.dateRange?.to) {
+      query = query.lte('session_start', filters.dateRange.to.toISOString());
+    }
+
     const { data, error } = await query;
-      
-    if (error) throw error;
-    
-    // Map to SessionData format
-    return data?.map(session => ({
+
+    if (error) {
+      console.error('Error fetching session logs:', error);
+      throw error;
+    }
+
+    return (data || []).map(session => ({
       id: session.id,
-      student_id: session.user_id,
-      student_name: session.student?.full_name || 'Unknown Student',
-      start_time: session.session_start,
-      end_time: session.session_end,
-      duration_minutes: session.session_end ? 
-        Math.round((new Date(session.session_end).getTime() - new Date(session.session_start).getTime()) / 60000) : 
-        0,
-      queries_count: session.num_queries || 0,
-      topic: session.topic_or_content_used
-    })) || [];
-  } catch (err) {
-    console.error('Error getting session logs:', err);
-    return [];
+      userId: session.user_id,
+      userName: session.profiles?.full_name || 'Unknown User',
+      sessionStart: new Date(session.session_start),
+      sessionEnd: session.session_end ? new Date(session.session_end) : null,
+      numQueries: session.num_queries || 0,
+      topic: session.topic_or_content_used || 'N/A',
+      duration: session.session_end ? 
+        Math.round((new Date(session.session_end).getTime() - new Date(session.session_start).getTime()) / (1000 * 60)) : 
+        0
+    }));
+  } catch (error) {
+    console.error('Error in getSessionLogs:', error);
+    throw error;
   }
-}
+};
 
-/**
- * Get popular topics data
- */
-export async function getTopics(schoolId: string, filters?: AnalyticsFilters): Promise<TopicData[]> {
+// Get most studied topics using the new security definer function
+export const getTopics = async (schoolId: string, filters?: AnalyticsFilters): Promise<TopicData[]> => {
   try {
-    const { data, error } = await supabase
-      .from('most_studied_topics')
-      .select('*')
-      .eq('school_id', schoolId);
-      
-    if (error) throw error;
-    
-    // Calculate percentages
-    const totalCount = data?.reduce((sum, item) => sum + (item.count_of_sessions || 0), 0) || 0;
-    
-    return data?.map(item => ({
-      id: item.topic_or_content_used || `topic-${Math.random().toString(36).substring(7)}`,
-      topic: item.topic_or_content_used || 'Unknown Topic',
-      count: item.count_of_sessions || 0,
-      percentage: totalCount ? Math.round((item.count_of_sessions || 0) / totalCount * 100) : 0,
-      // Add compatibility fields
-      name: item.topic_or_content_used || 'Unknown Topic',
-      value: item.count_of_sessions || 0
-    })) || [];
-  } catch (err) {
-    console.error('Error getting popular topics:', err);
-    return [];
+    const { data, error } = await supabase.rpc('get_most_studied_topics', {
+      p_school_id: schoolId
+    });
+
+    if (error) {
+      console.error('Error fetching topics:', error);
+      throw error;
+    }
+
+    return (data || []).map(topic => ({
+      topic: topic.topic_or_content_used || 'Unknown',
+      count: topic.count_of_sessions || 0,
+      rank: topic.topic_rank || 0
+    }));
+  } catch (error) {
+    console.error('Error in getTopics:', error);
+    throw error;
   }
-}
+};
 
-/**
- * Get student study time data
- */
-export async function getStudyTime(schoolId: string, filters?: AnalyticsFilters): Promise<StudyTimeData[]> {
+// Get student study time using the new security definer function
+export const getStudyTime = async (schoolId: string, filters?: AnalyticsFilters): Promise<StudyTimeData[]> => {
   try {
-    const { data, error } = await supabase
-      .from('student_weekly_study_time')
-      .select('*')
-      .eq('school_id', schoolId);
-      
-    if (error) throw error;
-    
-    return data?.map(item => ({
-      student_id: item.user_id || '',
-      student_name: item.student_name || 'Unknown Student',
-      total_minutes: Math.round((item.study_hours || 0) * 60),
-      sessions_count: 0, // This might need to be calculated separately
-      // Add compatibility fields
-      name: item.student_name || 'Unknown Student',
+    const { data, error } = await supabase.rpc('get_student_weekly_study_time', {
+      p_school_id: schoolId
+    });
+
+    if (error) {
+      console.error('Error fetching study time:', error);
+      throw error;
+    }
+
+    return (data || []).map(item => ({
+      userId: item.user_id,
       studentName: item.student_name || 'Unknown Student',
+      week: `${item.year}-W${item.week_number}`,
       hours: item.study_hours || 0
-    })) || [];
-  } catch (err) {
-    console.error('Error getting student study time:', err);
-    return [];
+    }));
+  } catch (error) {
+    console.error('Error in getStudyTime:', error);
+    throw error;
   }
-}
+};
 
-/**
- * Format a date range as a readable string
- */
-export function getDateRangeText(dateRange?: DateRange): string {
-  if (!dateRange) return 'All Time';
+// Helper function to format date range for display and export
+export const getDateRangeText = (dateRange?: DateRange): string => {
+  if (!dateRange || (!dateRange.from && !dateRange.to)) {
+    return 'All Time';
+  }
   
-  const fromDate = dateRange.from ? format(dateRange.from, 'MMM d, yyyy') : '';
-  const toDate = dateRange.to ? format(dateRange.to, 'MMM d, yyyy') : 'Present';
+  const formatDate = (date: Date | undefined) => {
+    if (!date) return '';
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
   
-  return `${fromDate} to ${toDate}`;
-}
+  if (dateRange.from && dateRange.to) {
+    return `${formatDate(dateRange.from)} to ${formatDate(dateRange.to)}`;
+  } else if (dateRange.from) {
+    return `From ${formatDate(dateRange.from)}`;
+  } else if (dateRange.to) {
+    return `Until ${formatDate(dateRange.to)}`;
+  }
+  
+  return 'Custom Range';
+};
 
-/**
- * Export analytics data to CSV
- */
-export function exportAnalyticsToCSV(
+// Export analytics data to CSV
+export const exportAnalyticsToCSV = (
   summary: AnalyticsSummary,
   sessions: SessionData[],
   topics: TopicData[],
   studyTime: StudyTimeData[],
   dateRangeText: string
-): void {
-  // Create CSV for sessions
-  const sessionsCSV = [
-    'Student Name,Start Time,End Time,Duration (min),Queries,Topic',
-    ...sessions.map(s => 
-      `"${s.student_name}","${s.start_time}","${s.end_time || ''}",${s.duration_minutes},${s.queries_count},"${s.topic || ''}"`)
-  ].join('\n');
+) => {
+  // Create CSV content
+  let csvContent = "data:text/csv;charset=utf-8,";
   
-  downloadCSV(sessionsCSV, `sessions-${dateRangeText.replace(/\s+/g, '-')}.csv`);
+  // Add summary section
+  csvContent += "ANALYTICS SUMMARY - " + dateRangeText + "\r\n";
+  csvContent += "Active Students,Total Sessions,Total Queries,Avg Session Minutes\r\n";
+  csvContent += `${summary.activeStudents},${summary.totalSessions},${summary.totalQueries},${summary.avgSessionMinutes.toFixed(2)}\r\n\r\n`;
   
-  // Create CSV for topics
-  const topicsCSV = [
-    'Topic,Count,Percentage',
-    ...topics.map(t => `"${t.topic}",${t.count},${t.percentage}%`)
-  ].join('\n');
+  // Add sessions section
+  csvContent += "SESSION LOGS\r\n";
+  csvContent += "User,Start Time,End Time,Duration (min),Queries,Topic\r\n";
   
-  downloadCSV(topicsCSV, `topics-${dateRangeText.replace(/\s+/g, '-')}.csv`);
+  sessions.forEach(session => {
+    const startTime = session.sessionStart.toLocaleString();
+    const endTime = session.sessionEnd ? session.sessionEnd.toLocaleString() : 'N/A';
+    csvContent += `"${session.userName}","${startTime}","${endTime}",${session.duration},${session.numQueries},"${session.topic}"\r\n`;
+  });
   
-  // Create CSV for study time
-  const studyTimeCSV = [
-    'Student,Total Minutes,Sessions',
-    ...studyTime.map(s => `"${s.student_name}",${s.total_minutes},${s.sessions_count}`)
-  ].join('\n');
+  csvContent += "\r\n";
   
-  downloadCSV(studyTimeCSV, `study-time-${dateRangeText.replace(/\s+/g, '-')}.csv`);
-}
-
-/**
- * Download data as a CSV file
- */
-function downloadCSV(csvContent: string, filename: string): void {
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.setAttribute('href', url);
-  link.setAttribute('download', filename);
-  link.style.visibility = 'hidden';
+  // Add topics section
+  csvContent += "MOST STUDIED TOPICS\r\n";
+  csvContent += "Rank,Topic,Count\r\n";
+  
+  topics.forEach(topic => {
+    csvContent += `${topic.rank},"${topic.topic}",${topic.count}\r\n`;
+  });
+  
+  csvContent += "\r\n";
+  
+  // Add study time section
+  csvContent += "WEEKLY STUDY TIME\r\n";
+  csvContent += "Student,Week,Hours\r\n";
+  
+  studyTime.forEach(item => {
+    csvContent += `"${item.studentName}","${item.week}",${item.hours.toFixed(2)}\r\n`;
+  });
+  
+  // Create download link
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement("a");
+  link.setAttribute("href", encodedUri);
+  link.setAttribute("download", `analytics_export_${new Date().toISOString().split('T')[0]}.csv`);
   document.body.appendChild(link);
+  
+  // Trigger download and clean up
   link.click();
   document.body.removeChild(link);
-}
-
-// Export aliases for backward compatibility
-export {
-  getTopics as getPopularTopics,
-  getStudyTime as getStudentStudyTime
 };

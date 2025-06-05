@@ -12,6 +12,7 @@ interface UserProfile {
   email?: string;
   school_id?: string;
   school_code?: string;
+  school_name?: string;
   is_supervisor?: boolean;
 }
 
@@ -20,7 +21,10 @@ interface AuthContextType {
   profile: UserProfile | null;
   session: Session | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
+  isLoading: boolean;
+  userRole: string | null;
+  schoolId: string | null;
+  signIn: (email: string, password: string) => Promise<{ error?: any; success?: boolean }>;
   signUp: (email: string, password: string, userData: any) => Promise<void>;
   signOut: () => Promise<void>;
   isTeacher: boolean;
@@ -118,7 +122,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Rate limiting check
     if (!authRateLimiter.isAllowed(email)) {
       toast.error('Too many login attempts. Please try again later.');
-      throw new Error('Rate limit exceeded');
+      return { error: new Error('Rate limit exceeded') };
     }
 
     // Validate and sanitize input
@@ -126,7 +130,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     
     if (!valid) {
       toast.error('Invalid input: ' + errors.join(', '));
-      throw new Error('Invalid input');
+      return { error: new Error('Invalid input') };
     }
 
     try {
@@ -142,15 +146,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         } else {
           toast.error('Login failed. Please try again.');
         }
-        throw error;
+        return { error };
       }
 
       // Reset rate limiter on successful login
       authRateLimiter.reset(email);
       toast.success('Signed in successfully');
+      return { success: true };
     } catch (error) {
       console.error('Sign in error:', error);
-      throw error;
+      return { error };
     }
   };
 
@@ -219,12 +224,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const isStudent = profile?.user_type === 'student';
   const isSupervisor = Boolean(profile?.is_supervisor);
   const isSchoolAdmin = profile?.user_type === 'school_admin' || profile?.user_type === 'school';
+  const userRole = profile?.user_type || null;
+  const schoolId = profile?.school_id || null;
 
   const value: AuthContextType = {
     user,
     profile,
     session,
     loading,
+    isLoading: loading,
+    userRole,
+    schoolId,
     signIn,
     signUp,
     signOut,

@@ -39,6 +39,9 @@ const TeacherAnalytics = () => {
   useEffect(() => {
     if (schoolId) {
       loadAnalyticsData(schoolId, filters);
+    } else {
+      toast.error("School ID not found. Please ensure you're logged in properly.");
+      setIsLoading(false);
     }
   }, [schoolId, filters]);
 
@@ -95,6 +98,19 @@ const TeacherAnalytics = () => {
   const handleFilterChange = (newFilters: AnalyticsFilters) => {
     setFilters(newFilters);
   };
+
+  if (!schoolId) {
+    return (
+      <DashboardLayout>
+        <div className="container py-6">
+          <h1 className="text-2xl font-bold mb-6">Student Analytics</h1>
+          <div className="bg-amber-50 border border-amber-200 rounded-md p-4">
+            <p className="text-amber-800">School information not available. Please contact your administrator.</p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
