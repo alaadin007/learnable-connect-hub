@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
-import { getSchoolIdSync } from '@/utils/analyticsUtils';
+import { getSchoolIdSync } from '@/utils/apiHelpers';
 
 // Define Student type
 interface Student {

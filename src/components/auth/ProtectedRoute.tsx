@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -37,9 +38,8 @@ const ProtectedRoute = ({
 
   // If roles are specified, check them
   if (allowedRoles && allowedRoles.length > 0 && userRole) {
-    // No need to normalize the role anymore, since 'school' is now a valid UserRole
-    // But we'll keep the check for backward compatibility
-    const normalizedUserRole = userRole;
+    // Cast userRole to UserRole type safely
+    const normalizedUserRole = userRole as UserRole;
     
     if (!allowedRoles.includes(normalizedUserRole)) {
       // Redirect based on role

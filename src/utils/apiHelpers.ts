@@ -11,7 +11,6 @@ import {
   AnalyticsSummary,
   SchoolPerformanceSummary
 } from '@/components/analytics/types';
-import { processProfileData } from '@/utils/analyticsUtils';
 
 // Define UserRole type and export it
 export type UserRole = 'student' | 'teacher' | 'school_admin' | 'teacher_supervisor' | 'school';
@@ -232,6 +231,27 @@ export async function deleteDocumentContent(documentId: string) {
     .delete()
     .eq('document_id', documentId);
 }
+
+/**
+ * Process profile data safely
+ */
+export const processProfileData = (data: any): ProfileData | null => {
+  if (!data) return null;
+  
+  return {
+    id: data.id,
+    user_type: data.user_type,
+    full_name: data.full_name,
+    email: data.email,
+    school_id: data.school_id,
+    school_code: data.school_code,
+    school_name: data.school_name,
+    is_supervisor: data.is_supervisor,
+    is_active: data.is_active,
+    created_at: data.created_at,
+    updated_at: data.updated_at
+  };
+};
 
 /**
  * Create a profile with type safety
@@ -467,9 +487,7 @@ import {
   getAnalyticsSummary, 
   getSessionLogs, 
   getTopics,
-  getStudyTime,
-  getPopularTopics,
-  getStudentStudyTime 
+  getStudyTime
 } from './analyticsUtils';
 
 // Re-export for backward compatibility
@@ -477,9 +495,7 @@ export {
   getAnalyticsSummary, 
   getSessionLogs, 
   getTopics,
-  getStudyTime,
-  getPopularTopics,
-  getStudentStudyTime
+  getStudyTime
 };
 
 // Placeholder functions for missing exports referenced in AnalyticsDashboard

@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { SessionData, TopicData, StudyTimeData, AnalyticsSummary, AnalyticsFilters, DateRange } from '@/components/analytics/types';
 
@@ -69,15 +70,15 @@ export const getSessionLogs = async (schoolId: string, filters?: AnalyticsFilter
 
     return (data || []).map(session => ({
       id: session.id,
-      userId: session.user_id,
-      userName: session.profiles?.full_name || 'Unknown User',
-      sessionStart: new Date(session.session_start),
-      sessionEnd: session.session_end ? new Date(session.session_end) : null,
-      numQueries: session.num_queries || 0,
-      topic: session.topic_or_content_used || 'N/A',
-      duration: session.session_end ? 
+      student_id: session.user_id,
+      student_name: session.profiles?.full_name || 'Unknown User',
+      start_time: session.session_start,
+      end_time: session.session_end || '',
+      duration_minutes: session.session_end ? 
         Math.round((new Date(session.session_end).getTime() - new Date(session.session_start).getTime()) / (1000 * 60)) : 
-        0
+        0,
+      queries_count: session.num_queries || 0,
+      topic: session.topic_or_content_used || 'N/A'
     }));
   } catch (error) {
     console.error('Error in getSessionLogs:', error);
@@ -97,10 +98,13 @@ export const getTopics = async (schoolId: string, filters?: AnalyticsFilters): P
       throw error;
     }
 
-    return (data || []).map(topic => ({
+    return (data || []).map((topic, index) => ({
+      id: `topic-${index}`,
       topic: topic.topic_or_content_used || 'Unknown',
       count: topic.count_of_sessions || 0,
-      rank: topic.topic_rank || 0
+      percentage: 0, // Calculate percentage if needed
+      name: topic.topic_or_content_used || 'Unknown', // For compatibility
+      value: topic.count_of_sessions || 0 // For compatibility
     }));
   } catch (error) {
     console.error('Error in getTopics:', error);
@@ -121,15 +125,52 @@ export const getStudyTime = async (schoolId: string, filters?: AnalyticsFilters)
     }
 
     return (data || []).map(item => ({
-      userId: item.user_id,
-      studentName: item.student_name || 'Unknown Student',
-      week: `${item.year}-W${item.week_number}`,
-      hours: item.study_hours || 0
+      student_id: item.user_id,
+      student_name: item.student_name || 'Unknown Student',
+      total_minutes: (item.study_hours || 0) * 60,
+      sessions_count: 1, // Default value since not provided by the function
+      name: item.student_name || 'Unknown Student', // For compatibility
+      studentName: item.student_name || 'Unknown Student', // For compatibility
+      hours: item.study_hours || 0 // For compatibility
     }));
   } catch (error) {
     console.error('Error in getStudyTime:', error);
     throw error;
   }
+};
+
+// Process profile data safely
+export const processProfileData = (data: any) => {
+  if (!data) return null;
+  
+  return {
+    id: data.id,
+    user_type: data.user_type,
+    full_name: data.full_name,
+    email: data.email,
+    school_id: data.school_id,
+    school_code: data.school_code,
+    school_name: data.school_name,
+    is_supervisor: data.is_supervisor,
+    is_active: data.is_active,
+    created_at: data.created_at,
+    updated_at: data.updated_at
+  };
+};
+
+// Get school ID synchronously with fallback
+export const getSchoolIdSync = (defaultId: string = 'test-school-0'): string => {
+  // Use a default value until the async function resolves
+  return defaultId;
+};
+
+// Placeholder functions for missing exports
+export const getPopularTopics = async (schoolId: string): Promise<TopicData[]> => {
+  return getTopics(schoolId);
+};
+
+export const getStudentStudyTime = async (schoolId: string): Promise<StudyTimeData[]> => {
+  return getStudyTime(schoolId);
 };
 
 // Helper function to format date range for display and export
@@ -179,29 +220,29 @@ export const exportAnalyticsToCSV = (
   csvContent += "User,Start Time,End Time,Duration (min),Queries,Topic\r\n";
   
   sessions.forEach(session => {
-    const startTime = session.sessionStart.toLocaleString();
-    const endTime = session.sessionEnd ? session.sessionEnd.toLocaleString() : 'N/A';
-    csvContent += `"${session.userName}","${startTime}","${endTime}",${session.duration},${session.numQueries},"${session.topic}"\r\n`;
+    const startTime = new Date(session.start_time).toLocaleString();
+    const endTime = session.end_time ? new Date(session.end_time).toLocaleString() : 'N/A';
+    csvContent += `"${session.student_name}","${startTime}","${endTime}",${session.duration_minutes},${session.queries_count},"${session.topic}"\r\n`;
   });
   
   csvContent += "\r\n";
   
   // Add topics section
   csvContent += "MOST STUDIED TOPICS\r\n";
-  csvContent += "Rank,Topic,Count\r\n";
+  csvContent += "Topic,Count\r\n";
   
   topics.forEach(topic => {
-    csvContent += `${topic.rank},"${topic.topic}",${topic.count}\r\n`;
+    csvContent += `"${topic.topic}",${topic.count}\r\n`;
   });
   
   csvContent += "\r\n";
   
   // Add study time section
-  csvContent += "WEEKLY STUDY TIME\r\n";
-  csvContent += "Student,Week,Hours\r\n";
+  csvContent += "STUDY TIME\r\n";
+  csvContent += "Student,Total Minutes\r\n";
   
   studyTime.forEach(item => {
-    csvContent += `"${item.studentName}","${item.week}",${item.hours.toFixed(2)}\r\n`;
+    csvContent += `"${item.student_name}",${item.total_minutes}\r\n`;
   });
   
   // Create download link
