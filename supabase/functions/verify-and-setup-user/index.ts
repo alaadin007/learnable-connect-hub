@@ -7,6 +7,22 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Security: Input validation helpers
+function validateUserType(userType: string): boolean {
+  const validTypes = ["teacher", "student", "school_admin", "school"];
+  return validTypes.includes(userType);
+}
+
+function validateUUID(uuid: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(uuid);
+}
+
+function sanitizeString(input: string): string {
+  if (!input || typeof input !== 'string') return '';
+  return input.trim().substring(0, 255); // Limit length and trim
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -15,15 +31,38 @@ serve(async (req) => {
       status: 204,
     });
   }
+
+  // Security: Only allow POST method
+  if (req.method !== "POST") {
+    return new Response(
+      JSON.stringify({ error: "Method not allowed" }),
+      {
+        status: 405,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      }
+    );
+  }
   
   try {
+    // Security: Validate authorization header
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return new Response(
+        JSON.stringify({ error: "Invalid authorization header" }),
+        {
+          status: 401,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
+
     // Create a Supabase client with the auth context of the requesting user
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_ANON_KEY") ?? "",
       {
         global: {
-          headers: { Authorization: req.headers.get("Authorization")! },
+          headers: { Authorization: authHeader },
         },
       }
     );
@@ -45,21 +84,31 @@ serve(async (req) => {
     // Get the user metadata
     const userMetadata = user.user_metadata;
     
+    // Security: Validate and sanitize user metadata
+    let userType = userMetadata?.user_type || 'student';
+    if (!validateUserType(userType)) {
+      userType = 'student'; // Default to student for invalid types
+    }
+    
     // Normalize user_type: always treat 'school' as 'school_admin'
-    let userType = userMetadata?.user_type || 'student'; // Default to student if not specified
     if (userType === 'school') {
       userType = 'school_admin';
     }
     
-    const schoolId = userMetadata?.school_id;
-    const schoolCode = userMetadata?.school_code;
-    const schoolName = userMetadata?.school_name;
+    // Security: Validate and sanitize other metadata fields
+    const schoolId = userMetadata?.school_id && validateUUID(userMetadata.school_id) 
+      ? userMetadata.school_id 
+      : null;
+    const schoolCode = sanitizeString(userMetadata?.school_code || '');
+    const schoolName = sanitizeString(userMetadata?.school_name || '');
+    const fullName = sanitizeString(userMetadata?.full_name || '');
     
     console.log("User setup with metadata:", {
       userType,
       schoolId,
       schoolCode,
-      schoolName
+      schoolName,
+      fullName
     });
     
     // Ensure profile has the correct details with normalized user_type
@@ -67,11 +116,11 @@ serve(async (req) => {
       .from("profiles")
       .upsert({
         id: user.id,
-        user_type: userType, // Save the normalized user_type
+        user_type: userType,
         school_id: schoolId,
         school_code: schoolCode,
         school_name: schoolName,
-        full_name: userMetadata?.full_name,
+        full_name: fullName,
         email: user.email,
         is_active: true
       });
@@ -89,6 +138,17 @@ serve(async (req) => {
     
     // Process based on user type
     if (userType === "teacher") {
+      // Security: Validate school_id is present for teachers
+      if (!schoolId) {
+        return new Response(
+          JSON.stringify({ error: "School ID is required for teachers" }),
+          {
+            status: 400,
+            headers: { "Content-Type": "application/json", ...corsHeaders },
+          }
+        );
+      }
+
       // Add user to teachers table
       const { data: teacherData, error: teacherError } = await supabaseClient
         .from("teachers")
@@ -129,6 +189,17 @@ serve(async (req) => {
       }
       
     } else if (userType === "student") {
+      // Security: Validate school_id is present for students
+      if (!schoolId) {
+        return new Response(
+          JSON.stringify({ error: "School ID is required for students" }),
+          {
+            status: 400,
+            headers: { "Content-Type": "application/json", ...corsHeaders },
+          }
+        );
+      }
+
       // Add user to students table
       const { data: studentData, error: studentError } = await supabaseClient
         .from("students")
@@ -169,6 +240,17 @@ serve(async (req) => {
       }
       
     } else if (userType === "school_admin") {
+      // Security: Validate school_id is present for school admins
+      if (!schoolId) {
+        return new Response(
+          JSON.stringify({ error: "School ID is required for school administrators" }),
+          {
+            status: 400,
+            headers: { "Content-Type": "application/json", ...corsHeaders },
+          }
+        );
+      }
+
       // Add user to school_admins table
       const { data: adminData, error: adminError } = await supabaseClient
         .from("school_admins")

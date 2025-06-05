@@ -2363,6 +2363,10 @@ export type Database = {
         Args: { user_id_param?: string }
         Returns: boolean
       }
+      is_valid_email: {
+        Args: { email: string }
+        Returns: boolean
+      }
       populatetestaccountwithsessions: {
         Args: { userid: string; schoolid: string; num_sessions?: number }
         Returns: undefined

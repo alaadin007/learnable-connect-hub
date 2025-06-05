@@ -4,6 +4,7 @@ import { Profile, UserType } from '@/types/profile';
 import { useNavigate } from 'react-router-dom';
 import { UserRole } from '@/components/auth/ProtectedRoute';
 import { toast } from 'sonner';
+import { validateEmail, sanitizeTextInput } from '@/utils/security';
 
 interface AuthContextType {
   user: any;
@@ -176,8 +177,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const signIn = async (email: string, password: string) => {
     setAuthError(null);
+    
+    // Security: Validate input
+    if (!validateEmail(email)) {
+      const error = new Error("Invalid email format");
+      setAuthError(error.message);
+      return { error };
+    }
+    
+    if (!password || password.length < 6) {
+      const error = new Error("Password must be at least 6 characters");
+      setAuthError(error.message);
+      return { error };
+    }
+    
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await supabase.auth.signInWithPassword({ 
+        email: email.toLowerCase().trim(), 
+        password 
+      });
 
       if (error) {
         console.error("Sign-in error:", error);
@@ -201,11 +219,35 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const signUp = async (email: string, password: string, metadata: any = {}) => {
     setAuthError(null);
+    
+    // Security: Validate input
+    if (!validateEmail(email)) {
+      const error = new Error("Invalid email format");
+      setAuthError(error.message);
+      return { error };
+    }
+    
+    if (!password || password.length < 6) {
+      const error = new Error("Password must be at least 6 characters");
+      setAuthError(error.message);
+      return { error };
+    }
+    
+    // Security: Sanitize metadata
+    const sanitizedMetadata = Object.keys(metadata).reduce((acc, key) => {
+      if (typeof metadata[key] === 'string') {
+        acc[key] = sanitizeTextInput(metadata[key]);
+      } else {
+        acc[key] = metadata[key];
+      }
+      return acc;
+    }, {} as any);
+    
     try {
       const { data, error } = await supabase.auth.signUp({
-        email,
+        email: email.toLowerCase().trim(),
         password,
-        options: { data: metadata },
+        options: { data: sanitizedMetadata },
       });
 
       if (error) {
@@ -274,9 +316,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
 
     try {
+      // Security: Sanitize text inputs in updates
+      const sanitizedUpdates = Object.keys(updates).reduce((acc, key) => {
+        const value = updates[key as keyof Profile];
+        if (typeof value === 'string' && key !== 'id' && key !== 'school_id') {
+          acc[key as keyof Profile] = sanitizeTextInput(value) as any;
+        } else {
+          acc[key as keyof Profile] = value;
+        }
+        return acc;
+      }, {} as Partial<Profile>);
+
       const { data, error } = await supabase
         .from('profiles')
-        .update(updates)
+        .update(sanitizedUpdates)
         .eq('id', user.id)
         .select()
         .single();

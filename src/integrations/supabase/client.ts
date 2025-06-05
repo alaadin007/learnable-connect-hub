@@ -4,9 +4,28 @@ import type { Database } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
 import { isNetworkError, retryWithBackoff } from '@/utils/networkHelpers';
 
-// Use hardcoded values as fallbacks for development
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://ldlgckwkdsvrfuymidrr.supabase.co"
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxkbGdja3drZHN2cmZ1eW1pZHJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDYwNTc2NzksImV4cCI6MjA2MTYzMzY3OX0.kItrTMcKThMXuwNDClYNTGkEq-1EVVldq1vFw7ZsKx0"
+// Security: Remove hardcoded credentials - require environment variables
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+// Security: Validate that required environment variables are present
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error(
+    'Missing required Supabase environment variables. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.'
+  );
+}
+
+// Security: Validate URL format to prevent injection attacks
+const urlPattern = /^https:\/\/[a-zA-Z0-9-]+\.supabase\.co$/;
+if (!urlPattern.test(supabaseUrl)) {
+  throw new Error('Invalid Supabase URL format. URL must be a valid Supabase domain.');
+}
+
+// Security: Validate API key format (basic validation)
+const keyPattern = /^[A-Za-z0-9._-]+$/;
+if (!keyPattern.test(supabaseAnonKey)) {
+  throw new Error('Invalid Supabase API key format.');
+}
 
 // Add retry and error handling options
 const clientOptions = {
@@ -101,8 +120,20 @@ export async function verifySchoolCode(code: string): Promise<{
   schoolName?: string;
 }> {
   try {
+    // Security: Input validation for school code
+    if (!code || typeof code !== 'string') {
+      return { valid: false };
+    }
+    
+    // Security: Sanitize input - only allow alphanumeric and common symbols
+    const sanitizedCode = code.trim().replace(/[^A-Za-z0-9-_]/g, '');
+    if (sanitizedCode !== code.trim()) {
+      console.warn("School code contained invalid characters");
+      return { valid: false };
+    }
+    
     // First check if this is a demo or test code
-    if (DEMO_CODES.includes(code) || code.startsWith("DEMO-") || code === TEST_SCHOOL_CODE) {
+    if (DEMO_CODES.includes(sanitizedCode) || sanitizedCode.startsWith("DEMO-") || sanitizedCode === TEST_SCHOOL_CODE) {
       return { 
         valid: true, 
         schoolId: 'test-school-id', 
@@ -112,7 +143,7 @@ export async function verifySchoolCode(code: string): Promise<{
     
     // Try to verify the code using Supabase RPC function with retry mechanism
     const { data, error } = await retryWithBackoff(
-      async () => await supabase.rpc('verify_and_link_school_code', { code }),
+      async () => await supabase.rpc('verify_and_link_school_code', { code: sanitizedCode }),
       2,  // max retries
       500  // initial delay in ms
     );
@@ -127,10 +158,13 @@ export async function verifySchoolCode(code: string): Promise<{
       return { valid: false };
     }
     
-    // Store the school name in localStorage for future reference
-    if (data[0].school_id) {
+    // Security: Validate the returned school data
+    const schoolData = data[0];
+    if (schoolData.school_id && typeof schoolData.school_id === 'string') {
       try {
-        localStorage.setItem(`school_name_${data[0].school_id}`, data[0].school_name || 'Unknown School');
+        // Security: Store school name securely
+        const schoolName = schoolData.school_name || 'Unknown School';
+        localStorage.setItem(`school_name_${schoolData.school_id}`, schoolName);
       } catch (e) {
         console.error("Error storing school name:", e);
       }
@@ -138,8 +172,8 @@ export async function verifySchoolCode(code: string): Promise<{
     
     return {
       valid: true,
-      schoolId: data[0].school_id,
-      schoolName: data[0].school_name
+      schoolId: schoolData.school_id,
+      schoolName: schoolData.school_name
     };
   } catch (error) {
     console.error("Exception verifying school code:", error);
@@ -147,32 +181,64 @@ export async function verifySchoolCode(code: string): Promise<{
   }
 }
 
-// API Key localStorage helpers
+// API Key localStorage helpers with security improvements
 export const API_KEY_STORAGE = {
   OPENAI: 'openai_api_key',
   GEMINI: 'gemini_api_key',
   PROVIDER: 'ai_provider'
-};
+} as const;
 
-// Get API key from localStorage
+// Get API key from localStorage with validation
 export function getApiKey(provider: 'openai' | 'gemini'): string | null {
-  return localStorage.getItem(
-    provider === 'openai' ? API_KEY_STORAGE.OPENAI : API_KEY_STORAGE.GEMINI
-  );
+  try {
+    const key = localStorage.getItem(
+      provider === 'openai' ? API_KEY_STORAGE.OPENAI : API_KEY_STORAGE.GEMINI
+    );
+    
+    // Security: Basic validation of API key format
+    if (key && typeof key === 'string' && key.length > 10) {
+      return key;
+    }
+    return null;
+  } catch (e) {
+    console.error("Error retrieving API key:", e);
+    return null;
+  }
 }
 
-// Save API key to localStorage
+// Save API key to localStorage with validation
 export function saveApiKey(provider: 'openai' | 'gemini', key: string): void {
-  localStorage.setItem(
-    provider === 'openai' ? API_KEY_STORAGE.OPENAI : API_KEY_STORAGE.GEMINI, 
-    key
-  );
-  localStorage.setItem(API_KEY_STORAGE.PROVIDER, provider);
+  try {
+    // Security: Input validation
+    if (!key || typeof key !== 'string' || key.length < 10) {
+      throw new Error('Invalid API key format');
+    }
+    
+    // Security: Validate key format based on provider
+    if (provider === 'openai' && !key.startsWith('sk-')) {
+      throw new Error('Invalid OpenAI API key format');
+    }
+    
+    localStorage.setItem(
+      provider === 'openai' ? API_KEY_STORAGE.OPENAI : API_KEY_STORAGE.GEMINI, 
+      key
+    );
+    localStorage.setItem(API_KEY_STORAGE.PROVIDER, provider);
+  } catch (e) {
+    console.error("Error saving API key:", e);
+    throw e;
+  }
 }
 
 // Get preferred AI provider
 export function getAiProvider(): 'openai' | 'gemini' {
-  return (localStorage.getItem(API_KEY_STORAGE.PROVIDER) as 'openai' | 'gemini') || 'openai';
+  try {
+    const provider = localStorage.getItem(API_KEY_STORAGE.PROVIDER);
+    return (provider === 'gemini' ? 'gemini' : 'openai');
+  } catch (e) {
+    console.error("Error getting AI provider:", e);
+    return 'openai';
+  }
 }
 
 // Check if API key is configured
