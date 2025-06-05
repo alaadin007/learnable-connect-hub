@@ -6,6 +6,7 @@ import App from './App.tsx';
 import './index.css';
 import { Toaster } from 'sonner';
 import NetworkStatusMonitor from './components/common/NetworkStatusMonitor';
+import ErrorBoundary from './components/common/ErrorBoundary';
 import { AuthProvider } from './contexts/AuthContext';
 import { SettingsProvider } from './contexts/SettingsContext';
 import { initPerformanceMonitoring } from './utils/performanceMonitor';
@@ -18,14 +19,16 @@ if (!rootElement) throw new Error('Root element not found');
 
 createRoot(rootElement).render(
   <React.StrictMode>
-    <BrowserRouter>
-      <AuthProvider>
-        <SettingsProvider>
-          <App />
-          <Toaster position="top-right" richColors />
-          <NetworkStatusMonitor />
-        </SettingsProvider>
-      </AuthProvider>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <AuthProvider>
+          <SettingsProvider>
+            <App />
+            <Toaster position="top-right" richColors />
+            <NetworkStatusMonitor />
+          </SettingsProvider>
+        </AuthProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
   </React.StrictMode>
 );

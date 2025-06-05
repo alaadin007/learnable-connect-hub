@@ -1,13 +1,14 @@
+
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
 import { isNetworkError, retryWithBackoff } from '@/utils/networkHelpers';
 
-// Use the actual Supabase project credentials
+// Hardcoded Supabase project credentials (no environment variables)
 const supabaseUrl = 'https://ldlgckwkdsvrfuymidrr.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxkbGdja3drZHN2cmZ1eW1pZHJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDYwNTc2NzksImV4cCI6MjA2MTYzMzY3OX0.kItrTMcKThMXuwNDClYNTGkEq-1EVVldq1vFw7ZsKx0';
 
-// Add retry and error handling options
+// Client configuration without any references to environment variables
 const clientOptions = {
   auth: {
     persistSession: true,
@@ -19,7 +20,6 @@ const clientOptions = {
       'apikey': supabaseAnonKey
     }
   },
-  // Fix the schema type by using string literal
   db: {
     schema: "public" as const
   },
@@ -30,7 +30,7 @@ const clientOptions = {
   }
 }
 
-// Create a properly initialized Supabase client with explicit typing
+// Create Supabase client with hardcoded credentials
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, clientOptions);
 
 // Simplified connection check that doesn't rely on profiles table
