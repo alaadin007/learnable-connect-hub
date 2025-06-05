@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -9,6 +10,7 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Skeleton } from '@/components/ui/skeleton';
 import StudentMetricsPanel from '@/components/analytics/StudentMetricsPanel';
 import TeacherMetricsPanel from '@/components/analytics/TeacherMetricsPanel';
+import { SchoolPerformancePanel } from '@/components/analytics/SchoolPerformancePanel';
 
 interface AdminAnalyticsProps {}
 
@@ -20,6 +22,16 @@ const AdminAnalytics: React.FC<AdminAnalyticsProps> = () => {
   
   const [studentMetrics, setStudentMetrics] = useState<any[]>([]);
   const [teacherMetrics, setTeacherMetrics] = useState<any[]>([]);
+  const [schoolPerformance, setSchoolPerformance] = useState<any[]>([]);
+  const [schoolPerformanceSummary, setSchoolPerformanceSummary] = useState<any>({
+    total_assessments: 0,
+    total_students: 0,
+    students_with_submissions: 0,
+    student_participation_rate: 0,
+    avg_score: 0,
+    completion_rate: 0,
+    avg_submissions_per_assessment: 0
+  });
   
   useEffect(() => {
     if (schoolId) {
@@ -38,6 +50,15 @@ const AdminAnalytics: React.FC<AdminAnalyticsProps> = () => {
       // Load teacher metrics
       const teacherData = await loadTeacherMetrics();
       setTeacherMetrics(teacherData || []);
+      
+      // Load school performance metrics
+      const schoolData = await loadSchoolPerformanceMetrics();
+      if (schoolData && schoolData.length > 0) {
+        setSchoolPerformance([schoolData[0]]);
+        setSchoolPerformanceSummary(schoolData[0]);
+      } else {
+        setSchoolPerformance([]);
+      }
     } catch (error) {
       console.error('Error loading analytics:', error);
       toast.error('Failed to load analytics data');
@@ -82,6 +103,24 @@ const AdminAnalytics: React.FC<AdminAnalyticsProps> = () => {
     }
   };
   
+  const loadSchoolPerformanceMetrics = async () => {
+    // Check if we have a real school ID
+    if (!schoolId) return [];
+    
+    try {
+      // Use the new security definer function instead of the view
+      const { data, error } = await supabase.rpc('get_school_performance_metrics_view', {
+        p_school_id: schoolId
+      });
+      
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching school performance metrics:', error);
+      return [];
+    }
+  };
+  
   const renderContent = () => {
     if (isLoading) {
       return <LoadingState />;
@@ -93,7 +132,7 @@ const AdminAnalytics: React.FC<AdminAnalyticsProps> = () => {
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="students">Students</TabsTrigger>
           <TabsTrigger value="teachers">Teachers</TabsTrigger>
-          <TabsTrigger value="content">Content</TabsTrigger>
+          <TabsTrigger value="school">School Performance</TabsTrigger>
         </TabsList>
         
         <div className="mt-8">
@@ -111,8 +150,12 @@ const AdminAnalytics: React.FC<AdminAnalyticsProps> = () => {
             <TeacherMetricsPanel data={teacherMetrics} schoolId={schoolId} />
           </TabsContent>
           
-          <TabsContent value="content">
-            <ContentAnalyticsPanel />
+          <TabsContent value="school">
+            <SchoolPerformancePanel 
+              data={schoolPerformance} 
+              summary={schoolPerformanceSummary}
+              isLoading={false}
+            />
           </TabsContent>
         </div>
       </Tabs>
@@ -198,20 +241,6 @@ const OverviewPanel = () => (
           <MetricCard title="Average Score" value="--%" />
           <MetricCard title="Sessions" value="--" />
         </div>
-      </CardContent>
-    </Card>
-  </div>
-);
-
-const ContentAnalyticsPanel = () => (
-  <div className="space-y-6">
-    <Card>
-      <CardHeader>
-        <CardTitle>Content Analytics</CardTitle>
-        <CardDescription>Insights into content usage and effectiveness</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <p>Content analytics data will be displayed here.</p>
       </CardContent>
     </Card>
   </div>
